@@ -213,6 +213,23 @@ make undeploy
 make uninstall
 ```
 
+## Codebase Stats
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ Language              Files        Lines         Code     Comments       Blanks
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ Go                       61        11598         8678         1287         1633
+ YAML                     26          793          634          121           38
+ Makefile                  1          260          167           46           47
+ Dockerfile                2           37           23            8            6
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ Total                    96        14331         9736         2528         2067
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+> Measured with [tokei](https://github.com/XAMPPRocky/tokei) (`tokei -C`). Auto-generated code, Helm chart templates, and CRD/RBAC manifests are excluded via `.tokeignore`.
+
 ## Development
 
 ```sh

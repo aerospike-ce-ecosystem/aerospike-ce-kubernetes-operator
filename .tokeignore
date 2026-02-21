@@ -1,0 +1,22 @@
+# tokei ignore — paths excluded from code statistics
+
+# Auto-generated code (controller-gen, deepcopy)
+**/zz_generated*.go
+
+# Build output and binaries
+bin/
+cover.out
+test/client-test/aerospike-crud-test
+
+# Dependency vendoring
+vendor/
+
+# Helm chart templates (Go template syntax, not real Go/YAML)
+charts/
+
+# Generated CRD and RBAC manifests
+config/crd/bases/
+config/rbac/
+
+# Hack scripts (boilerplate etc.)
+hack/

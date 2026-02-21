@@ -1,0 +1,64 @@
+apiVersion: asdbce.aerospike.com/v1alpha1
+kind: AerospikeCECluster
+metadata:
+  name: aerospike-ce-multirack
+  namespace: aerospike
+spec:
+  size: 6
+  image: aerospike:ce-8.1.1.1
+
+  rackConfig:
+    namespaces:
+      - testns
+    racks:
+      - id: 1
+        zone: us-east-1a
+      - id: 2
+        zone: us-east-1b
+      - id: 3
+        zone: us-east-1c
+
+  podSpec:
+    aerospikeContainer:
+      resources:
+        requests:
+          memory: "2Gi"
+          cpu: "1"
+        limits:
+          memory: "4Gi"
+          cpu: "2"
+
+  storage:
+    volumes:
+      - name: data-vol
+        source:
+          persistentVolume:
+            storageClass: gp3
+            size: 20Gi
+        aerospike:
+          path: /opt/aerospike/data
+        cascadeDelete: false
+
+  aerospikeConfig:
+    service:
+      cluster-name: aerospike-ce-multirack
+      proto-fd-max: 15000
+
+    network:
+      service:
+        address: any
+        port: 3000
+      heartbeat:
+        mode: mesh
+        port: 3002
+      fabric:
+        address: any
+        port: 3001
+
+    namespaces:
+      - name: testns
+        replication-factor: 2
+        storage-engine:
+          type: device
+          file: /opt/aerospike/data/testns.dat
+          filesize: 10737418240

@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- asdbce_v1alpha1_aerospikececluster.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples

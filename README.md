@@ -1,0 +1,189 @@
+# Aerospike CE Kubernetes Operator
+
+Kubernetes Operator for managing [Aerospike Community Edition](https://aerospike.com/) clusters. Built with [Kubebuilder](https://book.kubebuilder.io/) and [controller-runtime](https://github.com/kubernetes-sigs/controller-runtime).
+
+Deploy, scale, and perform rolling updates of Aerospike CE clusters via a custom `AerospikeCECluster` CRD.
+
+## Features
+
+- Declarative cluster lifecycle management (create, scale, rolling update)
+- Rack-aware deployment with zone/region affinity
+- Persistent volume storage with cascade delete support
+- Aerospike configuration management (auto-generates `aerospike.conf`)
+- Access control (ACL) with Kubernetes Secrets integration
+- Pod Disruption Budget for safe maintenance
+- Mesh heartbeat auto-configuration
+
+### CE Limitations
+
+| Constraint | Limit |
+|---|---|
+| Max cluster size | 8 nodes |
+| Max namespaces | 2 |
+| XDR | Not supported |
+| TLS | Not supported |
+| Strong Consistency | Not supported |
+
+## Quick Start
+
+### Prerequisites
+
+- Kubernetes cluster v1.26+
+- kubectl configured to access the cluster
+- cert-manager installed (for webhook TLS)
+
+### 1. Install CRDs
+
+```sh
+make install
+```
+
+### 2. Deploy the Operator
+
+```sh
+# Build and push the operator image
+make docker-build docker-push IMG=<your-registry>/aerospike-ce-operator:latest
+
+# Deploy to the cluster
+make deploy IMG=<your-registry>/aerospike-ce-operator:latest
+```
+
+### 3. Create an Aerospike Cluster
+
+Create the target namespace:
+
+```sh
+kubectl create namespace aerospike
+```
+
+#### Minimal single-node (in-memory)
+
+```yaml
+apiVersion: asdbce.aerospike.com/v1alpha1
+kind: AerospikeCECluster
+metadata:
+  name: aerospike-ce-basic
+  namespace: aerospike
+spec:
+  size: 1
+  image: aerospike:ce-8.1.1.1
+
+  aerospikeConfig:
+    namespaces:
+      - name: test
+        replication-factor: 1
+        storage-engine:
+          type: memory
+          data-size: 1073741824
+```
+
+```sh
+kubectl apply -f config/samples/asdbce_v1alpha1_aerospikececluster.yaml
+```
+
+#### 3-node cluster with persistent storage
+
+```yaml
+apiVersion: asdbce.aerospike.com/v1alpha1
+kind: AerospikeCECluster
+metadata:
+  name: aerospike-ce-3node
+  namespace: aerospike
+spec:
+  size: 3
+  image: aerospike:ce-8.1.1.1
+
+  podSpec:
+    aerospikeContainer:
+      resources:
+        requests:
+          memory: "2Gi"
+          cpu: "1"
+        limits:
+          memory: "4Gi"
+          cpu: "2"
+
+  storage:
+    volumes:
+      - name: data-vol
+        source:
+          persistentVolume:
+            storageClass: standard
+            size: 10Gi
+            volumeMode: Filesystem
+        aerospike:
+          path: /opt/aerospike/data
+        cascadeDelete: true
+
+  aerospikeConfig:
+    namespaces:
+      - name: testns
+        replication-factor: 2
+        storage-engine:
+          type: device
+          file: /opt/aerospike/data/testns.dat
+          filesize: 4294967296
+          data-in-memory: true
+```
+
+```sh
+kubectl apply -f config/samples/aerospike-ce-cluster-3node.yaml
+```
+
+### 4. Verify the Cluster
+
+```sh
+# Check the CR status
+kubectl -n aerospike get asce
+
+# Check pods
+kubectl -n aerospike get pods
+
+# Check logs
+kubectl -n aerospike logs -l app.kubernetes.io/name=aerospike-ce-operator
+```
+
+### 5. Connect to Aerospike
+
+```sh
+# Port-forward to a pod
+kubectl -n aerospike port-forward aerospike-ce-basic-0-0 3000:3000
+
+# Connect using aql or asadm
+aql -h 127.0.0.1 -p 3000
+```
+
+## More Examples
+
+| Sample | Description |
+|---|---|
+| [`asdbce_v1alpha1_aerospikececluster.yaml`](config/samples/asdbce_v1alpha1_aerospikececluster.yaml) | Minimal single-node in-memory |
+| [`aerospike-ce-cluster-3node.yaml`](config/samples/aerospike-ce-cluster-3node.yaml) | 3-node with persistent volume storage |
+| [`aerospike-ce-cluster-multirack.yaml`](config/samples/aerospike-ce-cluster-multirack.yaml) | 6-node multi-rack with zone affinity |
+| [`aerospike-ce-cluster-acl.yaml`](config/samples/aerospike-ce-cluster-acl.yaml) | 3-node with ACL (roles, users, K8s secrets) |
+
+## Uninstall
+
+```sh
+# Delete the cluster
+kubectl -n aerospike delete asce aerospike-ce-basic
+
+# Remove the operator
+make undeploy
+
+# Remove CRDs
+make uninstall
+```
+
+## Development
+
+```sh
+make build          # Build manager binary
+make test           # Run unit + integration tests
+make lint           # Run golangci-lint
+make run            # Run controller locally against current kubeconfig
+```
+
+## License
+
+Copyright 2026. Licensed under the Apache License, Version 2.0.

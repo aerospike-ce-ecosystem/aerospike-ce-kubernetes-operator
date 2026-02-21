@@ -1,0 +1,35 @@
+apiVersion: asdbce.aerospike.com/v1alpha1
+kind: AerospikeCECluster
+metadata:
+  name: aerospike-ce-basic
+  namespace: aerospike
+spec:
+  size: 1
+  image: aerospike:ce-8.1.1.1
+
+  aerospikeConfig:
+    service:
+      cluster-name: aerospike-ce-basic
+      proto-fd-max: 15000
+
+    network:
+      service:
+        address: any
+        port: 3000
+      heartbeat:
+        mode: mesh
+        port: 3002
+      fabric:
+        address: any
+        port: 3001
+
+    namespaces:
+      - name: test
+        replication-factor: 1
+        storage-engine:
+          type: memory
+          data-size: 1073741824
+
+    logging:
+      - name: /var/log/aerospike/aerospike.log
+        context: any info

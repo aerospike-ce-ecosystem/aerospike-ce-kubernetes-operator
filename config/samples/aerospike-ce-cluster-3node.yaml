@@ -1,0 +1,65 @@
+apiVersion: asdbce.aerospike.com/v1alpha1
+kind: AerospikeCECluster
+metadata:
+  name: aerospike-ce-3node
+  namespace: aerospike
+spec:
+  size: 3
+  image: aerospike:ce-8.1.1.1
+
+  podSpec:
+    aerospikeContainer:
+      resources:
+        requests:
+          memory: "2Gi"
+          cpu: "1"
+        limits:
+          memory: "4Gi"
+          cpu: "2"
+
+  storage:
+    volumes:
+      - name: data-vol
+        source:
+          persistentVolume:
+            storageClass: standard
+            size: 10Gi
+            volumeMode: Filesystem
+        aerospike:
+          path: /opt/aerospike/data
+        cascadeDelete: true
+
+      - name: workdir
+        source:
+          emptyDir: {}
+        aerospike:
+          path: /opt/aerospike/work
+
+  aerospikeConfig:
+    service:
+      cluster-name: aerospike-ce-3node
+      proto-fd-max: 15000
+
+    network:
+      service:
+        address: any
+        port: 3000
+      heartbeat:
+        mode: mesh
+        port: 3002
+      fabric:
+        address: any
+        port: 3001
+
+    namespaces:
+      - name: testns
+        replication-factor: 2
+        storage-engine:
+          type: device
+          file: /opt/aerospike/data/testns.dat
+          filesize: 4294967296
+          data-in-memory: true
+
+    logging:
+      - name: /var/log/aerospike/aerospike.log
+        context: any info

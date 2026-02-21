@@ -1,0 +1,86 @@
+apiVersion: asdbce.aerospike.com/v1alpha1
+kind: AerospikeCECluster
+metadata:
+  name: aerospike-ce-acl
+  namespace: aerospike
+spec:
+  size: 3
+  image: aerospike:ce-8.1.1.1
+
+  aerospikeAccessControl:
+    roles:
+      - name: readwrite-role
+        privileges:
+          - read-write
+      - name: readonly-role
+        privileges:
+          - read
+    users:
+      - name: admin
+        secretName: aerospike-admin-secret
+        roles:
+          - sys-admin
+          - user-admin
+      - name: app-user
+        secretName: aerospike-appuser-secret
+        roles:
+          - readwrite-role
+
+  storage:
+    volumes:
+      - name: data-vol
+        source:
+          persistentVolume:
+            storageClass: standard
+            size: 10Gi
+        aerospike:
+          path: /opt/aerospike/data
+        cascadeDelete: true
+
+  aerospikeConfig:
+    service:
+      cluster-name: aerospike-ce-acl
+      proto-fd-max: 15000
+
+    security: {}
+
+    network:
+      service:
+        address: any
+        port: 3000
+      heartbeat:
+        mode: mesh
+        port: 3002
+      fabric:
+        address: any
+        port: 3001
+
+    namespaces:
+      - name: testns
+        replication-factor: 2
+        storage-engine:
+          type: device
+          file: /opt/aerospike/data/testns.dat
+          filesize: 4294967296
+---
+# Secret for admin user password
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aerospike-admin-secret
+  namespace: aerospike
+type: Opaque
+data:
+  # base64 encoded "admin123" - change in production!
+  password: YWRtaW4xMjM=
+---
+# Secret for app user password
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aerospike-appuser-secret
+  namespace: aerospike
+type: Opaque
+data:
+  # base64 encoded "appuser123" - change in production!
+  password: YXBwdXNlcjEyMw==

@@ -1,0 +1,294 @@
+/*
+Copyright 2026.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package v1alpha1
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	ctrl "sigs.k8s.io/controller-runtime"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+)
+
+var aerospikececlusterlog = logf.Log.WithName("aerospikececluster-resource")
+
+const (
+	maxCEClusterSize     = 8
+	maxCENamespaces      = 2
+	defaultServicePort   = 3000
+	defaultFabricPort    = 3001
+	defaultHeartbeatPort = 3002
+	defaultProtoFdMax    = 15000
+	defaultHeartbeatMode = "mesh"
+)
+
+// SetupWebhookWithManager registers the webhooks for AerospikeCECluster.
+func (r *AerospikeCECluster) SetupWebhookWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewWebhookManagedBy(mgr, r).
+		WithDefaulter(&AerospikeCEClusterDefaulter{}).
+		WithValidator(&AerospikeCEClusterValidator{}).
+		Complete()
+}
+
+// +kubebuilder:webhook:path=/mutate-asdbce-aerospike-com-v1alpha1-aerospikececluster,mutating=true,failurePolicy=fail,sideEffects=None,groups=asdbce.aerospike.com,resources=aerospikececlusters,verbs=create;update,versions=v1alpha1,name=maerospikececluster.kb.io,admissionReviewVersions=v1
+
+// AerospikeCEClusterDefaulter implements admission.Defaulter for AerospikeCECluster.
+type AerospikeCEClusterDefaulter struct{}
+
+var _ admission.Defaulter[*AerospikeCECluster] = &AerospikeCEClusterDefaulter{}
+
+// Default implements admission.Defaulter[*AerospikeCECluster].
+func (d *AerospikeCEClusterDefaulter) Default(ctx context.Context, cluster *AerospikeCECluster) error {
+	aerospikececlusterlog.Info("Defaulting", "name", cluster.Name, "namespace", cluster.Namespace)
+
+	if cluster.Spec.AerospikeConfig == nil {
+		cluster.Spec.AerospikeConfig = &AerospikeConfigSpec{
+			Value: make(map[string]interface{}),
+		}
+	}
+	if cluster.Spec.AerospikeConfig.Value == nil {
+		cluster.Spec.AerospikeConfig.Value = make(map[string]interface{})
+	}
+
+	d.defaultServiceConfig(cluster)
+	d.defaultNetworkConfig(cluster)
+
+	return nil
+}
+
+// defaultServiceConfig sets defaults in aerospikeConfig.service.
+func (d *AerospikeCEClusterDefaulter) defaultServiceConfig(cluster *AerospikeCECluster) {
+	config := cluster.Spec.AerospikeConfig.Value
+
+	serviceSection := getOrCreateMapSection(config, "service")
+
+	if _, exists := serviceSection["cluster-name"]; !exists {
+		serviceSection["cluster-name"] = cluster.Name
+	}
+
+	if _, exists := serviceSection["proto-fd-max"]; !exists {
+		serviceSection["proto-fd-max"] = defaultProtoFdMax
+	}
+
+	config["service"] = serviceSection
+}
+
+// defaultNetworkConfig sets defaults in aerospikeConfig.network.
+func (d *AerospikeCEClusterDefaulter) defaultNetworkConfig(cluster *AerospikeCECluster) {
+	config := cluster.Spec.AerospikeConfig.Value
+
+	networkSection := getOrCreateMapSection(config, "network")
+
+	// Service sub-section
+	svcSection := getOrCreateMapSection(networkSection, "service")
+	if _, exists := svcSection["port"]; !exists {
+		svcSection["port"] = defaultServicePort
+	}
+	networkSection["service"] = svcSection
+
+	// Heartbeat sub-section
+	hbSection := getOrCreateMapSection(networkSection, "heartbeat")
+	if _, exists := hbSection["port"]; !exists {
+		hbSection["port"] = defaultHeartbeatPort
+	}
+	if _, exists := hbSection["mode"]; !exists {
+		hbSection["mode"] = defaultHeartbeatMode
+	}
+	networkSection["heartbeat"] = hbSection
+
+	// Fabric sub-section
+	fabricSection := getOrCreateMapSection(networkSection, "fabric")
+	if _, exists := fabricSection["port"]; !exists {
+		fabricSection["port"] = defaultFabricPort
+	}
+	networkSection["fabric"] = fabricSection
+
+	config["network"] = networkSection
+}
+
+// getOrCreateMapSection returns the sub-map at key or creates a new one.
+func getOrCreateMapSection(m map[string]interface{}, key string) map[string]interface{} {
+	if existing, ok := m[key]; ok {
+		if existingMap, ok := existing.(map[string]interface{}); ok {
+			return existingMap
+		}
+	}
+	newMap := make(map[string]interface{})
+	m[key] = newMap
+	return newMap
+}
+
+// +kubebuilder:webhook:path=/validate-asdbce-aerospike-com-v1alpha1-aerospikececluster,mutating=false,failurePolicy=fail,sideEffects=None,groups=asdbce.aerospike.com,resources=aerospikececlusters,verbs=create;update,versions=v1alpha1,name=vaerospikececluster.kb.io,admissionReviewVersions=v1
+
+// AerospikeCEClusterValidator implements admission.Validator for AerospikeCECluster.
+type AerospikeCEClusterValidator struct{}
+
+var _ admission.Validator[*AerospikeCECluster] = &AerospikeCEClusterValidator{}
+
+// ValidateCreate implements admission.Validator[*AerospikeCECluster].
+func (v *AerospikeCEClusterValidator) ValidateCreate(ctx context.Context, cluster *AerospikeCECluster) (admission.Warnings, error) {
+	aerospikececlusterlog.Info("Validating create", "name", cluster.Name)
+	return v.validate(cluster)
+}
+
+// ValidateUpdate implements admission.Validator[*AerospikeCECluster].
+func (v *AerospikeCEClusterValidator) ValidateUpdate(ctx context.Context, oldCluster, cluster *AerospikeCECluster) (admission.Warnings, error) {
+	aerospikececlusterlog.Info("Validating update", "name", cluster.Name)
+	return v.validate(cluster)
+}
+
+// ValidateDelete implements admission.Validator[*AerospikeCECluster].
+func (v *AerospikeCEClusterValidator) ValidateDelete(ctx context.Context, cluster *AerospikeCECluster) (admission.Warnings, error) {
+	return nil, nil
+}
+
+// validate performs all CE-specific validations.
+func (v *AerospikeCEClusterValidator) validate(cluster *AerospikeCECluster) (admission.Warnings, error) {
+	var allErrors []string
+	var warnings admission.Warnings
+
+	// Validate cluster size
+	if cluster.Spec.Size > maxCEClusterSize {
+		allErrors = append(allErrors, fmt.Sprintf("spec.size %d exceeds CE maximum of %d", cluster.Spec.Size, maxCEClusterSize))
+	}
+
+	// Validate image is not enterprise (legacy "enterprise" in name or new ":ee-" tag prefix)
+	imageLower := strings.ToLower(cluster.Spec.Image)
+	if strings.Contains(imageLower, "enterprise") || isEnterpriseTag(cluster.Spec.Image) {
+		allErrors = append(allErrors, fmt.Sprintf("spec.image %q is an Enterprise Edition image; only Community Edition images are allowed", cluster.Spec.Image))
+	}
+
+	// Validate aerospikeConfig
+	if cluster.Spec.AerospikeConfig != nil {
+		configErrors, configWarnings := v.validateAerospikeConfig(cluster.Spec.AerospikeConfig.Value, cluster.Spec.AerospikeAccessControl)
+		allErrors = append(allErrors, configErrors...)
+		warnings = append(warnings, configWarnings...)
+	}
+
+	// Validate access control
+	if cluster.Spec.AerospikeAccessControl != nil {
+		acErrors := v.validateAccessControl(cluster.Spec.AerospikeAccessControl)
+		allErrors = append(allErrors, acErrors...)
+	}
+
+	// Validate rack config
+	if cluster.Spec.RackConfig != nil {
+		rackErrors := v.validateRackConfig(cluster.Spec.RackConfig)
+		allErrors = append(allErrors, rackErrors...)
+	}
+
+	if len(allErrors) > 0 {
+		return warnings, fmt.Errorf("validation failed: %s", strings.Join(allErrors, "; "))
+	}
+
+	return warnings, nil
+}
+
+// validateAerospikeConfig checks the Aerospike configuration map.
+func (v *AerospikeCEClusterValidator) validateAerospikeConfig(config map[string]interface{}, acl *AerospikeAccessControlSpec) ([]string, admission.Warnings) {
+	var errors []string
+	var warnings admission.Warnings
+
+	// CE does not support XDR
+	if _, exists := config["xdr"]; exists {
+		errors = append(errors, "aerospikeConfig must not contain 'xdr' section (XDR is Enterprise-only)")
+	}
+
+	// CE does not support TLS
+	if _, exists := config["tls"]; exists {
+		errors = append(errors, "aerospikeConfig must not contain 'tls' section (TLS is Enterprise-only)")
+	}
+
+	// Count namespaces (CE limit: 2)
+	if nsSection, exists := config["namespaces"]; exists {
+		switch ns := nsSection.(type) {
+		case []interface{}:
+			if len(ns) > maxCENamespaces {
+				errors = append(errors, fmt.Sprintf("aerospikeConfig.namespaces count %d exceeds CE maximum of %d", len(ns), maxCENamespaces))
+			}
+		case map[string]interface{}:
+			if len(ns) > maxCENamespaces {
+				errors = append(errors, fmt.Sprintf("aerospikeConfig.namespaces count %d exceeds CE maximum of %d", len(ns), maxCENamespaces))
+			}
+		}
+	}
+
+	// Warn if security section is present but no ACL defined
+	if _, exists := config["security"]; exists {
+		if acl == nil {
+			warnings = append(warnings, "aerospikeConfig contains 'security' section but no aerospikeAccessControl is defined")
+		}
+	}
+
+	return errors, warnings
+}
+
+// validateAccessControl validates the ACL configuration.
+func (v *AerospikeCEClusterValidator) validateAccessControl(acl *AerospikeAccessControlSpec) []string {
+	var errors []string
+
+	hasAdmin := false
+	for _, user := range acl.Users {
+		hasSysAdmin := false
+		hasUserAdmin := false
+		for _, role := range user.Roles {
+			if role == "sys-admin" {
+				hasSysAdmin = true
+			}
+			if role == "user-admin" {
+				hasUserAdmin = true
+			}
+		}
+		if hasSysAdmin && hasUserAdmin {
+			hasAdmin = true
+			break
+		}
+	}
+
+	if !hasAdmin {
+		errors = append(errors, "aerospikeAccessControl must have at least one user with both 'sys-admin' and 'user-admin' roles")
+	}
+
+	return errors
+}
+
+// isEnterpriseTag returns true if the image tag starts with "ee-" (e.g., "aerospike:ee-8.0.0.1_1").
+func isEnterpriseTag(image string) bool {
+	parts := strings.SplitN(image, ":", 2)
+	if len(parts) != 2 {
+		return false
+	}
+
+	return strings.HasPrefix(strings.ToLower(parts[1]), "ee-")
+}
+
+// validateRackConfig validates the rack configuration.
+func (v *AerospikeCEClusterValidator) validateRackConfig(rackConfig *RackConfig) []string {
+	var errors []string
+
+	rackIDs := make(map[int]bool)
+	for _, rack := range rackConfig.Racks {
+		if rackIDs[rack.ID] {
+			errors = append(errors, fmt.Sprintf("duplicate rack ID %d in rackConfig", rack.ID))
+		}
+		rackIDs[rack.ID] = true
+	}
+
+	return errors
+}

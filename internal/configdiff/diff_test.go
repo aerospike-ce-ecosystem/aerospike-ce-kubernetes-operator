@@ -144,8 +144,8 @@ func TestDiff_NamespaceChange(t *testing.T) {
 	old := map[string]any{
 		"namespaces": []any{
 			map[string]any{
-				"name":               "test",
-				"default-ttl":        0,
+				"name":                "test",
+				"default-ttl":         0,
 				"high-water-disk-pct": 80,
 			},
 		},
@@ -153,8 +153,8 @@ func TestDiff_NamespaceChange(t *testing.T) {
 	new := map[string]any{
 		"namespaces": []any{
 			map[string]any{
-				"name":               "test",
-				"default-ttl":        3600,
+				"name":                "test",
+				"default-ttl":         3600,
 				"high-water-disk-pct": 90,
 			},
 		},

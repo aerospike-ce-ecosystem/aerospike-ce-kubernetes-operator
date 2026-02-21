@@ -195,10 +195,10 @@ func (r *AerospikeCEClusterReconciler) cleanupRemovedRacks(
 // config) are captured.
 func computePodSpecHash(cluster *asdbcev1alpha1.AerospikeCECluster, rack *asdbcev1alpha1.Rack) string {
 	input := struct {
-		Image      string                                `json:"image"`
-		PodSpec    *asdbcev1alpha1.AerospikeCEPodSpec    `json:"podSpec,omitempty"`
+		Image      string                                  `json:"image"`
+		PodSpec    *asdbcev1alpha1.AerospikeCEPodSpec      `json:"podSpec,omitempty"`
 		Monitoring *asdbcev1alpha1.AerospikeMonitoringSpec `json:"monitoring,omitempty"`
-		RackID     int                                   `json:"rackID"`
+		RackID     int                                     `json:"rackID"`
 	}{
 		Image:      cluster.Spec.Image,
 		PodSpec:    cluster.Spec.PodSpec,

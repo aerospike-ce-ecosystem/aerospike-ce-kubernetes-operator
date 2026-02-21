@@ -16,9 +16,9 @@ import (
 )
 
 const (
-	aeroClientTimeout    = 30 * time.Second
-	aeroLoginTimeout     = 10 * time.Second
-	aeroInfoTimeout      = 10 * time.Second
+	aeroClientTimeout = 30 * time.Second
+	aeroLoginTimeout  = 10 * time.Second
+	aeroInfoTimeout   = 10 * time.Second
 )
 
 // getAerospikeClient creates an Aerospike client connected to the cluster.

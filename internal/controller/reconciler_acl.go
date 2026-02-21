@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	aero "github.com/aerospike/aerospike-client-go/v8"
 
@@ -18,14 +18,14 @@ import (
 
 // builtinRoles are Aerospike predefined roles that must not be dropped.
 var builtinRoles = map[string]bool{
-	"user-admin":   true,
-	"sys-admin":    true,
-	"data-admin":   true,
-	"read":         true,
-	"write":        true,
-	"read-write":   true,
+	"user-admin":     true,
+	"sys-admin":      true,
+	"data-admin":     true,
+	"read":           true,
+	"write":          true,
+	"read-write":     true,
 	"read-write-udf": true,
-	"truncate":     true,
+	"truncate":       true,
 }
 
 // reconcileACL synchronizes ACL roles and users with the Aerospike cluster.
@@ -223,7 +223,9 @@ func syncRolePrivileges(
 	policy *aero.AdminPolicy,
 	roleName string,
 	current, desired []aero.Privilege,
-	log interface{ Info(msg string, keysAndValues ...any) },
+	log interface {
+		Info(msg string, keysAndValues ...any)
+	},
 ) error {
 	currentSet := privilegeSet(current)
 	desiredSet := privilegeSet(desired)
@@ -265,7 +267,9 @@ func syncUserRoles(
 	policy *aero.AdminPolicy,
 	userName string,
 	currentRoles, desiredRoles []string,
-	log interface{ Info(msg string, keysAndValues ...any) },
+	log interface {
+		Info(msg string, keysAndValues ...any)
+	},
 ) error {
 	currentSet := sliceToSet(currentRoles)
 	desiredSet := sliceToSet(desiredRoles)

@@ -105,9 +105,9 @@ func diffNamespaces(result *DiffResult, oldNS, newNS []any) {
 		if !exists {
 			// New namespace added — this is static (requires restart)
 			result.Static = append(result.Static, Change{
-				Path:    fmt.Sprintf("namespaces.%s", name),
-				Context: "namespace",
-				Key:     name,
+				Path:     fmt.Sprintf("namespaces.%s", name),
+				Context:  "namespace",
+				Key:      name,
 				NewValue: newCfg,
 			})
 			continue
@@ -160,9 +160,9 @@ func diffNamespaces(result *DiffResult, oldNS, newNS []any) {
 	for name := range oldByName {
 		if _, exists := newByName[name]; !exists {
 			result.Static = append(result.Static, Change{
-				Path:    fmt.Sprintf("namespaces.%s", name),
-				Context: "namespace",
-				Key:     name,
+				Path:     fmt.Sprintf("namespaces.%s", name),
+				Context:  "namespace",
+				Key:      name,
 				OldValue: oldByName[name],
 			})
 		}

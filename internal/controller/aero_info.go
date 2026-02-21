@@ -8,15 +8,16 @@ import (
 )
 
 // asinfoCommand executes an asinfo command on a specific node.
-//
-//nolint:unused // placeholder for future rolling restart integration
 func asinfoCommand(client *aero.Client, cmd string) (string, error) {
 	nodes := client.GetNodes()
 	if len(nodes) == 0 {
 		return "", fmt.Errorf("no nodes available")
 	}
 
-	result, err := nodes[0].RequestInfo(aero.NewInfoPolicy(), cmd)
+	policy := aero.NewInfoPolicy()
+	policy.Timeout = aeroInfoTimeout
+
+	result, err := nodes[0].RequestInfo(policy, cmd)
 	if err != nil {
 		return "", fmt.Errorf("asinfo command %q failed: %w", cmd, err)
 	}
@@ -28,9 +29,24 @@ func asinfoCommand(client *aero.Client, cmd string) (string, error) {
 	return "", fmt.Errorf("no result for command %q", cmd)
 }
 
+// asinfoCommandOnNode executes an asinfo command on a specific node by address.
+func asinfoCommandOnNode(node *aero.Node, cmd string) (string, error) {
+	policy := aero.NewInfoPolicy()
+	policy.Timeout = aeroInfoTimeout
+
+	result, err := node.RequestInfo(policy, cmd)
+	if err != nil {
+		return "", fmt.Errorf("asinfo command %q on node %s failed: %w", cmd, node.GetName(), err)
+	}
+
+	if val, ok := result[cmd]; ok {
+		return val, nil
+	}
+
+	return "", fmt.Errorf("no result for command %q on node %s", cmd, node.GetName())
+}
+
 // isMigrating checks if the cluster has any pending migrations.
-//
-//nolint:unused // placeholder for future rolling restart integration
 func isMigrating(client *aero.Client) (bool, error) {
 	result, err := asinfoCommand(client, "cluster-stable:")
 	if err != nil {
@@ -43,8 +59,6 @@ func isMigrating(client *aero.Client) (bool, error) {
 }
 
 // recluster sends the recluster command to the cluster.
-//
-//nolint:unused // placeholder for future rolling restart integration
 func recluster(client *aero.Client) error {
 	_, err := asinfoCommand(client, "recluster:")
 	return err

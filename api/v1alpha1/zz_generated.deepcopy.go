@@ -187,6 +187,11 @@ func (in *AerospikeCEClusterSpec) DeepCopyInto(out *AerospikeCEClusterSpec) {
 		*out = new(bool)
 		**out = **in
 	}
+	if in.RollingUpdateBatchSize != nil {
+		in, out := &in.RollingUpdateBatchSize, &out.RollingUpdateBatchSize
+		*out = new(int32)
+		**out = **in
+	}
 	if in.DisablePDB != nil {
 		in, out := &in.DisablePDB, &out.DisablePDB
 		*out = new(bool)
@@ -479,6 +484,11 @@ func (in *AerospikePodStatus) DeepCopyInto(out *AerospikePodStatus) {
 	*out = *in
 	if in.InitializedVolumes != nil {
 		in, out := &in.InitializedVolumes, &out.InitializedVolumes
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	if in.DirtyVolumes != nil {
+		in, out := &in.DirtyVolumes, &out.DirtyVolumes
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}

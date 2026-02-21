@@ -142,6 +142,12 @@ type AerospikeCEClusterSpec struct {
 	// +optional
 	EnableDynamicConfigUpdate *bool `json:"enableDynamicConfigUpdate,omitempty"`
 
+	// RollingUpdateBatchSize is the number of pods to restart in parallel
+	// during a rolling restart. Defaults to 1 (sequential).
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	RollingUpdateBatchSize *int32 `json:"rollingUpdateBatchSize,omitempty"`
+
 	// DisablePDB disables PodDisruptionBudget creation for the cluster.
 	// +optional
 	DisablePDB *bool `json:"disablePDB,omitempty"`

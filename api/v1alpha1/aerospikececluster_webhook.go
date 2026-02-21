@@ -246,6 +246,14 @@ func (v *AerospikeCEClusterValidator) validate(cluster *AerospikeCECluster) (adm
 		allErrors = append(allErrors, rackErrors...)
 	}
 
+	// Validate rolling update batch size
+	if cluster.Spec.RollingUpdateBatchSize != nil {
+		bs := *cluster.Spec.RollingUpdateBatchSize
+		if bs > cluster.Spec.Size {
+			warnings = append(warnings, fmt.Sprintf("rollingUpdateBatchSize (%d) is greater than cluster size (%d); all pods may restart simultaneously", bs, cluster.Spec.Size))
+		}
+	}
+
 	if len(allErrors) > 0 {
 		return warnings, fmt.Errorf("validation failed: %s", strings.Join(allErrors, "; "))
 	}

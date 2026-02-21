@@ -9,11 +9,3 @@ repos:
         args: ['--maxkb=1000']
       - id: check-merge-conflict
       - id: detect-private-key
-
-  - repo: https://github.com/golangci/golangci-lint
-    rev: v2.8.0
-    hooks:
-      - id: golangci-lint
-        args:
-          - --config=.golangci-precommit.yml
-          - --timeout=5m

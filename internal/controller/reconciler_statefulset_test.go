@@ -1,0 +1,232 @@
+package controller
+
+import (
+	"testing"
+
+	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+)
+
+// --- computePodSpecHash tests ---
+
+func TestComputePodSpecHash_Deterministic(t *testing.T) {
+	cluster := &asdbcev1alpha1.AerospikeCECluster{
+		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+			Image: "aerospike:ce-8.1.1.1",
+		},
+	}
+	rack := &asdbcev1alpha1.Rack{ID: 0}
+
+	hash1 := computePodSpecHash(cluster, rack)
+	hash2 := computePodSpecHash(cluster, rack)
+
+	if hash1 != hash2 {
+		t.Errorf("hash should be deterministic: %q != %q", hash1, hash2)
+	}
+}
+
+func TestComputePodSpecHash_ChangesWithImage(t *testing.T) {
+	cluster1 := &asdbcev1alpha1.AerospikeCECluster{
+		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+			Image: "aerospike:ce-8.1.1.1",
+		},
+	}
+	cluster2 := &asdbcev1alpha1.AerospikeCECluster{
+		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+			Image: "aerospike:ce-8.2.0.0",
+		},
+	}
+	rack := &asdbcev1alpha1.Rack{ID: 0}
+
+	hash1 := computePodSpecHash(cluster1, rack)
+	hash2 := computePodSpecHash(cluster2, rack)
+
+	if hash1 == hash2 {
+		t.Error("hash should change when image changes")
+	}
+}
+
+func TestComputePodSpecHash_ChangesWithRackID(t *testing.T) {
+	cluster := &asdbcev1alpha1.AerospikeCECluster{
+		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+			Image: "aerospike:ce-8.1.1.1",
+		},
+	}
+
+	hash1 := computePodSpecHash(cluster, &asdbcev1alpha1.Rack{ID: 0})
+	hash2 := computePodSpecHash(cluster, &asdbcev1alpha1.Rack{ID: 1})
+
+	if hash1 == hash2 {
+		t.Error("hash should change with different rack IDs")
+	}
+}
+
+func TestComputePodSpecHash_ChangesWithPodSpec(t *testing.T) {
+	cluster1 := &asdbcev1alpha1.AerospikeCECluster{
+		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+			Image: "aerospike:ce-8.1.1.1",
+		},
+	}
+	cluster2 := &asdbcev1alpha1.AerospikeCECluster{
+		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+			Image: "aerospike:ce-8.1.1.1",
+			PodSpec: &asdbcev1alpha1.AerospikeCEPodSpec{
+				HostNetwork: true,
+			},
+		},
+	}
+	rack := &asdbcev1alpha1.Rack{ID: 0}
+
+	hash1 := computePodSpecHash(cluster1, rack)
+	hash2 := computePodSpecHash(cluster2, rack)
+
+	if hash1 == hash2 {
+		t.Error("hash should change when podSpec changes")
+	}
+}
+
+func TestComputePodSpecHash_ChangesWithMonitoring(t *testing.T) {
+	cluster1 := &asdbcev1alpha1.AerospikeCECluster{
+		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+			Image: "aerospike:ce-8.1.1.1",
+		},
+	}
+	cluster2 := &asdbcev1alpha1.AerospikeCECluster{
+		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &asdbcev1alpha1.AerospikeMonitoringSpec{
+				Enabled:       true,
+				ExporterImage: "exporter:v1",
+				Port:          9145,
+			},
+		},
+	}
+	rack := &asdbcev1alpha1.Rack{ID: 0}
+
+	hash1 := computePodSpecHash(cluster1, rack)
+	hash2 := computePodSpecHash(cluster2, rack)
+
+	if hash1 == hash2 {
+		t.Error("hash should change when monitoring config changes")
+	}
+}
+
+func TestComputePodSpecHash_SameWithDifferentConfig(t *testing.T) {
+	// PodSpecHash should NOT change when only aerospikeConfig changes
+	// (that's what configHash is for)
+	cluster1 := &asdbcev1alpha1.AerospikeCECluster{
+		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &asdbcev1alpha1.AerospikeConfigSpec{
+				Value: map[string]any{"service": map[string]any{"proto-fd-max": 15000}},
+			},
+		},
+	}
+	cluster2 := &asdbcev1alpha1.AerospikeCECluster{
+		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &asdbcev1alpha1.AerospikeConfigSpec{
+				Value: map[string]any{"service": map[string]any{"proto-fd-max": 20000}},
+			},
+		},
+	}
+	rack := &asdbcev1alpha1.Rack{ID: 0}
+
+	hash1 := computePodSpecHash(cluster1, rack)
+	hash2 := computePodSpecHash(cluster2, rack)
+
+	if hash1 != hash2 {
+		t.Error("hash should NOT change when only aerospikeConfig changes (config-only change)")
+	}
+}
+
+func TestComputePodSpecHash_Format(t *testing.T) {
+	cluster := &asdbcev1alpha1.AerospikeCECluster{
+		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+			Image: "aerospike:ce-8.1.1.1",
+		},
+	}
+	rack := &asdbcev1alpha1.Rack{ID: 0}
+
+	hash := computePodSpecHash(cluster, rack)
+
+	// Hash is first 8 bytes of SHA256, formatted as hex = 16 chars
+	if len(hash) != 16 {
+		t.Errorf("hash length = %d, want 16 (hex of 8 bytes)", len(hash))
+	}
+}
+
+// --- configHash tests ---
+
+func TestConfigHash_Deterministic(t *testing.T) {
+	config := &asdbcev1alpha1.AerospikeConfigSpec{
+		Value: map[string]any{"service": map[string]any{"proto-fd-max": 15000}},
+	}
+
+	h1 := configHash(config)
+	h2 := configHash(config)
+	if h1 != h2 {
+		t.Errorf("configHash should be deterministic: %q != %q", h1, h2)
+	}
+}
+
+func TestConfigHash_NilReturnsEmpty(t *testing.T) {
+	h := configHash(nil)
+	if h != "" {
+		t.Errorf("configHash(nil) = %q, want empty string", h)
+	}
+}
+
+func TestConfigHash_DifferentConfigs(t *testing.T) {
+	config1 := &asdbcev1alpha1.AerospikeConfigSpec{
+		Value: map[string]any{"service": map[string]any{"proto-fd-max": 15000}},
+	}
+	config2 := &asdbcev1alpha1.AerospikeConfigSpec{
+		Value: map[string]any{"service": map[string]any{"proto-fd-max": 20000}},
+	}
+
+	h1 := configHash(config1)
+	h2 := configHash(config2)
+	if h1 == h2 {
+		t.Error("different configs should produce different hashes")
+	}
+}
+
+// --- mapsEqual tests ---
+
+func TestMapsEqual_BothEmpty(t *testing.T) {
+	if !mapsEqual(map[string]string{}, map[string]string{}) {
+		t.Error("empty maps should be equal")
+	}
+}
+
+func TestMapsEqual_Same(t *testing.T) {
+	a := map[string]string{"k1": "v1", "k2": "v2"}
+	b := map[string]string{"k1": "v1", "k2": "v2"}
+	if !mapsEqual(a, b) {
+		t.Error("identical maps should be equal")
+	}
+}
+
+func TestMapsEqual_DifferentValues(t *testing.T) {
+	a := map[string]string{"k1": "v1"}
+	b := map[string]string{"k1": "v2"}
+	if mapsEqual(a, b) {
+		t.Error("maps with different values should not be equal")
+	}
+}
+
+func TestMapsEqual_DifferentKeys(t *testing.T) {
+	a := map[string]string{"k1": "v1"}
+	b := map[string]string{"k2": "v1"}
+	if mapsEqual(a, b) {
+		t.Error("maps with different keys should not be equal")
+	}
+}
+
+func TestMapsEqual_DifferentLengths(t *testing.T) {
+	a := map[string]string{"k1": "v1"}
+	b := map[string]string{"k1": "v1", "k2": "v2"}
+	if mapsEqual(a, b) {
+		t.Error("maps with different lengths should not be equal")
+	}
+}

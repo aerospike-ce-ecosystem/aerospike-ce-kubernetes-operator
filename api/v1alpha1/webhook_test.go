@@ -719,6 +719,103 @@ func TestValidate_ACLWithSplitAdminRoles(t *testing.T) {
 	}
 }
 
+// --- RollingUpdateBatchSize validation tests ---
+
+func int32Ptr(i int32) *int32 { return &i }
+
+func TestValidate_RollingUpdateBatchSizeGreaterThanSize(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:                   3,
+			Image:                  "aerospike:ce-8.1.1.1",
+			RollingUpdateBatchSize: int32Ptr(5),
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "rollingUpdateBatchSize") && strings.Contains(w, "greater than cluster size") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning about batchSize > clusterSize, got warnings: %v", warnings)
+	}
+}
+
+func TestValidate_RollingUpdateBatchSizeEqualToSize(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:                   3,
+			Image:                  "aerospike:ce-8.1.1.1",
+			RollingUpdateBatchSize: int32Ptr(3),
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// batchSize == clusterSize should not produce a warning
+	for _, w := range warnings {
+		if strings.Contains(w, "rollingUpdateBatchSize") {
+			t.Errorf("unexpected batchSize warning: %v", w)
+		}
+	}
+}
+
+func TestValidate_RollingUpdateBatchSizeLessThanSize(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:                   4,
+			Image:                  "aerospike:ce-8.1.1.1",
+			RollingUpdateBatchSize: int32Ptr(2),
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for _, w := range warnings {
+		if strings.Contains(w, "rollingUpdateBatchSize") {
+			t.Errorf("unexpected batchSize warning: %v", w)
+		}
+	}
+}
+
+func TestValidate_RollingUpdateBatchSizeNil(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for _, w := range warnings {
+		if strings.Contains(w, "rollingUpdateBatchSize") {
+			t.Errorf("unexpected batchSize warning: %v", w)
+		}
+	}
+}
+
 // --- Defaulter core behavior tests ---
 
 func TestDefault_SetsClusterName(t *testing.T) {

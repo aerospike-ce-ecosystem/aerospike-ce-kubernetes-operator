@@ -137,8 +137,11 @@ func TestGenerateConfig_SecuritySection(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	assertContains(t, result, "security {")
-	assertContains(t, result, "}")
+	// CE does not support the security stanza, so it must be omitted.
+	if strings.Contains(result, "security {") {
+		t.Errorf("expected security section to be omitted for CE, got:\n%s", result)
+	}
+	assertContains(t, result, "service {")
 }
 
 func TestGenerateConfig_LoggingSection(t *testing.T) {
@@ -242,6 +245,163 @@ func TestGenerateConfig_NamespaceMissingName(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for namespace without name")
 	}
+}
+
+func TestGenerateConfig_ConsoleLogging(t *testing.T) {
+	config := map[string]any{
+		"logging": []any{
+			map[string]any{
+				"name":    "console",
+				"context": "any info",
+			},
+		},
+	}
+
+	result, err := GenerateConfig(config)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	assertContains(t, result, "logging {")
+	assertContains(t, result, "console {")
+	assertContains(t, result, "context any info")
+
+	// Must NOT contain "file console"
+	if strings.Contains(result, "file console") {
+		t.Errorf("console logging should not generate 'file console', got:\n%s", result)
+	}
+}
+
+func TestGenerateConfig_StderrLogging(t *testing.T) {
+	config := map[string]any{
+		"logging": []any{
+			map[string]any{
+				"name":    "stderr",
+				"context": "any info",
+			},
+		},
+	}
+
+	result, err := GenerateConfig(config)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	assertContains(t, result, "console {")
+	if strings.Contains(result, "file stderr") {
+		t.Errorf("stderr logging should generate 'console' block, not 'file stderr', got:\n%s", result)
+	}
+}
+
+func TestGenerateConfig_SyslogLogging(t *testing.T) {
+	config := map[string]any{
+		"logging": []any{
+			map[string]any{
+				"name":    "syslog",
+				"context": "any info",
+			},
+		},
+	}
+
+	result, err := GenerateConfig(config)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	assertContains(t, result, "syslog {")
+	if strings.Contains(result, "file syslog") {
+		t.Errorf("syslog logging should generate 'syslog' block, not 'file syslog', got:\n%s", result)
+	}
+}
+
+func TestGenerateConfig_MixedLogging(t *testing.T) {
+	config := map[string]any{
+		"logging": []any{
+			map[string]any{
+				"name":    "console",
+				"context": "any info",
+			},
+			map[string]any{
+				"name":    "/var/log/aerospike/aerospike.log",
+				"context": "any info",
+			},
+		},
+	}
+
+	result, err := GenerateConfig(config)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	assertContains(t, result, "console {")
+	assertContains(t, result, "file /var/log/aerospike/aerospike.log {")
+}
+
+func TestGenerateConfForPod_SecuritySectionSkipped(t *testing.T) {
+	config := map[string]any{
+		"service": map[string]any{
+			"cluster-name": "test",
+		},
+		"security": map[string]any{},
+		"network": map[string]any{
+			"heartbeat": map[string]any{
+				"mode": "mesh",
+				"port": 3002,
+			},
+		},
+	}
+
+	result, err := GenerateConfForPod(config, "pod-0", "svc", "ns", []string{"pod-0"}, 3002)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if strings.Contains(result, "security") {
+		t.Errorf("security section should be skipped for CE, got:\n%s", result)
+	}
+}
+
+func TestGenerateConfForPod_CustomHeartbeatPort(t *testing.T) {
+	config := map[string]any{
+		"network": map[string]any{
+			"heartbeat": map[string]any{
+				"mode": "mesh",
+				"port": 4002,
+			},
+		},
+	}
+
+	podNames := []string{"pod-0", "pod-1"}
+	result, err := GenerateConfForPod(config, "pod-0", "svc", "default", podNames, 4002)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	assertContains(t, result, "mesh-seed-address-port pod-0.svc.default.svc.cluster.local 4002")
+	assertContains(t, result, "mesh-seed-address-port pod-1.svc.default.svc.cluster.local 4002")
+}
+
+func TestGenerateConfig_StorageEngineInference(t *testing.T) {
+	// Test that storage-engine type is inferred from "file" key presence
+	config := map[string]any{
+		"namespaces": []any{
+			map[string]any{
+				"name": "test",
+				"storage-engine": map[string]any{
+					"file":     "/data/test.dat",
+					"filesize": "4G",
+				},
+			},
+		},
+	}
+
+	result, err := GenerateConfig(config)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	assertContains(t, result, "storage-engine device {")
+	assertContains(t, result, "file /data/test.dat")
 }
 
 func assertContains(t *testing.T, s, substr string) {

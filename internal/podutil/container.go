@@ -50,6 +50,17 @@ func BuildAerospikeContainer(cluster *v1alpha1.AerospikeCECluster, volumeMounts 
 			TimeoutSeconds:      5,
 			FailureThreshold:    3,
 		},
+		LivenessProbe: &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				TCPSocket: &corev1.TCPSocketAction{
+					Port: intstr.FromInt32(ServicePort),
+				},
+			},
+			InitialDelaySeconds: 30,
+			PeriodSeconds:       30,
+			TimeoutSeconds:      5,
+			FailureThreshold:    3,
+		},
 	}
 
 	if cluster.Spec.PodSpec != nil && cluster.Spec.PodSpec.AerospikeContainerSpec != nil {

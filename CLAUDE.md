@@ -72,31 +72,9 @@ Converts unstructured `map[string]interface{}` to aerospike.conf text format. Ha
 - **Defaulter**: Auto-sets cluster-name, network ports (3000/3001/3002), heartbeat mode (mesh), proto-fd-max (15000)
 - **Validator**: CE constraints — size<=8, namespaces<=2, no `xdr`/`tls` sections, no enterprise images, admin user required when ACL enabled, unique rack IDs
 
-### CE-Specific Constraints
-- Max 8 nodes per cluster
-- Max 2 namespaces
-- No XDR, TLS, Strong Consistency, All Flash
-- Image must not contain "enterprise"
 
-### Supporting Packages
-- `internal/storage/` — Volume/PVC management, cascadeDelete lifecycle
-- `internal/podutil/` — Pod template and container spec assembly
-- `internal/initcontainer/` — go:embed init scripts for ConfigMap data
-- `internal/utils/` — Labels, naming conventions, deep merge, image version parsing
-
-## Naming Conventions
-
-- StatefulSet: `<cluster-name>-<rackID>` (default rack ID = 0)
-- ConfigMap: `<cluster-name>-<rackID>-config`
-- Headless Service: `<cluster-name>`
-- PDB: `<cluster-name>-pdb`
-- Labels: `app.kubernetes.io/name`, `app.kubernetes.io/instance`, `acko.io/rack-id`
-
-## Key Dependencies
-
-- `sigs.k8s.io/controller-runtime` — Operator framework
-- `github.com/aerospike/aerospike-client-go/v8` — Aerospike cluster management (asinfo, ACL, migration checks)
-- `k8s.io/api`, `k8s.io/apimachinery`, `k8s.io/client-go` — Kubernetes API types and client
+## Aerospike Configuration Guide
+- [guide.md](guide.md) — Aerospike CE 8.1 aerospike.conf 설정 가이드 (섹션별 파라미터, 예제, CE 제한사항, 운영 Best Practices)
 
 ## Sample CRs
 
@@ -106,15 +84,15 @@ Located in `config/samples/`:
 - `aerospike-ce-cluster-multirack.yaml` — 6-node multi-rack with zone affinity
 - `aerospike-ce-cluster-acl.yaml` — 3-node with ACL (roles, users, K8s secrets)
 
-## CI/CD
-
-GitHub Actions (`.github/workflows/`):
-- `test.yml` — `make test` (unit + envtest, on push/PR)
-- `test-e2e.yml` — `make test-e2e` (Kind cluster, on push/PR)
-- `lint.yml` — golangci-lint v2.8.0 (on push/PR)
-
 
 ## image registry
 - https://hub.docker.com/_/aerospike
 - `aerospike:ce-8.1.1.1`
 - `aerospike:ce-7.2.0.6`
+
+
+## create kind cluster
+
+```bash
+kind create cluster --config kind-config.yaml --name kind-kind
+```

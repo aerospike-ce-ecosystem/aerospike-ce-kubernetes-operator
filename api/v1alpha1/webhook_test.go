@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	"context"
 	"slices"
+	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -427,5 +428,417 @@ func TestValidate_DuplicateRackIDs(t *testing.T) {
 	_, err := v.validate(cluster)
 	if err == nil {
 		t.Error("expected error for duplicate rack IDs")
+	}
+}
+
+// --- Enterprise-only namespace config validation tests ---
+
+func TestValidate_EnterpriseOnlyNamespaceKeys(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+
+	enterpriseKeys := []string{
+		"compression", "compression-level", "durable-delete", "fast-restart",
+		"index-type", "sindex-type", "rack-id", "strong-consistency",
+		"tomb-raider-eligible-age", "tomb-raider-period",
+	}
+
+	for _, key := range enterpriseKeys {
+		cluster := &AerospikeCECluster{
+			Spec: AerospikeCEClusterSpec{
+				Size:  3,
+				Image: "aerospike:ce-8.1.1.1",
+				AerospikeConfig: &AerospikeConfigSpec{
+					Value: map[string]any{
+						"namespaces": []any{
+							map[string]any{
+								"name": "test",
+								key:    "some-value",
+							},
+						},
+					},
+				},
+			},
+		}
+
+		_, err := v.validate(cluster)
+		if err == nil {
+			t.Errorf("expected error for enterprise-only namespace key %q", key)
+		}
+	}
+}
+
+func TestValidate_HeartbeatModeMulticastRejected(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"network": map[string]any{
+						"heartbeat": map[string]any{
+							"mode": "multicast",
+							"port": 3002,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error for heartbeat mode=multicast (CE only supports mesh)")
+	}
+}
+
+func TestValidate_HeartbeatModeMeshAccepted(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"network": map[string]any{
+						"heartbeat": map[string]any{
+							"mode": "mesh",
+							"port": 3002,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error for heartbeat mode=mesh: %v", err)
+	}
+}
+
+func TestValidate_DataInMemoryWarning(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"namespaces": []any{
+						map[string]any{
+							"name": "myns",
+							"storage-engine": map[string]any{
+								"type":           "device",
+								"data-in-memory": true,
+								"file":           "/data/myns.dat",
+								"filesize":       "4G",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "data-in-memory=true") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning about data-in-memory, got warnings: %v", warnings)
+	}
+}
+
+func TestValidate_ReplicationFactorOutOfRange(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"namespaces": []any{
+						map[string]any{
+							"name":               "test",
+							"replication-factor": 5,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error for replication-factor > 4")
+	}
+}
+
+func TestValidate_ValidNamespaceConfigAccepted(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"namespaces": []any{
+						map[string]any{
+							"name":               "test",
+							"replication-factor": 2,
+							"memory-size":        "4G",
+							"storage-engine": map[string]any{
+								"type": "memory",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error for valid namespace config: %v", err)
+	}
+}
+
+// --- Security section validation tests ---
+
+func TestValidate_SecuritySectionRejected(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"security": map[string]any{},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error for security section in CE")
+	}
+	if !strings.Contains(err.Error(), "security") {
+		t.Errorf("error should mention 'security', got: %v", err)
+	}
+}
+
+// --- ACL validation tests ---
+
+func TestValidate_ACLWithAdminUser(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeAccessControl: &AerospikeAccessControlSpec{
+				Users: []AerospikeUserSpec{
+					{
+						Name:       "admin",
+						SecretName: "admin-secret",
+						Roles:      []string{"sys-admin", "user-admin"},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error for valid ACL config: %v", err)
+	}
+}
+
+func TestValidate_ACLWithoutAdminUser(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeAccessControl: &AerospikeAccessControlSpec{
+				Users: []AerospikeUserSpec{
+					{
+						Name:       "reader",
+						SecretName: "reader-secret",
+						Roles:      []string{"read"},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error for ACL without admin user")
+	}
+	if !strings.Contains(err.Error(), "sys-admin") {
+		t.Errorf("error should mention 'sys-admin', got: %v", err)
+	}
+}
+
+func TestValidate_ACLWithSplitAdminRoles(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeAccessControl: &AerospikeAccessControlSpec{
+				Users: []AerospikeUserSpec{
+					{
+						Name:       "sysadmin",
+						SecretName: "sa-secret",
+						Roles:      []string{"sys-admin"},
+					},
+					{
+						Name:       "useradmin",
+						SecretName: "ua-secret",
+						Roles:      []string{"user-admin"},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error when sys-admin and user-admin are on different users")
+	}
+}
+
+// --- Defaulter core behavior tests ---
+
+func TestDefault_SetsClusterName(t *testing.T) {
+	d := &AerospikeCEClusterDefaulter{}
+	cluster := &AerospikeCECluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-cluster", Namespace: "default"},
+		Spec: AerospikeCEClusterSpec{
+			Size:  1,
+			Image: "aerospike:ce-8.1.1.1",
+		},
+	}
+
+	if err := d.Default(context.Background(), cluster); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	svc := cluster.Spec.AerospikeConfig.Value["service"].(map[string]any)
+	if svc["cluster-name"] != "my-cluster" {
+		t.Errorf("cluster-name = %v, want 'my-cluster'", svc["cluster-name"])
+	}
+	if svc["proto-fd-max"] != defaultProtoFdMax {
+		t.Errorf("proto-fd-max = %v, want %d", svc["proto-fd-max"], defaultProtoFdMax)
+	}
+}
+
+func TestDefault_SetsNetworkPorts(t *testing.T) {
+	d := &AerospikeCEClusterDefaulter{}
+	cluster := &AerospikeCECluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec: AerospikeCEClusterSpec{
+			Size:  1,
+			Image: "aerospike:ce-8.1.1.1",
+		},
+	}
+
+	if err := d.Default(context.Background(), cluster); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	net := cluster.Spec.AerospikeConfig.Value["network"].(map[string]any)
+	svcNet := net["service"].(map[string]any)
+	hb := net["heartbeat"].(map[string]any)
+	fabric := net["fabric"].(map[string]any)
+
+	if svcNet["port"] != defaultServicePort {
+		t.Errorf("service port = %v, want %d", svcNet["port"], defaultServicePort)
+	}
+	if hb["port"] != defaultHeartbeatPort {
+		t.Errorf("heartbeat port = %v, want %d", hb["port"], defaultHeartbeatPort)
+	}
+	if hb["mode"] != defaultHeartbeatMode {
+		t.Errorf("heartbeat mode = %v, want %q", hb["mode"], defaultHeartbeatMode)
+	}
+	if fabric["port"] != defaultFabricPort {
+		t.Errorf("fabric port = %v, want %d", fabric["port"], defaultFabricPort)
+	}
+}
+
+func TestDefault_PreservesExistingConfig(t *testing.T) {
+	d := &AerospikeCEClusterDefaulter{}
+	cluster := &AerospikeCECluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec: AerospikeCEClusterSpec{
+			Size:  1,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"service": map[string]any{
+						"cluster-name": "custom-name",
+						"proto-fd-max": 20000,
+					},
+					"network": map[string]any{
+						"service": map[string]any{
+							"port": 4000,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	if err := d.Default(context.Background(), cluster); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	svc := cluster.Spec.AerospikeConfig.Value["service"].(map[string]any)
+	if svc["cluster-name"] != "custom-name" {
+		t.Errorf("should preserve custom cluster-name, got %v", svc["cluster-name"])
+	}
+	if svc["proto-fd-max"] != 20000 {
+		t.Errorf("should preserve custom proto-fd-max, got %v", svc["proto-fd-max"])
+	}
+
+	net := cluster.Spec.AerospikeConfig.Value["network"].(map[string]any)
+	svcNet := net["service"].(map[string]any)
+	if svcNet["port"] != 4000 {
+		t.Errorf("should preserve custom service port, got %v", svcNet["port"])
+	}
+}
+
+// --- isEnterpriseTag tests ---
+
+func TestIsEnterpriseTag(t *testing.T) {
+	tests := []struct {
+		image    string
+		expected bool
+	}{
+		{"aerospike:ce-8.1.1.1", false},
+		{"aerospike:ee-8.0.0.1_1", true},
+		{"aerospike:EE-8.0.0.1", true},
+		{"aerospike:latest", false},
+		{"aerospike", false},
+		{"myrepo/aerospike:ce-8.1.1.1", false},
+		{"myrepo/aerospike:ee-8.1.1.1", true},
+	}
+
+	for _, tc := range tests {
+		got := isEnterpriseTag(tc.image)
+		if got != tc.expected {
+			t.Errorf("isEnterpriseTag(%q) = %v, want %v", tc.image, got, tc.expected)
+		}
 	}
 }

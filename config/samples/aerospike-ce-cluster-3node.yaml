@@ -58,7 +58,6 @@ spec:
           type: device
           file: /opt/aerospike/data/testns.dat
           filesize: 4294967296
-          data-in-memory: true
 
     logging:
       - name: /var/log/aerospike/aerospike.log

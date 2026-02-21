@@ -50,7 +50,22 @@ helm install cert-manager jetstack/cert-manager \
   --set global.privateKeyRotationPolicy=Always
 ```
 
-### 1. Install CRDs
+### Option A: Install with Helm (Recommended)
+
+```sh
+helm repo add acko https://kimsoungryoul.github.io/aerospike-ce-kubernetes-operator
+helm install -n aerospike-system --create-namespace aerospike-operator acko/aerospike-operator
+```
+
+Or install from local chart:
+
+```sh
+helm install -n aerospike-system --create-namespace aerospike-operator charts/aerospike-operator
+```
+
+### Option B: Install with Kustomize
+
+#### 1. Install CRDs
 
 ```
 kind create cluster
@@ -61,7 +76,7 @@ kind create cluster
 make install
 ```
 
-### 2. Deploy the Operator
+#### 2. Deploy the Operator
 
 ```sh
 # Build and push the operator image

@@ -11,6 +11,7 @@ import (
 	policyv1 "k8s.io/api/policy/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -65,6 +66,9 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if !controllerutil.ContainsFinalizer(cluster, utils.StorageFinalizer) {
 		controllerutil.AddFinalizer(cluster, utils.StorageFinalizer)
 		if err := r.Update(ctx, cluster); err != nil {
+			if errors.IsConflict(err) {
+				return ctrl.Result{Requeue: true}, nil
+			}
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{Requeue: true}, nil
@@ -76,9 +80,18 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, nil
 	}
 
-	// 5. Set phase to InProgress
-	if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseInProgress); err != nil {
-		return ctrl.Result{}, err
+	// 5. Set phase to InProgress only when the spec has actually changed
+	// (i.e., observedGeneration is behind the current generation).
+	// This prevents a Completed->InProgress->Completed feedback loop
+	// where each status update triggers a new reconcile.
+	if cluster.Status.ObservedGeneration != cluster.Generation ||
+		cluster.Status.Phase == "" {
+		if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseInProgress); err != nil {
+			if errors.IsConflict(err) {
+				return ctrl.Result{Requeue: true}, nil
+			}
+			return ctrl.Result{}, err
+		}
 	}
 
 	// 6. Reconcile headless service
@@ -143,11 +156,13 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	}
 
-	// 12. Re-fetch the latest cluster state to avoid conflict errors and update status + phase together
-	if err := r.Get(ctx, req.NamespacedName, cluster); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.updateStatusAndPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseCompleted); err != nil {
+	// 12. Update status and set phase to Completed.
+	// updateStatusAndPhase re-fetches internally to avoid conflict errors.
+	if err := r.updateStatusAndPhase(ctx, req.NamespacedName, asdbcev1alpha1.AerospikePhaseCompleted); err != nil {
+		if errors.IsConflict(err) {
+			log.V(1).Info("Conflict updating final status, will requeue")
+			return ctrl.Result{Requeue: true}, nil
+		}
 		log.Error(err, "Failed to update status")
 		return ctrl.Result{}, err
 	}
@@ -177,13 +192,36 @@ func (r *AerospikeCEClusterReconciler) getRackSize(cluster *asdbcev1alpha1.Aeros
 	return baseSize
 }
 
-// setPhase updates the cluster's phase.
+// setPhase re-fetches the latest cluster object and updates its phase.
+// It handles conflict errors by returning a requeue result (nil error)
+// so the caller can decide to requeue without logging a spurious error.
 func (r *AerospikeCEClusterReconciler) setPhase(ctx context.Context, cluster *asdbcev1alpha1.AerospikeCECluster, phase asdbcev1alpha1.AerospikePhase) error {
-	if cluster.Status.Phase == phase {
+	log := logf.FromContext(ctx)
+
+	// Re-fetch the latest version to avoid "object has been modified" conflicts.
+	latest := &asdbcev1alpha1.AerospikeCECluster{}
+	if err := r.Get(ctx, types.NamespacedName{Name: cluster.Name, Namespace: cluster.Namespace}, latest); err != nil {
+		return err
+	}
+
+	if latest.Status.Phase == phase {
 		return nil
 	}
+
+	latest.Status.Phase = phase
+	if err := r.Status().Update(ctx, latest); err != nil {
+		if errors.IsConflict(err) {
+			log.V(1).Info("Conflict updating phase, will requeue", "phase", phase)
+			return err
+		}
+		return err
+	}
+
+	// Propagate the updated resource version back to the caller's object
+	// so subsequent operations in the same reconcile loop use fresh data.
+	cluster.ResourceVersion = latest.ResourceVersion
 	cluster.Status.Phase = phase
-	return r.Status().Update(ctx, cluster)
+	return nil
 }
 
 // configHash computes a SHA256 hash of the aerospike config for change detection.

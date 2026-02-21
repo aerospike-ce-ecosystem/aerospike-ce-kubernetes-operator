@@ -275,6 +275,14 @@ func (v *AerospikeCEClusterValidator) validateAerospikeConfig(config map[string]
 			if len(ns) > maxCENamespaces {
 				errors = append(errors, fmt.Sprintf("aerospikeConfig.namespaces count %d exceeds CE maximum of %d", len(ns), maxCENamespaces))
 			}
+			// Validate each namespace's config
+			for i, nsEntry := range ns {
+				if nsMap, ok := nsEntry.(map[string]any); ok {
+					nsErrors, nsWarnings := v.validateNamespaceConfig(nsMap, i)
+					errors = append(errors, nsErrors...)
+					warnings = append(warnings, nsWarnings...)
+				}
+			}
 		case map[string]any:
 			if len(ns) > maxCENamespaces {
 				errors = append(errors, fmt.Sprintf("aerospikeConfig.namespaces count %d exceeds CE maximum of %d", len(ns), maxCENamespaces))
@@ -282,10 +290,77 @@ func (v *AerospikeCEClusterValidator) validateAerospikeConfig(config map[string]
 		}
 	}
 
-	// Warn if security section is present but no ACL defined
+	// CE does not support security stanza (Enterprise-only in Aerospike 8.x)
 	if _, exists := config["security"]; exists {
-		if acl == nil {
-			warnings = append(warnings, "aerospikeConfig contains 'security' section but no aerospikeAccessControl is defined")
+		errors = append(errors, "aerospikeConfig must not contain 'security' section (security/ACL is Enterprise-only in Aerospike CE 8.x)")
+	}
+
+	// Validate heartbeat mode is mesh (CE only supports mesh)
+	if netCfg, ok := config["network"].(map[string]any); ok {
+		if hbCfg, ok := netCfg["heartbeat"].(map[string]any); ok {
+			if mode, ok := hbCfg["mode"].(string); ok && mode != "mesh" {
+				errors = append(errors, fmt.Sprintf("aerospikeConfig.network.heartbeat.mode must be 'mesh' for CE (got %q); multicast is Enterprise-only", mode))
+			}
+		}
+	}
+
+	return errors, warnings
+}
+
+// enterpriseOnlyNamespaceKeys lists namespace-level config keys that are Enterprise-only.
+var enterpriseOnlyNamespaceKeys = map[string]string{
+	"compression":              "data compression is Enterprise-only",
+	"compression-level":        "data compression is Enterprise-only",
+	"durable-delete":           "durable deletes is Enterprise-only",
+	"fast-restart":             "fast restart is Enterprise-only",
+	"index-type":               "index-type flash/pmem is Enterprise-only",
+	"sindex-type":              "sindex-type flash/pmem is Enterprise-only",
+	"rack-id":                  "rack-id in namespace is Enterprise-only; use operator rackConfig instead",
+	"strong-consistency":       "strong consistency is Enterprise-only",
+	"tomb-raider-eligible-age": "tomb-raider is Enterprise-only",
+	"tomb-raider-period":       "tomb-raider is Enterprise-only",
+}
+
+// validateNamespaceConfig checks individual namespace config for CE-incompatible options.
+func (v *AerospikeCEClusterValidator) validateNamespaceConfig(nsMap map[string]any, index int) ([]string, admission.Warnings) {
+	var errors []string
+	var warnings admission.Warnings
+
+	nsName := "<unknown>"
+	if name, ok := nsMap["name"].(string); ok {
+		nsName = name
+	}
+
+	// Check for enterprise-only keys
+	for key, reason := range enterpriseOnlyNamespaceKeys {
+		if _, exists := nsMap[key]; exists {
+			errors = append(errors, fmt.Sprintf("namespace[%d] %q: '%s' is not allowed (%s)", index, nsName, key, reason))
+		}
+	}
+
+	// Warn about data-in-memory usage in storage-engine device
+	if se, ok := nsMap["storage-engine"].(map[string]any); ok {
+		if dim, ok := se["data-in-memory"]; ok {
+			if dimBool, ok := dim.(bool); ok && dimBool {
+				warnings = append(warnings, fmt.Sprintf(
+					"namespace %q: data-in-memory=true doubles memory usage (data stored in both memory and disk); ensure sufficient memory-size",
+					nsName,
+				))
+			}
+		}
+	}
+
+	// Validate replication-factor: single-node clusters should use 1
+	if rf, ok := nsMap["replication-factor"]; ok {
+		switch v := rf.(type) {
+		case int:
+			if v < 1 || v > 4 {
+				errors = append(errors, fmt.Sprintf("namespace[%d] %q: replication-factor must be between 1 and 4 (got %d)", index, nsName, v))
+			}
+		case float64:
+			if v < 1 || v > 4 {
+				errors = append(errors, fmt.Sprintf("namespace[%d] %q: replication-factor must be between 1 and 4 (got %v)", index, nsName, v))
+			}
 		}
 	}
 

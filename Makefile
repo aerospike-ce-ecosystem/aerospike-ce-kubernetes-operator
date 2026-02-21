@@ -146,6 +146,10 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	cd config/manager && "$(KUSTOMIZE)" edit set image controller=${IMG}
 	"$(KUSTOMIZE)" build config/default > dist/install.yaml
 
+.PHONY: helm-sync-crds
+helm-sync-crds: manifests ## Copy CRD to Helm chart crds/ directory.
+	cp config/crd/bases/acko.io_aerospikececlusters.yaml charts/aerospike-operator/crds/
+
 ##@ Deployment
 
 ifndef ignore-not-found

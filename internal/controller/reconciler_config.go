@@ -56,8 +56,45 @@ func (r *AerospikeCEClusterReconciler) reconcileConfigMap(
 	// Inject access-address placeholders based on network policy
 	configgen.InjectAccessAddressPlaceholders(effectiveConfig.Value, cluster.Spec.AerospikeNetworkPolicy)
 
-	// Generate aerospike.conf
-	confText, err := configgen.GenerateConfig(effectiveConfig.Value)
+	// Collect all pod names across all racks for mesh seed injection
+	racks := r.getRacks(cluster)
+	var allPodNames []string
+	for rackIdx, rk := range racks {
+		rackSize := r.getRackSize(cluster, racks, rackIdx)
+		stsName := utils.StatefulSetName(cluster.Name, rk.ID)
+		for i := int32(0); i < rackSize; i++ {
+			allPodNames = append(allPodNames, fmt.Sprintf("%s-%d", stsName, i))
+		}
+	}
+
+	// Determine heartbeat port
+	heartbeatPort := 3002
+	if netCfg, ok := effectiveConfig.Value["network"].(map[string]any); ok {
+		if hbCfg, ok := netCfg["heartbeat"].(map[string]any); ok {
+			if port, ok := hbCfg["port"]; ok {
+				switch p := port.(type) {
+				case int:
+					heartbeatPort = p
+				case int64:
+					heartbeatPort = int(p)
+				case float64:
+					heartbeatPort = int(p)
+				}
+			}
+		}
+	}
+
+	serviceName := utils.HeadlessServiceName(cluster.Name)
+
+	// Generate aerospike.conf with mesh seeds injected
+	confText, err := configgen.GenerateConfForPod(
+		effectiveConfig.Value,
+		"", // podName not used for shared ConfigMap
+		serviceName,
+		cluster.Namespace,
+		allPodNames,
+		heartbeatPort,
+	)
 	if err != nil {
 		return fmt.Errorf("generating aerospike.conf: %w", err)
 	}

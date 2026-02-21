@@ -7,6 +7,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -14,19 +15,45 @@ import (
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
-// updateStatusAndPhase updates the status fields and phase in a single Status().Update call.
+// updateStatusAndPhase re-fetches the latest cluster object from the API server,
+// populates status fields, sets the desired phase, and performs a status update.
+// This pattern avoids "object has been modified" conflict errors that occur when
+// updating status on a stale object.
+// If the status already matches the desired state, the update is skipped to avoid
+// triggering unnecessary reconciliation loops.
 func (r *AerospikeCEClusterReconciler) updateStatusAndPhase(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	namespacedName types.NamespacedName,
 	phase asdbcev1alpha1.AerospikePhase,
 ) error {
 	log := logf.FromContext(ctx)
 
-	readyCount := r.populateStatus(ctx, cluster)
-	cluster.Status.Phase = phase
+	// Re-fetch the latest version from the API server.
+	latest := &asdbcev1alpha1.AerospikeCECluster{}
+	if err := r.Get(ctx, namespacedName, latest); err != nil {
+		return err
+	}
 
-	log.Info("Updating status", "readyPods", readyCount, "desiredSize", cluster.Spec.Size, "phase", phase)
-	return r.Status().Update(ctx, cluster)
+	// Capture the previous state for comparison.
+	prevPhase := latest.Status.Phase
+	prevSize := latest.Status.Size
+	prevGeneration := latest.Status.ObservedGeneration
+
+	readyCount := r.populateStatus(ctx, latest)
+	latest.Status.Phase = phase
+
+	// Skip the update if nothing meaningful changed to avoid
+	// triggering a reconciliation feedback loop via the watch.
+	if prevPhase == phase &&
+		prevSize == readyCount &&
+		prevGeneration == latest.Generation {
+		log.V(1).Info("Status unchanged, skipping update",
+			"readyPods", readyCount, "desiredSize", latest.Spec.Size, "phase", phase)
+		return nil
+	}
+
+	log.Info("Updating status", "readyPods", readyCount, "desiredSize", latest.Spec.Size, "phase", phase)
+	return r.Status().Update(ctx, latest)
 }
 
 // populateStatus fills in the cluster's status fields and returns the ready pod count.

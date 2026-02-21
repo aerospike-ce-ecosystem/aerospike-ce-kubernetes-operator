@@ -41,7 +41,9 @@ func GenerateConfig(config map[string]any) (string, error) {
 			b.WriteString(s)
 
 		case "security":
-			b.WriteString("security {\n}\n")
+			// CE does not support the security stanza; skip it to avoid
+			// "enterprise-only" startup errors.
+			continue
 
 		case "service":
 			svcMap, ok := val.(map[string]any)
@@ -107,7 +109,8 @@ func GenerateConfForPod(
 			b.WriteString(generateLoggingSection(logs))
 
 		case "security":
-			b.WriteString("security {\n}\n")
+			// CE does not support the security stanza; skip it.
+			continue
 
 		case "service":
 			svcMap, ok := val.(map[string]any)
@@ -189,7 +192,11 @@ func writeMapEntries(b *strings.Builder, m map[string]any, indent int) {
 	}
 }
 
-// generateLoggingSection produces the logging stanza from a list of log file configs.
+// generateLoggingSection produces the logging stanza from a list of log sink configs.
+// Supports three sink types via the "name" key:
+//   - "console" or "stderr" -- generates a `console { ... }` block
+//   - "syslog" -- generates a `syslog { ... }` block
+//   - anything else -- treated as a file path, generating `file <name> { ... }`
 func generateLoggingSection(logs []any) string {
 	var b strings.Builder
 	b.WriteString("logging {\n")
@@ -203,9 +210,18 @@ func generateLoggingSection(logs []any) string {
 		if name == "" {
 			continue
 		}
-		b.WriteString("\tfile ")
-		b.WriteString(name)
-		b.WriteString(" {\n")
+
+		// Determine sink type from the name field.
+		switch name {
+		case "console", "stderr":
+			b.WriteString("\tconsole {\n")
+		case "syslog":
+			b.WriteString("\tsyslog {\n")
+		default:
+			b.WriteString("\tfile ")
+			b.WriteString(name)
+			b.WriteString(" {\n")
+		}
 
 		// Write context entries (all keys except "name").
 		keys := sortedKeys(logMap)

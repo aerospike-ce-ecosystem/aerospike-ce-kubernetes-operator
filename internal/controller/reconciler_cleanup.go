@@ -3,11 +3,9 @@ package controller
 import (
 	"context"
 
-	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -33,11 +31,8 @@ func (r *AerospikeCEClusterReconciler) handleDeletion(
 		for _, vol := range cluster.Spec.Storage.Volumes {
 			if vol.CascadeDelete && vol.Source.PersistentVolume != nil {
 				// Delete PVCs for all racks
-				stsList := &appsv1.StatefulSetList{}
-				if err := r.List(ctx, stsList,
-					client.InNamespace(cluster.Namespace),
-					client.MatchingLabels(utils.SelectorLabelsForCluster(cluster.Name)),
-				); err != nil {
+				stsList, err := r.listClusterStatefulSets(ctx, cluster)
+				if err != nil {
 					return ctrl.Result{}, err
 				}
 				for _, sts := range stsList.Items {
@@ -53,8 +48,8 @@ func (r *AerospikeCEClusterReconciler) handleDeletion(
 	}
 
 	// Re-fetch before removing finalizer to avoid conflict on stale object.
-	latest := &asdbcev1alpha1.AerospikeCECluster{}
-	if err := r.Get(ctx, types.NamespacedName{Name: cluster.Name, Namespace: cluster.Namespace}, latest); err != nil {
+	latest, err := r.refetchCluster(ctx, types.NamespacedName{Name: cluster.Name, Namespace: cluster.Namespace})
+	if err != nil {
 		return ctrl.Result{}, err
 	}
 

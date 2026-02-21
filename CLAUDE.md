@@ -94,5 +94,5 @@ Located in `config/samples/`:
 ## create kind cluster
 
 ```bash
-kind create cluster --config kind-config.yaml --name kind-kind
+kind create cluster --config kind-config.yaml --name kind
 ```

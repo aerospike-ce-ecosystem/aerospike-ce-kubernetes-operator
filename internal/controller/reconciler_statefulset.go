@@ -11,8 +11,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
@@ -74,8 +72,8 @@ func (r *AerospikeCEClusterReconciler) reconcileStatefulSet(
 	if errors.IsNotFound(err) {
 		// Create new StatefulSet
 		sts := r.buildStatefulSet(cluster, stsName, rackSize, podTemplate, pvcTemplates)
-		if err := ctrl.SetControllerReference(cluster, sts, r.Scheme); err != nil {
-			return fmt.Errorf("setting controller reference: %w", err)
+		if err := r.setOwnerRef(cluster, sts); err != nil {
+			return err
 		}
 		log.Info("Creating StatefulSet", "name", stsName, "replicas", rackSize)
 		return r.Create(ctx, sts)
@@ -160,11 +158,8 @@ func (r *AerospikeCEClusterReconciler) cleanupRemovedRacks(
 ) error {
 	log := logf.FromContext(ctx)
 
-	stsList := &appsv1.StatefulSetList{}
-	if err := r.List(ctx, stsList,
-		client.InNamespace(cluster.Namespace),
-		client.MatchingLabels(utils.SelectorLabelsForCluster(cluster.Name)),
-	); err != nil {
+	stsList, err := r.listClusterStatefulSets(ctx, cluster)
+	if err != nil {
 		return err
 	}
 

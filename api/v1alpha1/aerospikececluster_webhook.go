@@ -102,29 +102,22 @@ func (d *AerospikeCEClusterDefaulter) defaultNetworkConfig(cluster *AerospikeCEC
 
 	networkSection := getOrCreateMapSection(config, "network")
 
-	// Service sub-section
-	svcSection := getOrCreateMapSection(networkSection, "service")
-	if _, exists := svcSection["port"]; !exists {
-		svcSection["port"] = defaultServicePort
+	// Default values for each network sub-section.
+	networkDefaults := map[string]map[string]any{
+		"service":   {"port": defaultServicePort},
+		"heartbeat": {"port": defaultHeartbeatPort, "mode": defaultHeartbeatMode},
+		"fabric":    {"port": defaultFabricPort},
 	}
-	networkSection["service"] = svcSection
 
-	// Heartbeat sub-section
-	hbSection := getOrCreateMapSection(networkSection, "heartbeat")
-	if _, exists := hbSection["port"]; !exists {
-		hbSection["port"] = defaultHeartbeatPort
+	for name, defs := range networkDefaults {
+		section := getOrCreateMapSection(networkSection, name)
+		for k, v := range defs {
+			if _, exists := section[k]; !exists {
+				section[k] = v
+			}
+		}
+		networkSection[name] = section
 	}
-	if _, exists := hbSection["mode"]; !exists {
-		hbSection["mode"] = defaultHeartbeatMode
-	}
-	networkSection["heartbeat"] = hbSection
-
-	// Fabric sub-section
-	fabricSection := getOrCreateMapSection(networkSection, "fabric")
-	if _, exists := fabricSection["port"]; !exists {
-		fabricSection["port"] = defaultFabricPort
-	}
-	networkSection["fabric"] = fabricSection
 
 	config["network"] = networkSection
 }

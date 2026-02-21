@@ -8,7 +8,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
@@ -30,8 +29,8 @@ func (r *AerospikeCEClusterReconciler) updateStatusAndPhase(
 	log := logf.FromContext(ctx)
 
 	// Re-fetch the latest version from the API server.
-	latest := &asdbcev1alpha1.AerospikeCECluster{}
-	if err := r.Get(ctx, namespacedName, latest); err != nil {
+	latest, err := r.refetchCluster(ctx, namespacedName)
+	if err != nil {
 		return err
 	}
 
@@ -68,11 +67,8 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 	cluster *asdbcev1alpha1.AerospikeCECluster,
 ) int32 {
 	// List all pods for this cluster
-	podList := &corev1.PodList{}
-	if err := r.List(ctx, podList,
-		client.InNamespace(cluster.Namespace),
-		client.MatchingLabels(utils.SelectorLabelsForCluster(cluster.Name)),
-	); err != nil {
+	podList, err := r.listClusterPods(ctx, cluster)
+	if err != nil {
 		return 0
 	}
 

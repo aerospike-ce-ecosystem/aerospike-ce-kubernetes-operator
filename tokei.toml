@@ -1,0 +1,7 @@
+# tokei configuration for Go Kubernetes Operator project
+# Usage: tokei (auto-reads tokei.toml from project root)
+#
+# Path exclusions are in .tokeignore (gitignore syntax)
+
+[languages.Go]
+treat_doc_strings_as_comments = true

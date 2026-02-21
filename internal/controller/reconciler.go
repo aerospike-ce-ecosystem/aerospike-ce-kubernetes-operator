@@ -223,8 +223,8 @@ func (r *AerospikeCEClusterReconciler) setPhase(ctx context.Context, cluster *as
 	log := logf.FromContext(ctx)
 
 	// Re-fetch the latest version to avoid "object has been modified" conflicts.
-	latest := &asdbcev1alpha1.AerospikeCECluster{}
-	if err := r.Get(ctx, types.NamespacedName{Name: cluster.Name, Namespace: cluster.Namespace}, latest); err != nil {
+	latest, err := r.refetchCluster(ctx, types.NamespacedName{Name: cluster.Name, Namespace: cluster.Namespace})
+	if err != nil {
 		return err
 	}
 

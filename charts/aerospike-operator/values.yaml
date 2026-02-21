@@ -1,0 +1,45 @@
+# Default values for aerospike-operator.
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/kimsoungryoul/aerospike-ce-kubernetes-operator
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Annotations to add to the service account
+  annotations: {}
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 128Mi
+  requests:
+    cpu: 10m
+    memory: 64Mi
+
+webhook:
+  enabled: true
+  port: 9443
+
+certManager:
+  enabled: true
+
+serviceMonitor:
+  enabled: false
+  # interval: 30s
+  # scrapeTimeout: 10s
+
+networkPolicy:
+  enabled: false
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

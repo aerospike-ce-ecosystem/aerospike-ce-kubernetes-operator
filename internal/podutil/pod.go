@@ -2,6 +2,7 @@ package podutil
 
 import (
 	"fmt"
+	"maps"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -71,12 +72,8 @@ func BuildPodTemplateSpec(
 
 	// Merge user-provided pod metadata.
 	if cluster.Spec.PodSpec != nil && cluster.Spec.PodSpec.Metadata != nil {
-		for k, v := range cluster.Spec.PodSpec.Metadata.Labels {
-			labels[k] = v
-		}
-		for k, v := range cluster.Spec.PodSpec.Metadata.Annotations {
-			annotations[k] = v
-		}
+		maps.Copy(labels, cluster.Spec.PodSpec.Metadata.Labels)
+		maps.Copy(annotations, cluster.Spec.PodSpec.Metadata.Annotations)
 	}
 
 	// Build containers.
@@ -103,7 +100,8 @@ func BuildPodTemplateSpec(
 		}
 	}
 
-	allContainers := []corev1.Container{aerospikeContainer}
+	allContainers := make([]corev1.Container, 0, 1+len(sidecars))
+	allContainers = append(allContainers, aerospikeContainer)
 	allContainers = append(allContainers, sidecars...)
 
 	// Termination grace period.
@@ -126,7 +124,7 @@ func BuildPodTemplateSpec(
 
 	// Rack-level overrides.
 	if rack != nil && rack.PodSpec != nil {
-		applyRackPodSpecOverrides(&podSpec, rack.PodSpec, rackID)
+		applyRackPodSpecOverrides(&podSpec, rack.PodSpec)
 	} else if rack != nil {
 		// Apply zone/region/node affinity from rack definition.
 		applyRackAffinity(&podSpec, rack)
@@ -177,7 +175,7 @@ func applyPodSpecSettings(podSpec *corev1.PodSpec, spec *v1alpha1.AerospikeCEPod
 }
 
 // applyRackPodSpecOverrides overrides pod spec settings with rack-specific values.
-func applyRackPodSpecOverrides(podSpec *corev1.PodSpec, rackPod *v1alpha1.RackPodSpec, rackID int) {
+func applyRackPodSpecOverrides(podSpec *corev1.PodSpec, rackPod *v1alpha1.RackPodSpec) {
 	if rackPod.Affinity != nil {
 		podSpec.Affinity = rackPod.Affinity
 	}

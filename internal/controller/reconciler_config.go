@@ -31,20 +31,20 @@ func (r *AerospikeCEClusterReconciler) reconcileConfigMap(
 	if effectiveConfig == nil {
 		// Provide a minimal default config
 		effectiveConfig = &asdbcev1alpha1.AerospikeConfigSpec{
-			Value: map[string]interface{}{
-				"service": map[string]interface{}{
+			Value: map[string]any{
+				"service": map[string]any{
 					"cluster-name": cluster.Name,
 				},
-				"network": map[string]interface{}{
-					"service": map[string]interface{}{
+				"network": map[string]any{
+					"service": map[string]any{
 						"address": "any",
 						"port":    3000,
 					},
-					"heartbeat": map[string]interface{}{
+					"heartbeat": map[string]any{
 						"mode": "mesh",
 						"port": 3002,
 					},
-					"fabric": map[string]interface{}{
+					"fabric": map[string]any{
 						"address": "any",
 						"port":    3001,
 					},

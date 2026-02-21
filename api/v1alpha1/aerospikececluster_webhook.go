@@ -59,11 +59,11 @@ func (d *AerospikeCEClusterDefaulter) Default(ctx context.Context, cluster *Aero
 
 	if cluster.Spec.AerospikeConfig == nil {
 		cluster.Spec.AerospikeConfig = &AerospikeConfigSpec{
-			Value: make(map[string]interface{}),
+			Value: make(map[string]any),
 		}
 	}
 	if cluster.Spec.AerospikeConfig.Value == nil {
-		cluster.Spec.AerospikeConfig.Value = make(map[string]interface{})
+		cluster.Spec.AerospikeConfig.Value = make(map[string]any)
 	}
 
 	d.defaultServiceConfig(cluster)
@@ -123,13 +123,13 @@ func (d *AerospikeCEClusterDefaulter) defaultNetworkConfig(cluster *AerospikeCEC
 }
 
 // getOrCreateMapSection returns the sub-map at key or creates a new one.
-func getOrCreateMapSection(m map[string]interface{}, key string) map[string]interface{} {
+func getOrCreateMapSection(m map[string]any, key string) map[string]any {
 	if existing, ok := m[key]; ok {
-		if existingMap, ok := existing.(map[string]interface{}); ok {
+		if existingMap, ok := existing.(map[string]any); ok {
 			return existingMap
 		}
 	}
-	newMap := make(map[string]interface{})
+	newMap := make(map[string]any)
 	m[key] = newMap
 	return newMap
 }
@@ -201,7 +201,7 @@ func (v *AerospikeCEClusterValidator) validate(cluster *AerospikeCECluster) (adm
 }
 
 // validateAerospikeConfig checks the Aerospike configuration map.
-func (v *AerospikeCEClusterValidator) validateAerospikeConfig(config map[string]interface{}, acl *AerospikeAccessControlSpec) ([]string, admission.Warnings) {
+func (v *AerospikeCEClusterValidator) validateAerospikeConfig(config map[string]any, acl *AerospikeAccessControlSpec) ([]string, admission.Warnings) {
 	var errors []string
 	var warnings admission.Warnings
 
@@ -218,11 +218,11 @@ func (v *AerospikeCEClusterValidator) validateAerospikeConfig(config map[string]
 	// Count namespaces (CE limit: 2)
 	if nsSection, exists := config["namespaces"]; exists {
 		switch ns := nsSection.(type) {
-		case []interface{}:
+		case []any:
 			if len(ns) > maxCENamespaces {
 				errors = append(errors, fmt.Sprintf("aerospikeConfig.namespaces count %d exceeds CE maximum of %d", len(ns), maxCENamespaces))
 			}
-		case map[string]interface{}:
+		case map[string]any:
 			if len(ns) > maxCENamespaces {
 				errors = append(errors, fmt.Sprintf("aerospikeConfig.namespaces count %d exceeds CE maximum of %d", len(ns), maxCENamespaces))
 			}

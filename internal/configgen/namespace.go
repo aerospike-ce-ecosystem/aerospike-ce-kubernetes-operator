@@ -6,11 +6,11 @@ import (
 )
 
 // generateNamespaceSections generates one `namespace <name> { ... }` block per namespace entry.
-func generateNamespaceSections(namespaces []interface{}) (string, error) {
+func generateNamespaceSections(namespaces []any) (string, error) {
 	var b strings.Builder
 
 	for i, ns := range namespaces {
-		nsMap, ok := ns.(map[string]interface{})
+		nsMap, ok := ns.(map[string]any)
 		if !ok {
 			return "", fmt.Errorf("namespace entry %d is not a map", i)
 		}
@@ -41,11 +41,11 @@ func generateNamespaceSections(namespaces []interface{}) (string, error) {
 }
 
 // writeNamespaceEntry writes a single namespace config entry at the given indent level.
-func writeNamespaceEntry(b *strings.Builder, key string, val interface{}, indent int) {
+func writeNamespaceEntry(b *strings.Builder, key string, val any, indent int) {
 	prefix := strings.Repeat("\t", indent)
 
 	switch v := val.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		b.WriteString(prefix)
 		b.WriteString(key)
 		b.WriteString(" {\n")
@@ -55,9 +55,9 @@ func writeNamespaceEntry(b *strings.Builder, key string, val interface{}, indent
 		}
 		b.WriteString(prefix)
 		b.WriteString("}\n")
-	case []interface{}:
+	case []any:
 		for _, item := range v {
-			if subMap, ok := item.(map[string]interface{}); ok {
+			if subMap, ok := item.(map[string]any); ok {
 				b.WriteString(prefix)
 				b.WriteString(key)
 				b.WriteString(" {\n")

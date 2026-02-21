@@ -7,7 +7,7 @@ import (
 )
 
 // GenerateConfig converts an unstructured config map into aerospike.conf text format.
-func GenerateConfig(config map[string]interface{}) (string, error) {
+func GenerateConfig(config map[string]any) (string, error) {
 	if config == nil {
 		return "", fmt.Errorf("config map is nil")
 	}
@@ -22,7 +22,7 @@ func GenerateConfig(config map[string]interface{}) (string, error) {
 
 		switch key {
 		case "namespaces":
-			namespaces, ok := val.([]interface{})
+			namespaces, ok := val.([]any)
 			if !ok {
 				return "", fmt.Errorf("namespaces must be a list")
 			}
@@ -33,7 +33,7 @@ func GenerateConfig(config map[string]interface{}) (string, error) {
 			b.WriteString(s)
 
 		case "logging":
-			logs, ok := val.([]interface{})
+			logs, ok := val.([]any)
 			if !ok {
 				return "", fmt.Errorf("logging must be a list")
 			}
@@ -44,14 +44,14 @@ func GenerateConfig(config map[string]interface{}) (string, error) {
 			b.WriteString("security {\n}\n")
 
 		case "service":
-			svcMap, ok := val.(map[string]interface{})
+			svcMap, ok := val.(map[string]any)
 			if !ok {
 				return "", fmt.Errorf("service must be a map")
 			}
 			b.WriteString(generateServiceSection(svcMap))
 
 		case "network":
-			netMap, ok := val.(map[string]interface{})
+			netMap, ok := val.(map[string]any)
 			if !ok {
 				return "", fmt.Errorf("network must be a map")
 			}
@@ -59,7 +59,7 @@ func GenerateConfig(config map[string]interface{}) (string, error) {
 
 		default:
 			switch v := val.(type) {
-			case map[string]interface{}:
+			case map[string]any:
 				b.WriteString(generateStanza(key, v))
 			default:
 				b.WriteString(fmt.Sprintf("%s %s\n", key, formatValue(val)))
@@ -72,7 +72,7 @@ func GenerateConfig(config map[string]interface{}) (string, error) {
 
 // GenerateConfForPod generates an aerospike.conf with mesh seeds injected for the given pod.
 func GenerateConfForPod(
-	config map[string]interface{},
+	config map[string]any,
 	podName, serviceName, namespace string,
 	podNames []string,
 	heartbeatPort int,
@@ -89,7 +89,7 @@ func GenerateConfForPod(
 
 		switch key {
 		case "namespaces":
-			namespaces, ok := val.([]interface{})
+			namespaces, ok := val.([]any)
 			if !ok {
 				return "", fmt.Errorf("namespaces must be a list")
 			}
@@ -100,7 +100,7 @@ func GenerateConfForPod(
 			b.WriteString(s)
 
 		case "logging":
-			logs, ok := val.([]interface{})
+			logs, ok := val.([]any)
 			if !ok {
 				return "", fmt.Errorf("logging must be a list")
 			}
@@ -110,14 +110,14 @@ func GenerateConfForPod(
 			b.WriteString("security {\n}\n")
 
 		case "service":
-			svcMap, ok := val.(map[string]interface{})
+			svcMap, ok := val.(map[string]any)
 			if !ok {
 				return "", fmt.Errorf("service must be a map")
 			}
 			b.WriteString(generateServiceSection(svcMap))
 
 		case "network":
-			netMap, ok := val.(map[string]interface{})
+			netMap, ok := val.(map[string]any)
 			if !ok {
 				return "", fmt.Errorf("network must be a map")
 			}
@@ -125,7 +125,7 @@ func GenerateConfForPod(
 
 		default:
 			switch v := val.(type) {
-			case map[string]interface{}:
+			case map[string]any:
 				b.WriteString(generateStanza(key, v))
 			default:
 				b.WriteString(fmt.Sprintf("%s %s\n", key, formatValue(val)))
@@ -137,7 +137,7 @@ func GenerateConfForPod(
 }
 
 // generateStanza outputs a named stanza block with its key-value pairs.
-func generateStanza(name string, m map[string]interface{}) string {
+func generateStanza(name string, m map[string]any) string {
 	var b strings.Builder
 	b.WriteString(name)
 	b.WriteString(" {\n")
@@ -147,24 +147,24 @@ func generateStanza(name string, m map[string]interface{}) string {
 }
 
 // writeMapEntries writes sorted map entries with the given indentation level.
-func writeMapEntries(b *strings.Builder, m map[string]interface{}, indent int) {
+func writeMapEntries(b *strings.Builder, m map[string]any, indent int) {
 	prefix := strings.Repeat("\t", indent)
 	keys := sortedKeys(m)
 
 	for _, key := range keys {
 		val := m[key]
 		switch v := val.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			b.WriteString(prefix)
 			b.WriteString(key)
 			b.WriteString(" {\n")
 			writeMapEntries(b, v, indent+1)
 			b.WriteString(prefix)
 			b.WriteString("}\n")
-		case []interface{}:
+		case []any:
 			// Lists of maps become repeated sub-stanzas; lists of primitives become repeated key-value lines.
 			for _, item := range v {
-				if subMap, ok := item.(map[string]interface{}); ok {
+				if subMap, ok := item.(map[string]any); ok {
 					b.WriteString(prefix)
 					b.WriteString(key)
 					b.WriteString(" {\n")
@@ -190,12 +190,12 @@ func writeMapEntries(b *strings.Builder, m map[string]interface{}, indent int) {
 }
 
 // generateLoggingSection produces the logging stanza from a list of log file configs.
-func generateLoggingSection(logs []interface{}) string {
+func generateLoggingSection(logs []any) string {
 	var b strings.Builder
 	b.WriteString("logging {\n")
 
 	for _, entry := range logs {
-		logMap, ok := entry.(map[string]interface{})
+		logMap, ok := entry.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -227,7 +227,7 @@ func generateLoggingSection(logs []interface{}) string {
 }
 
 // formatValue formats a config value for aerospike.conf output.
-func formatValue(val interface{}) string {
+func formatValue(val any) string {
 	switch v := val.(type) {
 	case bool:
 		if v {
@@ -260,7 +260,7 @@ func formatValue(val interface{}) string {
 }
 
 // sortedKeys returns the keys of a map in sorted order.
-func sortedKeys(m map[string]interface{}) []string {
+func sortedKeys(m map[string]any) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)

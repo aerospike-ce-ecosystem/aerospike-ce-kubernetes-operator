@@ -10,6 +10,8 @@ import (
 
 // reconcileACL synchronizes ACL roles and users with the Aerospike cluster.
 // This is a placeholder for future ACL management via the Aerospike Go client.
+//
+//nolint:unused,unparam // placeholder for future ACL integration
 func (r *AerospikeCEClusterReconciler) reconcileACL(
 	ctx context.Context,
 	cluster *asdbcev1alpha1.AerospikeCECluster,

@@ -8,8 +8,8 @@ import (
 // generateNetworkSection generates the network stanza with mesh seeds injected
 // for all pods in the StatefulSet.
 func generateNetworkSection(
-	networkConfig map[string]interface{},
-	podName, serviceName, namespace string,
+	networkConfig map[string]any,
+	_, serviceName, namespace string,
 	podNames []string,
 	heartbeatPort int,
 ) string {
@@ -21,12 +21,12 @@ func generateNetworkSection(
 		val := networkConfig[key]
 
 		if key == "heartbeat" {
-			hbMap, ok := val.(map[string]interface{})
+			hbMap, ok := val.(map[string]any)
 			if !ok {
-				hbMap = make(map[string]interface{})
+				hbMap = make(map[string]any)
 			}
-			b.WriteString(generateHeartbeatSubsection(hbMap, podName, serviceName, namespace, podNames, heartbeatPort))
-		} else if subMap, ok := val.(map[string]interface{}); ok {
+			b.WriteString(generateHeartbeatSubsection(hbMap, serviceName, namespace, podNames, heartbeatPort))
+		} else if subMap, ok := val.(map[string]any); ok {
 			b.WriteString("\t")
 			b.WriteString(key)
 			b.WriteString(" {\n")
@@ -47,8 +47,8 @@ func generateNetworkSection(
 
 // generateHeartbeatSubsection generates the heartbeat sub-stanza with mesh seed entries.
 func generateHeartbeatSubsection(
-	hbConfig map[string]interface{},
-	podName, serviceName, namespace string,
+	hbConfig map[string]any,
+	serviceName, namespace string,
 	podNames []string,
 	heartbeatPort int,
 ) string {
@@ -62,7 +62,7 @@ func generateHeartbeatSubsection(
 			continue
 		}
 		val := hbConfig[key]
-		if subMap, ok := val.(map[string]interface{}); ok {
+		if subMap, ok := val.(map[string]any); ok {
 			b.WriteString("\t\t")
 			b.WriteString(key)
 			b.WriteString(" {\n")

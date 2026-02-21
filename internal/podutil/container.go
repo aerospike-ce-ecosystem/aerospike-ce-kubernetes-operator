@@ -67,17 +67,18 @@ func BuildAerospikeContainer(cluster *v1alpha1.AerospikeCECluster, volumeMounts 
 func BuildInitContainer(configMapName string, volumeMounts []corev1.VolumeMount) corev1.Container {
 	// Ensure the init container has mounts for both the configmap source
 	// and the aerospike config destination.
-	initMounts := []corev1.VolumeMount{
-		{
+	initMounts := make([]corev1.VolumeMount, 0, 2+len(volumeMounts))
+	initMounts = append(initMounts,
+		corev1.VolumeMount{
 			Name:      configMapVolumeName,
 			MountPath: configMapVolumeMountPath,
 			ReadOnly:  true,
 		},
-		{
+		corev1.VolumeMount{
 			Name:      aerospikeConfigVolumeName,
 			MountPath: aerospikeConfigPath,
 		},
-	}
+	)
 	initMounts = append(initMounts, volumeMounts...)
 
 	return corev1.Container{

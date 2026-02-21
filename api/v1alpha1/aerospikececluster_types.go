@@ -30,7 +30,7 @@ import (
 // +kubebuilder:pruning:PreserveUnknownFields
 // +kubebuilder:validation:Type=object
 type AerospikeConfigSpec struct {
-	Value map[string]interface{} `json:"-"`
+	Value map[string]any `json:"-"`
 }
 
 // MarshalJSON implements json.Marshaler.
@@ -59,23 +59,23 @@ func (a *AerospikeConfigSpec) DeepCopyInto(out *AerospikeConfigSpec) {
 	out.Value = deepCopyMap(a.Value)
 }
 
-func deepCopyMap(m map[string]interface{}) map[string]interface{} {
+func deepCopyMap(m map[string]any) map[string]any {
 	if m == nil {
 		return nil
 	}
-	out := make(map[string]interface{}, len(m))
+	out := make(map[string]any, len(m))
 	for key, val := range m {
 		out[key] = deepCopyValue(val)
 	}
 	return out
 }
 
-func deepCopyValue(val interface{}) interface{} {
+func deepCopyValue(val any) any {
 	switch v := val.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		return deepCopyMap(v)
-	case []interface{}:
-		out := make([]interface{}, len(v))
+	case []any:
+		out := make([]any, len(v))
 		for i, inner := range v {
 			out[i] = deepCopyValue(inner)
 		}

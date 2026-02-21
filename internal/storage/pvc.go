@@ -108,7 +108,7 @@ func extractOrdinal(pvcName, stsName string) (int32, bool) {
 	// Parse ordinal.
 	var ordinal int32
 	for _, c := range pvcName[idx+1:] {
-		ordinal = ordinal*10 + int32(c-'0')
+		ordinal = ordinal*10 + (c - '0')
 	}
 
 	return ordinal, true

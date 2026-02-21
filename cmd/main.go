@@ -179,8 +179,9 @@ func main() {
 	}
 
 	if err := (&controller.AerospikeCEClusterReconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+		//nolint:staticcheck // GetEventRecorder returns incompatible interface
 		Recorder: mgr.GetEventRecorderFor("aerospikececluster-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "AerospikeCECluster")

@@ -8,6 +8,8 @@ import (
 )
 
 // asinfoCommand executes an asinfo command on a specific node.
+//
+//nolint:unused // placeholder for future rolling restart integration
 func asinfoCommand(client *aero.Client, cmd string) (string, error) {
 	nodes := client.GetNodes()
 	if len(nodes) == 0 {
@@ -27,6 +29,8 @@ func asinfoCommand(client *aero.Client, cmd string) (string, error) {
 }
 
 // isMigrating checks if the cluster has any pending migrations.
+//
+//nolint:unused // placeholder for future rolling restart integration
 func isMigrating(client *aero.Client) (bool, error) {
 	result, err := asinfoCommand(client, "cluster-stable:")
 	if err != nil {
@@ -39,6 +43,8 @@ func isMigrating(client *aero.Client) (bool, error) {
 }
 
 // recluster sends the recluster command to the cluster.
+//
+//nolint:unused // placeholder for future rolling restart integration
 func recluster(client *aero.Client) error {
 	_, err := asinfoCommand(client, "recluster:")
 	return err

@@ -6,30 +6,30 @@ import (
 )
 
 func TestGenerateConfig_BasicServiceNetworkNamespace(t *testing.T) {
-	config := map[string]interface{}{
-		"service": map[string]interface{}{
+	config := map[string]any{
+		"service": map[string]any{
 			"cluster-name": "myCluster",
 			"proto-fd-max": 15000,
 		},
-		"network": map[string]interface{}{
-			"service": map[string]interface{}{
+		"network": map[string]any{
+			"service": map[string]any{
 				"address": "any",
 				"port":    3000,
 			},
-			"heartbeat": map[string]interface{}{
+			"heartbeat": map[string]any{
 				"mode": "mesh",
 				"port": 3002,
 			},
-			"fabric": map[string]interface{}{
+			"fabric": map[string]any{
 				"address": "any",
 				"port":    3001,
 			},
 		},
-		"namespaces": []interface{}{
-			map[string]interface{}{
+		"namespaces": []any{
+			map[string]any{
 				"name":               "test",
 				"replication-factor": 2,
-				"storage-engine": map[string]interface{}{
+				"storage-engine": map[string]any{
 					"type": "memory",
 				},
 			},
@@ -53,20 +53,20 @@ func TestGenerateConfig_BasicServiceNetworkNamespace(t *testing.T) {
 }
 
 func TestGenerateConfForPod_MeshSeeds(t *testing.T) {
-	config := map[string]interface{}{
-		"service": map[string]interface{}{
+	config := map[string]any{
+		"service": map[string]any{
 			"cluster-name": "testCluster",
 		},
-		"network": map[string]interface{}{
-			"service": map[string]interface{}{
+		"network": map[string]any{
+			"service": map[string]any{
 				"address": "any",
 				"port":    3000,
 			},
-			"heartbeat": map[string]interface{}{
+			"heartbeat": map[string]any{
 				"mode": "mesh",
 				"port": 3002,
 			},
-			"fabric": map[string]interface{}{
+			"fabric": map[string]any{
 				"address": "any",
 				"port":    3001,
 			},
@@ -91,20 +91,20 @@ func TestGenerateConfForPod_MeshSeeds(t *testing.T) {
 }
 
 func TestGenerateNamespaces_WithStorageEngine(t *testing.T) {
-	config := map[string]interface{}{
-		"namespaces": []interface{}{
-			map[string]interface{}{
+	config := map[string]any{
+		"namespaces": []any{
+			map[string]any{
 				"name":               "ns1",
 				"replication-factor": 2,
-				"storage-engine": map[string]interface{}{
+				"storage-engine": map[string]any{
 					"file":     "/opt/aerospike/data/ns1.dat",
 					"filesize": "4G",
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":               "ns2",
 				"replication-factor": 1,
-				"storage-engine": map[string]interface{}{
+				"storage-engine": map[string]any{
 					"type": "memory",
 				},
 			},
@@ -124,11 +124,11 @@ func TestGenerateNamespaces_WithStorageEngine(t *testing.T) {
 }
 
 func TestGenerateConfig_SecuritySection(t *testing.T) {
-	config := map[string]interface{}{
-		"service": map[string]interface{}{
+	config := map[string]any{
+		"service": map[string]any{
 			"cluster-name": "secure-cluster",
 		},
-		"security": map[string]interface{}{},
+		"security": map[string]any{},
 	}
 
 	result, err := GenerateConfig(config)
@@ -141,9 +141,9 @@ func TestGenerateConfig_SecuritySection(t *testing.T) {
 }
 
 func TestGenerateConfig_LoggingSection(t *testing.T) {
-	config := map[string]interface{}{
-		"logging": []interface{}{
-			map[string]interface{}{
+	config := map[string]any{
+		"logging": []any{
+			map[string]any{
 				"name":    "/var/log/aerospike/aerospike.log",
 				"context": "any info",
 			},
@@ -161,13 +161,13 @@ func TestGenerateConfig_LoggingSection(t *testing.T) {
 }
 
 func TestGenerateConfig_BoolValues(t *testing.T) {
-	config := map[string]interface{}{
-		"service": map[string]interface{}{
+	config := map[string]any{
+		"service": map[string]any{
 			"feature-key-file":   "/etc/aerospike/features.conf",
 			"migrate-fill-delay": 0,
 		},
-		"namespaces": []interface{}{
-			map[string]interface{}{
+		"namespaces": []any{
+			map[string]any{
 				"name":                   "test",
 				"allow-ttl-without-nsup": true,
 				"disallow-null-setname":  false,
@@ -193,7 +193,7 @@ func TestGenerateConfig_NilConfig(t *testing.T) {
 
 func TestFormatValue(t *testing.T) {
 	tests := []struct {
-		input    interface{}
+		input    any
 		expected string
 	}{
 		{true, "true"},
@@ -213,8 +213,8 @@ func TestFormatValue(t *testing.T) {
 }
 
 func TestGenerateConfig_EmptyNamespaceList(t *testing.T) {
-	config := map[string]interface{}{
-		"namespaces": []interface{}{},
+	config := map[string]any{
+		"namespaces": []any{},
 	}
 
 	result, err := GenerateConfig(config)
@@ -229,9 +229,9 @@ func TestGenerateConfig_EmptyNamespaceList(t *testing.T) {
 }
 
 func TestGenerateConfig_NamespaceMissingName(t *testing.T) {
-	config := map[string]interface{}{
-		"namespaces": []interface{}{
-			map[string]interface{}{
+	config := map[string]any{
+		"namespaces": []any{
+			map[string]any{
 				"replication-factor": 2,
 			},
 		},

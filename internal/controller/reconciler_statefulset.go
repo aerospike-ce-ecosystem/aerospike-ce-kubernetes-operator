@@ -75,23 +75,12 @@ func (r *AerospikeCEClusterReconciler) reconcileStatefulSet(
 	}
 
 	// Update existing StatefulSet
-	updated := false
-
-	if *existing.Spec.Replicas != rackSize {
-		existing.Spec.Replicas = &rackSize
-		updated = true
-	}
-
-	// Update pod template (always update to pick up config hash changes)
+	existing.Spec.Replicas = &rackSize
 	existing.Spec.Template = podTemplate
-	updated = true
 
-	if updated {
-		log.Info("Updating StatefulSet", "name", stsName)
-		return r.Update(ctx, existing)
-	}
+	log.Info("Updating StatefulSet", "name", stsName)
 
-	return nil
+	return r.Update(ctx, existing)
 }
 
 func (r *AerospikeCEClusterReconciler) buildStatefulSet(

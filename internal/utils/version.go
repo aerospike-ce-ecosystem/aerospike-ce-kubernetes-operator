@@ -18,8 +18,8 @@ func ParseImageVersion(image string) (major, minor, patch int, err error) {
 
 	// Strip known tag prefixes (e.g., "ce-7.2.0" → "7.2.0").
 	for _, prefix := range []string{"ce-", "ee-"} {
-		if strings.HasPrefix(tag, prefix) {
-			tag = strings.TrimPrefix(tag, prefix)
+		if after, found := strings.CutPrefix(tag, prefix); found {
+			tag = after
 
 			break
 		}

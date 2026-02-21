@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,7 +17,6 @@ import (
 func (r *AerospikeCEClusterReconciler) updateStatus(
 	ctx context.Context,
 	cluster *asdbcev1alpha1.AerospikeCECluster,
-	racks []asdbcev1alpha1.Rack,
 ) error {
 	log := logf.FromContext(ctx)
 
@@ -37,7 +37,7 @@ func (r *AerospikeCEClusterReconciler) updateStatus(
 
 		rackID := 0
 		if rackStr, ok := pod.Labels[utils.RackLabel]; ok {
-			fmt.Sscanf(rackStr, "%d", &rackID)
+			_, _ = fmt.Sscanf(rackStr, "%d", &rackID)
 		}
 
 		isReady := isPodReady(pod)
@@ -115,12 +115,5 @@ func setCondition(cluster *asdbcev1alpha1.AerospikeCECluster, condType string, s
 }
 
 func joinStrings(parts []string, sep string) string {
-	result := ""
-	for i, p := range parts {
-		if i > 0 {
-			result += sep
-		}
-		result += p
-	}
-	return result
+	return strings.Join(parts, sep)
 }

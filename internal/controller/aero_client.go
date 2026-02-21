@@ -15,6 +15,8 @@ import (
 )
 
 // getAerospikeClient creates an Aerospike client connected to the cluster.
+//
+//nolint:unused // placeholder for future ACL integration
 func (r *AerospikeCEClusterReconciler) getAerospikeClient(
 	ctx context.Context,
 	cluster *asdbcev1alpha1.AerospikeCECluster,
@@ -52,6 +54,8 @@ func (r *AerospikeCEClusterReconciler) getAerospikeClient(
 }
 
 // getPasswordFromSecret reads a password from a Kubernetes Secret.
+//
+//nolint:unused // placeholder for future ACL integration
 func (r *AerospikeCEClusterReconciler) getPasswordFromSecret(
 	ctx context.Context,
 	namespace, secretName string,

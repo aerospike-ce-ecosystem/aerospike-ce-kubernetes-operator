@@ -129,7 +129,7 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// 12. Update status
-	if err := r.updateStatus(ctx, cluster, racks); err != nil {
+	if err := r.updateStatus(ctx, cluster); err != nil {
 		log.Error(err, "Failed to update status")
 		return ctrl.Result{}, err
 	}
@@ -178,7 +178,7 @@ func configHash(config *asdbcev1alpha1.AerospikeConfigSpec) string {
 	if config == nil {
 		return ""
 	}
-	h := sha256.Sum256([]byte(fmt.Sprintf("%v", *config)))
+	h := sha256.Sum256(fmt.Appendf(nil, "%v", *config))
 	return fmt.Sprintf("%x", h[:8])
 }
 

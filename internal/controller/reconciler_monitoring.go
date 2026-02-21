@@ -13,7 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
@@ -95,8 +94,8 @@ func (r *AerospikeCEClusterReconciler) reconcileMetricsService(
 	}
 
 	if errors.IsNotFound(err) {
-		if err := ctrl.SetControllerReference(cluster, desired, r.Scheme); err != nil {
-			return fmt.Errorf("setting controller reference for metrics service: %w", err)
+		if err := r.setOwnerRef(cluster, desired); err != nil {
+			return err
 		}
 		log.Info("Creating metrics Service", "name", svcName)
 		return r.Create(ctx, desired)
@@ -171,8 +170,8 @@ func (r *AerospikeCEClusterReconciler) reconcileServiceMonitor(
 		sm.SetLabels(labels)
 		sm.Object["spec"] = smSpec
 
-		if setErr := ctrl.SetControllerReference(cluster, sm, r.Scheme); setErr != nil {
-			return fmt.Errorf("setting controller reference for ServiceMonitor: %w", setErr)
+		if err := r.setOwnerRef(cluster, sm); err != nil {
+			return err
 		}
 		log.Info("Creating ServiceMonitor", "name", smName)
 		return r.Create(ctx, sm)

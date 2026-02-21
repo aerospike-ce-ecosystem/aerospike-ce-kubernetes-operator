@@ -2,14 +2,12 @@ package controller
 
 import (
 	"context"
-	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
@@ -49,8 +47,8 @@ func (r *AerospikeCEClusterReconciler) reconcileHeadlessService(
 				},
 			},
 		}
-		if err := ctrl.SetControllerReference(cluster, svc, r.Scheme); err != nil {
-			return fmt.Errorf("setting controller reference: %w", err)
+		if err := r.setOwnerRef(cluster, svc); err != nil {
+			return err
 		}
 		log.Info("Creating headless service", "name", svcName)
 		return r.Create(ctx, svc)

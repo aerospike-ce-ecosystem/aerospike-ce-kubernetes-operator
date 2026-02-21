@@ -13,7 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
@@ -67,8 +66,8 @@ func (r *AerospikeCEClusterReconciler) reconcileK8sNetworkPolicy(
 	np := r.buildK8sNetworkPolicy(cluster, npName)
 
 	if errors.IsNotFound(err) {
-		if err := ctrl.SetControllerReference(cluster, np, r.Scheme); err != nil {
-			return fmt.Errorf("setting controller reference for NetworkPolicy: %w", err)
+		if err := r.setOwnerRef(cluster, np); err != nil {
+			return err
 		}
 		log.Info("Creating NetworkPolicy", "name", npName)
 		return r.Create(ctx, np)
@@ -231,8 +230,8 @@ func (r *AerospikeCEClusterReconciler) reconcileCiliumNetworkPolicy(
 		cnp.SetLabels(labels)
 		cnp.Object["spec"] = spec
 
-		if setErr := ctrl.SetControllerReference(cluster, cnp, r.Scheme); setErr != nil {
-			return fmt.Errorf("setting controller reference for CiliumNetworkPolicy: %w", setErr)
+		if err := r.setOwnerRef(cluster, cnp); err != nil {
+			return err
 		}
 		log.Info("Creating CiliumNetworkPolicy", "name", npName)
 		return r.Create(ctx, cnp)

@@ -5,15 +5,12 @@ import (
 	"crypto/sha256"
 	"fmt"
 
-	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	aero "github.com/aerospike/aerospike-client-go/v8"
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/metrics"
-	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
 // builtinRoles are Aerospike predefined roles that must not be dropped.
@@ -41,11 +38,7 @@ func (r *AerospikeCEClusterReconciler) reconcileACL(
 
 	// Check if any pod is ready before attempting ACL sync
 	podReady := false
-	podList := &corev1.PodList{}
-	if err := r.List(ctx, podList,
-		client.InNamespace(cluster.Namespace),
-		client.MatchingLabels(utils.SelectorLabelsForCluster(cluster.Name)),
-	); err == nil {
+	if podList, err := r.listClusterPods(ctx, cluster); err == nil {
 		for i := range podList.Items {
 			if isPodReady(&podList.Items[i]) {
 				podReady = true

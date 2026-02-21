@@ -2,14 +2,12 @@ package controller
 
 import (
 	"context"
-	"fmt"
 
 	policyv1 "k8s.io/api/policy/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
@@ -59,8 +57,8 @@ func (r *AerospikeCEClusterReconciler) reconcilePDB(
 				},
 			},
 		}
-		if err := ctrl.SetControllerReference(cluster, pdb, r.Scheme); err != nil {
-			return fmt.Errorf("setting controller reference: %w", err)
+		if err := r.setOwnerRef(cluster, pdb); err != nil {
+			return err
 		}
 		log.Info("Creating PDB", "name", pdbName)
 		return r.Create(ctx, pdb)

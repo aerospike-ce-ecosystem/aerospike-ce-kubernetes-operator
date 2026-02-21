@@ -8,7 +8,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
@@ -121,8 +120,8 @@ func (r *AerospikeCEClusterReconciler) reconcileConfigMap(
 			},
 			Data: data,
 		}
-		if err := ctrl.SetControllerReference(cluster, cm, r.Scheme); err != nil {
-			return fmt.Errorf("setting controller reference: %w", err)
+		if err := r.setOwnerRef(cluster, cm); err != nil {
+			return err
 		}
 		log.Info("Creating ConfigMap", "name", cmName)
 		return r.Create(ctx, cm)

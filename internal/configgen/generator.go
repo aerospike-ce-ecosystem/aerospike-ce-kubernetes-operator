@@ -142,11 +142,18 @@ func GenerateConfForPod(
 // generateStanza outputs a named stanza block with its key-value pairs.
 func generateStanza(name string, m map[string]any) string {
 	var b strings.Builder
-	b.WriteString(name)
-	b.WriteString(" {\n")
-	writeMapEntries(&b, m, 1)
-	b.WriteString("}\n")
+	writeBlock(&b, "", name, m, 0)
 	return b.String()
+}
+
+// writeBlock writes a named `key { ... }` block with nested map entries.
+func writeBlock(b *strings.Builder, prefix, key string, inner map[string]any, indent int) {
+	b.WriteString(prefix)
+	b.WriteString(key)
+	b.WriteString(" {\n")
+	writeMapEntries(b, inner, indent+1)
+	b.WriteString(prefix)
+	b.WriteString("}\n")
 }
 
 // writeMapEntries writes sorted map entries with the given indentation level.
@@ -158,22 +165,12 @@ func writeMapEntries(b *strings.Builder, m map[string]any, indent int) {
 		val := m[key]
 		switch v := val.(type) {
 		case map[string]any:
-			b.WriteString(prefix)
-			b.WriteString(key)
-			b.WriteString(" {\n")
-			writeMapEntries(b, v, indent+1)
-			b.WriteString(prefix)
-			b.WriteString("}\n")
+			writeBlock(b, prefix, key, v, indent)
 		case []any:
 			// Lists of maps become repeated sub-stanzas; lists of primitives become repeated key-value lines.
 			for _, item := range v {
 				if subMap, ok := item.(map[string]any); ok {
-					b.WriteString(prefix)
-					b.WriteString(key)
-					b.WriteString(" {\n")
-					writeMapEntries(b, subMap, indent+1)
-					b.WriteString(prefix)
-					b.WriteString("}\n")
+					writeBlock(b, prefix, key, subMap, indent)
 				} else {
 					b.WriteString(prefix)
 					b.WriteString(key)

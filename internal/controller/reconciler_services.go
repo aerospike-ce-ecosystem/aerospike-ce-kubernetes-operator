@@ -28,6 +28,13 @@ func (r *AerospikeCEClusterReconciler) reconcileHeadlessService(
 	existing := &corev1.Service{}
 	err := r.Get(ctx, types.NamespacedName{Name: svcName, Namespace: cluster.Namespace}, existing)
 
+	desiredPorts := []corev1.ServicePort{
+		{Name: "service", Port: podutil.ServicePort, TargetPort: intstr.FromInt32(podutil.ServicePort), Protocol: corev1.ProtocolTCP},
+		{Name: "fabric", Port: podutil.FabricPort, TargetPort: intstr.FromInt32(podutil.FabricPort), Protocol: corev1.ProtocolTCP},
+		{Name: "heartbeat", Port: podutil.HeartbeatPort, TargetPort: intstr.FromInt32(podutil.HeartbeatPort), Protocol: corev1.ProtocolTCP},
+		{Name: "info", Port: podutil.InfoPort, TargetPort: intstr.FromInt32(podutil.InfoPort), Protocol: corev1.ProtocolTCP},
+	}
+
 	if errors.IsNotFound(err) {
 		svc := &corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
@@ -39,12 +46,7 @@ func (r *AerospikeCEClusterReconciler) reconcileHeadlessService(
 				ClusterIP:                corev1.ClusterIPNone,
 				Selector:                 selectorLabels,
 				PublishNotReadyAddresses: true,
-				Ports: []corev1.ServicePort{
-					{Name: "service", Port: podutil.ServicePort, TargetPort: intstr.FromInt32(podutil.ServicePort), Protocol: corev1.ProtocolTCP},
-					{Name: "fabric", Port: podutil.FabricPort, TargetPort: intstr.FromInt32(podutil.FabricPort), Protocol: corev1.ProtocolTCP},
-					{Name: "heartbeat", Port: podutil.HeartbeatPort, TargetPort: intstr.FromInt32(podutil.HeartbeatPort), Protocol: corev1.ProtocolTCP},
-					{Name: "info", Port: podutil.InfoPort, TargetPort: intstr.FromInt32(podutil.InfoPort), Protocol: corev1.ProtocolTCP},
-				},
+				Ports:                    desiredPorts,
 			},
 		}
 		if err := r.setOwnerRef(cluster, svc); err != nil {
@@ -52,6 +54,30 @@ func (r *AerospikeCEClusterReconciler) reconcileHeadlessService(
 		}
 		log.Info("Creating headless service", "name", svcName)
 		return r.Create(ctx, svc)
+	} else if err != nil {
+		return err
 	}
-	return err
+
+	// Update if ports or labels changed.
+	needsUpdate := !mapsEqual(existing.Labels, labels)
+	if !needsUpdate && len(existing.Spec.Ports) == len(desiredPorts) {
+		for i, p := range existing.Spec.Ports {
+			if p.Name != desiredPorts[i].Name || p.Port != desiredPorts[i].Port {
+				needsUpdate = true
+				break
+			}
+		}
+	} else if len(existing.Spec.Ports) != len(desiredPorts) {
+		needsUpdate = true
+	}
+
+	if needsUpdate {
+		existing.Labels = labels
+		existing.Spec.Ports = desiredPorts
+		existing.Spec.Selector = selectorLabels
+		log.Info("Updating headless service", "name", svcName)
+		return r.Update(ctx, existing)
+	}
+
+	return nil
 }

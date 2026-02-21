@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	aero "github.com/aerospike/aerospike-client-go/v8"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -89,6 +90,14 @@ func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
 		return false, nil
 	}
 
+	// Create Aerospike client once for all pods (lazy, only if dynamic config is attempted).
+	var aeroClient *aero.Client
+	defer func() {
+		if aeroClient != nil {
+			closeAerospikeClient(aeroClient)
+		}
+	}()
+
 	// Restart up to batchSize pods
 	restarted := int32(0)
 	for _, pod := range podsToRestart {
@@ -98,9 +107,12 @@ func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
 
 		// 1. Try dynamic config update first (no restart needed)
 		if oldConfig != nil && newConfig != nil {
-			if r.tryDynamicConfigUpdate(ctx, cluster, pod, oldConfig, newConfig) {
+			// Lazily create the Aerospike client once for all pods.
+			if aeroClient == nil {
+				aeroClient, _ = r.getAerospikeClient(ctx, cluster)
+			}
+			if aeroClient != nil && r.tryDynamicConfigUpdate(ctx, cluster, pod, oldConfig, newConfig, aeroClient) {
 				log.Info("Dynamic config update succeeded, no restart needed", "pod", pod.Name)
-				// Pod's config hash is updated by tryDynamicConfigUpdate
 				continue
 			}
 		}
@@ -114,6 +126,10 @@ func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
 					return false, err
 				}
 			} else {
+				// Update config hash annotation so next reconcile won't re-restart this pod.
+				if err := r.updatePodConfigHash(ctx, pod, desiredHash); err != nil {
+					log.Error(err, "Failed to update pod config hash after warm restart", "pod", pod.Name)
+				}
 				metrics.WarmRestartsTotal.WithLabelValues(cluster.Namespace, cluster.Name).Inc()
 				restarted++
 				continue
@@ -130,6 +146,16 @@ func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
 	}
 
 	return true, nil
+}
+
+// updatePodConfigHash updates the config hash annotation on a pod after a warm restart.
+func (r *AerospikeCEClusterReconciler) updatePodConfigHash(ctx context.Context, pod *corev1.Pod, hash string) error {
+	podCopy := pod.DeepCopy()
+	if podCopy.Annotations == nil {
+		podCopy.Annotations = make(map[string]string)
+	}
+	podCopy.Annotations[utils.ConfigHashAnnotation] = hash
+	return r.Update(ctx, podCopy)
 }
 
 // coldRestartPod deletes the pod to trigger a cold restart via StatefulSet.

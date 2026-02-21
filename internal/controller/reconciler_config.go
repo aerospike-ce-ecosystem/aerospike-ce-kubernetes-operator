@@ -20,13 +20,12 @@ func (r *AerospikeCEClusterReconciler) reconcileConfigMap(
 	ctx context.Context,
 	cluster *asdbcev1alpha1.AerospikeCECluster,
 	rack *asdbcev1alpha1.Rack,
+	effectiveConfig *asdbcev1alpha1.AerospikeConfigSpec,
 ) error {
 	log := logf.FromContext(ctx)
 
 	cmName := utils.ConfigMapName(cluster.Name, rack.ID)
 
-	// Build effective config for this rack
-	effectiveConfig := r.getEffectiveConfig(cluster, rack)
 	if effectiveConfig == nil {
 		// Provide a minimal default config
 		effectiveConfig = &asdbcev1alpha1.AerospikeConfigSpec{

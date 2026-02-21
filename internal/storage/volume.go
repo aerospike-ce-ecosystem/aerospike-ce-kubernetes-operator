@@ -75,6 +75,7 @@ func volumeForSpec(vol *v1alpha1.VolumeSpec) *corev1.Volume {
 
 // BuildVolumeClaimTemplates generates PersistentVolumeClaim templates for a
 // StatefulSet from volumes that use a PersistentVolume source.
+// Labels can be added via AddLabelsToVolumeClaimTemplates after building.
 func BuildVolumeClaimTemplates(storageSpec *v1alpha1.AerospikeStorageSpec) []corev1.PersistentVolumeClaim {
 	if storageSpec == nil {
 		return nil

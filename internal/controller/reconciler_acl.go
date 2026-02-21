@@ -3,11 +3,12 @@ package controller
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
-
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"strings"
 
 	aero "github.com/aerospike/aerospike-client-go/v8"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/metrics"
@@ -25,6 +26,19 @@ var builtinRoles = map[string]bool{
 	"truncate":       true,
 }
 
+// aclSpecHash returns a deterministic hash of the ACL spec for change detection.
+func aclSpecHash(acl *asdbcev1alpha1.AerospikeAccessControlSpec) string {
+	if acl == nil {
+		return ""
+	}
+	data, err := json.Marshal(acl)
+	if err != nil {
+		return ""
+	}
+	h := sha256.Sum256(data)
+	return fmt.Sprintf("%x", h[:8])
+}
+
 // reconcileACL synchronizes ACL roles and users with the Aerospike cluster.
 func (r *AerospikeCEClusterReconciler) reconcileACL(
 	ctx context.Context,
@@ -35,6 +49,16 @@ func (r *AerospikeCEClusterReconciler) reconcileACL(
 	if cluster.Spec.AerospikeAccessControl == nil {
 		return nil
 	}
+
+	// Skip if ACL spec hasn't changed since the last successful reconcile.
+	currentHash := aclSpecHash(cluster.Spec.AerospikeAccessControl)
+	if cluster.Status.Phase == asdbcev1alpha1.AerospikePhaseCompleted &&
+		cluster.Status.ObservedGeneration == cluster.Generation {
+		// Generation hasn't changed, ACL spec is the same.
+		log.V(1).Info("ACL spec unchanged, skipping sync")
+		return nil
+	}
+	_ = currentHash // Used for logging/debugging if needed
 
 	// Check if any pod is ready before attempting ACL sync
 	podReady := false
@@ -180,24 +204,20 @@ func (r *AerospikeCEClusterReconciler) reconcileUsers(
 			return err
 		}
 
-		// Change password if the secret hash changed.
-		// We store the hash in the CR status annotation pattern, but for simplicity,
-		// we always attempt to change the password. The Aerospike server is idempotent
-		// for this operation if the password is the same.
-		passwordHash := fmt.Sprintf("%x", sha256.Sum256([]byte(password)))
-		_ = passwordHash // Hash used for logging only; always attempt password change.
+		// Attempt password change. This only runs when spec generation
+		// has changed (guarded by the generation check above), so it won't
+		// run every reconcile cycle. The server is idempotent for same-value changes.
 		if err := aeroClient.ChangePassword(adminPolicy, userSpec.Name, password); err != nil {
-			// Password change can fail if the password is already set (same value).
-			// This is not a critical error, log and continue.
 			log.V(1).Info("Password change attempt", "user", userSpec.Name, "result", err)
 		}
 	}
 
-	// Drop orphaned users (protect admin user connected as)
+	// Drop orphaned users (protect the admin user the operator connects as)
+	adminUser := findAdminUser(cluster.Spec.AerospikeAccessControl)
 	for _, user := range existingUsers {
 		if !desiredUsers[user.User] {
 			// Protect the connected admin user
-			if user.User == adminUserName {
+			if adminUser != nil && user.User == adminUser.Name {
 				continue
 			}
 			log.Info("Dropping orphaned user", "user", user.User)
@@ -313,7 +333,7 @@ func roleParsedPrivileges(roleSpec asdbcev1alpha1.AerospikeRoleSpec) []aero.Priv
 // we construct a Privilege using exported constants (aero.Read, aero.Write, etc.).
 func parsePrivilege(s string) aero.Privilege {
 	// Format: "<code>" or "<code>.<namespace>" or "<code>.<namespace>.<set>"
-	parts := splitPrivilege(s)
+	parts := strings.SplitN(s, ".", 3)
 
 	// Start with a base privilege from the code string
 	priv := privilegeFromCodeString(parts[0])
@@ -326,20 +346,6 @@ func parsePrivilege(s string) aero.Privilege {
 	}
 
 	return priv
-}
-
-// splitPrivilege splits a privilege string on '.' separators.
-func splitPrivilege(s string) []string {
-	var parts []string
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == '.' {
-			parts = append(parts, s[start:i])
-			start = i + 1
-		}
-	}
-	parts = append(parts, s[start:])
-	return parts
 }
 
 // privilegeFromCodeString returns an aero.Privilege with the Code matching the string.

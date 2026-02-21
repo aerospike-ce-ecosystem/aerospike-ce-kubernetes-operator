@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -12,12 +13,16 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/metrics"
@@ -30,6 +35,8 @@ type AerospikeCEClusterReconciler struct {
 	Scheme     *runtime.Scheme
 	Recorder   record.EventRecorder
 	RestConfig *rest.Config
+	// KubeClientset is a cached kubernetes.Clientset for pod exec operations.
+	KubeClientset kubernetes.Interface
 }
 
 // RBAC markers
@@ -121,16 +128,34 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// 7. Get rack list (default rack if not specified)
 	racks := r.getRacks(cluster)
 
-	// 8. Reconcile each rack
-	for _, rack := range racks {
+	// 8. Pre-compute effective config and hash per rack to avoid redundant work.
+	type rackInfo struct {
+		effectiveConfig *asdbcev1alpha1.AerospikeConfigSpec
+		hash            string
+		rackSize        int32
+	}
+	rackInfos := make([]rackInfo, len(racks))
+	for i, rack := range racks {
+		ec := r.getEffectiveConfig(cluster, &rack)
+		rackInfos[i] = rackInfo{
+			effectiveConfig: ec,
+			hash:            configHash(ec),
+			rackSize:        r.getRackSize(cluster, racks, i),
+		}
+	}
+
+	// 9. Reconcile each rack
+	for i, rack := range racks {
+		ri := rackInfos[i]
+
 		// ConfigMap
-		if err := r.reconcileConfigMap(ctx, cluster, &rack); err != nil {
+		if err := r.reconcileConfigMap(ctx, cluster, &rack, ri.effectiveConfig); err != nil {
 			log.Error(err, "Failed to reconcile ConfigMap", "rack", rack.ID)
 			return ctrl.Result{}, err
 		}
 
 		// StatefulSet
-		if err := r.reconcileStatefulSet(ctx, cluster, &rack); err != nil {
+		if err := r.reconcileStatefulSet(ctx, cluster, &rack, ri.effectiveConfig, ri.hash, ri.rackSize); err != nil {
 			log.Error(err, "Failed to reconcile StatefulSet", "rack", rack.ID)
 			return ctrl.Result{}, err
 		}
@@ -248,23 +273,32 @@ func (r *AerospikeCEClusterReconciler) setPhase(ctx context.Context, cluster *as
 	return nil
 }
 
-// configHash computes a SHA256 hash of the aerospike config for change detection.
+// configHash computes a deterministic SHA256 hash of the aerospike config for
+// change detection. Uses json.Marshal which sorts map keys, unlike fmt.Sprintf
+// which iterates maps in non-deterministic order.
 func configHash(config *asdbcev1alpha1.AerospikeConfigSpec) string {
 	if config == nil {
 		return ""
 	}
-	h := sha256.Sum256(fmt.Appendf(nil, "%v", *config))
+	data, err := json.Marshal(config.Value)
+	if err != nil {
+		return ""
+	}
+	h := sha256.Sum256(data)
 	return fmt.Sprintf("%x", h[:8])
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *AerospikeCEClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&asdbcev1alpha1.AerospikeCECluster{}).
+		For(&asdbcev1alpha1.AerospikeCECluster{},
+			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
+		).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&corev1.Service{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&policyv1.PodDisruptionBudget{}).
 		Named("aerospikececluster").
+		WithOptions(controller.Options{MaxConcurrentReconciles: 2}).
 		Complete(r)
 }

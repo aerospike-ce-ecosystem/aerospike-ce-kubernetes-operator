@@ -119,7 +119,7 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 	for k, v := range selectorLabels {
 		selectorParts = append(selectorParts, fmt.Sprintf("%s=%s", k, v))
 	}
-	cluster.Status.Selector = joinStrings(selectorParts, ",")
+	cluster.Status.Selector = strings.Join(selectorParts, ",")
 
 	// Update conditions
 	setCondition(cluster, "Available", readyCount > 0, "ClusterAvailable", "At least one pod is ready")
@@ -164,8 +164,4 @@ func setCondition(cluster *asdbcev1alpha1.AerospikeCECluster, condType string, s
 	}
 
 	cluster.Status.Conditions = append(cluster.Status.Conditions, newCond)
-}
-
-func joinStrings(parts []string, sep string) string {
-	return strings.Join(parts, sep)
 }

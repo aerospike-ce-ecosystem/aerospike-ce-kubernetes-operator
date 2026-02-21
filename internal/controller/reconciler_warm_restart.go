@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/remotecommand"
@@ -17,11 +15,6 @@ import (
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/podutil"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
-)
-
-const (
-	warmRestartReadyTimeout = 120 * time.Second
-	warmRestartPollInterval = 5 * time.Second
 )
 
 // shouldWarmRestart decides whether a pod can be warm-restarted.
@@ -69,18 +62,31 @@ func (r *AerospikeCEClusterReconciler) shouldWarmRestart(
 	return true
 }
 
+// getOrCreateKubeClientset returns the cached kubernetes.Clientset, creating it on first use.
+func (r *AerospikeCEClusterReconciler) getOrCreateKubeClientset() (kubernetes.Interface, error) {
+	if r.KubeClientset != nil {
+		return r.KubeClientset, nil
+	}
+	if r.RestConfig == nil {
+		return nil, fmt.Errorf("RestConfig not available for exec")
+	}
+	cs, err := kubernetes.NewForConfig(r.RestConfig)
+	if err != nil {
+		return nil, fmt.Errorf("creating kubernetes clientset: %w", err)
+	}
+	r.KubeClientset = cs
+	return cs, nil
+}
+
 // warmRestartPod sends SIGUSR1 to PID 1 in the Aerospike container to trigger
-// a warm restart, then waits for the pod to become ready again.
+// a warm restart. Does not block waiting for readiness — the caller should
+// requeue and check pod state on the next reconcile.
 func (r *AerospikeCEClusterReconciler) warmRestartPod(ctx context.Context, pod *corev1.Pod) error {
 	log := logf.FromContext(ctx)
 
-	if r.RestConfig == nil {
-		return fmt.Errorf("RestConfig not available for exec")
-	}
-
-	clientset, err := kubernetes.NewForConfig(r.RestConfig)
+	clientset, err := r.getOrCreateKubeClientset()
 	if err != nil {
-		return fmt.Errorf("creating kubernetes clientset: %w", err)
+		return err
 	}
 
 	// Execute "kill -USR1 1" in the aerospike container
@@ -110,32 +116,6 @@ func (r *AerospikeCEClusterReconciler) warmRestartPod(ctx context.Context, pod *
 		return fmt.Errorf("executing SIGUSR1: %w (stderr: %s)", err, stderr.String())
 	}
 
-	log.Info("SIGUSR1 sent, waiting for pod readiness", "pod", pod.Name)
-
-	// Wait for the pod to become ready again
-	return r.waitForPodReady(ctx, pod.Namespace, pod.Name)
-}
-
-// waitForPodReady polls the pod until it becomes ready or times out.
-func (r *AerospikeCEClusterReconciler) waitForPodReady(ctx context.Context, namespace, name string) error {
-	deadline := time.Now().Add(warmRestartReadyTimeout)
-
-	for time.Now().Before(deadline) {
-		pod := &corev1.Pod{}
-		if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, pod); err != nil {
-			return fmt.Errorf("getting pod %s: %w", name, err)
-		}
-
-		if isPodReady(pod) {
-			return nil
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(warmRestartPollInterval):
-		}
-	}
-
-	return fmt.Errorf("pod %s did not become ready within %v after warm restart", name, warmRestartReadyTimeout)
+	log.Info("SIGUSR1 sent successfully", "pod", pod.Name)
+	return nil
 }

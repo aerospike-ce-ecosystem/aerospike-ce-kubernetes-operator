@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"strings"
 	"testing"
 
 	aero "github.com/aerospike/aerospike-client-go/v8"
@@ -13,39 +14,39 @@ const (
 	testSetName   = "myset"
 )
 
-// --- splitPrivilege tests ---
+// --- parsePrivilege split tests (now uses strings.SplitN internally) ---
 
-func TestSplitPrivilege_SinglePart(t *testing.T) {
-	parts := splitPrivilege("read")
+func TestParsePrivilegeSplit_SinglePart(t *testing.T) {
+	parts := strings.SplitN("read", ".", 3)
 	if len(parts) != 1 || parts[0] != "read" {
-		t.Errorf("splitPrivilege(\"read\") = %v, want [\"read\"]", parts)
+		t.Errorf("SplitN(\"read\") = %v, want [\"read\"]", parts)
 	}
 }
 
-func TestSplitPrivilege_TwoParts(t *testing.T) {
-	parts := splitPrivilege("read-write.testNamespace")
+func TestParsePrivilegeSplit_TwoParts(t *testing.T) {
+	parts := strings.SplitN("read-write.testNamespace", ".", 3)
 	if len(parts) != 2 {
 		t.Fatalf("expected 2 parts, got %d", len(parts))
 	}
 	if parts[0] != "read-write" || parts[1] != "testNamespace" {
-		t.Errorf("splitPrivilege = %v, want [\"read-write\", \"testNamespace\"]", parts)
+		t.Errorf("SplitN = %v, want [\"read-write\", \"testNamespace\"]", parts)
 	}
 }
 
-func TestSplitPrivilege_ThreeParts(t *testing.T) {
-	parts := splitPrivilege("write." + testNamespace + "." + testSetName)
+func TestParsePrivilegeSplit_ThreeParts(t *testing.T) {
+	parts := strings.SplitN("write."+testNamespace+"."+testSetName, ".", 3)
 	if len(parts) != 3 {
 		t.Fatalf("expected 3 parts, got %d", len(parts))
 	}
 	if parts[0] != "write" || parts[1] != testNamespace || parts[2] != testSetName {
-		t.Errorf("splitPrivilege = %v, want [\"write\", %q, %q]", parts, testNamespace, testSetName)
+		t.Errorf("SplitN = %v, want [\"write\", %q, %q]", parts, testNamespace, testSetName)
 	}
 }
 
-func TestSplitPrivilege_EmptyString(t *testing.T) {
-	parts := splitPrivilege("")
+func TestParsePrivilegeSplit_EmptyString(t *testing.T) {
+	parts := strings.SplitN("", ".", 3)
 	if len(parts) != 1 || parts[0] != "" {
-		t.Errorf("splitPrivilege(\"\") = %v, want [\"\"]", parts)
+		t.Errorf("SplitN(\"\") = %v, want [\"\"]", parts)
 	}
 }
 

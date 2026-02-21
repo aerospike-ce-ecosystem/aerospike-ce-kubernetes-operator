@@ -66,7 +66,11 @@ func (r *AerospikeCEClusterReconciler) reconcilePDB(
 		return err
 	}
 
-	// Update
+	// Update only if MaxUnavailable changed
+	if existing.Spec.MaxUnavailable != nil && existing.Spec.MaxUnavailable.String() == maxUnavailable.String() {
+		return nil
+	}
 	existing.Spec.MaxUnavailable = &maxUnavailable
+	log.Info("Updating PDB", "name", pdbName)
 	return r.Update(ctx, existing)
 }

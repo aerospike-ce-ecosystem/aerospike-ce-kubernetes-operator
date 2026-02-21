@@ -2,6 +2,7 @@ package configgen
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -42,6 +43,12 @@ func generateNamespaceSections(namespaces []any) (string, error) {
 
 // writeNamespaceEntry writes a single namespace config entry at the given indent level.
 func writeNamespaceEntry(b *strings.Builder, key string, val any, indent int) {
+	// storage-engine uses special syntax: "storage-engine <type> { ... }"
+	if key == "storage-engine" {
+		writeStorageEngine(b, val, indent)
+		return
+	}
+
 	prefix := strings.Repeat("\t", indent)
 
 	switch v := val.(type) {
@@ -82,4 +89,65 @@ func writeNamespaceEntry(b *strings.Builder, key string, val any, indent int) {
 		b.WriteString(formatValue(val))
 		b.WriteString("\n")
 	}
+}
+
+// writeStorageEngine handles the special aerospike.conf syntax for storage-engine.
+// Aerospike expects: "storage-engine memory" or "storage-engine device { file ... }"
+// NOT: "storage-engine { type memory ... }"
+func writeStorageEngine(b *strings.Builder, val any, indent int) {
+	prefix := strings.Repeat("\t", indent)
+
+	m, ok := val.(map[string]any)
+	if !ok {
+		// Simple value like "storage-engine memory"
+		b.WriteString(prefix)
+		b.WriteString("storage-engine ")
+		b.WriteString(formatValue(val))
+		b.WriteString("\n")
+		return
+	}
+
+	seType := inferStorageEngineType(m)
+
+	// Collect remaining keys (excluding "type").
+	var remainingKeys []string
+	for k := range m {
+		if k != "type" {
+			remainingKeys = append(remainingKeys, k)
+		}
+	}
+	sort.Strings(remainingKeys)
+
+	if len(remainingKeys) == 0 {
+		// No additional settings: "storage-engine memory"
+		b.WriteString(prefix)
+		b.WriteString("storage-engine ")
+		b.WriteString(seType)
+		b.WriteString("\n")
+	} else {
+		// With settings: "storage-engine device { ... }"
+		b.WriteString(prefix)
+		b.WriteString("storage-engine ")
+		b.WriteString(seType)
+		b.WriteString(" {\n")
+		for _, k := range remainingKeys {
+			writeNamespaceEntry(b, k, m[k], indent+1)
+		}
+		b.WriteString(prefix)
+		b.WriteString("}\n")
+	}
+}
+
+// inferStorageEngineType determines the storage-engine type from the config map.
+func inferStorageEngineType(m map[string]any) string {
+	if t, ok := m["type"].(string); ok {
+		return t
+	}
+	// Infer from context: presence of "file" or "device" keys implies device storage.
+	for k := range m {
+		if k == "file" || k == "device" {
+			return "device"
+		}
+	}
+	return "memory"
 }

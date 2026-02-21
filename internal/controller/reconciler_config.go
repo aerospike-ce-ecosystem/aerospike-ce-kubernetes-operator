@@ -89,11 +89,27 @@ func (r *AerospikeCEClusterReconciler) reconcileConfigMap(
 		return fmt.Errorf("getting ConfigMap %s: %w", cmName, err)
 	}
 
-	// Update if data changed
+	// Update only if data or labels changed
+	if mapsEqual(existing.Data, data) && mapsEqual(existing.Labels, labels) {
+		return nil
+	}
 	existing.Data = data
 	existing.Labels = labels
 	log.Info("Updating ConfigMap", "name", cmName)
 	return r.Update(ctx, existing)
+}
+
+// mapsEqual compares two string maps for equality.
+func mapsEqual(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if b[k] != v {
+			return false
+		}
+	}
+	return true
 }
 
 // getEffectiveConfig returns the merged config for a rack.

@@ -74,12 +74,20 @@ func (r *AerospikeCEClusterReconciler) reconcileStatefulSet(
 		return fmt.Errorf("getting StatefulSet %s: %w", stsName, err)
 	}
 
-	// Update existing StatefulSet
+	// Update only if replicas or config hash changed
+	needsUpdate := existing.Spec.Replicas == nil || *existing.Spec.Replicas != rackSize
+	existingHash := existing.Spec.Template.Annotations[utils.ConfigHashAnnotation]
+	if existingHash != hash {
+		needsUpdate = true
+	}
+
+	if !needsUpdate {
+		return nil
+	}
+
 	existing.Spec.Replicas = &rackSize
 	existing.Spec.Template = podTemplate
-
 	log.Info("Updating StatefulSet", "name", stsName)
-
 	return r.Update(ctx, existing)
 }
 

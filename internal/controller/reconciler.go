@@ -143,14 +143,12 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	}
 
-	// 12. Update status
-	if err := r.updateStatus(ctx, cluster); err != nil {
-		log.Error(err, "Failed to update status")
+	// 12. Re-fetch the latest cluster state to avoid conflict errors and update status + phase together
+	if err := r.Get(ctx, req.NamespacedName, cluster); err != nil {
 		return ctrl.Result{}, err
 	}
-
-	// 13. Set phase to Completed
-	if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseCompleted); err != nil {
+	if err := r.updateStatusAndPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseCompleted); err != nil {
+		log.Error(err, "Failed to update status")
 		return ctrl.Result{}, err
 	}
 

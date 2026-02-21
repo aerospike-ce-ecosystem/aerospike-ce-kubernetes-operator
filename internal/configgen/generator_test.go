@@ -48,8 +48,7 @@ func TestGenerateConfig_BasicServiceNetworkNamespace(t *testing.T) {
 	assertContains(t, result, "network {")
 	assertContains(t, result, "namespace test {")
 	assertContains(t, result, "replication-factor 2")
-	assertContains(t, result, "storage-engine {")
-	assertContains(t, result, "type memory")
+	assertContains(t, result, "storage-engine memory")
 }
 
 func TestGenerateConfForPod_MeshSeeds(t *testing.T) {
@@ -97,6 +96,7 @@ func TestGenerateNamespaces_WithStorageEngine(t *testing.T) {
 				"name":               "ns1",
 				"replication-factor": 2,
 				"storage-engine": map[string]any{
+					"type":     "device",
 					"file":     "/opt/aerospike/data/ns1.dat",
 					"filesize": "4G",
 				},
@@ -117,10 +117,11 @@ func TestGenerateNamespaces_WithStorageEngine(t *testing.T) {
 	}
 
 	assertContains(t, result, "namespace ns1 {")
+	assertContains(t, result, "storage-engine device {")
 	assertContains(t, result, "file /opt/aerospike/data/ns1.dat")
 	assertContains(t, result, "filesize 4G")
 	assertContains(t, result, "namespace ns2 {")
-	assertContains(t, result, "type memory")
+	assertContains(t, result, "storage-engine memory")
 }
 
 func TestGenerateConfig_SecuritySection(t *testing.T) {

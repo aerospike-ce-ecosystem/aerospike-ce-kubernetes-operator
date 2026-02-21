@@ -14,19 +14,33 @@ import (
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
-func (r *AerospikeCEClusterReconciler) updateStatus(
+// updateStatusAndPhase updates the status fields and phase in a single Status().Update call.
+func (r *AerospikeCEClusterReconciler) updateStatusAndPhase(
 	ctx context.Context,
 	cluster *asdbcev1alpha1.AerospikeCECluster,
+	phase asdbcev1alpha1.AerospikePhase,
 ) error {
 	log := logf.FromContext(ctx)
 
+	readyCount := r.populateStatus(ctx, cluster)
+	cluster.Status.Phase = phase
+
+	log.Info("Updating status", "readyPods", readyCount, "desiredSize", cluster.Spec.Size, "phase", phase)
+	return r.Status().Update(ctx, cluster)
+}
+
+// populateStatus fills in the cluster's status fields and returns the ready pod count.
+func (r *AerospikeCEClusterReconciler) populateStatus(
+	ctx context.Context,
+	cluster *asdbcev1alpha1.AerospikeCECluster,
+) int32 {
 	// List all pods for this cluster
 	podList := &corev1.PodList{}
 	if err := r.List(ctx, podList,
 		client.InNamespace(cluster.Namespace),
 		client.MatchingLabels(utils.SelectorLabelsForCluster(cluster.Name)),
 	); err != nil {
-		return fmt.Errorf("listing pods: %w", err)
+		return 0
 	}
 
 	podStatuses := make(map[string]asdbcev1alpha1.AerospikePodStatus)
@@ -72,8 +86,7 @@ func (r *AerospikeCEClusterReconciler) updateStatus(
 	setCondition(cluster, "Available", readyCount > 0, "ClusterAvailable", "At least one pod is ready")
 	setCondition(cluster, "Ready", readyCount == cluster.Spec.Size, "AllPodsReady", fmt.Sprintf("%d/%d pods ready", readyCount, cluster.Spec.Size))
 
-	log.Info("Updating status", "readyPods", readyCount, "desiredSize", cluster.Spec.Size)
-	return r.Status().Update(ctx, cluster)
+	return readyCount
 }
 
 func isPodReady(pod *corev1.Pod) bool {

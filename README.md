@@ -1,4 +1,4 @@
-# Aerospike CE Kubernetes Operator
+# Aerospike CE Kubernetes Operator (ACKO)
 
 Kubernetes Operator for managing [Aerospike Community Edition](https://aerospike.com/) clusters. Built with [Kubebuilder](https://book.kubebuilder.io/) and [controller-runtime](https://github.com/kubernetes-sigs/controller-runtime).
 
@@ -183,6 +183,28 @@ make test           # Run unit + integration tests
 make lint           # Run golangci-lint
 make run            # Run controller locally against current kubeconfig
 ```
+
+### Local deployment with Kind
+
+로컬 빌드 후 Kind 클러스터에 배포할 때:
+
+```sh
+# 1. Kind 클러스터 생성
+make setup-test-e2e
+
+# 2. 이미지 로컬 빌드
+make docker-build
+
+# 3. Kind 클러스터에 이미지 로드
+kind load docker-image ghcr.io/kimsoungryoul/aerospike-ce-kubernetes-operator:latest \
+  --name aerospike-ce-operator-test-e2e
+
+# 4. CRD 설치 및 오퍼레이터 배포
+make install
+make deploy
+```
+
+> `config/manager/manager.yaml`에 `imagePullPolicy: IfNotPresent`가 설정되어 있어, Kind에 로드된 로컬 이미지를 그대로 사용합니다.
 
 ## License
 

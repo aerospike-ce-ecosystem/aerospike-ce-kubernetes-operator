@@ -1,0 +1,14 @@
+# This patch injects the webhook TLS secret as a volume into the manager pod.
+- op: add
+  path: /spec/template/spec/containers/0/volumeMounts/0
+  value:
+    mountPath: /tmp/k8s-webhook-server/serving-certs
+    name: cert
+    readOnly: true
+- op: add
+  path: /spec/template/spec/volumes/0
+  value:
+    name: cert
+    secret:
+      defaultMode: 420
+      secretName: webhook-server-cert

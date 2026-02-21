@@ -47,7 +47,7 @@ Test framework: Ginkgo v2 + Gomega. E2E tests are in `test/e2e/`, helpers in `te
 ## Architecture
 
 ### CRD
-- **Group/Version/Kind**: `asdbce.aerospike.com/v1alpha1/AerospikeCECluster`
+- **Group/Version/Kind**: `acko.io/v1alpha1/AerospikeCECluster`
 - Short names: `asce`, `ascecluster`
 - Types split across `api/v1alpha1/`: `aerospikececluster_types.go` (main spec/status), `types_storage.go`, `types_network.go`, `types_pod.go`, `types_rack.go`
 
@@ -90,7 +90,7 @@ Converts unstructured `map[string]interface{}` to aerospike.conf text format. Ha
 - ConfigMap: `<cluster-name>-<rackID>-config`
 - Headless Service: `<cluster-name>`
 - PDB: `<cluster-name>-pdb`
-- Labels: `app.kubernetes.io/name`, `app.kubernetes.io/instance`, `asdbce.aerospike.com/rack-id`
+- Labels: `app.kubernetes.io/name`, `app.kubernetes.io/instance`, `acko.io/rack-id`
 
 ## Key Dependencies
 
@@ -101,7 +101,7 @@ Converts unstructured `map[string]interface{}` to aerospike.conf text format. Ha
 ## Sample CRs
 
 Located in `config/samples/`:
-- `asdbce_v1alpha1_aerospikececluster.yaml` — Minimal single-node in-memory
+- `acko_v1alpha1_aerospikececluster.yaml` — Minimal single-node in-memory
 - `aerospike-ce-cluster-3node.yaml` — 3-node with PV storage
 - `aerospike-ce-cluster-multirack.yaml` — 6-node multi-rack with zone affinity
 - `aerospike-ce-cluster-acl.yaml` — 3-node with ACL (roles, users, K8s secrets)

@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.1
-  name: aerospikececlusters.asdbce.aerospike.com
+  name: aerospikececlusters.acko.io
 spec:
-  group: asdbce.aerospike.com
+  group: acko.io
   names:
     kind: AerospikeCECluster
     listKind: AerospikeCEClusterList

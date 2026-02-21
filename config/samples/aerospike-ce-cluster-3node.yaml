@@ -1,4 +1,4 @@
-apiVersion: asdbce.aerospike.com/v1alpha1
+apiVersion: acko.io/v1alpha1
 kind: AerospikeCECluster
 metadata:
   name: aerospike-ce-3node

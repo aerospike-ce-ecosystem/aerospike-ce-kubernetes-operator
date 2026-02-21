@@ -7,10 +7,10 @@ const (
 	InstanceLabel  = "app.kubernetes.io/instance"
 	ComponentLabel = "app.kubernetes.io/component"
 	ManagedByLabel = "app.kubernetes.io/managed-by"
-	RackLabel      = "asdbce.aerospike.com/rack"
+	RackLabel      = "acko.io/rack"
 
-	ConfigHashAnnotation = "asdbce.aerospike.com/config-hash"
-	StorageFinalizer     = "asdbce.aerospike.com/storage-finalizer"
+	ConfigHashAnnotation = "acko.io/config-hash"
+	StorageFinalizer     = "acko.io/storage-finalizer"
 
 	appName     = "aerospike-cluster"
 	managerName = "aerospike-ce-operator"

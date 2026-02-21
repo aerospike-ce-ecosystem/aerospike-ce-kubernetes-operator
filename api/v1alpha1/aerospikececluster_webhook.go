@@ -46,7 +46,7 @@ func (r *AerospikeCECluster) SetupWebhookWithManager(mgr ctrl.Manager) error {
 		Complete()
 }
 
-// +kubebuilder:webhook:path=/mutate-asdbce-aerospike-com-v1alpha1-aerospikececluster,mutating=true,failurePolicy=fail,sideEffects=None,groups=asdbce.aerospike.com,resources=aerospikececlusters,verbs=create;update,versions=v1alpha1,name=maerospikececluster.kb.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/mutate-acko-io-v1alpha1-aerospikececluster,mutating=true,failurePolicy=fail,sideEffects=None,groups=acko.io,resources=aerospikececlusters,verbs=create;update,versions=v1alpha1,name=maerospikececluster.kb.io,admissionReviewVersions=v1
 
 // AerospikeCEClusterDefaulter implements admission.Defaulter for AerospikeCECluster.
 type AerospikeCEClusterDefaulter struct{}
@@ -134,7 +134,7 @@ func getOrCreateMapSection(m map[string]any, key string) map[string]any {
 	return newMap
 }
 
-// +kubebuilder:webhook:path=/validate-asdbce-aerospike-com-v1alpha1-aerospikececluster,mutating=false,failurePolicy=fail,sideEffects=None,groups=asdbce.aerospike.com,resources=aerospikececlusters,verbs=create;update,versions=v1alpha1,name=vaerospikececluster.kb.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/validate-acko-io-v1alpha1-aerospikececluster,mutating=false,failurePolicy=fail,sideEffects=None,groups=acko.io,resources=aerospikececlusters,verbs=create;update,versions=v1alpha1,name=vaerospikececluster.kb.io,admissionReviewVersions=v1
 
 // AerospikeCEClusterValidator implements admission.Validator for AerospikeCECluster.
 type AerospikeCEClusterValidator struct{}

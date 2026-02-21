@@ -10,12 +10,12 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-asdbce-aerospike-com-v1alpha1-aerospikececluster
+      path: /mutate-acko-io-v1alpha1-aerospikececluster
   failurePolicy: Fail
   name: maerospikececluster.kb.io
   rules:
   - apiGroups:
-    - asdbce.aerospike.com
+    - acko.io
     apiVersions:
     - v1alpha1
     operations:
@@ -36,12 +36,12 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-asdbce-aerospike-com-v1alpha1-aerospikececluster
+      path: /validate-acko-io-v1alpha1-aerospikececluster
   failurePolicy: Fail
   name: vaerospikececluster.kb.io
   rules:
   - apiGroups:
-    - asdbce.aerospike.com
+    - acko.io
     apiVersions:
     - v1alpha1
     operations:

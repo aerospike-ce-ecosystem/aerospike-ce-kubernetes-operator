@@ -43,19 +43,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - apps
-  resources:
-  - statefulsets
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - asdbce.aerospike.com
+  - acko.io
   resources:
   - aerospikececlusters
   verbs:
@@ -67,19 +55,31 @@ rules:
   - update
   - watch
 - apiGroups:
-  - asdbce.aerospike.com
+  - acko.io
   resources:
   - aerospikececlusters/finalizers
   verbs:
   - update
 - apiGroups:
-  - asdbce.aerospike.com
+  - acko.io
   resources:
   - aerospikececlusters/status
   verbs:
   - get
   - patch
   - update
+- apiGroups:
+  - apps
+  resources:
+  - statefulsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - policy
   resources:

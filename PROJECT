@@ -3,7 +3,7 @@
 # and allow the plugins properly work.
 # More info: https://book.kubebuilder.io/reference/project-config.html
 cliVersion: 4.12.0
-domain: aerospike.com
+domain: acko.io
 layout:
 - go.kubebuilder.io/v4
 projectName: aerospike-ce-operator
@@ -13,8 +13,8 @@ resources:
     crdVersion: v1
     namespaced: true
   controller: true
-  domain: aerospike.com
-  group: asdbce
+  domain: acko.io
+  group: acko
   kind: AerospikeCECluster
   path: github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1
   version: v1alpha1

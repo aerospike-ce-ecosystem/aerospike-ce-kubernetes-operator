@@ -29,9 +29,9 @@ type AerospikeCEClusterReconciler struct {
 }
 
 // RBAC markers
-// +kubebuilder:rbac:groups=asdbce.aerospike.com,resources=aerospikececlusters,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=asdbce.aerospike.com,resources=aerospikececlusters/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=asdbce.aerospike.com,resources=aerospikececlusters/finalizers,verbs=update
+// +kubebuilder:rbac:groups=acko.io,resources=aerospikececlusters,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=acko.io,resources=aerospikececlusters/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=acko.io,resources=aerospikececlusters/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete

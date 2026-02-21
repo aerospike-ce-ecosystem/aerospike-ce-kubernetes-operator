@@ -59,7 +59,7 @@ kubectl create namespace aerospike
 #### Minimal single-node (in-memory)
 
 ```yaml
-apiVersion: asdbce.aerospike.com/v1alpha1
+apiVersion: acko.io/v1alpha1
 kind: AerospikeCECluster
 metadata:
   name: aerospike-ce-basic
@@ -78,13 +78,13 @@ spec:
 ```
 
 ```sh
-kubectl apply -f config/samples/asdbce_v1alpha1_aerospikececluster.yaml
+kubectl apply -f config/samples/acko_v1alpha1_aerospikececluster.yaml
 ```
 
 #### 3-node cluster with persistent storage
 
 ```yaml
-apiVersion: asdbce.aerospike.com/v1alpha1
+apiVersion: acko.io/v1alpha1
 kind: AerospikeCECluster
 metadata:
   name: aerospike-ce-3node
@@ -157,7 +157,7 @@ aql -h 127.0.0.1 -p 3000
 
 | Sample | Description |
 |---|---|
-| [`asdbce_v1alpha1_aerospikececluster.yaml`](config/samples/asdbce_v1alpha1_aerospikececluster.yaml) | Minimal single-node in-memory |
+| [`acko_v1alpha1_aerospikececluster.yaml`](config/samples/acko_v1alpha1_aerospikececluster.yaml) | Minimal single-node in-memory |
 | [`aerospike-ce-cluster-3node.yaml`](config/samples/aerospike-ce-cluster-3node.yaml) | 3-node with persistent volume storage |
 | [`aerospike-ce-cluster-multirack.yaml`](config/samples/aerospike-ce-cluster-multirack.yaml) | 6-node multi-rack with zone affinity |
 | [`aerospike-ce-cluster-acl.yaml`](config/samples/aerospike-ce-cluster-acl.yaml) | 3-node with ACL (roles, users, K8s secrets) |

@@ -7,8 +7,8 @@ import (
 	aero "github.com/aerospike/aerospike-client-go/v8"
 )
 
-// asinfoCommand executes an asinfo command on a specific node.
-func asinfoCommand(client *aero.Client, cmd string) (string, error) {
+// AsinfoCommand executes an asinfo command on a specific node.
+func AsinfoCommand(client *aero.Client, cmd string) (string, error) {
 	nodes := client.GetNodes()
 	if len(nodes) == 0 {
 		return "", fmt.Errorf("no nodes available")
@@ -46,9 +46,9 @@ func asinfoCommandOnNode(node *aero.Node, cmd string) (string, error) {
 	return "", fmt.Errorf("no result for command %q on node %s", cmd, node.GetName())
 }
 
-// isMigrating checks if the cluster has any pending migrations.
-func isMigrating(client *aero.Client) (bool, error) {
-	result, err := asinfoCommand(client, "cluster-stable:")
+// IsMigrating checks if the cluster has any pending migrations.
+func IsMigrating(client *aero.Client) (bool, error) {
+	result, err := AsinfoCommand(client, "cluster-stable:")
 	if err != nil {
 		return true, err
 	}
@@ -58,8 +58,8 @@ func isMigrating(client *aero.Client) (bool, error) {
 	return strings.TrimSpace(result) == "", nil
 }
 
-// recluster sends the recluster command to the cluster.
-func recluster(client *aero.Client) error {
-	_, err := asinfoCommand(client, "recluster:")
+// Recluster sends the recluster command to the cluster.
+func Recluster(client *aero.Client) error {
+	_, err := AsinfoCommand(client, "recluster:")
 	return err
 }

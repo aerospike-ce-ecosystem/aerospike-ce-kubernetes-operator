@@ -58,11 +58,15 @@ func (r *AerospikeCEClusterReconciler) reconcileConfigMap(
 
 	// Collect all pod names across all racks for mesh seed injection
 	racks := r.getRacks(cluster)
-	var allPodNames []string
+	totalPods := int32(0)
+	for rackIdx := range racks {
+		totalPods += r.getRackSize(cluster, racks, rackIdx)
+	}
+	allPodNames := make([]string, 0, totalPods)
 	for rackIdx, rk := range racks {
 		rackSize := r.getRackSize(cluster, racks, rackIdx)
 		stsName := utils.StatefulSetName(cluster.Name, rk.ID)
-		for i := int32(0); i < rackSize; i++ {
+		for i := range rackSize {
 			allPodNames = append(allPodNames, fmt.Sprintf("%s-%d", stsName, i))
 		}
 	}

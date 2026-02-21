@@ -8,6 +8,11 @@ import (
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
+const (
+	testNamespace = "myns"
+	testSetName   = "myset"
+)
+
 // --- splitPrivilege tests ---
 
 func TestSplitPrivilege_SinglePart(t *testing.T) {
@@ -28,12 +33,12 @@ func TestSplitPrivilege_TwoParts(t *testing.T) {
 }
 
 func TestSplitPrivilege_ThreeParts(t *testing.T) {
-	parts := splitPrivilege("write.myns.myset")
+	parts := splitPrivilege("write." + testNamespace + "." + testSetName)
 	if len(parts) != 3 {
 		t.Fatalf("expected 3 parts, got %d", len(parts))
 	}
-	if parts[0] != "write" || parts[1] != "myns" || parts[2] != "myset" {
-		t.Errorf("splitPrivilege = %v, want [\"write\", \"myns\", \"myset\"]", parts)
+	if parts[0] != "write" || parts[1] != testNamespace || parts[2] != testSetName {
+		t.Errorf("splitPrivilege = %v, want [\"write\", %q, %q]", parts, testNamespace, testSetName)
 	}
 }
 
@@ -93,12 +98,12 @@ func TestParsePrivilege_CodeOnly(t *testing.T) {
 }
 
 func TestParsePrivilege_WithNamespace(t *testing.T) {
-	priv := parsePrivilege("read-write.myns")
+	priv := parsePrivilege("read-write." + testNamespace)
 	if priv.Code != aero.ReadWrite {
 		t.Errorf("Code = %v, want ReadWrite", priv.Code)
 	}
-	if priv.Namespace != "myns" {
-		t.Errorf("Namespace = %q, want %q", priv.Namespace, "myns")
+	if priv.Namespace != testNamespace {
+		t.Errorf("Namespace = %q, want %q", priv.Namespace, testNamespace)
 	}
 	if priv.SetName != "" {
 		t.Errorf("SetName should be empty, got %q", priv.SetName)
@@ -106,15 +111,15 @@ func TestParsePrivilege_WithNamespace(t *testing.T) {
 }
 
 func TestParsePrivilege_WithNamespaceAndSet(t *testing.T) {
-	priv := parsePrivilege("write.myns.myset")
+	priv := parsePrivilege("write." + testNamespace + "." + testSetName)
 	if priv.Code != aero.Write {
 		t.Errorf("Code = %v, want Write", priv.Code)
 	}
-	if priv.Namespace != "myns" {
-		t.Errorf("Namespace = %q, want %q", priv.Namespace, "myns")
+	if priv.Namespace != testNamespace {
+		t.Errorf("Namespace = %q, want %q", priv.Namespace, testNamespace)
 	}
-	if priv.SetName != "myset" {
-		t.Errorf("SetName = %q, want %q", priv.SetName, "myset")
+	if priv.SetName != testSetName {
+		t.Errorf("SetName = %q, want %q", priv.SetName, testSetName)
 	}
 }
 
@@ -129,18 +134,18 @@ func TestPrivilegeKey_GlobalPrivilege(t *testing.T) {
 }
 
 func TestPrivilegeKey_NamespaceScopedPrivilege(t *testing.T) {
-	key := privilegeKey(aero.Privilege{Code: aero.Write, Namespace: "myns"})
-	expected := "write:myns:"
+	key := privilegeKey(aero.Privilege{Code: aero.Write, Namespace: testNamespace})
+	expected := "write:" + testNamespace + ":"
 	if key != expected {
 		t.Errorf("privilegeKey = %q, want %q", key, expected)
 	}
 }
 
 func TestPrivilegeKey_FullyScopedPrivilege(t *testing.T) {
-	priv := aero.Privilege{Code: aero.ReadWrite, Namespace: "myns", SetName: "myset"}
+	priv := aero.Privilege{Code: aero.ReadWrite, Namespace: testNamespace, SetName: testSetName}
 	key := privilegeKey(priv)
 	// Verify it contains namespace and set info; the Code portion depends on Stringer
-	expectedSuffix := "myns:myset"
+	expectedSuffix := testNamespace + ":" + testSetName
 	if len(key) == 0 {
 		t.Fatal("privilegeKey returned empty string")
 	}

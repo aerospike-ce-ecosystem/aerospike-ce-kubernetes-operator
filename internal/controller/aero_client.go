@@ -19,6 +19,7 @@ const (
 	aeroClientTimeout = 30 * time.Second
 	aeroLoginTimeout  = 10 * time.Second
 	aeroInfoTimeout   = 10 * time.Second
+	adminUserName     = "admin"
 )
 
 // getAerospikeClient creates an Aerospike client connected to the cluster.
@@ -38,12 +39,12 @@ func (r *AerospikeCEClusterReconciler) getAerospikeClient(
 	// If ACL is enabled, set admin credentials
 	if cluster.Spec.AerospikeAccessControl != nil {
 		for _, user := range cluster.Spec.AerospikeAccessControl.Users {
-			if user.Name == "admin" {
+			if user.Name == adminUserName {
 				password, err := r.getPasswordFromSecret(ctx, cluster.Namespace, user.SecretName)
 				if err != nil {
 					return nil, fmt.Errorf("getting admin password: %w", err)
 				}
-				policy.User = "admin"
+				policy.User = adminUserName
 				policy.Password = password
 				break
 			}

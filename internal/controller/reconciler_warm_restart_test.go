@@ -13,10 +13,12 @@ import (
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
-func readyPod(name, image, configHash, podSpecHash string) *corev1.Pod {
+const testImage = "aerospike:ce-8.1.1.1"
+
+func readyPod(configHash, podSpecHash string) *corev1.Pod {
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
+			Name: "pod-0",
 			Annotations: map[string]string{
 				utils.ConfigHashAnnotation:  configHash,
 				utils.PodSpecHashAnnotation: podSpecHash,
@@ -24,7 +26,7 @@ func readyPod(name, image, configHash, podSpecHash string) *corev1.Pod {
 		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
-				{Name: podutil.AerospikeContainerName, Image: image},
+				{Name: podutil.AerospikeContainerName, Image: testImage},
 			},
 		},
 		Status: corev1.PodStatus{
@@ -54,9 +56,9 @@ func stsWithAnnotations(configHash, podSpecHash string) *appsv1.StatefulSet {
 func TestShouldWarmRestart_NilRestConfig(t *testing.T) {
 	r := &AerospikeCEClusterReconciler{RestConfig: nil}
 	cluster := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{Image: "aerospike:ce-8.1.1.1"},
+		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{Image: testImage},
 	}
-	pod := readyPod("pod-0", "aerospike:ce-8.1.1.1", "abc", "xyz")
+	pod := readyPod("abc", "xyz")
 	sts := stsWithAnnotations("abc", "xyz")
 
 	if r.shouldWarmRestart(cluster, pod, sts) {
@@ -67,7 +69,7 @@ func TestShouldWarmRestart_NilRestConfig(t *testing.T) {
 func TestShouldWarmRestart_PodNotReady(t *testing.T) {
 	r := &AerospikeCEClusterReconciler{RestConfig: &rest.Config{}}
 	cluster := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{Image: "aerospike:ce-8.1.1.1"},
+		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{Image: testImage},
 	}
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -78,7 +80,7 @@ func TestShouldWarmRestart_PodNotReady(t *testing.T) {
 		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
-				{Name: podutil.AerospikeContainerName, Image: "aerospike:ce-8.1.1.1"},
+				{Name: podutil.AerospikeContainerName, Image: testImage},
 			},
 		},
 		Status: corev1.PodStatus{
@@ -99,7 +101,7 @@ func TestShouldWarmRestart_ImageChanged(t *testing.T) {
 	cluster := &asdbcev1alpha1.AerospikeCECluster{
 		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{Image: "aerospike:ce-8.2.0.0"},
 	}
-	pod := readyPod("pod-0", "aerospike:ce-8.1.1.1", "abc", "xyz")
+	pod := readyPod("abc", "xyz")
 	sts := stsWithAnnotations("abc-new", "xyz")
 
 	if r.shouldWarmRestart(cluster, pod, sts) {
@@ -110,9 +112,9 @@ func TestShouldWarmRestart_ImageChanged(t *testing.T) {
 func TestShouldWarmRestart_PodSpecHashChanged(t *testing.T) {
 	r := &AerospikeCEClusterReconciler{RestConfig: &rest.Config{}}
 	cluster := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{Image: "aerospike:ce-8.1.1.1"},
+		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{Image: testImage},
 	}
-	pod := readyPod("pod-0", "aerospike:ce-8.1.1.1", "abc", "xyz-old")
+	pod := readyPod("abc", "xyz-old")
 	sts := stsWithAnnotations("abc-new", "xyz-new")
 
 	if r.shouldWarmRestart(cluster, pod, sts) {
@@ -123,10 +125,10 @@ func TestShouldWarmRestart_PodSpecHashChanged(t *testing.T) {
 func TestShouldWarmRestart_OnlyConfigChanged(t *testing.T) {
 	r := &AerospikeCEClusterReconciler{RestConfig: &rest.Config{}}
 	cluster := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{Image: "aerospike:ce-8.1.1.1"},
+		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{Image: testImage},
 	}
 	// Pod has old config hash but same podspec hash as STS
-	pod := readyPod("pod-0", "aerospike:ce-8.1.1.1", "abc-old", "xyz")
+	pod := readyPod("abc-old", "xyz")
 	sts := stsWithAnnotations("abc-new", "xyz")
 
 	if !r.shouldWarmRestart(cluster, pod, sts) {
@@ -137,13 +139,13 @@ func TestShouldWarmRestart_OnlyConfigChanged(t *testing.T) {
 func TestShouldWarmRestart_NoPodAnnotations(t *testing.T) {
 	r := &AerospikeCEClusterReconciler{RestConfig: &rest.Config{}}
 	cluster := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{Image: "aerospike:ce-8.1.1.1"},
+		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{Image: testImage},
 	}
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "pod-0"},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
-				{Name: podutil.AerospikeContainerName, Image: "aerospike:ce-8.1.1.1"},
+				{Name: podutil.AerospikeContainerName, Image: testImage},
 			},
 		},
 		Status: corev1.PodStatus{
@@ -164,9 +166,9 @@ func TestShouldWarmRestart_NoPodAnnotations(t *testing.T) {
 func TestShouldWarmRestart_NoStsAnnotations(t *testing.T) {
 	r := &AerospikeCEClusterReconciler{RestConfig: &rest.Config{}}
 	cluster := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{Image: "aerospike:ce-8.1.1.1"},
+		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{Image: testImage},
 	}
-	pod := readyPod("pod-0", "aerospike:ce-8.1.1.1", "abc", "xyz")
+	pod := readyPod("abc", "xyz")
 	sts := &appsv1.StatefulSet{
 		Spec: appsv1.StatefulSetSpec{
 			Template: corev1.PodTemplateSpec{

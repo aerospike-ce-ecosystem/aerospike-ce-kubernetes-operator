@@ -219,7 +219,7 @@ func (v *AerospikeCEClusterValidator) validate(cluster *AerospikeCECluster) (adm
 
 	// Validate aerospikeConfig
 	if cluster.Spec.AerospikeConfig != nil {
-		configErrors, configWarnings := v.validateAerospikeConfig(cluster.Spec.AerospikeConfig.Value, cluster.Spec.AerospikeAccessControl)
+		configErrors, configWarnings := v.validateAerospikeConfig(cluster.Spec.AerospikeConfig.Value)
 		allErrors = append(allErrors, configErrors...)
 		warnings = append(warnings, configWarnings...)
 	}
@@ -262,7 +262,7 @@ func (v *AerospikeCEClusterValidator) validate(cluster *AerospikeCECluster) (adm
 }
 
 // validateAerospikeConfig checks the Aerospike configuration map.
-func (v *AerospikeCEClusterValidator) validateAerospikeConfig(config map[string]any, acl *AerospikeAccessControlSpec) ([]string, admission.Warnings) {
+func (v *AerospikeCEClusterValidator) validateAerospikeConfig(config map[string]any) ([]string, admission.Warnings) {
 	var errors []string
 	var warnings admission.Warnings
 

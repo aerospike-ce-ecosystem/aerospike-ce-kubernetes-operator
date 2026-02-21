@@ -58,21 +58,21 @@ func (r *AerospikeCEClusterReconciler) reconcileACL(
 		return nil
 	}
 
-	client, err := r.getAerospikeClient(ctx, cluster)
+	aeroClient, err := r.getAerospikeClient(ctx, cluster)
 	if err != nil {
 		metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "error").Inc()
 		return fmt.Errorf("ACL sync: connecting to cluster: %w", err)
 	}
-	defer closeAerospikeClient(client)
+	defer closeAerospikeClient(aeroClient)
 
 	// Sync roles first (users may depend on roles)
-	if err := r.reconcileRoles(ctx, client, cluster); err != nil {
+	if err := r.reconcileRoles(ctx, aeroClient, cluster); err != nil {
 		metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "error").Inc()
 		return fmt.Errorf("ACL sync roles: %w", err)
 	}
 
 	// Sync users
-	if err := r.reconcileUsers(ctx, client, cluster); err != nil {
+	if err := r.reconcileUsers(ctx, aeroClient, cluster); err != nil {
 		metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "error").Inc()
 		return fmt.Errorf("ACL sync users: %w", err)
 	}
@@ -85,7 +85,7 @@ func (r *AerospikeCEClusterReconciler) reconcileACL(
 // reconcileRoles synchronizes roles: create missing, grant/revoke privileges, drop orphaned.
 func (r *AerospikeCEClusterReconciler) reconcileRoles(
 	ctx context.Context,
-	client *aero.Client,
+	aeroClient *aero.Client,
 	cluster *asdbcev1alpha1.AerospikeCECluster,
 ) error {
 	log := logf.FromContext(ctx)
@@ -94,7 +94,7 @@ func (r *AerospikeCEClusterReconciler) reconcileRoles(
 	adminPolicy.Timeout = aeroInfoTimeout
 
 	// Query existing roles
-	existingRoles, err := client.QueryRoles(adminPolicy)
+	existingRoles, err := aeroClient.QueryRoles(adminPolicy)
 	if err != nil {
 		return fmt.Errorf("querying roles: %w", err)
 	}
@@ -114,7 +114,7 @@ func (r *AerospikeCEClusterReconciler) reconcileRoles(
 			// Create the role
 			privileges := roleParsedPrivileges(roleSpec)
 			log.Info("Creating role", "role", roleSpec.Name)
-			if err := client.CreateRole(adminPolicy, roleSpec.Name, privileges, nil, 0, 0); err != nil {
+			if err := aeroClient.CreateRole(adminPolicy, roleSpec.Name, privileges, nil, 0, 0); err != nil {
 				return fmt.Errorf("creating role %s: %w", roleSpec.Name, err)
 			}
 			continue
@@ -122,7 +122,7 @@ func (r *AerospikeCEClusterReconciler) reconcileRoles(
 
 		// Sync privileges: grant missing, revoke extra
 		desiredPrivs := roleParsedPrivileges(roleSpec)
-		if err := syncRolePrivileges(client, adminPolicy, roleSpec.Name, existing.Privileges, desiredPrivs, log); err != nil {
+		if err := syncRolePrivileges(aeroClient, adminPolicy, roleSpec.Name, existing.Privileges, desiredPrivs, log); err != nil {
 			return err
 		}
 	}
@@ -131,7 +131,7 @@ func (r *AerospikeCEClusterReconciler) reconcileRoles(
 	for _, role := range existingRoles {
 		if !desiredRoles[role.Name] && !builtinRoles[role.Name] {
 			log.Info("Dropping orphaned role", "role", role.Name)
-			if err := client.DropRole(adminPolicy, role.Name); err != nil {
+			if err := aeroClient.DropRole(adminPolicy, role.Name); err != nil {
 				return fmt.Errorf("dropping role %s: %w", role.Name, err)
 			}
 		}
@@ -143,7 +143,7 @@ func (r *AerospikeCEClusterReconciler) reconcileRoles(
 // reconcileUsers synchronizes users: create missing, grant/revoke roles, change passwords, drop orphaned.
 func (r *AerospikeCEClusterReconciler) reconcileUsers(
 	ctx context.Context,
-	client *aero.Client,
+	aeroClient *aero.Client,
 	cluster *asdbcev1alpha1.AerospikeCECluster,
 ) error {
 	log := logf.FromContext(ctx)
@@ -152,7 +152,7 @@ func (r *AerospikeCEClusterReconciler) reconcileUsers(
 	adminPolicy.Timeout = aeroInfoTimeout
 
 	// Query existing users
-	existingUsers, err := client.QueryUsers(adminPolicy)
+	existingUsers, err := aeroClient.QueryUsers(adminPolicy)
 	if err != nil {
 		return fmt.Errorf("querying users: %w", err)
 	}
@@ -176,14 +176,14 @@ func (r *AerospikeCEClusterReconciler) reconcileUsers(
 		if !exists {
 			// Create user
 			log.Info("Creating user", "user", userSpec.Name)
-			if err := client.CreateUser(adminPolicy, userSpec.Name, password, userSpec.Roles); err != nil {
+			if err := aeroClient.CreateUser(adminPolicy, userSpec.Name, password, userSpec.Roles); err != nil {
 				return fmt.Errorf("creating user %s: %w", userSpec.Name, err)
 			}
 			continue
 		}
 
 		// Sync roles
-		if err := syncUserRoles(client, adminPolicy, userSpec.Name, existing.Roles, userSpec.Roles, log); err != nil {
+		if err := syncUserRoles(aeroClient, adminPolicy, userSpec.Name, existing.Roles, userSpec.Roles, log); err != nil {
 			return err
 		}
 
@@ -193,7 +193,7 @@ func (r *AerospikeCEClusterReconciler) reconcileUsers(
 		// for this operation if the password is the same.
 		passwordHash := fmt.Sprintf("%x", sha256.Sum256([]byte(password)))
 		_ = passwordHash // Hash used for logging only; always attempt password change.
-		if err := client.ChangePassword(adminPolicy, userSpec.Name, password); err != nil {
+		if err := aeroClient.ChangePassword(adminPolicy, userSpec.Name, password); err != nil {
 			// Password change can fail if the password is already set (same value).
 			// This is not a critical error, log and continue.
 			log.V(1).Info("Password change attempt", "user", userSpec.Name, "result", err)
@@ -204,11 +204,11 @@ func (r *AerospikeCEClusterReconciler) reconcileUsers(
 	for _, user := range existingUsers {
 		if !desiredUsers[user.User] {
 			// Protect the connected admin user
-			if user.User == "admin" {
+			if user.User == adminUserName {
 				continue
 			}
 			log.Info("Dropping orphaned user", "user", user.User)
-			if err := client.DropUser(adminPolicy, user.User); err != nil {
+			if err := aeroClient.DropUser(adminPolicy, user.User); err != nil {
 				return fmt.Errorf("dropping user %s: %w", user.User, err)
 			}
 		}
@@ -219,7 +219,7 @@ func (r *AerospikeCEClusterReconciler) reconcileUsers(
 
 // syncRolePrivileges grants missing and revokes extra privileges for a role.
 func syncRolePrivileges(
-	client *aero.Client,
+	aeroClient *aero.Client,
 	policy *aero.AdminPolicy,
 	roleName string,
 	current, desired []aero.Privilege,
@@ -239,7 +239,7 @@ func syncRolePrivileges(
 	}
 	if len(toGrant) > 0 {
 		log.Info("Granting privileges to role", "role", roleName, "count", len(toGrant))
-		if err := client.GrantPrivileges(policy, roleName, toGrant); err != nil {
+		if err := aeroClient.GrantPrivileges(policy, roleName, toGrant); err != nil {
 			return fmt.Errorf("granting privileges to role %s: %w", roleName, err)
 		}
 	}
@@ -253,7 +253,7 @@ func syncRolePrivileges(
 	}
 	if len(toRevoke) > 0 {
 		log.Info("Revoking privileges from role", "role", roleName, "count", len(toRevoke))
-		if err := client.RevokePrivileges(policy, roleName, toRevoke); err != nil {
+		if err := aeroClient.RevokePrivileges(policy, roleName, toRevoke); err != nil {
 			return fmt.Errorf("revoking privileges from role %s: %w", roleName, err)
 		}
 	}
@@ -263,7 +263,7 @@ func syncRolePrivileges(
 
 // syncUserRoles grants missing and revokes extra roles for a user.
 func syncUserRoles(
-	client *aero.Client,
+	aeroClient *aero.Client,
 	policy *aero.AdminPolicy,
 	userName string,
 	currentRoles, desiredRoles []string,
@@ -283,7 +283,7 @@ func syncUserRoles(
 	}
 	if len(toGrant) > 0 {
 		log.Info("Granting roles to user", "user", userName, "roles", toGrant)
-		if err := client.GrantRoles(policy, userName, toGrant); err != nil {
+		if err := aeroClient.GrantRoles(policy, userName, toGrant); err != nil {
 			return fmt.Errorf("granting roles to user %s: %w", userName, err)
 		}
 	}
@@ -297,7 +297,7 @@ func syncUserRoles(
 	}
 	if len(toRevoke) > 0 {
 		log.Info("Revoking roles from user", "user", userName, "roles", toRevoke)
-		if err := client.RevokeRoles(policy, userName, toRevoke); err != nil {
+		if err := aeroClient.RevokeRoles(policy, userName, toRevoke); err != nil {
 			return fmt.Errorf("revoking roles from user %s: %w", userName, err)
 		}
 	}

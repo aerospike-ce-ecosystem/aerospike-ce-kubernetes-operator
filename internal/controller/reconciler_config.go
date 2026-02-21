@@ -56,8 +56,49 @@ func (r *AerospikeCEClusterReconciler) reconcileConfigMap(
 	// Inject access-address placeholders based on network policy
 	configgen.InjectAccessAddressPlaceholders(effectiveConfig.Value, cluster.Spec.AerospikeNetworkPolicy)
 
-	// Generate aerospike.conf
-	confText, err := configgen.GenerateConfig(effectiveConfig.Value)
+	// Collect all pod names across all racks for mesh seed injection
+	racks := r.getRacks(cluster)
+	totalPods := int32(0)
+	for rackIdx := range racks {
+		totalPods += r.getRackSize(cluster, racks, rackIdx)
+	}
+	allPodNames := make([]string, 0, totalPods)
+	for rackIdx, rk := range racks {
+		rackSize := r.getRackSize(cluster, racks, rackIdx)
+		stsName := utils.StatefulSetName(cluster.Name, rk.ID)
+		for i := range rackSize {
+			allPodNames = append(allPodNames, fmt.Sprintf("%s-%d", stsName, i))
+		}
+	}
+
+	// Determine heartbeat port
+	heartbeatPort := 3002
+	if netCfg, ok := effectiveConfig.Value["network"].(map[string]any); ok {
+		if hbCfg, ok := netCfg["heartbeat"].(map[string]any); ok {
+			if port, ok := hbCfg["port"]; ok {
+				switch p := port.(type) {
+				case int:
+					heartbeatPort = p
+				case int64:
+					heartbeatPort = int(p)
+				case float64:
+					heartbeatPort = int(p)
+				}
+			}
+		}
+	}
+
+	serviceName := utils.HeadlessServiceName(cluster.Name)
+
+	// Generate aerospike.conf with mesh seeds injected
+	confText, err := configgen.GenerateConfForPod(
+		effectiveConfig.Value,
+		"", // podName not used for shared ConfigMap
+		serviceName,
+		cluster.Namespace,
+		allPodNames,
+		heartbeatPort,
+	)
 	if err != nil {
 		return fmt.Errorf("generating aerospike.conf: %w", err)
 	}
@@ -89,11 +130,27 @@ func (r *AerospikeCEClusterReconciler) reconcileConfigMap(
 		return fmt.Errorf("getting ConfigMap %s: %w", cmName, err)
 	}
 
-	// Update if data changed
+	// Update only if data or labels changed
+	if mapsEqual(existing.Data, data) && mapsEqual(existing.Labels, labels) {
+		return nil
+	}
 	existing.Data = data
 	existing.Labels = labels
 	log.Info("Updating ConfigMap", "name", cmName)
 	return r.Update(ctx, existing)
+}
+
+// mapsEqual compares two string maps for equality.
+func mapsEqual(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if b[k] != v {
+			return false
+		}
+	}
+	return true
 }
 
 // getEffectiveConfig returns the merged config for a rack.

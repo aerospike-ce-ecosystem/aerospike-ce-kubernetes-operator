@@ -28,3 +28,6 @@ go.work
 
 # Kubeconfig might contain secrets
 *.kubeconfig
+
+# Compiled test binaries
+test/client-test/aerospike-crud-test

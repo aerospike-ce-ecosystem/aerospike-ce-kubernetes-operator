@@ -6303,6 +6303,13 @@ spec:
                 required:
                 - racks
                 type: object
+              rollingUpdateBatchSize:
+                description: |-
+                  RollingUpdateBatchSize is the number of pods to restart in parallel
+                  during a rolling restart. Defaults to 1 (sequential).
+                format: int32
+                minimum: 1
+                type: integer
               seedsFinderServices:
                 description: SeedsFinderServices configures LoadBalancer services
                   for seed discovery.
@@ -6782,6 +6789,21 @@ spec:
                 additionalProperties:
                   description: AerospikePodStatus holds per-pod status information.
                   properties:
+                    configHash:
+                      description: ConfigHash is the SHA256 hash of the Aerospike
+                        configuration applied to this pod.
+                      type: string
+                    dirtyVolumes:
+                      description: DirtyVolumes lists volumes that need initialization
+                        or cleanup.
+                      items:
+                        type: string
+                      type: array
+                    dynamicConfigStatus:
+                      description: |-
+                        DynamicConfigStatus indicates the last dynamic config update result.
+                        Possible values: "", "Applied", "Failed", "Pending".
+                      type: string
                     hostIP:
                       description: HostIP is the IP address of the host node.
                       type: string
@@ -6805,6 +6827,10 @@ spec:
                       description: PodPort is the Aerospike service port on the pod.
                       format: int32
                       type: integer
+                    podSpecHash:
+                      description: PodSpecHash is the hash of the pod template spec
+                        applied to this pod.
+                      type: string
                     rack:
                       description: Rack is the rack ID assigned to this pod.
                       type: integer

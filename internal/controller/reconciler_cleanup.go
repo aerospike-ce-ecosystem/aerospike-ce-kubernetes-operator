@@ -5,6 +5,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -51,9 +52,18 @@ func (r *AerospikeCEClusterReconciler) handleDeletion(
 		}
 	}
 
-	// Remove finalizer
-	controllerutil.RemoveFinalizer(cluster, utils.StorageFinalizer)
-	if err := r.Update(ctx, cluster); err != nil {
+	// Re-fetch before removing finalizer to avoid conflict on stale object.
+	latest := &asdbcev1alpha1.AerospikeCECluster{}
+	if err := r.Get(ctx, types.NamespacedName{Name: cluster.Name, Namespace: cluster.Namespace}, latest); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	controllerutil.RemoveFinalizer(latest, utils.StorageFinalizer)
+	if err := r.Update(ctx, latest); err != nil {
+		if errors.IsConflict(err) {
+			log.V(1).Info("Conflict removing finalizer, will requeue")
+			return ctrl.Result{Requeue: true}, nil
+		}
 		return ctrl.Result{}, err
 	}
 

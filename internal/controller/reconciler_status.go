@@ -7,26 +7,73 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/metrics"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
-func (r *AerospikeCEClusterReconciler) updateStatus(
+// updateStatusAndPhase re-fetches the latest cluster object from the API server,
+// populates status fields, sets the desired phase, and performs a status update.
+// This pattern avoids "object has been modified" conflict errors that occur when
+// updating status on a stale object.
+// If the status already matches the desired state, the update is skipped to avoid
+// triggering unnecessary reconciliation loops.
+func (r *AerospikeCEClusterReconciler) updateStatusAndPhase(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	namespacedName types.NamespacedName,
+	phase asdbcev1alpha1.AerospikePhase,
 ) error {
 	log := logf.FromContext(ctx)
 
+	// Re-fetch the latest version from the API server.
+	latest := &asdbcev1alpha1.AerospikeCECluster{}
+	if err := r.Get(ctx, namespacedName, latest); err != nil {
+		return err
+	}
+
+	// Capture the previous state for comparison.
+	prevPhase := latest.Status.Phase
+	prevSize := latest.Status.Size
+	prevGeneration := latest.Status.ObservedGeneration
+
+	readyCount := r.populateStatus(ctx, latest)
+	latest.Status.Phase = phase
+
+	// Skip the update if nothing meaningful changed to avoid
+	// triggering a reconciliation feedback loop via the watch.
+	if prevPhase == phase &&
+		prevSize == readyCount &&
+		prevGeneration == latest.Generation {
+		log.V(1).Info("Status unchanged, skipping update",
+			"readyPods", readyCount, "desiredSize", latest.Spec.Size, "phase", phase)
+		return nil
+	}
+
+	log.Info("Updating status", "readyPods", readyCount, "desiredSize", latest.Spec.Size, "phase", phase)
+
+	// Update Prometheus metrics
+	metrics.ClusterPhase.WithLabelValues(latest.Namespace, latest.Name).Set(metrics.PhaseToFloat(string(phase)))
+	metrics.ClusterReadyPods.WithLabelValues(latest.Namespace, latest.Name).Set(float64(readyCount))
+
+	return r.Status().Update(ctx, latest)
+}
+
+// populateStatus fills in the cluster's status fields and returns the ready pod count.
+func (r *AerospikeCEClusterReconciler) populateStatus(
+	ctx context.Context,
+	cluster *asdbcev1alpha1.AerospikeCECluster,
+) int32 {
 	// List all pods for this cluster
 	podList := &corev1.PodList{}
 	if err := r.List(ctx, podList,
 		client.InNamespace(cluster.Namespace),
 		client.MatchingLabels(utils.SelectorLabelsForCluster(cluster.Name)),
 	); err != nil {
-		return fmt.Errorf("listing pods: %w", err)
+		return 0
 	}
 
 	podStatuses := make(map[string]asdbcev1alpha1.AerospikePodStatus)
@@ -45,6 +92,14 @@ func (r *AerospikeCEClusterReconciler) updateStatus(
 			readyCount++
 		}
 
+		// Read hashes from pod annotations
+		configHash := ""
+		podSpecHash := ""
+		if pod.Annotations != nil {
+			configHash = pod.Annotations[utils.ConfigHashAnnotation]
+			podSpecHash = pod.Annotations[utils.PodSpecHashAnnotation]
+		}
+
 		podStatuses[pod.Name] = asdbcev1alpha1.AerospikePodStatus{
 			PodIP:             pod.Status.PodIP,
 			HostIP:            pod.Status.HostIP,
@@ -52,6 +107,8 @@ func (r *AerospikeCEClusterReconciler) updateStatus(
 			PodPort:           3000,
 			Rack:              rackID,
 			IsRunningAndReady: isReady,
+			ConfigHash:        configHash,
+			PodSpecHash:       podSpecHash,
 		}
 	}
 
@@ -72,8 +129,7 @@ func (r *AerospikeCEClusterReconciler) updateStatus(
 	setCondition(cluster, "Available", readyCount > 0, "ClusterAvailable", "At least one pod is ready")
 	setCondition(cluster, "Ready", readyCount == cluster.Spec.Size, "AllPodsReady", fmt.Sprintf("%d/%d pods ready", readyCount, cluster.Spec.Size))
 
-	log.Info("Updating status", "readyPods", readyCount, "desiredSize", cluster.Spec.Size)
-	return r.Status().Update(ctx, cluster)
+	return readyCount
 }
 
 func isPodReady(pod *corev1.Pod) bool {

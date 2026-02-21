@@ -222,3 +222,64 @@ func TestBuildInitContainer_NoINIT_VOLUMES_WhenEmpty(t *testing.T) {
 		}
 	}
 }
+
+// --- Probe tests ---
+
+func TestBuildAerospikeContainer_HasLivenessProbe(t *testing.T) {
+	cluster := newTestCluster()
+	c := BuildAerospikeContainer(cluster, nil)
+
+	if c.LivenessProbe == nil {
+		t.Fatal("expected liveness probe to be set")
+	}
+	if c.LivenessProbe.TCPSocket == nil {
+		t.Error("liveness probe should use TCPSocket handler")
+	}
+	if c.LivenessProbe.TCPSocket.Port.IntVal != ServicePort {
+		t.Errorf("liveness probe port = %d, want %d", c.LivenessProbe.TCPSocket.Port.IntVal, ServicePort)
+	}
+	// Liveness probe should have more generous timing than readiness
+	if c.LivenessProbe.InitialDelaySeconds < c.ReadinessProbe.InitialDelaySeconds {
+		t.Error("liveness probe InitialDelaySeconds should be >= readiness probe's")
+	}
+}
+
+func TestBuildAerospikeContainer_HasReadinessProbe(t *testing.T) {
+	cluster := newTestCluster()
+	c := BuildAerospikeContainer(cluster, nil)
+
+	if c.ReadinessProbe == nil {
+		t.Fatal("expected readiness probe to be set")
+	}
+	if c.ReadinessProbe.TCPSocket == nil {
+		t.Error("readiness probe should use TCPSocket handler")
+	}
+	if c.ReadinessProbe.TCPSocket.Port.IntVal != ServicePort {
+		t.Errorf("readiness probe port = %d, want %d", c.ReadinessProbe.TCPSocket.Port.IntVal, ServicePort)
+	}
+}
+
+func TestBuildAerospikeContainer_DefaultPorts(t *testing.T) {
+	cluster := newTestCluster()
+	c := BuildAerospikeContainer(cluster, nil)
+
+	portMap := make(map[string]int32)
+	for _, p := range c.Ports {
+		portMap[p.Name] = p.ContainerPort
+	}
+
+	expectedPorts := map[string]int32{
+		"service":   ServicePort,
+		"fabric":    FabricPort,
+		"heartbeat": HeartbeatPort,
+		"info":      InfoPort,
+	}
+
+	for name, expected := range expectedPorts {
+		if got, ok := portMap[name]; !ok {
+			t.Errorf("missing port %q", name)
+		} else if got != expected {
+			t.Errorf("port %q = %d, want %d", name, got, expected)
+		}
+	}
+}

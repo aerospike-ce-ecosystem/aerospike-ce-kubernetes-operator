@@ -12,29 +12,26 @@ spec:
       - testns
     racks:
       - id: 1
-        zone: us-east-1a
       - id: 2
-        zone: us-east-1b
       - id: 3
-        zone: us-east-1c
 
   podSpec:
     aerospikeContainer:
       resources:
         requests:
-          memory: "2Gi"
-          cpu: "1"
+          memory: "512Mi"
+          cpu: "250m"
         limits:
-          memory: "4Gi"
-          cpu: "2"
+          memory: "1Gi"
+          cpu: "500m"
 
   storage:
     volumes:
       - name: data-vol
         source:
           persistentVolume:
-            storageClass: gp3
-            size: 20Gi
+            storageClass: standard
+            size: 5Gi
         aerospike:
           path: /opt/aerospike/data
         cascadeDelete: false
@@ -61,4 +58,4 @@ spec:
         storage-engine:
           type: device
           file: /opt/aerospike/data/testns.dat
-          filesize: 10737418240
+          filesize: 4294967296

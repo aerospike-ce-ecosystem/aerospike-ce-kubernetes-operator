@@ -34,7 +34,7 @@ import (
 )
 
 // namespace where the project is deployed in
-const namespace = "aerospike-ce-operator-system"
+const namespace = "aerospike-system"
 
 // serviceAccountName created for the project
 const serviceAccountName = "aerospike-ce-operator-controller-manager"

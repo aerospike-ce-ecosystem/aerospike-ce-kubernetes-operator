@@ -1,0 +1,33 @@
+Aerospike CE Kubernetes Operator has been installed.
+
+1. Verify the operator is running:
+
+  kubectl -n {{ .Release.Namespace }} get deployment {{ include "aerospike-operator.fullname" . }}
+  kubectl -n {{ .Release.Namespace }} get pods
+
+2. Create an Aerospike CE cluster:
+
+  cat <<EOF | kubectl apply -f -
+  apiVersion: acko.io/v1alpha1
+  kind: AerospikeCECluster
+  metadata:
+    name: aerospike-ce-basic
+    namespace: aerospike
+  spec:
+    size: 1
+    image: aerospike:ce-8.1.1.1
+    aerospikeConfig:
+      namespaces:
+        - name: test
+          replication-factor: 1
+          storage-engine:
+            type: memory
+            data-size: 1073741824
+  EOF
+
+3. Check the cluster status:
+
+  kubectl -n aerospike get asce
+
+For more examples, visit:
+  https://github.com/kimsoungryoul/aerospike-ce-kubernetes-operator/tree/main/config/samples

@@ -77,8 +77,8 @@ setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
 		*"$(KIND_CLUSTER)"*) \
 			echo "Kind cluster '$(KIND_CLUSTER)' already exists. Skipping creation." ;; \
 		*) \
-			echo "Creating Kind cluster '$(KIND_CLUSTER)'..."; \
-			$(KIND) create cluster --name $(KIND_CLUSTER) ;; \
+			echo "Creating Kind cluster '$(KIND_CLUSTER)' with provider '$(KIND_PROVIDER)'..."; \
+			KIND_EXPERIMENTAL_PROVIDER=$(KIND_PROVIDER) $(KIND) create cluster --name $(KIND_CLUSTER) ;; \
 	esac
 
 .PHONY: test-e2e
@@ -146,6 +146,10 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	cd config/manager && "$(KUSTOMIZE)" edit set image controller=${IMG}
 	"$(KUSTOMIZE)" build config/default > dist/install.yaml
 
+.PHONY: helm-sync-crds
+helm-sync-crds: manifests ## Copy CRD to Helm chart crds/ directory.
+	cp config/crd/bases/acko.io_aerospikececlusters.yaml charts/aerospike-operator/crds/
+
 ##@ Deployment
 
 ifndef ignore-not-found
@@ -181,6 +185,7 @@ $(LOCALBIN):
 ## Tool Binaries
 KUBECTL ?= kubectl
 KIND ?= kind
+KIND_PROVIDER ?= docker  # set to 'podman' to use Podman instead of Docker
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest

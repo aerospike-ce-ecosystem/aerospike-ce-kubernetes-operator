@@ -2,6 +2,8 @@ package controller
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -51,6 +53,13 @@ func (r *AerospikeCEClusterReconciler) reconcileStatefulSet(
 	// Build pod template
 	podTemplate := podutil.BuildPodTemplateSpec(cluster, rack, rack.ID, configMapName, hash)
 
+	// Compute and add PodSpec hash for change detection
+	podSpecHash := computePodSpecHash(cluster, rack)
+	if podTemplate.Annotations == nil {
+		podTemplate.Annotations = make(map[string]string)
+	}
+	podTemplate.Annotations[utils.PodSpecHashAnnotation] = podSpecHash
+
 	// Build storage
 	storageSpec := cluster.Spec.Storage
 	if rack.Storage != nil {
@@ -74,12 +83,37 @@ func (r *AerospikeCEClusterReconciler) reconcileStatefulSet(
 		return fmt.Errorf("getting StatefulSet %s: %w", stsName, err)
 	}
 
-	// Update existing StatefulSet
+	// Update only if replicas or config hash changed
+	oldReplicas := int32(0)
+	if existing.Spec.Replicas != nil {
+		oldReplicas = *existing.Spec.Replicas
+	}
+	needsUpdate := oldReplicas != rackSize
+	existingHash := existing.Spec.Template.Annotations[utils.ConfigHashAnnotation]
+	if existingHash != hash {
+		needsUpdate = true
+	}
+	existingPodSpecHash := existing.Spec.Template.Annotations[utils.PodSpecHashAnnotation]
+	if existingPodSpecHash != podSpecHash {
+		needsUpdate = true
+	}
+
+	if !needsUpdate {
+		return nil
+	}
+
+	// Cleanup orphaned PVCs on scale-down
+	if rackSize < oldReplicas {
+		log.Info("Scale-down detected, cleaning up orphaned PVCs", "name", stsName, "old", oldReplicas, "new", rackSize)
+		if err := storage.DeleteOrphanedPVCs(ctx, r.Client, cluster.Namespace, stsName, rackSize); err != nil {
+			log.Error(err, "Failed to delete orphaned PVCs", "statefulset", stsName)
+			// Non-fatal: continue with the update
+		}
+	}
+
 	existing.Spec.Replicas = &rackSize
 	existing.Spec.Template = podTemplate
-
 	log.Info("Updating StatefulSet", "name", stsName)
-
 	return r.Update(ctx, existing)
 }
 
@@ -143,6 +177,10 @@ func (r *AerospikeCEClusterReconciler) cleanupRemovedRacks(
 		sts := &stsList.Items[i]
 		if !currentRackNames[sts.Name] {
 			log.Info("Deleting removed rack StatefulSet", "name", sts.Name)
+			// Delete PVCs for removed rack before deleting the StatefulSet
+			if err := storage.DeletePVCsForStatefulSet(ctx, r.Client, cluster.Namespace, sts.Name); err != nil {
+				log.Error(err, "Failed to delete PVCs for removed rack", "statefulset", sts.Name)
+			}
 			if err := r.Delete(ctx, sts); err != nil && !errors.IsNotFound(err) {
 				return err
 			}
@@ -150,4 +188,24 @@ func (r *AerospikeCEClusterReconciler) cleanupRemovedRacks(
 	}
 
 	return nil
+}
+
+// computePodSpecHash returns a short SHA256 hash derived from the cluster image
+// and pod-level spec settings so that changes to the pod template (aside from
+// config) are captured.
+func computePodSpecHash(cluster *asdbcev1alpha1.AerospikeCECluster, rack *asdbcev1alpha1.Rack) string {
+	input := struct {
+		Image      string                                  `json:"image"`
+		PodSpec    *asdbcev1alpha1.AerospikeCEPodSpec      `json:"podSpec,omitempty"`
+		Monitoring *asdbcev1alpha1.AerospikeMonitoringSpec `json:"monitoring,omitempty"`
+		RackID     int                                     `json:"rackID"`
+	}{
+		Image:      cluster.Spec.Image,
+		PodSpec:    cluster.Spec.PodSpec,
+		Monitoring: cluster.Spec.Monitoring,
+		RackID:     rack.ID,
+	}
+	data, _ := json.Marshal(input)
+	h := sha256.Sum256(data)
+	return fmt.Sprintf("%x", h[:8])
 }

@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -14,9 +15,14 @@ import (
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
+const (
+	aeroClientTimeout = 30 * time.Second
+	aeroLoginTimeout  = 10 * time.Second
+	aeroInfoTimeout   = 10 * time.Second
+	adminUserName     = "admin"
+)
+
 // getAerospikeClient creates an Aerospike client connected to the cluster.
-//
-//nolint:unused // placeholder for future ACL integration
 func (r *AerospikeCEClusterReconciler) getAerospikeClient(
 	ctx context.Context,
 	cluster *asdbcev1alpha1.AerospikeCECluster,
@@ -27,17 +33,18 @@ func (r *AerospikeCEClusterReconciler) getAerospikeClient(
 	host := fmt.Sprintf("%s.%s.svc.cluster.local", serviceName, cluster.Namespace)
 
 	policy := aero.NewClientPolicy()
-	policy.Timeout = 0 // Use default timeout
+	policy.Timeout = aeroClientTimeout
+	policy.LoginTimeout = aeroLoginTimeout
 
 	// If ACL is enabled, set admin credentials
 	if cluster.Spec.AerospikeAccessControl != nil {
 		for _, user := range cluster.Spec.AerospikeAccessControl.Users {
-			if user.Name == "admin" {
+			if user.Name == adminUserName {
 				password, err := r.getPasswordFromSecret(ctx, cluster.Namespace, user.SecretName)
 				if err != nil {
 					return nil, fmt.Errorf("getting admin password: %w", err)
 				}
-				policy.User = "admin"
+				policy.User = adminUserName
 				policy.Password = password
 				break
 			}
@@ -53,9 +60,14 @@ func (r *AerospikeCEClusterReconciler) getAerospikeClient(
 	return client, nil
 }
 
+// closeAerospikeClient safely closes an Aerospike client.
+func closeAerospikeClient(client *aero.Client) {
+	if client != nil {
+		client.Close()
+	}
+}
+
 // getPasswordFromSecret reads a password from a Kubernetes Secret.
-//
-//nolint:unused // placeholder for future ACL integration
 func (r *AerospikeCEClusterReconciler) getPasswordFromSecret(
 	ctx context.Context,
 	namespace, secretName string,

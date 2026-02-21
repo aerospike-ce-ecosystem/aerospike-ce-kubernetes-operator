@@ -32,7 +32,30 @@ Deploy, scale, and perform rolling updates of Aerospike CE clusters via a custom
 - kubectl configured to access the cluster
 - cert-manager installed (for webhook TLS)
 
+Install required tools (macOS):
+
+```sh
+brew install kind kustomize kubectl
+brew install helm
+```
+
+Install cert-manager via Helm:
+
+```sh
+helm repo add jetstack https://charts.jetstack.io --force-update
+helm install cert-manager jetstack/cert-manager \
+  --namespace cert-manager \
+  --create-namespace \
+  --set crds.enabled=true \
+  --set global.privateKeyRotationPolicy=Always
+```
+
 ### 1. Install CRDs
+
+```
+kind create cluster
+```
+
 
 ```sh
 make install

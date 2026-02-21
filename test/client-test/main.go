@@ -34,12 +34,15 @@ func main() {
 		}
 	}
 
+	// SKIP_DELETE=1 skips delete and verify-deletion steps
+	skipDelete := os.Getenv("SKIP_DELETE") == "1"
+
 	allPassed := true
 	for _, c := range clusters {
 		fmt.Printf("\n============================================================\n")
 		fmt.Printf("=== Testing cluster: %s (host: %s, ns: %s) ===\n", c.Name, c.Host, c.Namespace)
 		fmt.Printf("============================================================\n\n")
-		if !testCluster(c) {
+		if !testCluster(c, skipDelete) {
 			allPassed = false
 		}
 	}
@@ -52,7 +55,7 @@ func main() {
 	}
 }
 
-func testCluster(c clusterTest) bool {
+func testCluster(c clusterTest, skipDelete bool) bool {
 	passed := true
 	setName := "demo"
 	keyVal := "crud-test-key-1"
@@ -180,38 +183,43 @@ func testCluster(c clusterTest) bool {
 		}
 	}
 
-	// 6. Delete record
-	fmt.Printf("[6] Delete record (key=%s)...\n", keyVal)
-	deletePolicy := aero.NewWritePolicy(0, 0)
-	deletePolicy.TotalTimeout = 5 * time.Second
+	if !skipDelete {
+		// 6. Delete record
+		fmt.Printf("[6] Delete record (key=%s)...\n", keyVal)
+		deletePolicy := aero.NewWritePolicy(0, 0)
+		deletePolicy.TotalTimeout = 5 * time.Second
 
-	existed, err := client.Delete(deletePolicy, key)
-	if err != nil {
-		fmt.Printf("    FAIL: Cannot delete record: %v\n", err)
-		passed = false
-	} else if !existed {
-		fmt.Printf("    WARN: Record did not exist before delete\n")
-	} else {
-		fmt.Printf("    PASS: Record deleted\n")
-	}
-
-	// 7. Verify deletion
-	fmt.Printf("[7] Verify deletion (key=%s)...\n", keyVal)
-	rec, err = client.Get(readPolicy, key)
-	if err != nil {
-		// KEY_NOT_FOUND_ERROR after delete is expected behavior
-		ae := &aero.AerospikeError{}
-		if errors.As(err, &ae) && ae.ResultCode == atypes.KEY_NOT_FOUND_ERROR {
-			fmt.Printf("    PASS: Record correctly not found after deletion (KEY_NOT_FOUND_ERROR)\n")
+		existed, err := client.Delete(deletePolicy, key)
+		if err != nil {
+			fmt.Printf("    FAIL: Cannot delete record: %v\n", err)
+			passed = false
+		} else if !existed {
+			fmt.Printf("    WARN: Record did not exist before delete\n")
 		} else {
-			fmt.Printf("    FAIL: Unexpected error reading after delete: %v\n", err)
+			fmt.Printf("    PASS: Record deleted\n")
+		}
+
+		// 7. Verify deletion
+		fmt.Printf("[7] Verify deletion (key=%s)...\n", keyVal)
+		rec, err = client.Get(readPolicy, key)
+		if err != nil {
+			// KEY_NOT_FOUND_ERROR after delete is expected behavior
+			ae := &aero.AerospikeError{}
+			if errors.As(err, &ae) && ae.ResultCode == atypes.KEY_NOT_FOUND_ERROR {
+				fmt.Printf("    PASS: Record correctly not found after deletion (KEY_NOT_FOUND_ERROR)\n")
+			} else {
+				fmt.Printf("    FAIL: Unexpected error reading after delete: %v\n", err)
+				passed = false
+			}
+		} else if rec == nil {
+			fmt.Printf("    PASS: Record correctly not found after deletion\n")
+		} else {
+			fmt.Printf("    FAIL: Record still exists after deletion\n")
 			passed = false
 		}
-	} else if rec == nil {
-		fmt.Printf("    PASS: Record correctly not found after deletion\n")
 	} else {
-		fmt.Printf("    FAIL: Record still exists after deletion\n")
-		passed = false
+		fmt.Printf("[6] Delete record... SKIPPED (SKIP_DELETE=1)\n")
+		fmt.Printf("[7] Verify deletion... SKIPPED (SKIP_DELETE=1)\n")
 	}
 
 	// Summary

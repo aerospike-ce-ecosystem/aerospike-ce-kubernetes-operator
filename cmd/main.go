@@ -179,8 +179,9 @@ func main() {
 	}
 
 	if err := (&controller.AerospikeCEClusterReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:     mgr.GetClient(),
+		Scheme:     mgr.GetScheme(),
+		RestConfig: mgr.GetConfig(),
 		//nolint:staticcheck // GetEventRecorder returns incompatible interface
 		Recorder: mgr.GetEventRecorderFor("aerospikececluster-controller"),
 	}).SetupWithManager(mgr); err != nil {

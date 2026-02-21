@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -19,14 +20,16 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/metrics"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
 // AerospikeCEClusterReconciler reconciles an AerospikeCECluster object.
 type AerospikeCEClusterReconciler struct {
 	client.Client
-	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
+	Scheme     *runtime.Scheme
+	Recorder   record.EventRecorder
+	RestConfig *rest.Config
 }
 
 // RBAC markers
@@ -34,6 +37,7 @@ type AerospikeCEClusterReconciler struct {
 // +kubebuilder:rbac:groups=acko.io,resources=aerospikececlusters/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=acko.io,resources=aerospikececlusters/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups="",resources=pods/exec,verbs=create
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
@@ -47,19 +51,32 @@ type AerospikeCEClusterReconciler struct {
 
 func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
+	reconcileStart := time.Now()
 
 	// 1. Fetch CR
 	cluster := &asdbcev1alpha1.AerospikeCECluster{}
 	if err := r.Get(ctx, req.NamespacedName, cluster); err != nil {
 		if errors.IsNotFound(err) {
+			// Cluster deleted — clean up metrics
+			metrics.CleanupClusterMetrics(req.Namespace, req.Name)
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
 	}
 
+	// Record reconcile duration on exit
+	defer func() {
+		metrics.ReconcileDuration.WithLabelValues(cluster.Namespace, cluster.Name).
+			Observe(time.Since(reconcileStart).Seconds())
+	}()
+
 	// 2. Handle deletion
 	if !cluster.DeletionTimestamp.IsZero() {
-		return r.handleDeletion(ctx, cluster)
+		result, err := r.handleDeletion(ctx, cluster)
+		if err == nil {
+			metrics.CleanupClusterMetrics(cluster.Namespace, cluster.Name)
+		}
+		return result, err
 	}
 
 	// 3. Add finalizer
@@ -154,6 +171,13 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 			// Requeue to check again
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 		}
+	}
+
+	// 11.5. Reconcile ACL (roles and users) after cluster is stable
+	if err := r.reconcileACL(ctx, cluster); err != nil {
+		log.Error(err, "Failed to reconcile ACL")
+		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "ACLSyncError", "ACL sync failed: %v", err)
+		// ACL errors are not fatal — continue to status update
 	}
 
 	// 12. Update status and set phase to Completed.

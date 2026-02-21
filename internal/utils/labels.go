@@ -9,8 +9,9 @@ const (
 	ManagedByLabel = "app.kubernetes.io/managed-by"
 	RackLabel      = "acko.io/rack"
 
-	ConfigHashAnnotation = "acko.io/config-hash"
-	StorageFinalizer     = "acko.io/storage-finalizer"
+	ConfigHashAnnotation  = "acko.io/config-hash"
+	PodSpecHashAnnotation = "acko.io/podspec-hash"
+	StorageFinalizer      = "acko.io/storage-finalizer"
 
 	appName     = "aerospike-cluster"
 	managerName = "aerospike-ce-operator"

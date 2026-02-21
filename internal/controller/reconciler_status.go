@@ -12,6 +12,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/metrics"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
@@ -53,6 +54,11 @@ func (r *AerospikeCEClusterReconciler) updateStatusAndPhase(
 	}
 
 	log.Info("Updating status", "readyPods", readyCount, "desiredSize", latest.Spec.Size, "phase", phase)
+
+	// Update Prometheus metrics
+	metrics.ClusterPhase.WithLabelValues(latest.Namespace, latest.Name).Set(metrics.PhaseToFloat(string(phase)))
+	metrics.ClusterReadyPods.WithLabelValues(latest.Namespace, latest.Name).Set(float64(readyCount))
+
 	return r.Status().Update(ctx, latest)
 }
 
@@ -86,6 +92,14 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 			readyCount++
 		}
 
+		// Read hashes from pod annotations
+		configHash := ""
+		podSpecHash := ""
+		if pod.Annotations != nil {
+			configHash = pod.Annotations[utils.ConfigHashAnnotation]
+			podSpecHash = pod.Annotations[utils.PodSpecHashAnnotation]
+		}
+
 		podStatuses[pod.Name] = asdbcev1alpha1.AerospikePodStatus{
 			PodIP:             pod.Status.PodIP,
 			HostIP:            pod.Status.HostIP,
@@ -93,6 +107,8 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 			PodPort:           3000,
 			Rack:              rackID,
 			IsRunningAndReady: isReady,
+			ConfigHash:        configHash,
+			PodSpecHash:       podSpecHash,
 		}
 	}
 

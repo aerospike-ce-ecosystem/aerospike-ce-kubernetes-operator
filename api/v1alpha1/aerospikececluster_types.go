@@ -226,6 +226,15 @@ type AerospikePodStatus struct {
 	InitializedVolumes []string `json:"initializedVolumes,omitempty"`
 	// IsRunningAndReady indicates whether the pod is running and ready.
 	IsRunningAndReady bool `json:"isRunningAndReady,omitempty"`
+	// ConfigHash is the SHA256 hash of the Aerospike configuration applied to this pod.
+	ConfigHash string `json:"configHash,omitempty"`
+	// PodSpecHash is the hash of the pod template spec applied to this pod.
+	PodSpecHash string `json:"podSpecHash,omitempty"`
+	// DynamicConfigStatus indicates the last dynamic config update result.
+	// Possible values: "", "Applied", "Failed", "Pending".
+	DynamicConfigStatus string `json:"dynamicConfigStatus,omitempty"`
+	// DirtyVolumes lists volumes that need initialization or cleanup.
+	DirtyVolumes []string `json:"dirtyVolumes,omitempty"`
 }
 
 // +kubebuilder:object:root=true

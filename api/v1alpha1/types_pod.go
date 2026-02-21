@@ -67,6 +67,13 @@ type AerospikeCEPodSpec struct {
 	// +optional
 	HostNetwork bool `json:"hostNetwork,omitempty"`
 
+	// MultiPodPerHost controls whether multiple Aerospike pods can be scheduled
+	// on the same Kubernetes node. When false (or nil with hostNetwork=true),
+	// a RequiredDuringSchedulingIgnoredDuringExecution pod anti-affinity rule
+	// is automatically injected to ensure one pod per node.
+	// +optional
+	MultiPodPerHost *bool `json:"multiPodPerHost,omitempty"`
+
 	// TerminationGracePeriodSeconds is the grace period for pod termination.
 	// +optional
 	TerminationGracePeriodSeconds *int64 `json:"terminationGracePeriodSeconds,omitempty"`

@@ -31,3 +31,18 @@ func PDBName(clusterName string) string {
 func PodDNSName(podName, serviceName, namespace string) string {
 	return fmt.Sprintf("%s.%s.%s.svc.cluster.local", podName, serviceName, namespace)
 }
+
+// MetricsServiceName returns the metrics Service name for a cluster.
+func MetricsServiceName(clusterName string) string {
+	return fmt.Sprintf("%s-metrics", clusterName)
+}
+
+// ServiceMonitorName returns the ServiceMonitor name for a cluster.
+func ServiceMonitorName(clusterName string) string {
+	return fmt.Sprintf("%s-monitor", clusterName)
+}
+
+// NetworkPolicyName returns the NetworkPolicy name for a cluster.
+func NetworkPolicyName(clusterName string) string {
+	return fmt.Sprintf("%s-netpol", clusterName)
+}

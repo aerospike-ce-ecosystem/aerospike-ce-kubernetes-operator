@@ -21,9 +21,11 @@ fi
 # Get pod information from environment
 POD_NAME=${POD_NAME:-$(hostname)}
 POD_IP=${POD_IP:-$(hostname -i 2>/dev/null || echo "127.0.0.1")}
+NODE_IP=${NODE_IP:-""}
 
 echo "Pod Name: ${POD_NAME}"
 echo "Pod IP: ${POD_IP}"
+echo "Node IP: ${NODE_IP}"
 
 # Replace placeholders in config
 if [ -n "${POD_IP}" ]; then
@@ -31,6 +33,9 @@ if [ -n "${POD_IP}" ]; then
 fi
 if [ -n "${POD_NAME}" ]; then
     sed -i "s/MY_POD_NAME/${POD_NAME}/g" "${CONFIG_DST}/aerospike.conf"
+fi
+if [ -n "${NODE_IP}" ]; then
+    sed -i "s/MY_NODE_IP/${NODE_IP}/g" "${CONFIG_DST}/aerospike.conf"
 fi
 
 # Volume initialization

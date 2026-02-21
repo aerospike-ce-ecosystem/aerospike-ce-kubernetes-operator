@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 
+	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -36,6 +37,10 @@ const (
 	defaultHeartbeatPort = 3002
 	defaultProtoFdMax    = 15000
 	defaultHeartbeatMode = "mesh"
+
+	defaultExporterImage  = "aerospike/aerospike-prometheus-exporter:latest"
+	defaultExporterPort   = int32(9145)
+	defaultScrapeInterval = "30s"
 )
 
 // SetupWebhookWithManager registers the webhooks for AerospikeCECluster.
@@ -68,6 +73,8 @@ func (d *AerospikeCEClusterDefaulter) Default(ctx context.Context, cluster *Aero
 
 	d.defaultServiceConfig(cluster)
 	d.defaultNetworkConfig(cluster)
+	d.defaultMonitoring(cluster)
+	d.defaultHostNetwork(cluster)
 
 	return nil
 }
@@ -120,6 +127,42 @@ func (d *AerospikeCEClusterDefaulter) defaultNetworkConfig(cluster *AerospikeCEC
 	networkSection["fabric"] = fabricSection
 
 	config["network"] = networkSection
+}
+
+// defaultMonitoring sets default values for the monitoring spec when enabled.
+func (d *AerospikeCEClusterDefaulter) defaultMonitoring(cluster *AerospikeCECluster) {
+	if cluster.Spec.Monitoring == nil || !cluster.Spec.Monitoring.Enabled {
+		return
+	}
+
+	m := cluster.Spec.Monitoring
+	if m.ExporterImage == "" {
+		m.ExporterImage = defaultExporterImage
+	}
+	if m.Port == 0 {
+		m.Port = defaultExporterPort
+	}
+	if m.ServiceMonitor != nil && m.ServiceMonitor.Enabled && m.ServiceMonitor.Interval == "" {
+		m.ServiceMonitor.Interval = defaultScrapeInterval
+	}
+}
+
+// defaultHostNetwork sets defaults for hostNetwork mode.
+func (d *AerospikeCEClusterDefaulter) defaultHostNetwork(cluster *AerospikeCECluster) {
+	if cluster.Spec.PodSpec == nil || !cluster.Spec.PodSpec.HostNetwork {
+		return
+	}
+
+	// Default multiPodPerHost to false when hostNetwork is enabled
+	if cluster.Spec.PodSpec.MultiPodPerHost == nil {
+		f := false
+		cluster.Spec.PodSpec.MultiPodPerHost = &f
+	}
+
+	// Default dnsPolicy to ClusterFirstWithHostNet
+	if cluster.Spec.PodSpec.DNSPolicy == "" {
+		cluster.Spec.PodSpec.DNSPolicy = corev1.DNSClusterFirstWithHostNet
+	}
 }
 
 // getOrCreateMapSection returns the sub-map at key or creates a new one.
@@ -185,6 +228,16 @@ func (v *AerospikeCEClusterValidator) validate(cluster *AerospikeCECluster) (adm
 	if cluster.Spec.AerospikeAccessControl != nil {
 		acErrors := v.validateAccessControl(cluster.Spec.AerospikeAccessControl)
 		allErrors = append(allErrors, acErrors...)
+	}
+
+	// Validate hostNetwork + multiPodPerHost
+	if cluster.Spec.PodSpec != nil && cluster.Spec.PodSpec.HostNetwork {
+		if cluster.Spec.PodSpec.MultiPodPerHost != nil && *cluster.Spec.PodSpec.MultiPodPerHost {
+			warnings = append(warnings, "hostNetwork=true with multiPodPerHost=true may cause port conflicts")
+		}
+		if cluster.Spec.PodSpec.DNSPolicy != "" && cluster.Spec.PodSpec.DNSPolicy != corev1.DNSClusterFirstWithHostNet {
+			warnings = append(warnings, "hostNetwork=true with dnsPolicy other than ClusterFirstWithHostNet may cause DNS resolution issues")
+		}
 	}
 
 	// Validate rack config

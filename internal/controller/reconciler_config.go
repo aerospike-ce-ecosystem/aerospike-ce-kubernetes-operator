@@ -53,6 +53,9 @@ func (r *AerospikeCEClusterReconciler) reconcileConfigMap(
 		}
 	}
 
+	// Inject access-address placeholders based on network policy
+	configgen.InjectAccessAddressPlaceholders(effectiveConfig.Value, cluster.Spec.AerospikeNetworkPolicy)
+
 	// Generate aerospike.conf
 	confText, err := configgen.GenerateConfig(effectiveConfig.Value)
 	if err != nil {

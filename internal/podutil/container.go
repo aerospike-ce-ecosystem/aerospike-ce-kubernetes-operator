@@ -1,6 +1,9 @@
 package podutil
 
 import (
+	"fmt"
+	"strings"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -62,9 +65,14 @@ func BuildAerospikeContainer(cluster *v1alpha1.AerospikeCECluster, volumeMounts 
 	return c
 }
 
-// BuildInitContainer creates the init container that copies Aerospike
-// configuration files from the ConfigMap volume to /etc/aerospike/.
-func BuildInitContainer(configMapName string, volumeMounts []corev1.VolumeMount) corev1.Container {
+// BuildInitContainer creates the init container that runs the aerospike-init.sh script
+// to copy and process configuration files (placeholder substitution, volume initialization).
+func BuildInitContainer(
+	cluster *v1alpha1.AerospikeCECluster,
+	configMapName string,
+	storageSpec *v1alpha1.AerospikeStorageSpec,
+	volumeMounts []corev1.VolumeMount,
+) corev1.Container {
 	// Ensure the init container has mounts for both the configmap source
 	// and the aerospike config destination.
 	initMounts := make([]corev1.VolumeMount, 0, 2+len(volumeMounts))
@@ -81,13 +89,73 @@ func BuildInitContainer(configMapName string, volumeMounts []corev1.VolumeMount)
 	)
 	initMounts = append(initMounts, volumeMounts...)
 
+	env := buildInitEnvVars()
+	if initVolumes := buildInitVolumesEnv(storageSpec); initVolumes != "" {
+		env = append(env, corev1.EnvVar{
+			Name:  "INIT_VOLUMES",
+			Value: initVolumes,
+		})
+	}
+
 	return corev1.Container{
 		Name:  InitContainerName,
-		Image: "busybox:1.36",
+		Image: cluster.Spec.Image,
 		Command: []string{
-			"sh", "-c",
-			"cp /configmap/* /etc/aerospike/",
+			"bash", "/configmap/aerospike-init.sh",
 		},
+		Env:          env,
 		VolumeMounts: initMounts,
 	}
+}
+
+// buildInitEnvVars returns the Downward API environment variables for the init container.
+func buildInitEnvVars() []corev1.EnvVar {
+	return []corev1.EnvVar{
+		{
+			Name: "POD_IP",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "status.podIP",
+				},
+			},
+		},
+		{
+			Name: "POD_NAME",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "metadata.name",
+				},
+			},
+		},
+		{
+			Name: "NODE_IP",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "status.hostIP",
+				},
+			},
+		},
+	}
+}
+
+// buildInitVolumesEnv converts storage spec InitMethod fields into an INIT_VOLUMES
+// environment variable value. Format: "method1:path1,method2:path2"
+func buildInitVolumesEnv(storageSpec *v1alpha1.AerospikeStorageSpec) string {
+	if storageSpec == nil {
+		return ""
+	}
+
+	var parts []string
+	for i := range storageSpec.Volumes {
+		vol := &storageSpec.Volumes[i]
+		if vol.InitMethod == "" || vol.InitMethod == v1alpha1.VolumeInitMethodNone {
+			continue
+		}
+		if vol.Aerospike == nil {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s:%s", vol.InitMethod, vol.Aerospike.Path))
+	}
+
+	return strings.Join(parts, ",")
 }

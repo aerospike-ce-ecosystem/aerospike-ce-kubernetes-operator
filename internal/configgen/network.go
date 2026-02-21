@@ -3,6 +3,8 @@ package configgen
 import (
 	"fmt"
 	"strings"
+
+	v1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
 // generateNetworkSection generates the network stanza with mesh seeds injected
@@ -85,4 +87,53 @@ func generateHeartbeatSubsection(
 
 	b.WriteString("\t}\n")
 	return b.String()
+}
+
+// InjectAccessAddressPlaceholders injects access-address and alternate-access-address
+// placeholders into the network config based on the AerospikeNetworkPolicy.
+// These placeholders (MY_POD_IP, MY_NODE_IP) are replaced by the init container
+// at pod startup using Downward API environment variables.
+func InjectAccessAddressPlaceholders(config map[string]any, policy *v1alpha1.AerospikeNetworkPolicy) {
+	if policy == nil {
+		return
+	}
+
+	networkSection, ok := config["network"].(map[string]any)
+	if !ok {
+		return
+	}
+
+	svcSection, ok := networkSection["service"].(map[string]any)
+	if !ok {
+		return
+	}
+
+	// Inject access-address based on AccessType
+	if placeholder := placeholderForNetworkType(policy.AccessType); placeholder != "" {
+		if _, exists := svcSection["access-address"]; !exists {
+			svcSection["access-address"] = placeholder
+		}
+	}
+
+	// Inject alternate-access-address based on AlternateAccessType
+	if placeholder := placeholderForNetworkType(policy.AlternateAccessType); placeholder != "" {
+		if _, exists := svcSection["alternate-access-address"]; !exists {
+			svcSection["alternate-access-address"] = placeholder
+		}
+	}
+
+	networkSection["service"] = svcSection
+	config["network"] = networkSection
+}
+
+// placeholderForNetworkType returns the placeholder string for the given network type.
+func placeholderForNetworkType(t v1alpha1.AerospikeNetworkType) string {
+	switch t {
+	case v1alpha1.AerospikeNetworkTypeHostInternal, v1alpha1.AerospikeNetworkTypeHostExternal:
+		return "MY_NODE_IP"
+	case v1alpha1.AerospikeNetworkTypePod:
+		return "MY_POD_IP"
+	default:
+		return ""
+	}
 }

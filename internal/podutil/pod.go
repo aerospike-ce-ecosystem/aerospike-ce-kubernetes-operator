@@ -70,6 +70,16 @@ func BuildPodTemplateSpec(
 		utils.ConfigHashAnnotation: configHash,
 	}
 
+	// Inject bandwidth annotations if configured.
+	if cluster.Spec.BandwidthConfig != nil {
+		if cluster.Spec.BandwidthConfig.Ingress != "" {
+			annotations["kubernetes.io/ingress-bandwidth"] = cluster.Spec.BandwidthConfig.Ingress
+		}
+		if cluster.Spec.BandwidthConfig.Egress != "" {
+			annotations["kubernetes.io/egress-bandwidth"] = cluster.Spec.BandwidthConfig.Egress
+		}
+	}
+
 	// Merge user-provided pod metadata.
 	if cluster.Spec.PodSpec != nil && cluster.Spec.PodSpec.Metadata != nil {
 		maps.Copy(labels, cluster.Spec.PodSpec.Metadata.Labels)
@@ -77,7 +87,8 @@ func BuildPodTemplateSpec(
 	}
 
 	// Build containers.
-	initContainer := BuildInitContainer(configMapName, nil)
+	initVolumeMounts := storage.VolumeMountsForContainer(storageSpec, InitContainerName, false)
+	initContainer := BuildInitContainer(cluster, configMapName, storageSpec, initVolumeMounts)
 	aerospikeContainer := BuildAerospikeContainer(cluster, aerospikeMounts)
 
 	// Init containers: operator init + user-defined.
@@ -85,6 +96,11 @@ func BuildPodTemplateSpec(
 
 	// Sidecars.
 	var sidecars []corev1.Container
+
+	// Inject Prometheus exporter sidecar if monitoring is enabled.
+	if cluster.Spec.Monitoring != nil && cluster.Spec.Monitoring.Enabled {
+		sidecars = append(sidecars, buildExporterSidecar(cluster.Spec.Monitoring))
+	}
 
 	if cluster.Spec.PodSpec != nil {
 		for _, ic := range cluster.Spec.PodSpec.InitContainers {
@@ -120,6 +136,11 @@ func BuildPodTemplateSpec(
 	// Pod-level settings from cluster spec.
 	if cluster.Spec.PodSpec != nil {
 		applyPodSpecSettings(&podSpec, cluster.Spec.PodSpec)
+	}
+
+	// Inject pod anti-affinity when multiPodPerHost is explicitly false.
+	if shouldInjectAntiAffinity(cluster) {
+		injectPodAntiAffinity(&podSpec, cluster.Name)
 	}
 
 	// Rack-level overrides.
@@ -232,6 +253,73 @@ func applyRackAffinity(podSpec *corev1.PodSpec, rack *v1alpha1.Rack) {
 			},
 		},
 	}
+}
+
+// shouldInjectAntiAffinity returns true if pod anti-affinity should be injected
+// to prevent multiple Aerospike pods from scheduling on the same node.
+func shouldInjectAntiAffinity(cluster *v1alpha1.AerospikeCECluster) bool {
+	if cluster.Spec.PodSpec == nil {
+		return false
+	}
+
+	multiPodPerHost := cluster.Spec.PodSpec.MultiPodPerHost
+	if multiPodPerHost == nil {
+		// nil means not explicitly set; only inject if hostNetwork is enabled
+		// (webhook defaults multiPodPerHost=false for hostNetwork=true)
+		return false
+	}
+
+	// Inject anti-affinity when multiPodPerHost is explicitly false
+	return !*multiPodPerHost
+}
+
+// injectPodAntiAffinity adds a required pod anti-affinity rule to ensure
+// at most one Aerospike pod per Kubernetes node. This appends to existing
+// affinity rules rather than overwriting them.
+func injectPodAntiAffinity(podSpec *corev1.PodSpec, clusterName string) {
+	antiAffinityTerm := corev1.PodAffinityTerm{
+		LabelSelector: &metav1.LabelSelector{
+			MatchLabels: utils.SelectorLabelsForCluster(clusterName),
+		},
+		TopologyKey: "kubernetes.io/hostname",
+	}
+
+	if podSpec.Affinity == nil {
+		podSpec.Affinity = &corev1.Affinity{}
+	}
+	if podSpec.Affinity.PodAntiAffinity == nil {
+		podSpec.Affinity.PodAntiAffinity = &corev1.PodAntiAffinity{}
+	}
+
+	podSpec.Affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution = append(
+		podSpec.Affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution,
+		antiAffinityTerm,
+	)
+}
+
+// buildExporterSidecar creates the Prometheus exporter sidecar container.
+func buildExporterSidecar(monitoring *v1alpha1.AerospikeMonitoringSpec) corev1.Container {
+	c := corev1.Container{
+		Name:  "aerospike-prometheus-exporter",
+		Image: monitoring.ExporterImage,
+		Ports: []corev1.ContainerPort{
+			{
+				Name:          "metrics",
+				ContainerPort: monitoring.Port,
+				Protocol:      corev1.ProtocolTCP,
+			},
+		},
+		Env: []corev1.EnvVar{
+			{Name: "AS_HOST", Value: "localhost"},
+			{Name: "AS_PORT", Value: fmt.Sprintf("%d", ServicePort)},
+		},
+	}
+
+	if monitoring.Resources != nil {
+		c.Resources = *monitoring.Resources
+	}
+
+	return c
 }
 
 // PodNameForIndex returns the pod name for a given StatefulSet and ordinal index.

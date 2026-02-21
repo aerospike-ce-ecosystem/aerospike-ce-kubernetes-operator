@@ -40,6 +40,9 @@ type AerospikeCEClusterReconciler struct {
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=monitoring.coreos.com,resources=servicemonitors,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=cilium.io,resources=ciliumnetworkpolicies,verbs=get;list;watch;create;update;patch;delete
 
 func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
@@ -112,6 +115,18 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// 10. Reconcile PDB
 	if err := r.reconcilePDB(ctx, cluster); err != nil {
 		log.Error(err, "Failed to reconcile PDB")
+		return ctrl.Result{}, err
+	}
+
+	// 10.5. Reconcile Monitoring (metrics Service + ServiceMonitor)
+	if err := r.reconcileMonitoring(ctx, cluster); err != nil {
+		log.Error(err, "Failed to reconcile monitoring")
+		return ctrl.Result{}, err
+	}
+
+	// 10.6. Reconcile NetworkPolicy
+	if err := r.reconcileNetworkPolicy(ctx, cluster); err != nil {
+		log.Error(err, "Failed to reconcile network policy")
 		return ctrl.Result{}, err
 	}
 

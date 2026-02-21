@@ -186,6 +186,19 @@ spec:
                     - configuredIP
                     type: string
                 type: object
+              bandwidthConfig:
+                description: BandwidthConfig defines bandwidth annotations for CNI
+                  traffic shaping.
+                properties:
+                  egress:
+                    description: Egress is the maximum egress bandwidth (e.g., "1Gbps",
+                      "500Mbps").
+                    type: string
+                  ingress:
+                    description: Ingress is the maximum ingress bandwidth (e.g., "1Gbps",
+                      "500Mbps").
+                    type: string
+                type: object
               disablePDB:
                 description: DisablePDB disables PodDisruptionBudget creation for
                   the cluster.
@@ -214,6 +227,120 @@ spec:
                   MaxUnavailable is the maximum number of pods that can be unavailable during disruption.
                   Used for PodDisruptionBudget. Defaults to 1.
                 x-kubernetes-int-or-string: true
+              monitoring:
+                description: Monitoring configures Prometheus monitoring via an exporter
+                  sidecar.
+                properties:
+                  enabled:
+                    description: Enabled enables the Prometheus exporter sidecar.
+                    type: boolean
+                  exporterImage:
+                    description: |-
+                      ExporterImage is the Aerospike Prometheus exporter container image.
+                      Defaults to "aerospike/aerospike-prometheus-exporter:latest".
+                    type: string
+                  port:
+                    description: Port is the metrics port for the exporter. Defaults
+                      to 9145.
+                    format: int32
+                    type: integer
+                  resources:
+                    description: Resources defines CPU and memory resource requests/limits
+                      for the exporter.
+                    properties:
+                      claims:
+                        description: |-
+                          Claims lists the names of resources, defined in spec.resourceClaims,
+                          that are used by this container.
+
+                          This field depends on the
+                          DynamicResourceAllocation feature gate.
+
+                          This field is immutable. It can only be set for containers.
+                        items:
+                          description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                          properties:
+                            name:
+                              description: |-
+                                Name must match the name of one entry in pod.spec.resourceClaims of
+                                the Pod where this field is used. It makes that resource available
+                                inside a container.
+                              type: string
+                            request:
+                              description: |-
+                                Request is the name chosen for a request in the referenced claim.
+                                If empty, everything from the claim is made available, otherwise
+                                only the result of this request.
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
+                      limits:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Limits describes the maximum amount of compute resources allowed.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                      requests:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Requests describes the minimum amount of compute resources required.
+                          If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                          otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                    type: object
+                  serviceMonitor:
+                    description: ServiceMonitor configures automatic ServiceMonitor
+                      creation for Prometheus Operator.
+                    properties:
+                      enabled:
+                        description: Enabled enables ServiceMonitor creation.
+                        type: boolean
+                      interval:
+                        description: Interval is the Prometheus scrape interval. Defaults
+                          to "30s".
+                        type: string
+                      labels:
+                        additionalProperties:
+                          type: string
+                        description: Labels are additional labels to add to the ServiceMonitor
+                          for discovery.
+                        type: object
+                    type: object
+                type: object
+              networkPolicyConfig:
+                description: NetworkPolicyConfig configures automatic NetworkPolicy
+                  creation for the cluster.
+                properties:
+                  enabled:
+                    description: Enabled enables automatic NetworkPolicy creation.
+                    type: boolean
+                  type:
+                    default: kubernetes
+                    description: |-
+                      Type specifies the NetworkPolicy type: "kubernetes" for standard
+                      K8s NetworkPolicy or "cilium" for CiliumNetworkPolicy.
+                      Defaults to "kubernetes".
+                    enum:
+                    - kubernetes
+                    - cilium
+                    type: string
+                type: object
               paused:
                 description: Paused stops reconciliation when set to true.
                 type: boolean
@@ -2974,6 +3101,13 @@ spec:
                         description: Labels are additional labels to add to the pods.
                         type: object
                     type: object
+                  multiPodPerHost:
+                    description: |-
+                      MultiPodPerHost controls whether multiple Aerospike pods can be scheduled
+                      on the same Kubernetes node. When false (or nil with hostNetwork=true),
+                      a RequiredDuringSchedulingIgnoredDuringExecution pod anti-affinity rule
+                      is automatically injected to ensure one pod per node.
+                    type: boolean
                   nodeSelector:
                     additionalProperties:
                       type: string

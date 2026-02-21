@@ -125,6 +125,18 @@ type AerospikeCEClusterSpec struct {
 	// +optional
 	AerospikeAccessControl *AerospikeAccessControlSpec `json:"aerospikeAccessControl,omitempty"`
 
+	// Monitoring configures Prometheus monitoring via an exporter sidecar.
+	// +optional
+	Monitoring *AerospikeMonitoringSpec `json:"monitoring,omitempty"`
+
+	// NetworkPolicyConfig configures automatic NetworkPolicy creation for the cluster.
+	// +optional
+	NetworkPolicyConfig *NetworkPolicyConfig `json:"networkPolicyConfig,omitempty"`
+
+	// BandwidthConfig defines bandwidth annotations for CNI traffic shaping.
+	// +optional
+	BandwidthConfig *BandwidthConfig `json:"bandwidthConfig,omitempty"`
+
 	// EnableDynamicConfigUpdate enables runtime configuration changes
 	// without pod restart using Aerospike's set-config command.
 	// +optional

@@ -67,12 +67,11 @@ kubectl -n cert-manager wait --for=condition=Available deployment/cert-manager -
 
 ### Step 3: Install the Operator
 
-#### Option A: From Helm Repository (Recommended)
+#### Option A: From OCI Registry (Recommended)
 
 ```sh
-helm repo add acko https://kimsoungryoul.github.io/aerospike-ce-kubernetes-operator
-helm repo update
-helm install aerospike-operator acko/aerospike-operator \
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
   -n aerospike-operator --create-namespace
 ```
 

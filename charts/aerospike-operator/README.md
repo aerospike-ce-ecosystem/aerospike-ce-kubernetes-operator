@@ -45,7 +45,15 @@ helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
 
 ## Installation
 
-### Basic (minimal)
+### From OCI Registry (Recommended)
+
+```bash
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
+  --namespace aerospike-operator --create-namespace
+```
+
+### From Local Chart
 
 ```bash
 helm install aerospike-operator ./charts/aerospike-operator \
@@ -55,7 +63,8 @@ helm install aerospike-operator ./charts/aerospike-operator \
 ### With monitoring enabled
 
 ```bash
-helm install aerospike-operator ./charts/aerospike-operator \
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
   --namespace aerospike-operator --create-namespace \
   --set serviceMonitor.enabled=true \
   --set prometheusRule.enabled=true \
@@ -65,7 +74,8 @@ helm install aerospike-operator ./charts/aerospike-operator \
 ### With Cilium network policy
 
 ```bash
-helm install aerospike-operator ./charts/aerospike-operator \
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
   --namespace aerospike-operator --create-namespace \
   --set cilium.enabled=true
 ```
@@ -73,7 +83,8 @@ helm install aerospike-operator ./charts/aerospike-operator \
 ### Full example
 
 ```bash
-helm install aerospike-operator ./charts/aerospike-operator \
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
   --namespace aerospike-operator --create-namespace \
   --set serviceMonitor.enabled=true \
   --set prometheusRule.enabled=true \

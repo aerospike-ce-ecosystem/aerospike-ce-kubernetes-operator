@@ -1,5 +1,4 @@
 //go:build e2e
-// +build e2e
 
 /*
 Copyright 2026.
@@ -27,12 +26,13 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/test/utils"
 )
 
 const (
-	aerospikeNS     = "aerospike"
-	defaultTimeout  = 3 * time.Minute
+	aerospikeNS      = "aerospike"
+	defaultTimeout   = 3 * time.Minute
 	multiNodeTimeout = 5 * time.Minute
 )
 
@@ -45,16 +45,16 @@ var _ = Describe("AerospikeCECluster Samples", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		By("creating aerospike namespace")
-		Expect(utils.CreateNamespaceIfNotExists(aerospikeNS)).To(Succeed())
+		Expect(utils.EnsureNamespace(ctx, k8sClient, aerospikeNS)).To(Succeed())
 	})
 
 	AfterAll(func() {
 		By("cleaning up all sample clusters")
 		for _, name := range []string{"aerospike-ce-basic", "aerospike-ce-3node", "aerospike-ce-multirack", "aerospike-ce-acl"} {
-			_ = utils.DeleteAerospikeCluster(name, aerospikeNS)
+			_ = utils.DeleteCluster(ctx, k8sClient, name, aerospikeNS)
 		}
 		By("deleting aerospike namespace")
-		_ = utils.DeleteNamespaceIfExists(aerospikeNS)
+		_ = utils.DeleteNamespace(ctx, k8sClient, aerospikeNS)
 	})
 
 	Context("Basic single-node cluster", func() {
@@ -63,48 +63,60 @@ var _ = Describe("AerospikeCECluster Samples", Ordered, func() {
 		It("should deploy and reach Completed phase", func() {
 			samplePath := filepath.Join(projectDir, "config", "samples", "acko_v1alpha1_aerospikececluster.yaml")
 
-			By("applying the basic sample CR")
-			Expect(utils.ApplyFromFile(samplePath)).To(Succeed())
+			By("loading and creating the basic sample CR")
+			cluster, err := loadClusterFromFile(samplePath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
 
 			By("waiting for Completed phase")
-			Expect(utils.WaitForClusterPhase(clusterName, aerospikeNS, "Completed", defaultTimeout)).To(Succeed())
+			Eventually(func(g Gomega) {
+				c, err := utils.GetCluster(ctx, k8sClient, clusterName, aerospikeNS)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(c.Status.Phase).To(Equal(asdbcev1alpha1.AerospikePhaseCompleted))
+			}, defaultTimeout, 2*time.Second).Should(Succeed())
 
 			By("verifying 1 pod is running and ready")
-			Expect(utils.WaitForPodCount(clusterName, aerospikeNS, 1, defaultTimeout)).To(Succeed())
+			Eventually(func(g Gomega) {
+				count, err := utils.CountReadyPods(ctx, k8sClient, clusterName, aerospikeNS)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(count).To(Equal(1))
+			}, defaultTimeout, 2*time.Second).Should(Succeed())
 		})
 
 		It("should create expected Kubernetes resources", func() {
 			By("verifying headless service exists")
-			Expect(utils.ResourceExists("service", clusterName, aerospikeNS)).To(BeTrue(),
-				"headless service should exist")
-
-			By("verifying StatefulSet exists with replicas=1")
-			stsNames, err := utils.GetStatefulSetNames(clusterName, aerospikeNS)
+			exists, err := utils.ServiceExists(ctx, k8sClient, clusterName, aerospikeNS)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(stsNames).To(HaveLen(1))
-			Expect(stsNames[0]).To(Equal(fmt.Sprintf("%s-0", clusterName)))
+			Expect(exists).To(BeTrue(), "headless service should exist")
+
+			By("verifying StatefulSet exists with correct name")
+			stsList, err := utils.ListClusterStatefulSets(ctx, k8sClient, clusterName, aerospikeNS)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(stsList.Items).To(HaveLen(1))
+			Expect(stsList.Items[0].Name).To(Equal(fmt.Sprintf("%s-0", clusterName)))
 
 			By("verifying ConfigMap exists")
-			Expect(utils.ResourceExists("configmap", fmt.Sprintf("%s-0-config", clusterName), aerospikeNS)).To(BeTrue(),
-				"configmap should exist")
+			exists, err = utils.ConfigMapExists(ctx, k8sClient, fmt.Sprintf("%s-0-config", clusterName), aerospikeNS)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(exists).To(BeTrue(), "configmap should exist")
 		})
 
 		It("should populate pod status correctly", func() {
 			By("verifying status.pods has 1 entry with IsRunningAndReady=true")
 			Eventually(func(g Gomega) {
-				podStatus, err := utils.GetPodStatusMap(clusterName, aerospikeNS)
+				cluster, err := utils.GetCluster(ctx, k8sClient, clusterName, aerospikeNS)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(podStatus).To(HaveLen(1))
-				for _, ps := range podStatus {
+				g.Expect(cluster.Status.Pods).To(HaveLen(1))
+				for _, ps := range cluster.Status.Pods {
 					g.Expect(ps.IsRunningAndReady).To(BeTrue())
 					g.Expect(ps.Image).To(Equal("aerospike:ce-8.1.1.1"))
 				}
 			}, defaultTimeout, 2*time.Second).Should(Succeed())
 
 			By("verifying status.size is 1")
-			size, err := utils.GetClusterStatusField(clusterName, aerospikeNS, "{.status.size}")
+			cluster, err := utils.GetCluster(ctx, k8sClient, clusterName, aerospikeNS)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(size).To(Equal("1"))
+			Expect(cluster.Status.Size).To(Equal(int32(1)))
 		})
 	})
 
@@ -114,37 +126,45 @@ var _ = Describe("AerospikeCECluster Samples", Ordered, func() {
 		It("should deploy 3 nodes and reach Completed phase", func() {
 			samplePath := filepath.Join(projectDir, "config", "samples", "aerospike-ce-cluster-3node.yaml")
 
-			By("applying the 3-node sample CR")
-			Expect(utils.ApplyFromFile(samplePath)).To(Succeed())
+			By("loading and creating the 3-node sample CR")
+			cluster, err := loadClusterFromFile(samplePath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
 
 			By("waiting for Completed phase")
-			Expect(utils.WaitForClusterPhase(clusterName, aerospikeNS, "Completed", multiNodeTimeout)).To(Succeed())
+			Eventually(func(g Gomega) {
+				c, err := utils.GetCluster(ctx, k8sClient, clusterName, aerospikeNS)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(c.Status.Phase).To(Equal(asdbcev1alpha1.AerospikePhaseCompleted))
+			}, multiNodeTimeout, 2*time.Second).Should(Succeed())
 
 			By("verifying 3 pods are running and ready")
-			Expect(utils.WaitForPodCount(clusterName, aerospikeNS, 3, multiNodeTimeout)).To(Succeed())
+			Eventually(func(g Gomega) {
+				count, err := utils.CountReadyPods(ctx, k8sClient, clusterName, aerospikeNS)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(count).To(Equal(3))
+			}, multiNodeTimeout, 2*time.Second).Should(Succeed())
 		})
 
 		It("should create PVCs for each pod", func() {
 			By("verifying PVCs are created")
 			Eventually(func(g Gomega) {
-				pvcNames, err := utils.GetPVCNames(clusterName, aerospikeNS)
+				pvcList, err := utils.ListClusterPVCs(ctx, k8sClient, clusterName, aerospikeNS)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(len(pvcNames)).To(BeNumerically(">=", 3),
+				g.Expect(len(pvcList.Items)).To(BeNumerically(">=", 3),
 					"should have at least 3 PVCs for 3 pods")
 			}, defaultTimeout, 2*time.Second).Should(Succeed())
 		})
 
 		It("should report correct status", func() {
 			By("verifying status.size is 3")
-			size, err := utils.GetClusterStatusField(clusterName, aerospikeNS, "{.status.size}")
+			cluster, err := utils.GetCluster(ctx, k8sClient, clusterName, aerospikeNS)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(size).To(Equal("3"))
+			Expect(cluster.Status.Size).To(Equal(int32(3)))
 
 			By("verifying all pods have correct image in status")
-			podStatus, err := utils.GetPodStatusMap(clusterName, aerospikeNS)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(podStatus).To(HaveLen(3))
-			for _, ps := range podStatus {
+			Expect(cluster.Status.Pods).To(HaveLen(3))
+			for _, ps := range cluster.Status.Pods {
 				Expect(ps.Image).To(Equal("aerospike:ce-8.1.1.1"))
 				Expect(ps.IsRunningAndReady).To(BeTrue())
 			}
@@ -157,20 +177,35 @@ var _ = Describe("AerospikeCECluster Samples", Ordered, func() {
 		It("should deploy 6 nodes across 3 racks and reach Completed phase", func() {
 			samplePath := filepath.Join(projectDir, "config", "samples", "aerospike-ce-cluster-multirack.yaml")
 
-			By("applying the multi-rack sample CR")
-			Expect(utils.ApplyFromFile(samplePath)).To(Succeed())
+			By("loading and creating the multi-rack sample CR")
+			cluster, err := loadClusterFromFile(samplePath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
 
 			By("waiting for Completed phase")
-			Expect(utils.WaitForClusterPhase(clusterName, aerospikeNS, "Completed", multiNodeTimeout)).To(Succeed())
+			Eventually(func(g Gomega) {
+				c, err := utils.GetCluster(ctx, k8sClient, clusterName, aerospikeNS)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(c.Status.Phase).To(Equal(asdbcev1alpha1.AerospikePhaseCompleted))
+			}, multiNodeTimeout, 2*time.Second).Should(Succeed())
 
 			By("verifying 6 pods are running and ready")
-			Expect(utils.WaitForPodCount(clusterName, aerospikeNS, 6, multiNodeTimeout)).To(Succeed())
+			Eventually(func(g Gomega) {
+				count, err := utils.CountReadyPods(ctx, k8sClient, clusterName, aerospikeNS)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(count).To(Equal(6))
+			}, multiNodeTimeout, 2*time.Second).Should(Succeed())
 		})
 
 		It("should create 3 StatefulSets (one per rack)", func() {
-			stsNames, err := utils.GetStatefulSetNames(clusterName, aerospikeNS)
+			stsList, err := utils.ListClusterStatefulSets(ctx, k8sClient, clusterName, aerospikeNS)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(stsNames).To(HaveLen(3))
+			Expect(stsList.Items).To(HaveLen(3))
+
+			stsNames := make([]string, 0, len(stsList.Items))
+			for _, sts := range stsList.Items {
+				stsNames = append(stsNames, sts.Name)
+			}
 			Expect(stsNames).To(ContainElements(
 				fmt.Sprintf("%s-1", clusterName),
 				fmt.Sprintf("%s-2", clusterName),
@@ -179,15 +214,14 @@ var _ = Describe("AerospikeCECluster Samples", Ordered, func() {
 		})
 
 		It("should assign rack labels to pods", func() {
-			podNames, err := utils.GetPodNames(clusterName, aerospikeNS)
+			podList, err := utils.ListClusterPods(ctx, k8sClient, clusterName, aerospikeNS)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(podNames).To(HaveLen(6))
+			Expect(podList.Items).To(HaveLen(6))
 
 			rackCounts := map[string]int{}
-			for _, podName := range podNames {
-				rack, err := utils.GetPodLabel(podName, aerospikeNS, "acko.io/rack")
-				Expect(err).NotTo(HaveOccurred())
-				Expect(rack).NotTo(BeEmpty(), "pod %s should have rack label", podName)
+			for _, pod := range podList.Items {
+				rack := pod.Labels["acko.io/rack"]
+				Expect(rack).NotTo(BeEmpty(), "pod %s should have rack label", pod.Name)
 				rackCounts[rack]++
 			}
 
@@ -201,15 +235,16 @@ var _ = Describe("AerospikeCECluster Samples", Ordered, func() {
 		It("should create 3 ConfigMaps (one per rack)", func() {
 			for _, rackID := range []int{1, 2, 3} {
 				cmName := fmt.Sprintf("%s-%d-config", clusterName, rackID)
-				Expect(utils.ResourceExists("configmap", cmName, aerospikeNS)).To(BeTrue(),
-					"configmap %s should exist", cmName)
+				exists, err := utils.ConfigMapExists(ctx, k8sClient, cmName, aerospikeNS)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(exists).To(BeTrue(), "configmap %s should exist", cmName)
 			}
 		})
 
 		It("should report correct status.size", func() {
-			size, err := utils.GetClusterStatusField(clusterName, aerospikeNS, "{.status.size}")
+			cluster, err := utils.GetCluster(ctx, k8sClient, clusterName, aerospikeNS)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(size).To(Equal("6"))
+			Expect(cluster.Status.Size).To(Equal(int32(6)))
 		})
 	})
 
@@ -219,33 +254,43 @@ var _ = Describe("AerospikeCECluster Samples", Ordered, func() {
 		It("should deploy 3 nodes and reach Completed phase", func() {
 			samplePath := filepath.Join(projectDir, "config", "samples", "aerospike-ce-cluster-acl.yaml")
 
-			By("applying the ACL sample CR")
-			Expect(utils.ApplyFromFile(samplePath)).To(Succeed())
+			By("loading and creating the ACL sample CR")
+			cluster, err := loadClusterFromFile(samplePath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
 
 			By("waiting for Completed phase")
-			Expect(utils.WaitForClusterPhase(clusterName, aerospikeNS, "Completed", multiNodeTimeout)).To(Succeed())
+			Eventually(func(g Gomega) {
+				c, err := utils.GetCluster(ctx, k8sClient, clusterName, aerospikeNS)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(c.Status.Phase).To(Equal(asdbcev1alpha1.AerospikePhaseCompleted))
+			}, multiNodeTimeout, 2*time.Second).Should(Succeed())
 
 			By("verifying 3 pods are running and ready")
-			Expect(utils.WaitForPodCount(clusterName, aerospikeNS, 3, multiNodeTimeout)).To(Succeed())
+			Eventually(func(g Gomega) {
+				count, err := utils.CountReadyPods(ctx, k8sClient, clusterName, aerospikeNS)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(count).To(Equal(3))
+			}, multiNodeTimeout, 2*time.Second).Should(Succeed())
 		})
 
 		It("should have PVCs", func() {
 			Eventually(func(g Gomega) {
-				pvcNames, err := utils.GetPVCNames(clusterName, aerospikeNS)
+				pvcList, err := utils.ListClusterPVCs(ctx, k8sClient, clusterName, aerospikeNS)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(len(pvcNames)).To(BeNumerically(">=", 3))
+				g.Expect(len(pvcList.Items)).To(BeNumerically(">=", 3))
 			}, defaultTimeout, 2*time.Second).Should(Succeed())
 		})
 
 		It("should delete PVCs when cluster is deleted (cascadeDelete)", func() {
 			By("deleting the cluster")
-			Expect(utils.DeleteAerospikeCluster(clusterName, aerospikeNS)).To(Succeed())
+			Expect(utils.DeleteCluster(ctx, k8sClient, clusterName, aerospikeNS)).To(Succeed())
 
 			By("waiting for PVCs to be cleaned up")
 			Eventually(func(g Gomega) {
-				pvcNames, err := utils.GetPVCNames(clusterName, aerospikeNS)
+				pvcList, err := utils.ListClusterPVCs(ctx, k8sClient, clusterName, aerospikeNS)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(pvcNames).To(BeEmpty(), "PVCs should be deleted with cascadeDelete=true")
+				g.Expect(pvcList.Items).To(BeEmpty(), "PVCs should be deleted with cascadeDelete=true")
 			}, defaultTimeout, 2*time.Second).Should(Succeed())
 		})
 	})

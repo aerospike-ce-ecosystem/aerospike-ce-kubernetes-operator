@@ -1,5 +1,4 @@
 //go:build e2e
-// +build e2e
 
 /*
 Copyright 2026.
@@ -20,15 +19,18 @@ limitations under the License.
 package e2e
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	corev1 "k8s.io/api/core/v1"
+	authv1 "k8s.io/api/authentication/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/ksr/aerospike-ce-kubernetes-operator/test/utils"
 )
@@ -98,31 +100,25 @@ var _ = Describe("Manager", Ordered, func() {
 		It("should run successfully", func() {
 			By("validating that the controller-manager pod is running as expected")
 			verifyControllerUp := func(g Gomega) {
-				// Get the name of the controller-manager pod
-				cmd := exec.Command("kubectl", "get",
-					"pods", "-l", "control-plane=controller-manager",
-					"-o", "go-template={{ range .items }}"+
-						"{{ if not .metadata.deletionTimestamp }}"+
-						"{{ .metadata.name }}"+
-						"{{ \"\\n\" }}{{ end }}{{ end }}",
-					"-n", namespace,
+				podList := &corev1.PodList{}
+				err := k8sClient.List(ctx, podList,
+					client.InNamespace(namespace),
+					client.MatchingLabels{"control-plane": "controller-manager"},
 				)
+				g.Expect(err).NotTo(HaveOccurred(), "Failed to list controller-manager pods")
 
-				podOutput, err := utils.Run(cmd)
-				g.Expect(err).NotTo(HaveOccurred(), "Failed to retrieve controller-manager pod information")
-				podNames := utils.GetNonEmptyLines(podOutput)
-				g.Expect(podNames).To(HaveLen(1), "expected 1 controller pod running")
-				controllerPodName = podNames[0]
+				// Filter out pods being deleted
+				var activePods []corev1.Pod
+				for _, p := range podList.Items {
+					if p.DeletionTimestamp == nil {
+						activePods = append(activePods, p)
+					}
+				}
+				g.Expect(activePods).To(HaveLen(1), "expected 1 controller pod running")
+				controllerPodName = activePods[0].Name
 				g.Expect(controllerPodName).To(ContainSubstring("controller-manager"))
-
-				// Validate the pod's status
-				cmd = exec.Command("kubectl", "get",
-					"pods", controllerPodName, "-o", "jsonpath={.status.phase}",
-					"-n", namespace,
-				)
-				output, err := utils.Run(cmd)
-				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(output).To(Equal("Running"), "Incorrect controller-manager pod status")
+				g.Expect(activePods[0].Status.Phase).To(Equal(corev1.PodRunning),
+					"Incorrect controller-manager pod status")
 			}
 			Eventually(verifyControllerUp).Should(Succeed())
 		})
@@ -137,9 +133,9 @@ var _ = Describe("Manager", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred(), "Failed to create ClusterRoleBinding")
 
 			By("validating that the metrics service is available")
-			cmd = exec.Command("kubectl", "get", "service", metricsServiceName, "-n", namespace)
-			_, err = utils.Run(cmd)
-			Expect(err).NotTo(HaveOccurred(), "Metrics service should exist")
+			exists, err := utils.ServiceExists(ctx, k8sClient, metricsServiceName, namespace)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(exists).To(BeTrue(), "Metrics service should exist")
 
 			By("getting the service account token")
 			token, err := serviceAccountToken()
@@ -147,14 +143,18 @@ var _ = Describe("Manager", Ordered, func() {
 			Expect(token).NotTo(BeEmpty())
 
 			By("ensuring the controller pod is ready")
-			verifyControllerPodReady := func(g Gomega) {
-				cmd := exec.Command("kubectl", "get", "pod", controllerPodName, "-n", namespace,
-					"-o", "jsonpath={.status.conditions[?(@.type=='Ready')].status}")
-				output, err := utils.Run(cmd)
+			Eventually(func(g Gomega) {
+				pod := &corev1.Pod{}
+				err := k8sClient.Get(ctx, client.ObjectKey{Name: controllerPodName, Namespace: namespace}, pod)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(output).To(Equal("True"), "Controller pod not ready")
-			}
-			Eventually(verifyControllerPodReady, 3*time.Minute, time.Second).Should(Succeed())
+				for _, cond := range pod.Status.Conditions {
+					if cond.Type == corev1.PodReady {
+						g.Expect(cond.Status).To(Equal(corev1.ConditionTrue), "Controller pod not ready")
+						return
+					}
+				}
+				g.Expect(false).To(BeTrue(), "Ready condition not found")
+			}, 3*time.Minute, time.Second).Should(Succeed())
 
 			By("verifying that the controller manager is serving the metrics server")
 			verifyMetricsServerStarted := func(g Gomega) {
@@ -203,12 +203,10 @@ var _ = Describe("Manager", Ordered, func() {
 
 			By("waiting for the curl-metrics pod to complete.")
 			verifyCurlUp := func(g Gomega) {
-				cmd := exec.Command("kubectl", "get", "pods", "curl-metrics",
-					"-o", "jsonpath={.status.phase}",
-					"-n", namespace)
-				output, err := utils.Run(cmd)
+				pod := &corev1.Pod{}
+				err := k8sClient.Get(ctx, client.ObjectKey{Name: "curl-metrics", Namespace: namespace}, pod)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(output).To(Equal("Succeeded"), "curl pod in wrong status")
+				g.Expect(pod.Status.Phase).To(Equal(corev1.PodSucceeded), "curl pod in wrong status")
 			}
 			Eventually(verifyCurlUp, 5*time.Minute).Should(Succeed())
 
@@ -236,45 +234,24 @@ var _ = Describe("Manager", Ordered, func() {
 	})
 })
 
-// serviceAccountToken returns a token for the specified service account in the given namespace.
-// It uses the Kubernetes TokenRequest API to generate a token by directly sending a request
-// and parsing the resulting token from the API response.
+// serviceAccountToken returns a token for the specified service account
+// using the Kubernetes TokenRequest API via client-go.
 func serviceAccountToken() (string, error) {
-	const tokenRequestRawString = `{
-		"apiVersion": "authentication.k8s.io/v1",
-		"kind": "TokenRequest"
-	}`
-
-	// Temporary file to store the token request
-	secretName := fmt.Sprintf("%s-token-request", serviceAccountName)
-	tokenRequestFile := filepath.Join("/tmp", secretName)
-	err := os.WriteFile(tokenRequestFile, []byte(tokenRequestRawString), os.FileMode(0o644))
+	clientset, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("creating clientset: %w", err)
 	}
 
-	var out string
-	verifyTokenCreation := func(g Gomega) {
-		// Execute kubectl command to create the token
-		cmd := exec.Command("kubectl", "create", "--raw", fmt.Sprintf(
-			"/api/v1/namespaces/%s/serviceaccounts/%s/token",
-			namespace,
-			serviceAccountName,
-		), "-f", tokenRequestFile)
-
-		output, err := cmd.CombinedOutput()
-		g.Expect(err).NotTo(HaveOccurred())
-
-		// Parse the JSON output to extract the token
-		var token tokenRequest
-		err = json.Unmarshal(output, &token)
-		g.Expect(err).NotTo(HaveOccurred())
-
-		out = token.Status.Token
+	tokenReq, err := clientset.CoreV1().ServiceAccounts(namespace).CreateToken(
+		ctx,
+		serviceAccountName,
+		&authv1.TokenRequest{},
+		metav1.CreateOptions{},
+	)
+	if err != nil {
+		return "", fmt.Errorf("creating token: %w", err)
 	}
-	Eventually(verifyTokenCreation).Should(Succeed())
-
-	return out, err
+	return tokenReq.Status.Token, nil
 }
 
 // getMetricsOutput retrieves and returns the logs from the curl pod used to access the metrics endpoint.
@@ -329,18 +306,9 @@ func refreshCurlMetricsPod() {
 
 	By("waiting for curl-metrics pod to complete")
 	Eventually(func(g Gomega) {
-		cmd := exec.Command("kubectl", "get", "pods", "curl-metrics",
-			"-o", "jsonpath={.status.phase}", "-n", namespace)
-		output, err := utils.Run(cmd)
+		pod := &corev1.Pod{}
+		err := k8sClient.Get(ctx, client.ObjectKey{Name: "curl-metrics", Namespace: namespace}, pod)
 		g.Expect(err).NotTo(HaveOccurred())
-		g.Expect(output).To(Equal("Succeeded"), "curl pod in wrong status")
+		g.Expect(pod.Status.Phase).To(Equal(corev1.PodSucceeded), "curl pod in wrong status")
 	}, 2*time.Minute, time.Second).Should(Succeed())
-}
-
-// tokenRequest is a simplified representation of the Kubernetes TokenRequest API response,
-// containing only the token field that we need to extract.
-type tokenRequest struct {
-	Status struct {
-		Token string `json:"token"`
-	} `json:"status"`
 }

@@ -4,16 +4,14 @@ import (
 	"context"
 	"fmt"
 
+	aero "github.com/aerospike/aerospike-client-go/v8"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	aero "github.com/aerospike/aerospike-client-go/v8"
-
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/configdiff"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/metrics"
-	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
 // tryDynamicConfigUpdate attempts to apply config changes dynamically without
@@ -24,6 +22,7 @@ func (r *AerospikeCEClusterReconciler) tryDynamicConfigUpdate(
 	cluster *asdbcev1alpha1.AerospikeCECluster,
 	pod *corev1.Pod,
 	oldConfig, newConfig map[string]any,
+	aeroClient *aero.Client,
 ) bool {
 	log := logf.FromContext(ctx)
 
@@ -45,16 +44,8 @@ func (r *AerospikeCEClusterReconciler) tryDynamicConfigUpdate(
 		return false
 	}
 
-	// All changes are dynamic — attempt to apply them
-	client, err := r.getAerospikeClient(ctx, cluster)
-	if err != nil {
-		log.Error(err, "Failed to connect for dynamic config update", "pod", pod.Name)
-		return false
-	}
-	defer closeAerospikeClient(client)
-
 	// Find the node corresponding to this pod
-	node := findNodeForPod(client, pod)
+	node := findNodeForPod(aeroClient, pod)
 	if node == nil {
 		log.Info("Could not find Aerospike node for pod, skipping dynamic update", "pod", pod.Name)
 		return false
@@ -78,19 +69,10 @@ func (r *AerospikeCEClusterReconciler) tryDynamicConfigUpdate(
 
 	// All dynamic changes applied successfully — update the config hash annotation
 	// on the pod so that the rolling restart logic doesn't delete it.
-	desiredHash := ""
-	if pod.Annotations != nil {
-		// We need to compute what the desired hash would be for the new config
-		desiredHash = configHash(&asdbcev1alpha1.AerospikeConfigSpec{Value: newConfig})
-	}
+	desiredHash := configHash(&asdbcev1alpha1.AerospikeConfigSpec{Value: newConfig})
 
 	if desiredHash != "" {
-		podCopy := pod.DeepCopy()
-		if podCopy.Annotations == nil {
-			podCopy.Annotations = make(map[string]string)
-		}
-		podCopy.Annotations[utils.ConfigHashAnnotation] = desiredHash
-		if err := r.Update(ctx, podCopy); err != nil {
+		if err := r.updatePodConfigHash(ctx, pod, desiredHash); err != nil {
 			log.Error(err, "Failed to update pod config hash after dynamic update", "pod", pod.Name)
 			// This is non-fatal; the pod may get restarted but config is already applied
 		}
@@ -117,7 +99,9 @@ func buildSetConfigCommand(change configdiff.Change) string {
 		change.Context, change.Key, change.NewValue)
 }
 
-// findNodeForPod finds the Aerospike node that corresponds to a given pod.
+// findNodeForPod finds the Aerospike node that corresponds to a given pod by
+// matching the pod IP. Returns nil if no match is found (no single-node fallback
+// to avoid applying config to the wrong node).
 func findNodeForPod(client *aero.Client, pod *corev1.Pod) *aero.Node {
 	podIP := pod.Status.PodIP
 	if podIP == "" {
@@ -129,12 +113,6 @@ func findNodeForPod(client *aero.Client, pod *corev1.Pod) *aero.Node {
 		if host != nil && host.Name == podIP {
 			return node
 		}
-	}
-
-	// Fallback: if only one node, use it
-	nodes := client.GetNodes()
-	if len(nodes) == 1 {
-		return nodes[0]
 	}
 
 	return nil

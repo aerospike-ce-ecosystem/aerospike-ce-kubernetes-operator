@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"maps"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -23,30 +24,14 @@ func (r *AerospikeCEClusterReconciler) reconcileStatefulSet(
 	ctx context.Context,
 	cluster *asdbcev1alpha1.AerospikeCECluster,
 	rack *asdbcev1alpha1.Rack,
+	_ *asdbcev1alpha1.AerospikeConfigSpec, // effectiveConfig (pre-computed, hash passed separately)
+	hash string,
+	rackSize int32,
 ) error {
 	log := logf.FromContext(ctx)
 
 	stsName := utils.StatefulSetName(cluster.Name, rack.ID)
 	configMapName := utils.ConfigMapName(cluster.Name, rack.ID)
-
-	racks := r.getRacks(cluster)
-	rackIndex := 0
-	for i, rk := range racks {
-		if rk.ID == rack.ID {
-			rackIndex = i
-			break
-		}
-	}
-	rackSize := r.getRackSize(cluster, racks, rackIndex)
-
-	// Determine effective config for this rack
-	effectiveConfig := cluster.Spec.AerospikeConfig
-	if rack.AerospikeConfig != nil && cluster.Spec.AerospikeConfig != nil {
-		merged := utils.DeepMerge(cluster.Spec.AerospikeConfig.Value, rack.AerospikeConfig.Value)
-		effectiveConfig = &asdbcev1alpha1.AerospikeConfigSpec{Value: merged}
-	}
-
-	hash := configHash(effectiveConfig)
 
 	// Build pod template
 	podTemplate := podutil.BuildPodTemplateSpec(cluster, rack, rack.ID, configMapName, hash)
@@ -64,6 +49,14 @@ func (r *AerospikeCEClusterReconciler) reconcileStatefulSet(
 		storageSpec = rack.Storage
 	}
 	pvcTemplates := storage.BuildVolumeClaimTemplates(storageSpec)
+	// Add cluster labels to PVC templates so PVCs can be efficiently queried by label.
+	pvcLabels := utils.LabelsForCluster(cluster.Name)
+	for i := range pvcTemplates {
+		if pvcTemplates[i].Labels == nil {
+			pvcTemplates[i].Labels = make(map[string]string)
+		}
+		maps.Copy(pvcTemplates[i].Labels, pvcLabels)
+	}
 
 	// Check if StatefulSet exists
 	existing := &appsv1.StatefulSet{}
@@ -100,19 +93,25 @@ func (r *AerospikeCEClusterReconciler) reconcileStatefulSet(
 		return nil
 	}
 
-	// Cleanup orphaned PVCs on scale-down
-	if rackSize < oldReplicas {
-		log.Info("Scale-down detected, cleaning up orphaned PVCs", "name", stsName, "old", oldReplicas, "new", rackSize)
-		if err := storage.DeleteOrphanedPVCs(ctx, r.Client, cluster.Namespace, stsName, rackSize); err != nil {
-			log.Error(err, "Failed to delete orphaned PVCs", "statefulset", stsName)
-			// Non-fatal: continue with the update
-		}
-	}
+	scaleDown := rackSize < oldReplicas
 
 	existing.Spec.Replicas = &rackSize
 	existing.Spec.Template = podTemplate
 	log.Info("Updating StatefulSet", "name", stsName)
-	return r.Update(ctx, existing)
+	if err := r.Update(ctx, existing); err != nil {
+		return err
+	}
+
+	// Cleanup orphaned PVCs after StatefulSet update so pods terminate first.
+	if scaleDown {
+		log.Info("Scale-down detected, cleaning up orphaned PVCs", "name", stsName, "old", oldReplicas, "new", rackSize)
+		if err := storage.DeleteOrphanedPVCs(ctx, r.Client, cluster.Namespace, stsName, rackSize); err != nil {
+			log.Error(err, "Failed to delete orphaned PVCs", "statefulset", stsName)
+			// Non-fatal: PVCs will be cleaned up on next reconcile
+		}
+	}
+
+	return nil
 }
 
 func (r *AerospikeCEClusterReconciler) buildStatefulSet(

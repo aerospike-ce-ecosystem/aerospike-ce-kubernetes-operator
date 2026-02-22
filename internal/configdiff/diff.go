@@ -2,6 +2,7 @@ package configdiff
 
 import (
 	"fmt"
+	"reflect"
 )
 
 // Change represents a single configuration parameter change.
@@ -215,7 +216,7 @@ func lastSegment(path string) string {
 }
 
 func valuesEqual(a, b any) bool {
-	return fmt.Sprintf("%v", a) == fmt.Sprintf("%v", b)
+	return reflect.DeepEqual(a, b)
 }
 
 func asSlice(v any) []any {

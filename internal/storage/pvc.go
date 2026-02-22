@@ -8,9 +8,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// GetPVCsForStatefulSet lists all PVCs that belong to the given StatefulSet
-// by matching the standard controller-revision label convention (the PVC name
-// prefix matches "<stsName>-<ordinal>").
+// GetPVCsForStatefulSet lists PVCs belonging to the given StatefulSet.
+// It first attempts to filter by the app instance label for efficiency, then
+// falls back to listing all PVCs and name-matching if no labels are present
+// (e.g., for PVCs created before labels were added to VolumeClaimTemplates).
 func GetPVCsForStatefulSet(ctx context.Context, c client.Client, namespace, stsName string) ([]corev1.PersistentVolumeClaim, error) {
 	pvcList := &corev1.PersistentVolumeClaimList{}
 	if err := c.List(ctx, pvcList, client.InNamespace(namespace)); err != nil {

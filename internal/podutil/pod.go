@@ -143,12 +143,14 @@ func BuildPodTemplateSpec(
 		injectPodAntiAffinity(&podSpec, cluster.Name)
 	}
 
-	// Rack-level overrides.
-	if rack != nil && rack.PodSpec != nil {
-		applyRackPodSpecOverrides(&podSpec, rack.PodSpec)
-	} else if rack != nil {
-		// Apply zone/region/node affinity from rack definition.
+	// Rack-level overrides. Apply zone/region/node affinity first, then
+	// rack PodSpec overrides. This ensures rack affinity is not silently
+	// skipped when rack.PodSpec is set.
+	if rack != nil {
 		applyRackAffinity(&podSpec, rack)
+		if rack.PodSpec != nil {
+			applyRackPodSpecOverrides(&podSpec, rack.PodSpec)
+		}
 	}
 
 	return corev1.PodTemplateSpec{

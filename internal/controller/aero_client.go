@@ -19,8 +19,53 @@ const (
 	aeroClientTimeout = 30 * time.Second
 	aeroLoginTimeout  = 10 * time.Second
 	aeroInfoTimeout   = 10 * time.Second
-	adminUserName     = "admin"
+	defaultAeroPort   = 3000
 )
+
+// findAdminUser returns the first user that has both "sys-admin" and "user-admin"
+// roles, which is the user the operator uses to manage ACL.
+func findAdminUser(acl *asdbcev1alpha1.AerospikeAccessControlSpec) *asdbcev1alpha1.AerospikeUserSpec {
+	if acl == nil {
+		return nil
+	}
+	for i, user := range acl.Users {
+		hasSysAdmin, hasUserAdmin := false, false
+		for _, role := range user.Roles {
+			switch role {
+			case "sys-admin":
+				hasSysAdmin = true
+			case "user-admin":
+				hasUserAdmin = true
+			}
+		}
+		if hasSysAdmin && hasUserAdmin {
+			return &acl.Users[i]
+		}
+	}
+	return nil
+}
+
+// getServicePort returns the configured Aerospike service port from the cluster
+// config, falling back to the default port.
+func getServicePort(cluster *asdbcev1alpha1.AerospikeCECluster) int {
+	if cluster.Spec.AerospikeConfig != nil {
+		if netCfg, ok := cluster.Spec.AerospikeConfig.Value["network"].(map[string]any); ok {
+			if svcCfg, ok := netCfg["service"].(map[string]any); ok {
+				if port, ok := svcCfg["port"]; ok {
+					switch p := port.(type) {
+					case int:
+						return p
+					case int64:
+						return int(p)
+					case float64:
+						return int(p)
+					}
+				}
+			}
+		}
+	}
+	return defaultAeroPort
+}
 
 // getAerospikeClient creates an Aerospike client connected to the cluster.
 func (r *AerospikeCEClusterReconciler) getAerospikeClient(
@@ -31,28 +76,24 @@ func (r *AerospikeCEClusterReconciler) getAerospikeClient(
 
 	serviceName := utils.HeadlessServiceName(cluster.Name)
 	host := fmt.Sprintf("%s.%s.svc.cluster.local", serviceName, cluster.Namespace)
+	port := getServicePort(cluster)
 
 	policy := aero.NewClientPolicy()
 	policy.Timeout = aeroClientTimeout
 	policy.LoginTimeout = aeroLoginTimeout
 
-	// If ACL is enabled, set admin credentials
-	if cluster.Spec.AerospikeAccessControl != nil {
-		for _, user := range cluster.Spec.AerospikeAccessControl.Users {
-			if user.Name == adminUserName {
-				password, err := r.getPasswordFromSecret(ctx, cluster.Namespace, user.SecretName)
-				if err != nil {
-					return nil, fmt.Errorf("getting admin password: %w", err)
-				}
-				policy.User = adminUserName
-				policy.Password = password
-				break
-			}
+	// If ACL is enabled, find the admin user dynamically by roles.
+	if adminUser := findAdminUser(cluster.Spec.AerospikeAccessControl); adminUser != nil {
+		password, err := r.getPasswordFromSecret(ctx, cluster.Namespace, adminUser.SecretName)
+		if err != nil {
+			return nil, fmt.Errorf("getting admin password: %w", err)
 		}
+		policy.User = adminUser.Name
+		policy.Password = password
 	}
 
-	log.Info("Connecting to Aerospike cluster", "host", host)
-	client, err := aero.NewClientWithPolicy(policy, host, 3000)
+	log.Info("Connecting to Aerospike cluster", "host", host, "port", port)
+	client, err := aero.NewClientWithPolicy(policy, host, port)
 	if err != nil {
 		return nil, fmt.Errorf("connecting to Aerospike: %w", err)
 	}

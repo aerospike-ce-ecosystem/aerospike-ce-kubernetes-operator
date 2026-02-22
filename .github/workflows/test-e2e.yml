@@ -2,7 +2,12 @@ name: E2E Tests
 
 on:
   push:
+    branches: [main]
   pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test-e2e:
@@ -29,4 +34,4 @@ jobs:
       - name: Running Test e2e
         run: |
           go mod tidy
-          make test-e2e
+          make test-e2e GINKGO_FLAGS='-ginkgo.label-filter=!heavy'

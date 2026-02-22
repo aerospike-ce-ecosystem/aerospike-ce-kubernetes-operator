@@ -210,6 +210,16 @@ func (v *AerospikeCEClusterValidator) validate(cluster *AerospikeCECluster) (adm
 		allErrors = append(allErrors, fmt.Sprintf("spec.image %q is an Enterprise Edition image; only Community Edition images are allowed", cluster.Spec.Image))
 	}
 
+	// Warn about untagged or "latest" images
+	if !strings.Contains(cluster.Spec.Image, ":") {
+		warnings = append(warnings, fmt.Sprintf("spec.image %q has no tag; use an explicit version tag (e.g., aerospike:ce-8.1.1.1) for reproducible deployments", cluster.Spec.Image))
+	} else {
+		parts := strings.SplitN(cluster.Spec.Image, ":", 2)
+		if parts[1] == "latest" {
+			warnings = append(warnings, "spec.image uses 'latest' tag; use an explicit version tag for reproducible deployments")
+		}
+	}
+
 	// Validate aerospikeConfig
 	if cluster.Spec.AerospikeConfig != nil {
 		configErrors, configWarnings := v.validateAerospikeConfig(cluster.Spec.AerospikeConfig.Value)
@@ -237,6 +247,33 @@ func (v *AerospikeCEClusterValidator) validate(cluster *AerospikeCECluster) (adm
 	if cluster.Spec.RackConfig != nil {
 		rackErrors := v.validateRackConfig(cluster.Spec.RackConfig)
 		allErrors = append(allErrors, rackErrors...)
+	}
+
+	// Validate replication-factor does not exceed cluster size
+	if cluster.Spec.AerospikeConfig != nil {
+		if nsList, ok := cluster.Spec.AerospikeConfig.Value["namespaces"].([]any); ok {
+			for _, ns := range nsList {
+				if nsMap, ok := ns.(map[string]any); ok {
+					nsName, _ := nsMap["name"].(string)
+					if rf, ok := nsMap["replication-factor"]; ok {
+						rfInt := 0
+						switch v := rf.(type) {
+						case int:
+							rfInt = v
+						case int64:
+							rfInt = int(v)
+						case float64:
+							rfInt = int(v)
+						}
+						if rfInt > int(cluster.Spec.Size) {
+							allErrors = append(allErrors, fmt.Sprintf(
+								"namespace %q: replication-factor %d exceeds cluster size %d",
+								nsName, rfInt, cluster.Spec.Size))
+						}
+					}
+				}
+			}
+		}
 	}
 
 	// Validate rolling update batch size

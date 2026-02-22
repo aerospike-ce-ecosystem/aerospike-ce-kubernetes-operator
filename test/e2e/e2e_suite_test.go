@@ -1,5 +1,4 @@
 //go:build e2e
-// +build e2e
 
 /*
 Copyright 2026.
@@ -20,14 +19,25 @@ limitations under the License.
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	admissionv1 "k8s.io/api/admissionregistration/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/test/utils"
 )
 
@@ -36,6 +46,13 @@ var (
 	managerImage = "example.com/aerospike-ce-operator:v0.0.1"
 	// shouldCleanupCertManager tracks whether CertManager was installed by this suite.
 	shouldCleanupCertManager = false
+
+	// k8sClient is a typed controller-runtime client for the Kind cluster.
+	k8sClient client.Client
+	// ctx is the shared context for all e2e test operations.
+	ctx context.Context
+	// restConfig is the REST config for the Kind cluster (used by clientset).
+	restConfig *rest.Config
 )
 
 // TestE2E runs the e2e test suite to validate the solution in an isolated environment.
@@ -61,9 +78,100 @@ var _ = BeforeSuite(func() {
 	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to load the manager image into Kind")
 
 	setupCertManager()
+
+	By("creating manager namespace")
+	cmd = exec.Command("kubectl", "create", "ns", namespace)
+	_, err = utils.Run(cmd)
+	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to create manager namespace")
+
+	By("labeling the namespace to enforce the restricted security policy")
+	cmd = exec.Command("kubectl", "label", "--overwrite", "ns", namespace,
+		"pod-security.kubernetes.io/enforce=restricted")
+	_, err = utils.Run(cmd)
+	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to label namespace")
+
+	By("installing CRDs")
+	cmd = exec.Command("make", "install")
+	_, err = utils.Run(cmd)
+	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to install CRDs")
+
+	By("deploying the controller-manager")
+	cmd = exec.Command("make", "deploy", fmt.Sprintf("IMG=%s", managerImage))
+	_, err = utils.Run(cmd)
+	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to deploy the controller-manager")
+
+	By("setting up controller-runtime client")
+	ctx = context.Background()
+	err = asdbcev1alpha1.AddToScheme(scheme.Scheme)
+	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to register CRD scheme")
+
+	restConfig, err = clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		clientcmd.NewDefaultClientConfigLoadingRules(),
+		&clientcmd.ConfigOverrides{},
+	).ClientConfig()
+	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to load kubeconfig")
+
+	k8sClient, err = client.New(restConfig, client.Options{Scheme: scheme.Scheme})
+	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to create k8s client")
+
+	By("waiting for the controller-manager pod to be ready")
+	Eventually(func(g Gomega) {
+		podList := &corev1.PodList{}
+		err := k8sClient.List(ctx, podList,
+			client.InNamespace(namespace),
+			client.MatchingLabels{"control-plane": "controller-manager"},
+		)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(podList.Items).To(HaveLen(1), "expected 1 controller pod")
+		for _, cond := range podList.Items[0].Status.Conditions {
+			if cond.Type == corev1.PodReady {
+				g.Expect(cond.Status).To(Equal(corev1.ConditionTrue), "controller-manager pod not ready")
+				return
+			}
+		}
+		g.Expect(false).To(BeTrue(), "Ready condition not found on controller pod")
+	}, 2*time.Minute, time.Second).Should(Succeed())
+
+	By("waiting for webhook to be ready")
+	Eventually(func(g Gomega) {
+		vwc := &admissionv1.ValidatingWebhookConfiguration{}
+		err := k8sClient.Get(ctx, types.NamespacedName{
+			Name: "aerospike-ce-operator-validating-webhook-configuration",
+		}, vwc)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(vwc.Webhooks).NotTo(BeEmpty())
+		g.Expect(vwc.Webhooks[0].ClientConfig.CABundle).NotTo(BeEmpty(), "webhook CA bundle not yet injected")
+	}, 2*time.Minute, time.Second).Should(Succeed())
+
+	By("creating ClusterRoleBinding for metrics access")
+	cmd = exec.Command("kubectl", "create", "clusterrolebinding", metricsRoleBindingName,
+		"--clusterrole=aerospike-ce-operator-metrics-reader",
+		fmt.Sprintf("--serviceaccount=%s:%s", namespace, serviceAccountName),
+	)
+	_, _ = utils.Run(cmd) // ignore error if already exists
 })
 
 var _ = AfterSuite(func() {
+	By("cleaning up the curl pod for metrics")
+	cmd := exec.Command("kubectl", "delete", "pod", "curl-metrics", "-n", namespace, "--ignore-not-found")
+	_, _ = utils.Run(cmd)
+
+	By("removing metrics ClusterRoleBinding")
+	cmd = exec.Command("kubectl", "delete", "clusterrolebinding", metricsRoleBindingName, "--ignore-not-found")
+	_, _ = utils.Run(cmd)
+
+	By("undeploying the controller-manager")
+	cmd = exec.Command("make", "undeploy")
+	_, _ = utils.Run(cmd)
+
+	By("uninstalling CRDs")
+	cmd = exec.Command("make", "uninstall")
+	_, _ = utils.Run(cmd)
+
+	By("removing manager namespace")
+	cmd = exec.Command("kubectl", "delete", "ns", namespace, "--ignore-not-found")
+	_, _ = utils.Run(cmd)
+
 	teardownCertManager()
 })
 

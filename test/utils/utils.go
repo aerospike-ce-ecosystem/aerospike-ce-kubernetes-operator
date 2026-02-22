@@ -17,8 +17,6 @@ limitations under the License.
 package utils
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -133,18 +131,35 @@ func IsCertManagerCRDsInstalled() bool {
 	return false
 }
 
-// LoadImageToKindClusterWithName loads a local docker image to the kind cluster
+// LoadImageToKindClusterWithName loads a local container image to the kind cluster.
+// When using Podman (detected via CONTAINER_TOOL=podman), it uses podman save + kind load image-archive
+// because kind load docker-image has compatibility issues with Podman on macOS.
 func LoadImageToKindClusterWithName(name string) error {
 	cluster := defaultKindCluster
 	if v, ok := os.LookupEnv("KIND_CLUSTER"); ok {
 		cluster = v
 	}
-	kindOptions := []string{"load", "docker-image", name, "--name", cluster}
 	kindBinary := defaultKindBinary
 	if v, ok := os.LookupEnv("KIND"); ok {
 		kindBinary = v
 	}
-	cmd := exec.Command(kindBinary, kindOptions...)
+
+	// When using Podman, kind load docker-image may fail to find images.
+	// Use podman save + kind load image-archive as a workaround.
+	if os.Getenv("CONTAINER_TOOL") == "podman" {
+		archivePath := fmt.Sprintf("/tmp/kind-image-%d.tar", os.Getpid())
+		defer func() { _ = os.Remove(archivePath) }()
+
+		cmd := exec.Command("podman", "save", name, "-o", archivePath)
+		if _, err := Run(cmd); err != nil {
+			return fmt.Errorf("podman save: %w", err)
+		}
+		cmd = exec.Command(kindBinary, "load", "image-archive", archivePath, "--name", cluster)
+		_, err := Run(cmd)
+		return err
+	}
+
+	cmd := exec.Command(kindBinary, "load", "docker-image", name, "--name", cluster)
 	_, err := Run(cmd)
 	return err
 }
@@ -171,56 +186,4 @@ func GetProjectDir() (string, error) {
 	}
 	wd = strings.ReplaceAll(wd, "/test/e2e", "")
 	return wd, nil
-}
-
-// UncommentCode searches for target in the file and remove the comment prefix
-// of the target content. The target content may span multiple lines.
-func UncommentCode(filename, target, prefix string) error {
-	// false positive
-	// nolint:gosec
-	content, err := os.ReadFile(filename)
-	if err != nil {
-		return fmt.Errorf("failed to read file %q: %w", filename, err)
-	}
-	strContent := string(content)
-
-	idx := strings.Index(strContent, target)
-	if idx < 0 {
-		return fmt.Errorf("unable to find the code %q to be uncommented", target)
-	}
-
-	out := new(bytes.Buffer)
-	_, err = out.Write(content[:idx])
-	if err != nil {
-		return fmt.Errorf("failed to write to output: %w", err)
-	}
-
-	scanner := bufio.NewScanner(bytes.NewBufferString(target))
-	if !scanner.Scan() {
-		return nil
-	}
-	for {
-		if _, err = out.WriteString(strings.TrimPrefix(scanner.Text(), prefix)); err != nil {
-			return fmt.Errorf("failed to write to output: %w", err)
-		}
-		// Avoid writing a newline in case the previous line was the last in target.
-		if !scanner.Scan() {
-			break
-		}
-		if _, err = out.WriteString("\n"); err != nil {
-			return fmt.Errorf("failed to write to output: %w", err)
-		}
-	}
-
-	if _, err = out.Write(content[idx+len(target):]); err != nil {
-		return fmt.Errorf("failed to write to output: %w", err)
-	}
-
-	// false positive
-	// nolint:gosec
-	if err = os.WriteFile(filename, out.Bytes(), 0644); err != nil {
-		return fmt.Errorf("failed to write file %q: %w", filename, err)
-	}
-
-	return nil
 }

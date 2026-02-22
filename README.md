@@ -305,6 +305,10 @@ make deploy
 
 > `config/manager/manager.yaml`에 `imagePullPolicy: IfNotPresent`가 설정되어 있어, Kind에 로드된 로컬 이미지를 그대로 사용합니다.
 
+## TODO
+
+- [ ] Register OCI repository on [Artifact Hub](https://artifacthub.io/) — Add repository with Kind: **OCI**, URL: `oci://ghcr.io/kimsoungryoul/aerospike-operator`
+
 ## License
 
 Copyright 2026. Licensed under the Apache License, Version 2.0.

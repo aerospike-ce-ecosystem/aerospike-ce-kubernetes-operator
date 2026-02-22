@@ -20,6 +20,7 @@ package e2e
 
 import (
 	"fmt"
+	"os/exec"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -44,7 +45,9 @@ var _ = Describe("Enhanced Features", Ordered, func() {
 			"e2e-metrics", "e2e-podstatus", "e2e-config-change",
 			"e2e-scale", "e2e-batch", "e2e-paused", "e2e-pdb",
 		} {
-			_ = utils.DeleteCluster(ctx, k8sClient, name, featuresNS)
+			cmd := exec.Command("kubectl", "delete", "aerospikececluster", name,
+				"-n", featuresNS, "--ignore-not-found", "--timeout=120s")
+			_, _ = utils.Run(cmd)
 		}
 		By("deleting features test namespace")
 		_ = utils.DeleteNamespace(ctx, k8sClient, featuresNS)

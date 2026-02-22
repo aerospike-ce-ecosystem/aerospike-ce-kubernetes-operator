@@ -79,7 +79,7 @@ func loadClusterFromFile(path string) (*asdbcev1alpha1.AerospikeCECluster, error
 		return nil, err
 	}
 	cluster := &asdbcev1alpha1.AerospikeCECluster{}
-	if err := yaml.UnmarshalStrict(data, cluster); err != nil {
+	if err := yaml.Unmarshal(data, cluster); err != nil {
 		return nil, err
 	}
 	return cluster, nil

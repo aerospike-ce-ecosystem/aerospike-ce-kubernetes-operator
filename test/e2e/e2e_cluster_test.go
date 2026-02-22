@@ -20,6 +20,7 @@ package e2e
 
 import (
 	"fmt"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -51,7 +52,11 @@ var _ = Describe("AerospikeCECluster Samples", Ordered, func() {
 	AfterAll(func() {
 		By("cleaning up all sample clusters")
 		for _, name := range []string{"aerospike-ce-basic", "aerospike-ce-3node", "aerospike-ce-multirack", "aerospike-ce-acl"} {
-			_ = utils.DeleteCluster(ctx, k8sClient, name, aerospikeNS)
+			// Use kubectl delete with timeout to wait for finalizer cleanup,
+			// ensuring the operator finishes reconciling before the next suite starts.
+			cmd := exec.Command("kubectl", "delete", "aerospikececluster", name,
+				"-n", aerospikeNS, "--ignore-not-found", "--timeout=120s")
+			_, _ = utils.Run(cmd)
 		}
 		By("deleting aerospike namespace")
 		_ = utils.DeleteNamespace(ctx, k8sClient, aerospikeNS)

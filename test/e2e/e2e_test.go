@@ -168,6 +168,11 @@ var _ = Describe("Manager", Ordered, func() {
 
 			// +kubebuilder:scaffold:e2e-metrics-webhooks-readiness
 
+			By("cleaning up any existing curl-metrics pod")
+			cmd = exec.Command("kubectl", "delete", "pod", "curl-metrics",
+				"-n", namespace, "--ignore-not-found", "--wait=true")
+			_, _ = utils.Run(cmd)
+
 			By("creating the curl-metrics pod to access the metrics endpoint")
 			cmd = exec.Command("kubectl", "run", "curl-metrics", "--restart=Never",
 				"--namespace", namespace,

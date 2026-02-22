@@ -48,11 +48,6 @@ func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
 		return false, nil
 	}
 
-	batchSize := int32(1)
-	if cluster.Spec.RollingUpdateBatchSize != nil && *cluster.Spec.RollingUpdateBatchSize > 0 {
-		batchSize = *cluster.Spec.RollingUpdateBatchSize
-	}
-
 	// Compute the old and new config for dynamic config comparison.
 	// Old config comes from the CR's last-applied status; new config from the spec.
 	var oldConfig, newConfig map[string]any
@@ -68,7 +63,12 @@ func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
 	if sts.Spec.Replicas != nil {
 		replicas = *sts.Spec.Replicas
 	}
+
+	batchSize := r.getRollingUpdateBatchSize(cluster, replicas)
+	maxIgnorablePods := r.getMaxIgnorablePods(cluster, replicas)
+
 	var podsToRestart []*corev1.Pod
+	ignoredCount := int32(0)
 	for i := int(replicas) - 1; i >= 0; i-- {
 		podName := fmt.Sprintf("%s-%d", stsName, i)
 
@@ -78,6 +78,15 @@ func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
 				continue
 			}
 			return false, err
+		}
+
+		// Skip pending/failed pods if within ignorable limit
+		if pod.Status.Phase == corev1.PodPending || pod.Status.Phase == corev1.PodFailed {
+			if ignoredCount < maxIgnorablePods {
+				ignoredCount++
+				log.V(1).Info("Ignoring pending/failed pod", "pod", podName)
+				continue
+			}
 		}
 
 		currentHash := ""
@@ -177,4 +186,26 @@ func (r *AerospikeCEClusterReconciler) coldRestartPod(
 	}
 	metrics.ColdRestartsTotal.WithLabelValues(cluster.Namespace, cluster.Name).Inc()
 	return nil
+}
+
+// getRollingUpdateBatchSize returns the effective rolling update batch size.
+// RackConfig-level setting takes precedence over spec-level setting.
+func (r *AerospikeCEClusterReconciler) getRollingUpdateBatchSize(cluster *asdbcev1alpha1.AerospikeCECluster, totalPods int32) int32 {
+	// RackConfig-level takes precedence
+	if cluster.Spec.RackConfig != nil && cluster.Spec.RackConfig.RollingUpdateBatchSize != nil {
+		return resolveIntOrPercent(cluster.Spec.RackConfig.RollingUpdateBatchSize, totalPods)
+	}
+	// Fall back to spec-level (legacy int32 field)
+	if cluster.Spec.RollingUpdateBatchSize != nil && *cluster.Spec.RollingUpdateBatchSize > 0 {
+		return *cluster.Spec.RollingUpdateBatchSize
+	}
+	return 1
+}
+
+// getMaxIgnorablePods returns the number of pods that can be ignored.
+func (r *AerospikeCEClusterReconciler) getMaxIgnorablePods(cluster *asdbcev1alpha1.AerospikeCECluster, totalPods int32) int32 {
+	if cluster.Spec.RackConfig != nil && cluster.Spec.RackConfig.MaxIgnorablePods != nil {
+		return resolveIntOrPercent(cluster.Spec.RackConfig.MaxIgnorablePods, totalPods)
+	}
+	return 0
 }

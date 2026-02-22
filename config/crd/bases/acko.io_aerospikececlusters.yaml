@@ -4966,6 +4966,14 @@ spec:
               rackConfig:
                 description: RackConfig defines rack-aware deployment topology.
                 properties:
+                  maxIgnorablePods:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: |-
+                      MaxIgnorablePods is the maximum number of pending/failed pods to ignore
+                      during reconciliation. Useful when pods are stuck due to scheduling issues.
+                    x-kubernetes-int-or-string: true
                   namespaces:
                     description: |-
                       Namespaces lists Aerospike namespace names that are rack-aware.
@@ -5978,10 +5986,19 @@ spec:
                                 type: object
                               type: array
                           type: object
+                        rackLabel:
+                          description: |-
+                            RackLabel is a custom label value for rack-based affinity scheduling.
+                            When set, pods are scheduled to nodes with the label "acko.io/rack=<rackLabel>".
+                          type: string
                         region:
                           description: |-
                             Region is the cloud provider region label value for scheduling.
                             Maps to topology.kubernetes.io/region.
+                          type: string
+                        revision:
+                          description: Revision is a version identifier for controlled
+                            rack migrations.
                           type: string
                         storage:
                           description: Storage overrides the cluster-level storage
@@ -6335,6 +6352,24 @@ spec:
                       type: object
                     minItems: 1
                     type: array
+                  rollingUpdateBatchSize:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: |-
+                      RollingUpdateBatchSize is the number of pods to restart simultaneously per rack.
+                      Can be an absolute number or percentage string (e.g., "25%").
+                      Defaults to 1. Takes precedence over spec.rollingUpdateBatchSize when set.
+                    x-kubernetes-int-or-string: true
+                  scaleDownBatchSize:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: |-
+                      ScaleDownBatchSize is the number of pods to scale down simultaneously per rack.
+                      Can be an absolute number or percentage string (e.g., "25%").
+                      Defaults to 1.
+                    x-kubernetes-int-or-string: true
                 required:
                 - racks
                 type: object

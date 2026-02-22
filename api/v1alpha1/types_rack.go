@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 // RackConfig defines rack-aware deployment configuration.
@@ -30,6 +31,23 @@ type RackConfig struct {
 	// If empty, all namespaces use the default replication factor.
 	// +optional
 	Namespaces []string `json:"namespaces,omitempty"`
+
+	// ScaleDownBatchSize is the number of pods to scale down simultaneously per rack.
+	// Can be an absolute number or percentage string (e.g., "25%").
+	// Defaults to 1.
+	// +optional
+	ScaleDownBatchSize *intstr.IntOrString `json:"scaleDownBatchSize,omitempty"`
+
+	// MaxIgnorablePods is the maximum number of pending/failed pods to ignore
+	// during reconciliation. Useful when pods are stuck due to scheduling issues.
+	// +optional
+	MaxIgnorablePods *intstr.IntOrString `json:"maxIgnorablePods,omitempty"`
+
+	// RollingUpdateBatchSize is the number of pods to restart simultaneously per rack.
+	// Can be an absolute number or percentage string (e.g., "25%").
+	// Defaults to 1. Takes precedence over spec.rollingUpdateBatchSize when set.
+	// +optional
+	RollingUpdateBatchSize *intstr.IntOrString `json:"rollingUpdateBatchSize,omitempty"`
 }
 
 // Rack defines a single rack in the cluster topology.
@@ -52,6 +70,15 @@ type Rack struct {
 	// NodeName constrains this rack to a specific Kubernetes node.
 	// +optional
 	NodeName string `json:"nodeName,omitempty"`
+
+	// RackLabel is a custom label value for rack-based affinity scheduling.
+	// When set, pods are scheduled to nodes with the label "acko.io/rack=<rackLabel>".
+	// +optional
+	RackLabel string `json:"rackLabel,omitempty"`
+
+	// Revision is a version identifier for controlled rack migrations.
+	// +optional
+	Revision string `json:"revision,omitempty"`
 
 	// AerospikeConfig overrides the cluster-level Aerospike config for this rack.
 	// +kubebuilder:pruning:PreserveUnknownFields

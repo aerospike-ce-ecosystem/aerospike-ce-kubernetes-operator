@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
@@ -93,17 +94,27 @@ func (r *AerospikeCEClusterReconciler) reconcileStatefulSet(
 
 	scaleDown := rackSize < oldReplicas
 
-	existing.Spec.Replicas = &rackSize
+	targetReplicas := rackSize
+	if scaleDown {
+		// Apply scale-down batch size: only scale down a batch at a time.
+		batchSize := r.getScaleDownBatchSize(cluster, oldReplicas-rackSize)
+		targetReplicas = oldReplicas - batchSize
+		if targetReplicas < rackSize {
+			targetReplicas = rackSize
+		}
+	}
+
+	existing.Spec.Replicas = &targetReplicas
 	existing.Spec.Template = podTemplate
-	log.Info("Updating StatefulSet", "name", stsName)
+	log.Info("Updating StatefulSet", "name", stsName, "targetReplicas", targetReplicas)
 	if err := r.Update(ctx, existing); err != nil {
 		return err
 	}
 
 	// Cleanup orphaned PVCs after StatefulSet update so pods terminate first.
 	if scaleDown {
-		log.Info("Scale-down detected, cleaning up orphaned PVCs", "name", stsName, "old", oldReplicas, "new", rackSize)
-		if err := storage.DeleteOrphanedPVCs(ctx, r.Client, cluster.Namespace, stsName, rackSize); err != nil {
+		log.Info("Scale-down detected, cleaning up orphaned PVCs", "name", stsName, "old", oldReplicas, "new", targetReplicas)
+		if err := storage.DeleteOrphanedPVCs(ctx, r.Client, cluster.Namespace, stsName, targetReplicas); err != nil {
 			log.Error(err, "Failed to delete orphaned PVCs", "statefulset", stsName)
 			// Non-fatal: PVCs will be cleaned up on next reconcile
 		}
@@ -180,6 +191,34 @@ func (r *AerospikeCEClusterReconciler) cleanupRemovedRacks(
 	}
 
 	return nil
+}
+
+// getScaleDownBatchSize returns the effective scale-down batch size.
+func (r *AerospikeCEClusterReconciler) getScaleDownBatchSize(cluster *asdbcev1alpha1.AerospikeCECluster, totalToScaleDown int32) int32 {
+	if cluster.Spec.RackConfig != nil && cluster.Spec.RackConfig.ScaleDownBatchSize != nil {
+		return resolveIntOrPercent(cluster.Spec.RackConfig.ScaleDownBatchSize, totalToScaleDown)
+	}
+	return totalToScaleDown // default: scale down all at once
+}
+
+// resolveIntOrPercent resolves an IntOrString to an absolute int32 value.
+func resolveIntOrPercent(val *intstr.IntOrString, total int32) int32 {
+	if val == nil {
+		return 1
+	}
+	if val.Type == intstr.Int {
+		v := val.IntVal
+		if v < 1 {
+			return 1
+		}
+		return v
+	}
+	// Percentage
+	pct, err := intstr.GetScaledValueFromIntOrPercent(val, int(total), true)
+	if err != nil || pct < 1 {
+		return 1
+	}
+	return int32(pct)
 }
 
 // computePodSpecHash returns a short SHA256 hash derived from the cluster image

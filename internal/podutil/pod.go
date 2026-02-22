@@ -240,6 +240,14 @@ func applyRackAffinity(podSpec *corev1.PodSpec, rack *v1alpha1.Rack) {
 		})
 	}
 
+	if rack.RackLabel != "" {
+		terms = append(terms, corev1.NodeSelectorRequirement{
+			Key:      "acko.io/rack",
+			Operator: corev1.NodeSelectorOpIn,
+			Values:   []string{rack.RackLabel},
+		})
+	}
+
 	if len(terms) == 0 {
 		return
 	}

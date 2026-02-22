@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -498,11 +499,41 @@ func (v *AerospikeCEClusterValidator) validateRackConfig(rackConfig *RackConfig)
 	var errors []string
 
 	rackIDs := make(map[int]bool)
+	rackLabels := make(map[string]bool)
 	for _, rack := range rackConfig.Racks {
 		if rackIDs[rack.ID] {
 			errors = append(errors, fmt.Sprintf("duplicate rack ID %d in rackConfig", rack.ID))
 		}
 		rackIDs[rack.ID] = true
+
+		// Validate RackLabel uniqueness across racks
+		if rack.RackLabel != "" {
+			if rackLabels[rack.RackLabel] {
+				errors = append(errors, fmt.Sprintf("duplicate rackLabel %q in rackConfig; each rack must have a unique rackLabel", rack.RackLabel))
+			}
+			rackLabels[rack.RackLabel] = true
+		}
+	}
+
+	// Validate ScaleDownBatchSize is positive if set
+	if rackConfig.ScaleDownBatchSize != nil {
+		if err := validatePositiveIntOrString(rackConfig.ScaleDownBatchSize, "rackConfig.scaleDownBatchSize"); err != "" {
+			errors = append(errors, err)
+		}
+	}
+
+	// Validate MaxIgnorablePods is non-negative if set
+	if rackConfig.MaxIgnorablePods != nil {
+		if err := validateNonNegativeIntOrString(rackConfig.MaxIgnorablePods, "rackConfig.maxIgnorablePods"); err != "" {
+			errors = append(errors, err)
+		}
+	}
+
+	// Validate RollingUpdateBatchSize is positive if set
+	if rackConfig.RollingUpdateBatchSize != nil {
+		if err := validatePositiveIntOrString(rackConfig.RollingUpdateBatchSize, "rackConfig.rollingUpdateBatchSize"); err != "" {
+			errors = append(errors, err)
+		}
 	}
 
 	return errors
@@ -528,4 +559,34 @@ func (v *AerospikeCEClusterValidator) validateOperations(ops []OperationSpec) []
 	}
 
 	return errors
+}
+
+// validatePositiveIntOrString returns an error string if the value is not positive.
+func validatePositiveIntOrString(val *intstr.IntOrString, fieldName string) string {
+	if val.Type == intstr.Int {
+		if val.IntVal < 1 {
+			return fmt.Sprintf("%s must be a positive integer (got %d)", fieldName, val.IntVal)
+		}
+	} else {
+		s := val.StrVal
+		if !strings.HasSuffix(s, "%") {
+			return fmt.Sprintf("%s must be a positive integer or a percentage string (e.g., \"25%%\"); got %q", fieldName, s)
+		}
+	}
+	return ""
+}
+
+// validateNonNegativeIntOrString returns an error string if the value is negative.
+func validateNonNegativeIntOrString(val *intstr.IntOrString, fieldName string) string {
+	if val.Type == intstr.Int {
+		if val.IntVal < 0 {
+			return fmt.Sprintf("%s must be a non-negative integer (got %d)", fieldName, val.IntVal)
+		}
+	} else {
+		s := val.StrVal
+		if !strings.HasSuffix(s, "%") {
+			return fmt.Sprintf("%s must be a non-negative integer or a percentage string (e.g., \"25%%\"); got %q", fieldName, s)
+		}
+	}
+	return ""
 }

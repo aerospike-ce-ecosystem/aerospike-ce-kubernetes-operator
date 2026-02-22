@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"maps"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -74,14 +75,7 @@ func (r *AerospikeCEClusterReconciler) reconcileConfigMap(
 	if netCfg, ok := effectiveConfig.Value["network"].(map[string]any); ok {
 		if hbCfg, ok := netCfg["heartbeat"].(map[string]any); ok {
 			if port, ok := hbCfg["port"]; ok {
-				switch p := port.(type) {
-				case int:
-					heartbeatPort = p
-				case int64:
-					heartbeatPort = int(p)
-				case float64:
-					heartbeatPort = int(p)
-				}
+				heartbeatPort = utils.IntFromAny(port, heartbeatPort)
 			}
 		}
 	}
@@ -129,26 +123,13 @@ func (r *AerospikeCEClusterReconciler) reconcileConfigMap(
 	}
 
 	// Update only if data or labels changed
-	if mapsEqual(existing.Data, data) && mapsEqual(existing.Labels, labels) {
+	if maps.Equal(existing.Data, data) && maps.Equal(existing.Labels, labels) {
 		return nil
 	}
 	existing.Data = data
 	existing.Labels = labels
 	log.Info("Updating ConfigMap", "name", cmName)
 	return r.Update(ctx, existing)
-}
-
-// mapsEqual compares two string maps for equality.
-func mapsEqual(a, b map[string]string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k, v := range a {
-		if b[k] != v {
-			return false
-		}
-	}
-	return true
 }
 
 // getEffectiveConfig returns the merged config for a rack.

@@ -52,14 +52,7 @@ func getServicePort(cluster *asdbcev1alpha1.AerospikeCECluster) int {
 		if netCfg, ok := cluster.Spec.AerospikeConfig.Value["network"].(map[string]any); ok {
 			if svcCfg, ok := netCfg["service"].(map[string]any); ok {
 				if port, ok := svcCfg["port"]; ok {
-					switch p := port.(type) {
-					case int:
-						return p
-					case int64:
-						return int(p)
-					case float64:
-						return int(p)
-					}
+					return utils.IntFromAny(port, defaultAeroPort)
 				}
 			}
 		}

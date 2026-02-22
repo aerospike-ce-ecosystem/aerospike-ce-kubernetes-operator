@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"maps"
 	"testing"
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
@@ -194,7 +195,7 @@ func TestConfigHash_DifferentConfigs(t *testing.T) {
 // --- mapsEqual tests ---
 
 func TestMapsEqual_BothEmpty(t *testing.T) {
-	if !mapsEqual(map[string]string{}, map[string]string{}) {
+	if !maps.Equal(map[string]string{}, map[string]string{}) {
 		t.Error("empty maps should be equal")
 	}
 }
@@ -202,7 +203,7 @@ func TestMapsEqual_BothEmpty(t *testing.T) {
 func TestMapsEqual_Same(t *testing.T) {
 	a := map[string]string{"k1": "v1", "k2": "v2"}
 	b := map[string]string{"k1": "v1", "k2": "v2"}
-	if !mapsEqual(a, b) {
+	if !maps.Equal(a, b) {
 		t.Error("identical maps should be equal")
 	}
 }
@@ -210,7 +211,7 @@ func TestMapsEqual_Same(t *testing.T) {
 func TestMapsEqual_DifferentValues(t *testing.T) {
 	a := map[string]string{"k1": "v1"}
 	b := map[string]string{"k1": "v2"}
-	if mapsEqual(a, b) {
+	if maps.Equal(a, b) {
 		t.Error("maps with different values should not be equal")
 	}
 }
@@ -218,7 +219,7 @@ func TestMapsEqual_DifferentValues(t *testing.T) {
 func TestMapsEqual_DifferentKeys(t *testing.T) {
 	a := map[string]string{"k1": "v1"}
 	b := map[string]string{"k2": "v1"}
-	if mapsEqual(a, b) {
+	if maps.Equal(a, b) {
 		t.Error("maps with different keys should not be equal")
 	}
 }
@@ -226,7 +227,7 @@ func TestMapsEqual_DifferentKeys(t *testing.T) {
 func TestMapsEqual_DifferentLengths(t *testing.T) {
 	a := map[string]string{"k1": "v1"}
 	b := map[string]string{"k1": "v1", "k2": "v2"}
-	if mapsEqual(a, b) {
+	if maps.Equal(a, b) {
 		t.Error("maps with different lengths should not be equal")
 	}
 }

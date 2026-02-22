@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"maps"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -59,7 +60,7 @@ func (r *AerospikeCEClusterReconciler) reconcileHeadlessService(
 	}
 
 	// Update if ports or labels changed.
-	needsUpdate := !mapsEqual(existing.Labels, labels)
+	needsUpdate := !maps.Equal(existing.Labels, labels)
 	if !needsUpdate && len(existing.Spec.Ports) == len(desiredPorts) {
 		for i, p := range existing.Spec.Ports {
 			if p.Name != desiredPorts[i].Name || p.Port != desiredPorts[i].Port {

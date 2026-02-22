@@ -2,8 +2,6 @@ package controller
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"maps"
 
@@ -199,7 +197,5 @@ func computePodSpecHash(cluster *asdbcev1alpha1.AerospikeCECluster, rack *asdbce
 		Monitoring: cluster.Spec.Monitoring,
 		RackID:     rack.ID,
 	}
-	data, _ := json.Marshal(input)
-	h := sha256.Sum256(data)
-	return fmt.Sprintf("%x", h[:8])
+	return utils.ShortSHA256(input)
 }

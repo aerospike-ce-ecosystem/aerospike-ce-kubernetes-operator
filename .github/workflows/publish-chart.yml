@@ -8,18 +8,11 @@ on:
       - "charts/**"
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,9 +36,7 @@ jobs:
 
       - name: Update Helm repository index
         run: |
-          # Copy packaged chart to gh-pages
           cp .cr-release-packages/*.tgz gh-pages/
-          # Rebuild index with the repo URL
           helm repo index gh-pages \
             --url https://kimsoungryoul.github.io/aerospike-ce-kubernetes-operator \
             --merge gh-pages/index.yaml
@@ -58,5 +49,3 @@ jobs:
           git add .
           git diff --staged --quiet || git commit -m "Publish Helm chart $(date -u +%Y%m%d%H%M%S)"
           git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

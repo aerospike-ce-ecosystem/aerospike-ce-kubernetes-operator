@@ -73,8 +73,9 @@ Converts unstructured `map[string]interface{}` to aerospike.conf text format. Ha
 - **Validator**: CE constraints — size<=8, namespaces<=2, no `xdr`/`tls` sections, no enterprise images, admin user required when ACL enabled, unique rack IDs
 
 
-## Aerospike Configuration Guide
-- [guide.md](guide.md) — Aerospike CE 8.1 aerospike.conf 설정 가이드 (섹션별 파라미터, 예제, CE 제한사항, 운영 Best Practices)
+## Aerospike Configuration Guide (Skills)
+- `/aerospike-ce-8-guide` — CE 8.1 파라미터 레퍼런스 (CE 제약사항, 섹션별 파라미터 테이블, 7.x→8.1 변경사항)
+- `/aerospike-ce8-configuration-guide` — CE 8.1 운영 가이드 (전체 설정 예제 4종, K8s 배포 체크리스트, CRD 매핑, Eviction 흐름, Best Practices)
 
 ## Sample CRs
 

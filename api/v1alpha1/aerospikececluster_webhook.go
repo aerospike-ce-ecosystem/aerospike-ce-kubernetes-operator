@@ -405,12 +405,27 @@ func (v *AerospikeCEClusterValidator) validateNamespaceConfig(nsMap map[string]a
 	return errors, warnings
 }
 
+// validPrivilegeCodes lists accepted privilege code strings.
+var validPrivilegeCodes = map[string]bool{
+	"read":           true,
+	"write":          true,
+	"read-write":     true,
+	"read-write-udf": true,
+	"sys-admin":      true,
+	"user-admin":     true,
+	"data-admin":     true,
+	"truncate":       true,
+}
+
 // validateAccessControl validates the ACL configuration.
 func (v *AerospikeCEClusterValidator) validateAccessControl(acl *AerospikeAccessControlSpec) []string {
 	var errors []string
 
 	hasAdmin := false
 	for _, user := range acl.Users {
+		if user.SecretName == "" {
+			errors = append(errors, fmt.Sprintf("user %q must have a secretName for password", user.Name))
+		}
 		hasSysAdmin := false
 		hasUserAdmin := false
 		for _, role := range user.Roles {
@@ -423,12 +438,22 @@ func (v *AerospikeCEClusterValidator) validateAccessControl(acl *AerospikeAccess
 		}
 		if hasSysAdmin && hasUserAdmin {
 			hasAdmin = true
-			break
 		}
 	}
 
 	if !hasAdmin {
 		errors = append(errors, "aerospikeAccessControl must have at least one user with both 'sys-admin' and 'user-admin' roles")
+	}
+
+	// Validate privilege codes in role definitions
+	for _, role := range acl.Roles {
+		for _, privStr := range role.Privileges {
+			// Format: "<code>" or "<code>.<namespace>" or "<code>.<namespace>.<set>"
+			code := strings.SplitN(privStr, ".", 2)[0]
+			if !validPrivilegeCodes[code] {
+				errors = append(errors, fmt.Sprintf("role %q has invalid privilege code %q; valid codes: read, write, read-write, read-write-udf, sys-admin, user-admin, data-admin, truncate", role.Name, code))
+			}
+		}
 	}
 
 	return errors

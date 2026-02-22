@@ -2,8 +2,6 @@ package controller
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -12,6 +10,7 @@ import (
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/metrics"
+	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
 // builtinRoles are Aerospike predefined roles that must not be dropped.
@@ -31,12 +30,7 @@ func aclSpecHash(acl *asdbcev1alpha1.AerospikeAccessControlSpec) string {
 	if acl == nil {
 		return ""
 	}
-	data, err := json.Marshal(acl)
-	if err != nil {
-		return ""
-	}
-	h := sha256.Sum256(data)
-	return fmt.Sprintf("%x", h[:8])
+	return utils.ShortSHA256(acl)
 }
 
 // reconcileACL synchronizes ACL roles and users with the Aerospike cluster.
@@ -369,6 +363,8 @@ func privilegeFromCodeString(s string) aero.Privilege {
 	case "truncate":
 		return aero.Privilege{Code: aero.Truncate}
 	default:
+		// Unknown privilege code — default to Read. The webhook should have
+		// already validated the privilege string, so this is a safety net.
 		return aero.Privilege{Code: aero.Read}
 	}
 }

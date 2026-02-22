@@ -2,9 +2,6 @@ package controller
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/json"
-	"fmt"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -161,31 +158,31 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	}
 
-	// 9. Clean up removed racks
+	// 10. Clean up removed racks
 	if err := r.cleanupRemovedRacks(ctx, cluster, racks); err != nil {
 		log.Error(err, "Failed to clean up removed racks")
 		return ctrl.Result{}, err
 	}
 
-	// 10. Reconcile PDB
+	// 11. Reconcile PDB
 	if err := r.reconcilePDB(ctx, cluster); err != nil {
 		log.Error(err, "Failed to reconcile PDB")
 		return ctrl.Result{}, err
 	}
 
-	// 10.5. Reconcile Monitoring (metrics Service + ServiceMonitor)
+	// 12. Reconcile Monitoring (metrics Service + ServiceMonitor)
 	if err := r.reconcileMonitoring(ctx, cluster); err != nil {
 		log.Error(err, "Failed to reconcile monitoring")
 		return ctrl.Result{}, err
 	}
 
-	// 10.6. Reconcile NetworkPolicy
+	// 13. Reconcile NetworkPolicy
 	if err := r.reconcileNetworkPolicy(ctx, cluster); err != nil {
 		log.Error(err, "Failed to reconcile network policy")
 		return ctrl.Result{}, err
 	}
 
-	// 11. Rolling restart if needed
+	// 14. Rolling restart if needed
 	for _, rack := range racks {
 		restarted, err := r.reconcileRollingRestart(ctx, cluster, &rack)
 		if err != nil {
@@ -198,14 +195,14 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	}
 
-	// 11.5. Reconcile ACL (roles and users) after cluster is stable
+	// 15. Reconcile ACL (roles and users) after cluster is stable
 	if err := r.reconcileACL(ctx, cluster); err != nil {
 		log.Error(err, "Failed to reconcile ACL")
 		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "ACLSyncError", "ACL sync failed: %v", err)
 		// ACL errors are not fatal — continue to status update
 	}
 
-	// 12. Update status and set phase to Completed.
+	// 16. Update status and set phase to Completed.
 	// updateStatusAndPhase re-fetches internally to avoid conflict errors.
 	if err := r.updateStatusAndPhase(ctx, req.NamespacedName, asdbcev1alpha1.AerospikePhaseCompleted); err != nil {
 		if errors.IsConflict(err) {
@@ -280,12 +277,7 @@ func configHash(config *asdbcev1alpha1.AerospikeConfigSpec) string {
 	if config == nil {
 		return ""
 	}
-	data, err := json.Marshal(config.Value)
-	if err != nil {
-		return ""
-	}
-	h := sha256.Sum256(data)
-	return fmt.Sprintf("%x", h[:8])
+	return utils.ShortSHA256(config.Value)
 }
 
 // SetupWithManager sets up the controller with the Manager.

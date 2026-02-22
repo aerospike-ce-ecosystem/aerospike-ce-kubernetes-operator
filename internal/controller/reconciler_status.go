@@ -96,10 +96,20 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 			podSpecHash = pod.Annotations[utils.PodSpecHashAnnotation]
 		}
 
+		// Use the actual running image from the pod, not the desired spec image.
+		// During rolling updates the pod may still run the old image.
+		podImage := cluster.Spec.Image
+		for _, c := range pod.Spec.Containers {
+			if c.Name == "aerospike-server" {
+				podImage = c.Image
+				break
+			}
+		}
+
 		podStatuses[pod.Name] = asdbcev1alpha1.AerospikePodStatus{
 			PodIP:             pod.Status.PodIP,
 			HostIP:            pod.Status.HostIP,
-			Image:             cluster.Spec.Image,
+			Image:             podImage,
 			PodPort:           3000,
 			Rack:              rackID,
 			IsRunningAndReady: isReady,

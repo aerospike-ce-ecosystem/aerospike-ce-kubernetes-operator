@@ -74,8 +74,8 @@ Converts unstructured `map[string]interface{}` to aerospike.conf text format. Ha
 
 
 ## Aerospike Configuration Guide (Skills)
-- `/aerospike-ce-8-guide` — CE 8.1 파라미터 레퍼런스 (CE 제약사항, 섹션별 파라미터 테이블, 7.x→8.1 변경사항)
-- `/aerospike-ce8-configuration-guide` — CE 8.1 운영 가이드 (전체 설정 예제 4종, K8s 배포 체크리스트, CRD 매핑, Eviction 흐름, Best Practices)
+- `/aerospike-ce-8-guide` — CE 8.1 파라미터 레퍼런스 (7.x→8.1 breaking changes, 버전별 기본값, 동적 설정 명령)
+- `/aerospike-ce8-configuration-guide` — CE 8.1 K8s Operator 가이드 (배포 체크리스트, CRD 매핑, Webhook 검증, 설정 예제)
 
 ## Sample CRs
 

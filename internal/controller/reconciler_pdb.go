@@ -26,7 +26,9 @@ func (r *AerospikeCEClusterReconciler) reconcilePDB(
 		pdbName := utils.PDBName(cluster.Name)
 		existing := &policyv1.PodDisruptionBudget{}
 		if err := r.Get(ctx, types.NamespacedName{Name: pdbName, Namespace: cluster.Namespace}, existing); err == nil {
-			return r.Delete(ctx, existing)
+			if err := r.Delete(ctx, existing); err != nil && !errors.IsNotFound(err) {
+				return err
+			}
 		}
 		return nil
 	}

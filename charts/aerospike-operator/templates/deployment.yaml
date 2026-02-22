@@ -6,7 +6,9 @@ metadata:
   labels:
     {{- include "aerospike-operator.labels" . | nindent 4 }}
 spec:
+  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "aerospike-operator.selectorLabels" . | nindent 6 }}
@@ -14,8 +16,11 @@ spec:
     metadata:
       annotations:
         kubectl.kubernetes.io/default-container: manager
+      {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       labels:
-        {{- include "aerospike-operator.selectorLabels" . | nindent 8 }}
+        {{- include "aerospike-operator.podLabels" . | nindent 8 }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -79,6 +84,9 @@ spec:
       {{- end }}
       serviceAccountName: {{ include "aerospike-operator.serviceAccountName" . }}
       terminationGracePeriodSeconds: 10
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -89,5 +97,9 @@ spec:
       {{- end }}
       {{- with .Values.tolerations }}
       tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}

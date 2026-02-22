@@ -58,7 +58,9 @@ func (r *AerospikeCEClusterReconciler) reconcileK8sNetworkPolicy(
 	if !enabled {
 		if err == nil {
 			log.Info("Deleting NetworkPolicy", "name", npName)
-			return r.Delete(ctx, existing)
+			if delErr := r.Delete(ctx, existing); delErr != nil && !errors.IsNotFound(delErr) {
+				return delErr
+			}
 		}
 		return nil
 	}
@@ -161,7 +163,9 @@ func (r *AerospikeCEClusterReconciler) reconcileCiliumNetworkPolicy(
 	if !enabled {
 		if err == nil {
 			log.Info("Deleting CiliumNetworkPolicy", "name", npName)
-			return r.Delete(ctx, existing)
+			if delErr := r.Delete(ctx, existing); delErr != nil && !errors.IsNotFound(delErr) {
+				return delErr
+			}
 		}
 		return nil
 	}

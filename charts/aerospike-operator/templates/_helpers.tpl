@@ -29,7 +29,7 @@ Create chart name and version as used by the chart label.
 {{- end }}
 
 {{/*
-Common labels
+Common labels applied to all resources.
 */}}
 {{- define "aerospike-operator.labels" -}}
 helm.sh/chart: {{ include "aerospike-operator.chart" . }}
@@ -41,7 +41,7 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
-Selector labels
+Selector labels used for pod selection.
 */}}
 {{- define "aerospike-operator.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "aerospike-operator.name" . }}
@@ -50,50 +50,73 @@ control-plane: controller-manager
 {{- end }}
 
 {{/*
-Create the name of the service account to use
+Create the name of the service account to use.
 */}}
 {{- define "aerospike-operator.serviceAccountName" -}}
 {{- include "aerospike-operator.fullname" . }}
 {{- end }}
 
 {{/*
-Webhook service name
+Webhook service name.
 */}}
 {{- define "aerospike-operator.webhookServiceName" -}}
 {{- include "aerospike-operator.fullname" . }}-webhook
 {{- end }}
 
 {{/*
-Metrics service name
+Metrics service name.
 */}}
 {{- define "aerospike-operator.metricsServiceName" -}}
 {{- include "aerospike-operator.fullname" . }}-metrics
 {{- end }}
 
 {{/*
-Cert-manager issuer name
+Cert-manager issuer name.
 */}}
 {{- define "aerospike-operator.issuerName" -}}
 {{- include "aerospike-operator.fullname" . }}-selfsigned-issuer
 {{- end }}
 
 {{/*
-Cert-manager certificate secret name
+Cert-manager certificate secret name.
 */}}
 {{- define "aerospike-operator.certSecretName" -}}
+{{- if and .Values.certManager.enabled .Values.webhook.enabled }}
 {{- include "aerospike-operator.fullname" . }}-webhook-cert
+{{- else if .Values.webhookTlsSecret }}
+{{- .Values.webhookTlsSecret }}
+{{- else }}
+{{- include "aerospike-operator.fullname" . }}-webhook-cert
+{{- end }}
 {{- end }}
 
 {{/*
-Cert-manager certificate name
+Cert-manager certificate name.
 */}}
 {{- define "aerospike-operator.certName" -}}
 {{- include "aerospike-operator.fullname" . }}-serving-cert
 {{- end }}
 
 {{/*
-Container image
+Container image with tag.
 */}}
 {{- define "aerospike-operator.image" -}}
-{{- printf "%s:%s" .Values.image.repository .Values.image.tag }}
+{{- printf "%s:%s" .Values.image.repository (default .Chart.AppVersion .Values.image.tag) }}
+{{- end }}
+
+{{/*
+Pod labels combining selector labels with user-defined pod labels.
+*/}}
+{{- define "aerospike-operator.podLabels" -}}
+{{ include "aerospike-operator.selectorLabels" . }}
+{{- with .Values.podLabels }}
+{{ toYaml . }}
+{{- end }}
+{{- end }}
+
+{{/*
+Namespace for the release.
+*/}}
+{{- define "aerospike-operator.namespace" -}}
+{{- .Release.Namespace }}
 {{- end }}

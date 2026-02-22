@@ -44,7 +44,12 @@ func (r *AerospikeCEClusterReconciler) reconcileMonitoring(
 		cluster.Spec.Monitoring.ServiceMonitor.Enabled
 
 	if err := r.reconcileServiceMonitor(ctx, cluster, smEnabled); err != nil {
-		log.Info("ServiceMonitor reconciliation skipped (CRD may not be installed)", "error", err)
+		// Only log and skip if the CRD is not installed; propagate other errors.
+		if meta.IsNoMatchError(err) {
+			log.Info("ServiceMonitor CRD not installed, skipping")
+		} else {
+			return fmt.Errorf("reconciling ServiceMonitor: %w", err)
+		}
 	}
 
 	return nil
@@ -64,7 +69,9 @@ func (r *AerospikeCEClusterReconciler) reconcileMetricsService(
 	if !enabled {
 		if err == nil {
 			log.Info("Deleting metrics Service", "name", svcName)
-			return r.Delete(ctx, existing)
+			if delErr := r.Delete(ctx, existing); delErr != nil && !errors.IsNotFound(delErr) {
+				return delErr
+			}
 		}
 		return nil
 	}
@@ -127,15 +134,16 @@ func (r *AerospikeCEClusterReconciler) reconcileServiceMonitor(
 	if !enabled {
 		if err == nil {
 			log.Info("Deleting ServiceMonitor", "name", smName)
-			return r.Delete(ctx, existing)
+			if delErr := r.Delete(ctx, existing); delErr != nil && !errors.IsNotFound(delErr) {
+				return delErr
+			}
 		}
 		return nil
 	}
 
-	// CRD not installed — graceful skip
+	// CRD not installed — return the error so the caller can decide
 	if err != nil && meta.IsNoMatchError(err) {
-		log.Info("ServiceMonitor CRD not installed, skipping")
-		return nil
+		return err
 	}
 
 	monitoring := cluster.Spec.Monitoring

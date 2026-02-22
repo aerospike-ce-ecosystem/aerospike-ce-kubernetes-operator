@@ -64,13 +64,13 @@ helm install cert-manager jetstack/cert-manager \
 ```bash
 make deploy IMG=$IMG
 ```
-Deploys to `aerospike-system` namespace with webhook, cert-manager, RBAC.
+Deploys to `aerospike-operator` namespace with webhook, cert-manager, RBAC.
 
 ### 6. Verify Deployment
 ```bash
-kubectl -n aerospike-system get deployment
-kubectl -n aerospike-system get pods
-kubectl -n aerospike-system wait --for=condition=Available deployment/aerospike-ce-operator-controller-manager --timeout=120s
+kubectl -n aerospike-operator get deployment
+kubectl -n aerospike-operator get pods
+kubectl -n aerospike-operator wait --for=condition=Available deployment/aerospike-ce-operator-controller-manager --timeout=120s
 ```
 
 ## Apply Sample CR (`apply`)
@@ -91,9 +91,9 @@ kubectl -n aerospike get pods -w
 ## Status Check (`status`)
 
 ```bash
-kubectl -n aerospike-system get deployment
-kubectl -n aerospike-system get pods
-kubectl -n aerospike-system logs deployment/aerospike-ce-operator-controller-manager --tail=30
+kubectl -n aerospike-operator get deployment
+kubectl -n aerospike-operator get pods
+kubectl -n aerospike-operator logs deployment/aerospike-ce-operator-controller-manager --tail=30
 kubectl -n aerospike get asce
 kubectl -n aerospike get pods
 kubectl -n aerospike get statefulsets
@@ -110,9 +110,9 @@ make cleanup-test-e2e
 ## Troubleshooting
 
 If deployment fails:
-1. Check operator logs: `kubectl -n aerospike-system logs deployment/aerospike-ce-operator-controller-manager`
-2. Check events: `kubectl -n aerospike-system get events --sort-by=.lastTimestamp`
-3. Check cert-manager: `kubectl get certificates -n aerospike-system`
+1. Check operator logs: `kubectl -n aerospike-operator logs deployment/aerospike-ce-operator-controller-manager`
+2. Check events: `kubectl -n aerospike-operator get events --sort-by=.lastTimestamp`
+3. Check cert-manager: `kubectl get certificates -n aerospike-operator`
 4. Check webhook: `kubectl get validatingwebhookconfigurations`
 
 If pods are pending:

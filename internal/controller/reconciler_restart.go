@@ -64,8 +64,12 @@ func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
 	}
 
 	// Collect pods that need restart (reverse order = highest ordinal first)
+	replicas := int32(0)
+	if sts.Spec.Replicas != nil {
+		replicas = *sts.Spec.Replicas
+	}
 	var podsToRestart []*corev1.Pod
-	for i := int(*sts.Spec.Replicas) - 1; i >= 0; i-- {
+	for i := int(replicas) - 1; i >= 0; i-- {
 		podName := fmt.Sprintf("%s-%d", stsName, i)
 
 		pod := &corev1.Pod{}
@@ -109,7 +113,11 @@ func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
 		if oldConfig != nil && newConfig != nil {
 			// Lazily create the Aerospike client once for all pods.
 			if aeroClient == nil {
-				aeroClient, _ = r.getAerospikeClient(ctx, cluster)
+				var clientErr error
+				aeroClient, clientErr = r.getAerospikeClient(ctx, cluster)
+				if clientErr != nil {
+					log.V(1).Info("Could not create Aerospike client for dynamic config, will fall back to restart", "error", clientErr)
+				}
 			}
 			if aeroClient != nil && r.tryDynamicConfigUpdate(ctx, cluster, pod, oldConfig, newConfig, aeroClient) {
 				log.Info("Dynamic config update succeeded, no restart needed", "pod", pod.Name)

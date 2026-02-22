@@ -134,10 +134,104 @@ kubectl -n aerospike get asce
 
 # Check pods
 kubectl -n aerospike get pods
+```
 
-# Connect to Aerospike
-kubectl -n aerospike port-forward aerospike-ce-basic-0-0 3000:3000
-aql -h 127.0.0.1 -p 3000
+### Step 6: Connect to Aerospike
+
+Launch an `aerospike-tools` pod to interact with the cluster:
+
+```sh
+kubectl -n aerospike run aql-client --rm -it --restart=Never \
+  --image=aerospike/aerospike-tools:latest \
+  -- aql -h aerospike-ce-basic-0-0.aerospike-ce-basic.aerospike.svc.cluster.local -p 3000
+```
+
+#### Show namespaces
+
+```
+aql> SHOW NAMESPACES
++--------+
+| ns     |
++--------+
+| "test" |
++--------+
+```
+
+#### Insert records
+
+```
+aql> INSERT INTO test.users (PK, name, age, email) VALUES ("user1", "Alice", 30, "alice@example.com")
+OK, 1 record affected.
+
+aql> INSERT INTO test.users (PK, name, age, email) VALUES ("user2", "Bob", 25, "bob@example.com")
+OK, 1 record affected.
+
+aql> INSERT INTO test.users (PK, name, age, email) VALUES ("user3", "Charlie", 35, "charlie@example.com")
+OK, 1 record affected.
+```
+
+#### Read (SELECT)
+
+```
+aql> SELECT * FROM test.users WHERE PK = "user1"
++---------+-----+-------------------+
+| name    | age | email             |
++---------+-----+-------------------+
+| "Alice" | 30  | "alice@example.com" |
++---------+-----+-------------------+
+
+aql> SELECT * FROM test.users
++-----------+-----+---------------------+
+| name      | age | email               |
++-----------+-----+---------------------+
+| "Alice"   | 30  | "alice@example.com"   |
+| "Bob"     | 25  | "bob@example.com"     |
+| "Charlie" | 35  | "charlie@example.com" |
++-----------+-----+---------------------+
+```
+
+#### Update a record
+
+```
+aql> INSERT INTO test.users (PK, name, age, email) VALUES ("user1", "Alice", 31, "alice-new@example.com")
+OK, 1 record affected.
+
+aql> SELECT * FROM test.users WHERE PK = "user1"
++---------+-----+-----------------------+
+| name    | age | email                 |
++---------+-----+-----------------------+
+| "Alice" | 31  | "alice-new@example.com" |
++---------+-----+-----------------------+
+```
+
+#### Delete a record
+
+```
+aql> DELETE FROM test.users WHERE PK = "user2"
+OK, 1 record affected.
+```
+
+#### Check cluster info with asinfo
+
+```sh
+kubectl -n aerospike run asinfo-client --rm -it --restart=Never \
+  --image=aerospike/aerospike-tools:latest \
+  -- asinfo -h aerospike-ce-basic-0-0.aerospike-ce-basic.aerospike.svc.cluster.local -p 3000 -v status
+```
+
+```
+ok
+```
+
+```sh
+# Namespace statistics
+kubectl -n aerospike run asinfo-client --rm -it --restart=Never \
+  --image=aerospike/aerospike-tools:latest \
+  -- asinfo -h aerospike-ce-basic-0-0.aerospike-ce-basic.aerospike.svc.cluster.local -p 3000 -v "namespace/test"
+```
+
+```
+objects=3;sub_objects=0;...;memory_used_bytes=384;...
 ```
 
 ## More Examples

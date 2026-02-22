@@ -31,3 +31,9 @@ go.work
 
 # Compiled test binaries
 test/client-test/aerospike-crud-test
+
+# Docusaurus
+docs/node_modules/
+docs/build/
+docs/.docusaurus/
+docs/.cache-loader/

@@ -175,6 +175,28 @@ deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in
 undeploy: kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	"$(KUSTOMIZE)" build config/default | "$(KUBECTL)" delete --ignore-not-found=$(ignore-not-found) -f -
 
+##@ Documentation
+
+.PHONY: docs-generate-api
+docs-generate-api: ## Generate API reference from Go types
+	bash docs/scripts/generate-api-reference.sh
+
+.PHONY: docs-install
+docs-install: ## Install docs dependencies
+	cd docs && npm install
+
+.PHONY: docs-build
+docs-build: docs-generate-api docs-install ## Build docs site
+	cd docs && npm run build
+
+.PHONY: docs-serve
+docs-serve: docs-install ## Start local docs dev server
+	cd docs && npm run start
+
+.PHONY: docs-serve-ko
+docs-serve-ko: docs-install ## Start local docs dev server (Korean)
+	cd docs && npm run start -- --locale ko
+
 ##@ Dependencies
 
 ## Location to install dependencies to

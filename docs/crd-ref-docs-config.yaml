@@ -1,0 +1,76 @@
+processor:
+  ignoreTypes:
+    - "AerospikeCEClusterList"
+  ignoreFields:
+    - "TypeMeta"
+    - "ObjectMeta"
+
+render:
+  knownTypes:
+    - name: "Quantity"
+      package: "k8s.io/apimachinery/pkg/api/resource"
+      link: "https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/quantity/"
+
+    - name: "Condition"
+      package: "k8s.io/apimachinery/pkg/apis/meta/v1"
+      link: "https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/conditions/"
+
+    - name: "IntOrString"
+      package: "k8s.io/apimachinery/pkg/util/intstr"
+      link: "https://pkg.go.dev/k8s.io/apimachinery/pkg/util/intstr#IntOrString"
+
+    - name: "LabelSelector"
+      package: "k8s.io/apimachinery/pkg/apis/meta/v1"
+      link: "https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/label-selector/"
+
+    - name: "Container"
+      package: "k8s.io/api/core/v1"
+      link: "https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#Container"
+
+    - name: "ResourceRequirements"
+      package: "k8s.io/api/core/v1"
+      link: "https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#resources"
+
+    - name: "Affinity"
+      package: "k8s.io/api/core/v1"
+      link: "https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#scheduling"
+
+    - name: "Toleration"
+      package: "k8s.io/api/core/v1"
+      link: "https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#scheduling"
+
+    - name: "SecurityContext"
+      package: "k8s.io/api/core/v1"
+      link: "https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#security-context-1"
+
+    - name: "PodSecurityContext"
+      package: "k8s.io/api/core/v1"
+      link: "https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#security-context"
+
+    - name: "EmptyDirVolumeSource"
+      package: "k8s.io/api/core/v1"
+      link: "https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/volume/#emptyDir"
+
+    - name: "SecretVolumeSource"
+      package: "k8s.io/api/core/v1"
+      link: "https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/volume/#secret"
+
+    - name: "ConfigMapVolumeSource"
+      package: "k8s.io/api/core/v1"
+      link: "https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/volume/#configMap"
+
+    - name: "LocalObjectReference"
+      package: "k8s.io/api/core/v1"
+      link: "https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/local-object-reference/"
+
+    - name: "PersistentVolumeAccessMode"
+      package: "k8s.io/api/core/v1"
+      link: "https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/persistent-volume-claim-v1/#PersistentVolumeClaimSpec"
+
+    - name: "PersistentVolumeMode"
+      package: "k8s.io/api/core/v1"
+      link: "https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/persistent-volume-claim-v1/#PersistentVolumeClaimSpec"
+
+    - name: "DNSPolicy"
+      package: "k8s.io/api/core/v1"
+      link: "https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#hostname-and-name-resolution"

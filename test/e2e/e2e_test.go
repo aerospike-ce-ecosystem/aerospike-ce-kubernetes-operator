@@ -124,14 +124,6 @@ var _ = Describe("Manager", Ordered, func() {
 		})
 
 		It("should ensure the metrics endpoint is serving metrics", func() {
-			By("creating a ClusterRoleBinding for the service account to allow access to metrics")
-			cmd := exec.Command("kubectl", "create", "clusterrolebinding", metricsRoleBindingName,
-				"--clusterrole=aerospike-ce-operator-metrics-reader",
-				fmt.Sprintf("--serviceaccount=%s:%s", namespace, serviceAccountName),
-			)
-			_, err := utils.Run(cmd)
-			Expect(err).NotTo(HaveOccurred(), "Failed to create ClusterRoleBinding")
-
 			By("validating that the metrics service is available")
 			exists, err := utils.ServiceExists(ctx, k8sClient, metricsServiceName, namespace)
 			Expect(err).NotTo(HaveOccurred())
@@ -169,7 +161,7 @@ var _ = Describe("Manager", Ordered, func() {
 			// +kubebuilder:scaffold:e2e-metrics-webhooks-readiness
 
 			By("cleaning up any existing curl-metrics pod")
-			cmd = exec.Command("kubectl", "delete", "pod", "curl-metrics",
+			cmd := exec.Command("kubectl", "delete", "pod", "curl-metrics",
 				"-n", namespace, "--ignore-not-found", "--wait=true")
 			_, _ = utils.Run(cmd)
 

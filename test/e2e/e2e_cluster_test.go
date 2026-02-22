@@ -71,7 +71,10 @@ var _ = Describe("AerospikeCECluster Samples", Ordered, func() {
 			By("loading and creating the basic sample CR")
 			cluster, err := loadClusterFromFile(samplePath)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+			// Retry creation in case the webhook isn't fully ready yet.
+			Eventually(func() error {
+				return k8sClient.Create(ctx, cluster)
+			}, 30*time.Second, 2*time.Second).Should(Succeed())
 
 			By("waiting for Completed phase")
 			Eventually(func(g Gomega) {
@@ -125,7 +128,7 @@ var _ = Describe("AerospikeCECluster Samples", Ordered, func() {
 		})
 	})
 
-	Context("3-node cluster with PV storage", func() {
+	Context("3-node cluster with PV storage", Label("heavy"), func() {
 		const clusterName = "aerospike-ce-3node"
 
 		It("should deploy 3 nodes and reach Completed phase", func() {
@@ -176,7 +179,7 @@ var _ = Describe("AerospikeCECluster Samples", Ordered, func() {
 		})
 	})
 
-	Context("Multi-rack 6-node cluster", func() {
+	Context("Multi-rack 6-node cluster", Label("heavy"), func() {
 		const clusterName = "aerospike-ce-multirack"
 
 		It("should deploy 6 nodes across 3 racks and reach Completed phase", func() {
@@ -253,7 +256,7 @@ var _ = Describe("AerospikeCECluster Samples", Ordered, func() {
 		})
 	})
 
-	Context("ACL/Storage sample with cascadeDelete", func() {
+	Context("ACL/Storage sample with cascadeDelete", Label("heavy"), func() {
 		const clusterName = "aerospike-ce-acl"
 
 		It("should deploy 3 nodes and reach Completed phase", func() {

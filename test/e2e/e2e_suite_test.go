@@ -142,6 +142,13 @@ var _ = BeforeSuite(func() {
 		g.Expect(vwc.Webhooks).NotTo(BeEmpty())
 		g.Expect(vwc.Webhooks[0].ClientConfig.CABundle).NotTo(BeEmpty(), "webhook CA bundle not yet injected")
 	}, 2*time.Minute, time.Second).Should(Succeed())
+
+	By("creating ClusterRoleBinding for metrics access")
+	cmd = exec.Command("kubectl", "create", "clusterrolebinding", metricsRoleBindingName,
+		"--clusterrole=aerospike-ce-operator-metrics-reader",
+		fmt.Sprintf("--serviceaccount=%s:%s", namespace, serviceAccountName),
+	)
+	_, _ = utils.Run(cmd) // ignore error if already exists
 })
 
 var _ = AfterSuite(func() {

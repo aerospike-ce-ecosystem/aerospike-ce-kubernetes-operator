@@ -59,7 +59,10 @@ var _ = Describe("Enhanced Features", Ordered, func() {
 		It("should expose custom business metrics after cluster creation", func() {
 			By("creating a 1-node cluster")
 			cluster := newTestCluster(clusterName, featuresNS, 1)
-			Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+			// Retry creation in case the webhook isn't fully ready yet.
+			Eventually(func() error {
+				return k8sClient.Create(ctx, cluster)
+			}, 30*time.Second, 2*time.Second).Should(Succeed())
 
 			By("waiting for Completed phase")
 			Eventually(func(g Gomega) {
@@ -134,7 +137,7 @@ var _ = Describe("Enhanced Features", Ordered, func() {
 		})
 	})
 
-	Context("Config Change triggers Rolling Restart", func() {
+	Context("Config Change triggers Rolling Restart", Label("heavy"), func() {
 		const clusterName = "e2e-config-change"
 
 		It("should update pods when config changes", func() {
@@ -184,7 +187,7 @@ var _ = Describe("Enhanced Features", Ordered, func() {
 		})
 	})
 
-	Context("Scale Up and Down", func() {
+	Context("Scale Up and Down", Label("heavy"), func() {
 		const clusterName = "e2e-scale"
 
 		It("should scale up from 1 to 2 nodes", func() {
@@ -255,7 +258,7 @@ var _ = Describe("Enhanced Features", Ordered, func() {
 		})
 	})
 
-	Context("RollingUpdateBatchSize", func() {
+	Context("RollingUpdateBatchSize", Label("heavy"), func() {
 		const clusterName = "e2e-batch"
 
 		It("should handle batch rolling restart without errors", func() {
@@ -298,7 +301,7 @@ var _ = Describe("Enhanced Features", Ordered, func() {
 		})
 	})
 
-	Context("Paused Cluster", func() {
+	Context("Paused Cluster", Label("heavy"), func() {
 		const clusterName = "e2e-paused"
 
 		It("should not reconcile config changes while paused", func() {
@@ -360,7 +363,7 @@ var _ = Describe("Enhanced Features", Ordered, func() {
 		})
 	})
 
-	Context("PodDisruptionBudget", func() {
+	Context("PodDisruptionBudget", Label("heavy"), func() {
 		const clusterName = "e2e-pdb"
 
 		It("should create PDB by default and delete when disabled", func() {

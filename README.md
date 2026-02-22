@@ -143,7 +143,7 @@ Launch an `aerospike-tools` pod to interact with the cluster:
 ```sh
 kubectl -n aerospike run aql-client --rm -it --restart=Never \
   --image=aerospike/aerospike-tools:latest \
-  -- aql -h aerospike-ce-basic-0-0.aerospike-ce-basic.aerospike.svc.cluster.local -p 3000
+  -- aql -h aerospike-ce-basic -p 3000
 ```
 
 #### Show namespaces
@@ -216,7 +216,7 @@ OK, 1 record affected.
 ```sh
 kubectl -n aerospike run asinfo-client --rm -it --restart=Never \
   --image=aerospike/aerospike-tools:latest \
-  -- asinfo -h aerospike-ce-basic-0-0.aerospike-ce-basic.aerospike.svc.cluster.local -p 3000 -v status
+  -- asinfo -h aerospike-ce-basic -p 3000 -v status
 ```
 
 ```
@@ -227,7 +227,7 @@ ok
 # Namespace statistics
 kubectl -n aerospike run asinfo-client --rm -it --restart=Never \
   --image=aerospike/aerospike-tools:latest \
-  -- asinfo -h aerospike-ce-basic-0-0.aerospike-ce-basic.aerospike.svc.cluster.local -p 3000 -v "namespace/test"
+  -- asinfo -h aerospike-ce-basic -p 3000 -v "namespace/test"
 ```
 
 ```

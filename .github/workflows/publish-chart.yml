@@ -8,55 +8,25 @@ on:
       - "charts/**"
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Install Helm
         uses: azure/setup-helm@v4
 
-      - name: Package chart
-        run: |
-          mkdir -p .cr-release-packages
-          helm package charts/aerospike-operator -d .cr-release-packages
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Checkout gh-pages branch
-        uses: actions/checkout@v4
-        with:
-          ref: gh-pages
-          path: gh-pages
-          fetch-depth: 0
-
-      - name: Update Helm repository index
+      - name: Package and push chart
         run: |
-          # Copy packaged chart to gh-pages
-          cp .cr-release-packages/*.tgz gh-pages/
-          # Rebuild index with the repo URL
-          helm repo index gh-pages \
-            --url https://kimsoungryoul.github.io/aerospike-ce-kubernetes-operator \
-            --merge gh-pages/index.yaml
-
-      - name: Push to gh-pages
-        run: |
-          cd gh-pages
-          git config user.name "$GITHUB_ACTOR"
-          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
-          git add .
-          git diff --staged --quiet || git commit -m "Publish Helm chart $(date -u +%Y%m%d%H%M%S)"
-          git push
+          helm package charts/aerospike-operator
+          helm push aerospike-operator-*.tgz oci://ghcr.io/${OWNER,,}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}

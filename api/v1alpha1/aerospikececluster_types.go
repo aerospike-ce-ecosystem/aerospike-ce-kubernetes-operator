@@ -85,6 +85,55 @@ func deepCopyValue(val any) any {
 	}
 }
 
+// OperationKind defines the type of on-demand operation.
+// +kubebuilder:validation:Enum=WarmRestart;PodRestart
+type OperationKind string
+
+const (
+	OperationWarmRestart OperationKind = "WarmRestart"
+	OperationPodRestart  OperationKind = "PodRestart"
+)
+
+// OperationSpec defines an on-demand operation to trigger.
+type OperationSpec struct {
+	// Kind is the type of operation.
+	// WarmRestart sends SIGUSR1 to the Aerospike process.
+	// PodRestart deletes and recreates the pod.
+	// +kubebuilder:validation:Required
+	Kind OperationKind `json:"kind"`
+
+	// ID is a unique identifier for tracking the operation (1-20 chars).
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=20
+	ID string `json:"id"`
+
+	// PodList is an optional list of specific pod names to target.
+	// If empty, the operation applies to all pods.
+	// +optional
+	PodList []string `json:"podList,omitempty"`
+}
+
+// OperationStatus tracks the status of an on-demand operation.
+type OperationStatus struct {
+	// ID is the operation identifier.
+	ID string `json:"id,omitempty"`
+
+	// Kind is the operation type.
+	Kind OperationKind `json:"kind,omitempty"`
+
+	// Phase is the operation phase: InProgress, Completed, Error.
+	Phase AerospikePhase `json:"phase,omitempty"`
+
+	// CompletedPods lists pods that have completed the operation.
+	// +optional
+	CompletedPods []string `json:"completedPods,omitempty"`
+
+	// FailedPods lists pods where the operation failed.
+	// +optional
+	FailedPods []string `json:"failedPods,omitempty"`
+}
+
 // AerospikeCEClusterSpec defines the desired state of an Aerospike CE cluster.
 type AerospikeCEClusterSpec struct {
 	// Size is the number of Aerospike nodes (pods) in the cluster.
@@ -168,6 +217,12 @@ type AerospikeCEClusterSpec struct {
 	// K8sNodeBlockList contains Kubernetes node names that should not run Aerospike pods.
 	// +optional
 	K8sNodeBlockList []string `json:"k8sNodeBlockList,omitempty"`
+
+	// Operations defines on-demand operations (e.g., WarmRestart, PodRestart).
+	// Only one operation can be active at a time.
+	// +kubebuilder:validation:MaxItems=1
+	// +optional
+	Operations []OperationSpec `json:"operations,omitempty"`
 }
 
 // AerospikePhase represents the current phase of the cluster.
@@ -212,6 +267,10 @@ type AerospikeCEClusterStatus struct {
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +optional
 	AerospikeConfig *AerospikeConfigSpec `json:"aerospikeConfig,omitempty"`
+
+	// OperationStatus tracks the current on-demand operation status.
+	// +optional
+	OperationStatus *OperationStatus `json:"operationStatus,omitempty"`
 }
 
 // AerospikePodStatus holds per-pod status information.

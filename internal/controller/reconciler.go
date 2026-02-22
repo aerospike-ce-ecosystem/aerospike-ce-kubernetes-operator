@@ -182,7 +182,15 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, err
 	}
 
-	// 14. Rolling restart if needed
+	// 14. Handle on-demand operations
+	if inProgress, err := r.reconcileOperations(ctx, cluster); err != nil {
+		log.Error(err, "Failed to reconcile operations")
+		return ctrl.Result{}, err
+	} else if inProgress {
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+	}
+
+	// 15. Rolling restart if needed
 	for _, rack := range racks {
 		restarted, err := r.reconcileRollingRestart(ctx, cluster, &rack)
 		if err != nil {
@@ -195,14 +203,14 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	}
 
-	// 15. Reconcile ACL (roles and users) after cluster is stable
+	// 16. Reconcile ACL (roles and users) after cluster is stable
 	if err := r.reconcileACL(ctx, cluster); err != nil {
 		log.Error(err, "Failed to reconcile ACL")
 		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "ACLSyncError", "ACL sync failed: %v", err)
 		// ACL errors are not fatal — continue to status update
 	}
 
-	// 16. Update status and set phase to Completed.
+	// 17. Update status and set phase to Completed.
 	// updateStatusAndPhase re-fetches internally to avoid conflict errors.
 	if err := r.updateStatusAndPhase(ctx, req.NamespacedName, asdbcev1alpha1.AerospikePhaseCompleted); err != nil {
 		if errors.IsConflict(err) {

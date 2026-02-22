@@ -341,6 +341,41 @@ spec:
                     - cilium
                     type: string
                 type: object
+              operations:
+                description: |-
+                  Operations defines on-demand operations (e.g., WarmRestart, PodRestart).
+                  Only one operation can be active at a time.
+                items:
+                  description: OperationSpec defines an on-demand operation to trigger.
+                  properties:
+                    id:
+                      description: ID is a unique identifier for tracking the operation
+                        (1-20 chars).
+                      maxLength: 20
+                      minLength: 1
+                      type: string
+                    kind:
+                      description: |-
+                        Kind is the type of operation.
+                        WarmRestart sends SIGUSR1 to the Aerospike process.
+                        PodRestart deletes and recreates the pod.
+                      enum:
+                      - WarmRestart
+                      - PodRestart
+                      type: string
+                    podList:
+                      description: |-
+                        PodList is an optional list of specific pod names to target.
+                        If empty, the operation applies to all pods.
+                      items:
+                        type: string
+                      type: array
+                  required:
+                  - id
+                  - kind
+                  type: object
+                maxItems: 1
+                type: array
               paused:
                 description: Paused stops reconciliation when set to true.
                 type: boolean
@@ -6778,6 +6813,39 @@ spec:
                   by the controller.
                 format: int64
                 type: integer
+              operationStatus:
+                description: OperationStatus tracks the current on-demand operation
+                  status.
+                properties:
+                  completedPods:
+                    description: CompletedPods lists pods that have completed the
+                      operation.
+                    items:
+                      type: string
+                    type: array
+                  failedPods:
+                    description: FailedPods lists pods where the operation failed.
+                    items:
+                      type: string
+                    type: array
+                  id:
+                    description: ID is the operation identifier.
+                    type: string
+                  kind:
+                    description: Kind is the operation type.
+                    enum:
+                    - WarmRestart
+                    - PodRestart
+                    type: string
+                  phase:
+                    description: 'Phase is the operation phase: InProgress, Completed,
+                      Error.'
+                    enum:
+                    - InProgress
+                    - Completed
+                    - Error
+                    type: string
+                type: object
               phase:
                 description: Phase indicates the overall cluster phase.
                 enum:

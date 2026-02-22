@@ -186,6 +186,24 @@ func (v *AerospikeCEClusterValidator) ValidateCreate(ctx context.Context, cluste
 // ValidateUpdate implements admission.Validator[*AerospikeCECluster].
 func (v *AerospikeCEClusterValidator) ValidateUpdate(ctx context.Context, oldCluster, cluster *AerospikeCECluster) (admission.Warnings, error) {
 	aerospikececlusterlog.Info("Validating update", "name", cluster.Name)
+
+	// Don't allow changing operations while one is InProgress
+	if oldCluster.Status.OperationStatus != nil &&
+		oldCluster.Status.OperationStatus.Phase == AerospikePhaseInProgress {
+		// Check if operations changed
+		oldOpID := ""
+		newOpID := ""
+		if len(oldCluster.Spec.Operations) > 0 {
+			oldOpID = oldCluster.Spec.Operations[0].ID
+		}
+		if len(cluster.Spec.Operations) > 0 {
+			newOpID = cluster.Spec.Operations[0].ID
+		}
+		if oldOpID != newOpID {
+			return nil, fmt.Errorf("cannot change operations while operation %q is InProgress", oldOpID)
+		}
+	}
+
 	return v.validate(cluster)
 }
 
@@ -282,6 +300,12 @@ func (v *AerospikeCEClusterValidator) validate(cluster *AerospikeCECluster) (adm
 		if bs > cluster.Spec.Size {
 			warnings = append(warnings, fmt.Sprintf("rollingUpdateBatchSize (%d) is greater than cluster size (%d); all pods may restart simultaneously", bs, cluster.Spec.Size))
 		}
+	}
+
+	// Validate operations
+	if len(cluster.Spec.Operations) > 0 {
+		opErrors := v.validateOperations(cluster.Spec.Operations)
+		allErrors = append(allErrors, opErrors...)
 	}
 
 	if len(allErrors) > 0 {
@@ -479,6 +503,28 @@ func (v *AerospikeCEClusterValidator) validateRackConfig(rackConfig *RackConfig)
 			errors = append(errors, fmt.Sprintf("duplicate rack ID %d in rackConfig", rack.ID))
 		}
 		rackIDs[rack.ID] = true
+	}
+
+	return errors
+}
+
+// validateOperations validates the on-demand operations spec.
+func (v *AerospikeCEClusterValidator) validateOperations(ops []OperationSpec) []string {
+	var errors []string
+
+	if len(ops) > 1 {
+		errors = append(errors, "only one operation can be specified at a time")
+	}
+
+	seenIDs := make(map[string]bool)
+	for _, op := range ops {
+		if len(op.ID) < 1 || len(op.ID) > 20 {
+			errors = append(errors, fmt.Sprintf("operation id %q must be 1-20 characters", op.ID))
+		}
+		if seenIDs[op.ID] {
+			errors = append(errors, fmt.Sprintf("duplicate operation id %q", op.ID))
+		}
+		seenIDs[op.ID] = true
 	}
 
 	return errors

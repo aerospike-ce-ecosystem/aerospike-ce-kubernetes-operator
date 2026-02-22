@@ -4,12 +4,17 @@ import (
 	"testing"
 )
 
+const (
+	testClusterName = "my-cluster"
+	testValue       = "value"
+)
+
 func TestLabelsForCluster(t *testing.T) {
-	labels := LabelsForCluster("my-cluster")
+	labels := LabelsForCluster(testClusterName)
 
 	expected := map[string]string{
 		AppLabel:       appName,
-		InstanceLabel:  "my-cluster",
+		InstanceLabel:  testClusterName,
 		ComponentLabel: "database",
 		ManagedByLabel: managerName,
 	}
@@ -25,7 +30,7 @@ func TestLabelsForCluster(t *testing.T) {
 }
 
 func TestSelectorLabelsForCluster(t *testing.T) {
-	labels := SelectorLabelsForCluster("my-cluster")
+	labels := SelectorLabelsForCluster(testClusterName)
 
 	if len(labels) != 2 {
 		t.Fatalf("expected 2 selector labels, got %d", len(labels))
@@ -33,13 +38,13 @@ func TestSelectorLabelsForCluster(t *testing.T) {
 	if labels[AppLabel] != appName {
 		t.Errorf("AppLabel = %q, want %q", labels[AppLabel], appName)
 	}
-	if labels[InstanceLabel] != "my-cluster" {
-		t.Errorf("InstanceLabel = %q, want %q", labels[InstanceLabel], "my-cluster")
+	if labels[InstanceLabel] != testClusterName {
+		t.Errorf("InstanceLabel = %q, want %q", labels[InstanceLabel], testClusterName)
 	}
 }
 
 func TestLabelsForRack(t *testing.T) {
-	labels := LabelsForRack("my-cluster", 5)
+	labels := LabelsForRack(testClusterName, 5)
 
 	if labels[RackLabel] != "5" {
 		t.Errorf("RackLabel = %q, want %q", labels[RackLabel], "5")
@@ -48,7 +53,7 @@ func TestLabelsForRack(t *testing.T) {
 	if labels[AppLabel] != appName {
 		t.Error("should include AppLabel from LabelsForCluster")
 	}
-	if labels[InstanceLabel] != "my-cluster" {
+	if labels[InstanceLabel] != testClusterName {
 		t.Error("should include InstanceLabel from LabelsForCluster")
 	}
 }
@@ -58,7 +63,7 @@ func TestLabelsForCluster_ReturnsFreshMap(t *testing.T) {
 	labels2 := LabelsForCluster("b")
 
 	// Mutating one should not affect the other
-	labels1["custom"] = "value"
+	labels1["custom"] = testValue
 	if _, ok := labels2["custom"]; ok {
 		t.Error("LabelsForCluster should return a fresh map each time")
 	}

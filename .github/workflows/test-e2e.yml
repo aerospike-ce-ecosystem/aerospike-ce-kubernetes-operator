@@ -1,9 +1,12 @@
 name: E2E Tests
 
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
+    inputs:
+      ginkgo_label_filter:
+        description: 'Ginkgo label filter (e.g. "!heavy")'
+        required: false
+        default: '!heavy'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
@@ -34,4 +37,4 @@ jobs:
       - name: Running Test e2e
         run: |
           go mod tidy
-          make test-e2e GINKGO_FLAGS='-ginkgo.label-filter=!heavy'
+          make test-e2e GINKGO_FLAGS='-ginkgo.label-filter=${{ github.event.inputs.ginkgo_label_filter || '"'"'!heavy'"'"' }}'

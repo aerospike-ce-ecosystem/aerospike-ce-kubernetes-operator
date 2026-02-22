@@ -208,6 +208,30 @@ spec:
                   EnableDynamicConfigUpdate enables runtime configuration changes
                   without pod restart using Aerospike's set-config command.
                 type: boolean
+              enableRackIDOverride:
+                description: EnableRackIDOverride enables dynamic rack ID assignment
+                  via pod annotations.
+                type: boolean
+              headlessService:
+                description: HeadlessService defines custom metadata for the headless
+                  service.
+                properties:
+                  metadata:
+                    description: Metadata defines custom annotations and labels for
+                      the service.
+                    properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        description: Annotations is a map of custom annotations.
+                        type: object
+                      labels:
+                        additionalProperties:
+                          type: string
+                        description: Labels is a map of custom labels.
+                        type: object
+                    type: object
+                type: object
               image:
                 description: |-
                   Image is the Aerospike CE server container image.
@@ -379,6 +403,27 @@ spec:
               paused:
                 description: Paused stops reconciliation when set to true.
                 type: boolean
+              podService:
+                description: |-
+                  PodService defines custom metadata for per-pod services.
+                  When set, the operator creates an individual Service for each pod.
+                properties:
+                  metadata:
+                    description: Metadata defines custom annotations and labels for
+                      the service.
+                    properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        description: Annotations is a map of custom annotations.
+                        type: object
+                      labels:
+                        additionalProperties:
+                          type: string
+                        description: Labels is a map of custom labels.
+                        type: object
+                    type: object
+                type: object
               podSpec:
                 description: PodSpec defines pod-level configuration (sidecars, resources,
                   scheduling).
@@ -6769,6 +6814,15 @@ spec:
                       - source
                       type: object
                     type: array
+                type: object
+              validationPolicy:
+                description: ValidationPolicy controls validation behavior.
+                properties:
+                  skipWorkDirValidate:
+                    description: |-
+                      SkipWorkDirValidate skips validation that the Aerospike work directory
+                      is mounted on persistent storage.
+                    type: boolean
                 type: object
             required:
             - image

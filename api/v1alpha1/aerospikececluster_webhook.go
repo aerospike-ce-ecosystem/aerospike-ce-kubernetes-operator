@@ -295,6 +295,20 @@ func (v *AerospikeCEClusterValidator) validate(cluster *AerospikeCECluster) (adm
 		}
 	}
 
+	// Validate work directory has persistent storage (unless skipped)
+	if cluster.Spec.ValidationPolicy == nil || !cluster.Spec.ValidationPolicy.SkipWorkDirValidate {
+		if cluster.Spec.AerospikeConfig != nil {
+			if svcCfg, ok := cluster.Spec.AerospikeConfig.Value["service"].(map[string]any); ok {
+				if workDir, ok := svcCfg["work-directory"].(string); ok && workDir != "" {
+					if !hasVolumeForPath(cluster.Spec.Storage, workDir) {
+						warnings = append(warnings, fmt.Sprintf(
+							"work-directory %q has no persistent volume; data may be lost on pod restart (set validationPolicy.skipWorkDirValidate to suppress)", workDir))
+					}
+				}
+			}
+		}
+	}
+
 	// Validate rolling update batch size
 	if cluster.Spec.RollingUpdateBatchSize != nil {
 		bs := *cluster.Spec.RollingUpdateBatchSize
@@ -492,6 +506,19 @@ func isEnterpriseTag(image string) bool {
 	}
 
 	return strings.HasPrefix(strings.ToLower(parts[1]), "ee-")
+}
+
+// hasVolumeForPath checks if any volume mounts to the given path.
+func hasVolumeForPath(storage *AerospikeStorageSpec, path string) bool {
+	if storage == nil {
+		return false
+	}
+	for _, vol := range storage.Volumes {
+		if vol.Aerospike != nil && vol.Aerospike.Path == path {
+			return true
+		}
+	}
+	return false
 }
 
 // validateRackConfig validates the rack configuration.

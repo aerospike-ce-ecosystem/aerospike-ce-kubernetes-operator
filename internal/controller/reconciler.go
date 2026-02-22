@@ -122,6 +122,12 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, err
 	}
 
+	// 6b. Reconcile per-pod services
+	if err := r.reconcilePodServices(ctx, cluster); err != nil {
+		log.Error(err, "Failed to reconcile per-pod services")
+		return ctrl.Result{}, err
+	}
+
 	// 7. Get rack list (default rack if not specified)
 	racks := r.getRacks(cluster)
 

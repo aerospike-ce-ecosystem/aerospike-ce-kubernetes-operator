@@ -134,6 +134,32 @@ type OperationStatus struct {
 	FailedPods []string `json:"failedPods,omitempty"`
 }
 
+// ValidationPolicySpec controls validation behavior.
+type ValidationPolicySpec struct {
+	// SkipWorkDirValidate skips validation that the Aerospike work directory
+	// is mounted on persistent storage.
+	// +optional
+	SkipWorkDirValidate bool `json:"skipWorkDirValidate,omitempty"`
+}
+
+// AerospikeObjectMeta defines custom metadata for Kubernetes objects.
+type AerospikeObjectMeta struct {
+	// Annotations is a map of custom annotations.
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty"`
+
+	// Labels is a map of custom labels.
+	// +optional
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+// AerospikeServiceSpec defines custom metadata for a Kubernetes Service.
+type AerospikeServiceSpec struct {
+	// Metadata defines custom annotations and labels for the service.
+	// +optional
+	Metadata *AerospikeObjectMeta `json:"metadata,omitempty"`
+}
+
 // AerospikeCEClusterSpec defines the desired state of an Aerospike CE cluster.
 type AerospikeCEClusterSpec struct {
 	// Size is the number of Aerospike nodes (pods) in the cluster.
@@ -223,6 +249,23 @@ type AerospikeCEClusterSpec struct {
 	// +kubebuilder:validation:MaxItems=1
 	// +optional
 	Operations []OperationSpec `json:"operations,omitempty"`
+
+	// ValidationPolicy controls validation behavior.
+	// +optional
+	ValidationPolicy *ValidationPolicySpec `json:"validationPolicy,omitempty"`
+
+	// HeadlessService defines custom metadata for the headless service.
+	// +optional
+	HeadlessService *AerospikeServiceSpec `json:"headlessService,omitempty"`
+
+	// PodService defines custom metadata for per-pod services.
+	// When set, the operator creates an individual Service for each pod.
+	// +optional
+	PodService *AerospikeServiceSpec `json:"podService,omitempty"`
+
+	// EnableRackIDOverride enables dynamic rack ID assignment via pod annotations.
+	// +optional
+	EnableRackIDOverride *bool `json:"enableRackIDOverride,omitempty"`
 }
 
 // AerospikePhase represents the current phase of the cluster.

@@ -36,12 +36,25 @@ func (r *AerospikeCEClusterReconciler) reconcileHeadlessService(
 		{Name: "info", Port: podutil.InfoPort, TargetPort: intstr.FromInt32(podutil.InfoPort), Protocol: corev1.ProtocolTCP},
 	}
 
+	// Build desired annotations from custom metadata.
+	var desiredAnnotations map[string]string
+	if cluster.Spec.HeadlessService != nil && cluster.Spec.HeadlessService.Metadata != nil {
+		if cluster.Spec.HeadlessService.Metadata.Annotations != nil {
+			desiredAnnotations = make(map[string]string)
+			maps.Copy(desiredAnnotations, cluster.Spec.HeadlessService.Metadata.Annotations)
+		}
+		if cluster.Spec.HeadlessService.Metadata.Labels != nil {
+			maps.Copy(labels, cluster.Spec.HeadlessService.Metadata.Labels)
+		}
+	}
+
 	if errors.IsNotFound(err) {
 		svc := &corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      svcName,
-				Namespace: cluster.Namespace,
-				Labels:    labels,
+				Name:        svcName,
+				Namespace:   cluster.Namespace,
+				Labels:      labels,
+				Annotations: desiredAnnotations,
 			},
 			Spec: corev1.ServiceSpec{
 				ClusterIP:                corev1.ClusterIPNone,
@@ -59,8 +72,13 @@ func (r *AerospikeCEClusterReconciler) reconcileHeadlessService(
 		return err
 	}
 
-	// Update if ports or labels changed.
+	// Update if ports, labels, or annotations changed.
 	needsUpdate := !maps.Equal(existing.Labels, labels)
+
+	if !needsUpdate {
+		needsUpdate = !equalAnnotations(existing.Annotations, desiredAnnotations)
+	}
+
 	if !needsUpdate && len(existing.Spec.Ports) == len(desiredPorts) {
 		for i, p := range existing.Spec.Ports {
 			if p.Name != desiredPorts[i].Name || p.Port != desiredPorts[i].Port {
@@ -74,6 +92,12 @@ func (r *AerospikeCEClusterReconciler) reconcileHeadlessService(
 
 	if needsUpdate {
 		existing.Labels = labels
+		if desiredAnnotations != nil {
+			if existing.Annotations == nil {
+				existing.Annotations = make(map[string]string)
+			}
+			maps.Copy(existing.Annotations, desiredAnnotations)
+		}
 		existing.Spec.Ports = desiredPorts
 		existing.Spec.Selector = selectorLabels
 		log.Info("Updating headless service", "name", svcName)
@@ -81,4 +105,22 @@ func (r *AerospikeCEClusterReconciler) reconcileHeadlessService(
 	}
 
 	return nil
+}
+
+// equalAnnotations compares the custom annotations subset.
+// It checks that all desired annotations exist in actual with matching values.
+// It does not require actual to be an exact match, since Kubernetes may add its own annotations.
+func equalAnnotations(actual, desired map[string]string) bool {
+	if len(desired) == 0 {
+		return true
+	}
+	if actual == nil {
+		return false
+	}
+	for k, v := range desired {
+		if actual[k] != v {
+			return false
+		}
+	}
+	return true
 }

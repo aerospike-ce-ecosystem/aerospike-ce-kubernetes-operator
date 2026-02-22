@@ -268,59 +268,13 @@ func (v *AerospikeCEClusterValidator) validate(cluster *AerospikeCECluster) (adm
 		allErrors = append(allErrors, rackErrors...)
 	}
 
-	// Validate replication-factor does not exceed cluster size
-	if cluster.Spec.AerospikeConfig != nil {
-		if nsList, ok := cluster.Spec.AerospikeConfig.Value["namespaces"].([]any); ok {
-			for _, ns := range nsList {
-				if nsMap, ok := ns.(map[string]any); ok {
-					nsName, _ := nsMap["name"].(string)
-					if rf, ok := nsMap["replication-factor"]; ok {
-						rfInt := 0
-						switch v := rf.(type) {
-						case int:
-							rfInt = v
-						case int64:
-							rfInt = int(v)
-						case float64:
-							rfInt = int(v)
-						}
-						if rfInt > int(cluster.Spec.Size) {
-							allErrors = append(allErrors, fmt.Sprintf(
-								"namespace %q: replication-factor %d exceeds cluster size %d",
-								nsName, rfInt, cluster.Spec.Size))
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// Validate work directory has persistent storage (unless skipped)
-	if cluster.Spec.ValidationPolicy == nil || !cluster.Spec.ValidationPolicy.SkipWorkDirValidate {
-		if cluster.Spec.AerospikeConfig != nil {
-			if svcCfg, ok := cluster.Spec.AerospikeConfig.Value["service"].(map[string]any); ok {
-				if workDir, ok := svcCfg["work-directory"].(string); ok && workDir != "" {
-					if !hasVolumeForPath(cluster.Spec.Storage, workDir) {
-						warnings = append(warnings, fmt.Sprintf(
-							"work-directory %q has no persistent volume; data may be lost on pod restart (set validationPolicy.skipWorkDirValidate to suppress)", workDir))
-					}
-				}
-			}
-		}
-	}
-
-	// Validate rolling update batch size
-	if cluster.Spec.RollingUpdateBatchSize != nil {
-		bs := *cluster.Spec.RollingUpdateBatchSize
-		if bs > cluster.Spec.Size {
-			warnings = append(warnings, fmt.Sprintf("rollingUpdateBatchSize (%d) is greater than cluster size (%d); all pods may restart simultaneously", bs, cluster.Spec.Size))
-		}
-	}
-
-	// Validate operations
+	// Validate replication-factor, work directory, batch size, and operations
+	rfErrors := v.validateReplicationFactor(cluster)
+	allErrors = append(allErrors, rfErrors...)
+	warnings = append(warnings, v.validateWorkDirectory(cluster)...)
+	warnings = append(warnings, v.validateBatchSize(cluster)...)
 	if len(cluster.Spec.Operations) > 0 {
-		opErrors := v.validateOperations(cluster.Spec.Operations)
-		allErrors = append(allErrors, opErrors...)
+		allErrors = append(allErrors, v.validateOperations(cluster.Spec.Operations)...)
 	}
 
 	if len(allErrors) > 0 {
@@ -519,6 +473,79 @@ func hasVolumeForPath(storage *AerospikeStorageSpec, path string) bool {
 		}
 	}
 	return false
+}
+
+// validateReplicationFactor validates that replication-factor does not exceed cluster size.
+func (v *AerospikeCEClusterValidator) validateReplicationFactor(cluster *AerospikeCECluster) []string {
+	if cluster.Spec.AerospikeConfig == nil {
+		return nil
+	}
+	nsList, ok := cluster.Spec.AerospikeConfig.Value["namespaces"].([]any)
+	if !ok {
+		return nil
+	}
+	var errors []string
+	for _, ns := range nsList {
+		nsMap, ok := ns.(map[string]any)
+		if !ok {
+			continue
+		}
+		nsName, _ := nsMap["name"].(string)
+		rf, ok := nsMap["replication-factor"]
+		if !ok {
+			continue
+		}
+		rfInt := 0
+		switch val := rf.(type) {
+		case int:
+			rfInt = val
+		case int64:
+			rfInt = int(val)
+		case float64:
+			rfInt = int(val)
+		}
+		if rfInt > int(cluster.Spec.Size) {
+			errors = append(errors, fmt.Sprintf(
+				"namespace %q: replication-factor %d exceeds cluster size %d",
+				nsName, rfInt, cluster.Spec.Size))
+		}
+	}
+	return errors
+}
+
+// validateWorkDirectory checks that the work directory has persistent storage.
+func (v *AerospikeCEClusterValidator) validateWorkDirectory(cluster *AerospikeCECluster) admission.Warnings {
+	if cluster.Spec.ValidationPolicy != nil && cluster.Spec.ValidationPolicy.SkipWorkDirValidate {
+		return nil
+	}
+	if cluster.Spec.AerospikeConfig == nil {
+		return nil
+	}
+	svcCfg, ok := cluster.Spec.AerospikeConfig.Value["service"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	workDir, ok := svcCfg["work-directory"].(string)
+	if !ok || workDir == "" {
+		return nil
+	}
+	if !hasVolumeForPath(cluster.Spec.Storage, workDir) {
+		return admission.Warnings{fmt.Sprintf(
+			"work-directory %q has no persistent volume; data may be lost on pod restart (set validationPolicy.skipWorkDirValidate to suppress)", workDir)}
+	}
+	return nil
+}
+
+// validateBatchSize checks the rolling update batch size against cluster size.
+func (v *AerospikeCEClusterValidator) validateBatchSize(cluster *AerospikeCECluster) admission.Warnings {
+	if cluster.Spec.RollingUpdateBatchSize == nil {
+		return nil
+	}
+	bs := *cluster.Spec.RollingUpdateBatchSize
+	if bs > cluster.Spec.Size {
+		return admission.Warnings{fmt.Sprintf("rollingUpdateBatchSize (%d) is greater than cluster size (%d); all pods may restart simultaneously", bs, cluster.Spec.Size)}
+	}
+	return nil
 }
 
 // validateRackConfig validates the rack configuration.

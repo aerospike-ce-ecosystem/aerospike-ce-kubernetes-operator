@@ -98,10 +98,7 @@ func (r *AerospikeCEClusterReconciler) reconcileStatefulSet(
 	if scaleDown {
 		// Apply scale-down batch size: only scale down a batch at a time.
 		batchSize := r.getScaleDownBatchSize(cluster, oldReplicas-rackSize)
-		targetReplicas = oldReplicas - batchSize
-		if targetReplicas < rackSize {
-			targetReplicas = rackSize
-		}
+		targetReplicas = max(oldReplicas-batchSize, rackSize)
 	}
 
 	existing.Spec.Replicas = &targetReplicas

@@ -134,35 +134,44 @@ func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
 			}
 		}
 
-		// 2. Try warm restart if only config changed (same image, same podspec)
-		if r.shouldWarmRestart(cluster, pod, sts) {
-			log.Info("Attempting warm restart (SIGUSR1)", "pod", pod.Name)
-			if err := r.warmRestartPod(ctx, pod); err != nil {
-				log.Info("Warm restart failed, falling back to cold restart", "pod", pod.Name, "error", err)
-				if err := r.coldRestartPod(ctx, cluster, pod); err != nil {
-					return false, err
-				}
-			} else {
-				// Update config hash annotation so next reconcile won't re-restart this pod.
-				if err := r.updatePodConfigHash(ctx, pod, desiredHash); err != nil {
-					log.Error(err, "Failed to update pod config hash after warm restart", "pod", pod.Name)
-				}
-				metrics.WarmRestartsTotal.WithLabelValues(cluster.Namespace, cluster.Name).Inc()
-				restarted++
-				continue
-			}
-		} else {
-			// 3. Cold restart (pod delete)
-			log.Info("Pod config/spec hash mismatch, deleting for restart", "pod", pod.Name)
-			if err := r.coldRestartPod(ctx, cluster, pod); err != nil {
-				return false, err
-			}
+		// 2. Restart pod (warm or cold)
+		if err := r.restartPod(ctx, cluster, pod, sts, desiredHash); err != nil {
+			return false, err
 		}
 
 		restarted++
 	}
 
 	return true, nil
+}
+
+// restartPod attempts a warm restart first, falling back to cold restart.
+func (r *AerospikeCEClusterReconciler) restartPod(
+	ctx context.Context,
+	cluster *asdbcev1alpha1.AerospikeCECluster,
+	pod *corev1.Pod,
+	sts *appsv1.StatefulSet,
+	desiredHash string,
+) error {
+	log := logf.FromContext(ctx)
+
+	if !r.shouldWarmRestart(cluster, pod, sts) {
+		log.Info("Pod config/spec hash mismatch, deleting for restart", "pod", pod.Name)
+		return r.coldRestartPod(ctx, cluster, pod)
+	}
+
+	log.Info("Attempting warm restart (SIGUSR1)", "pod", pod.Name)
+	if err := r.warmRestartPod(ctx, pod); err != nil {
+		log.Info("Warm restart failed, falling back to cold restart", "pod", pod.Name, "error", err)
+		return r.coldRestartPod(ctx, cluster, pod)
+	}
+
+	// Update config hash annotation so next reconcile won't re-restart this pod.
+	if err := r.updatePodConfigHash(ctx, pod, desiredHash); err != nil {
+		log.Error(err, "Failed to update pod config hash after warm restart", "pod", pod.Name)
+	}
+	metrics.WarmRestartsTotal.WithLabelValues(cluster.Namespace, cluster.Name).Inc()
+	return nil
 }
 
 // updatePodConfigHash updates the config hash annotation on a pod after a warm restart.

@@ -22,7 +22,7 @@ Optional arguments:
 ## Environment Variables
 
 ```bash
-IMG=ghcr.io/kimsoungryoul/aerospike-ce-kubernetes-operator:latest
+IMG=ghcr.io/kimsoungryoul/aerospike-ce-operator:latest
 KIND_CLUSTER=aerospike-ce-operator-test-e2e
 KIND_PROVIDER=podman   # or podman
 ```

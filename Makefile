@@ -1,5 +1,5 @@
 # Image URL to use all building/pushing image targets
-IMG ?= ghcr.io/kimsoungryoul/aerospike-ce-kubernetes-operator:latest
+IMG ?= ghcr.io/kimsoungryoul/aerospike-ce-operator:latest
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))

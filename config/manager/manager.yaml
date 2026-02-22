@@ -63,7 +63,7 @@ spec:
         args:
           - --leader-elect
           - --health-probe-bind-address=:8081
-        image: controller:latest
+        image: ghcr.io/kimsoungryoul/aerospike-ce-operator:latest
         imagePullPolicy: IfNotPresent
         name: manager
         ports: []

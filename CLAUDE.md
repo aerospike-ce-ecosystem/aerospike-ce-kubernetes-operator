@@ -15,7 +15,7 @@ make generate           # Generate DeepCopy methods
 make test               # Unit + envtest integration tests (excludes e2e)
 make lint               # golangci-lint
 make lint-fix           # golangci-lint with auto-fix
-make docker-build       # Build container image (IMG=controller:latest)
+make docker-build       # Build container image (IMG=ghcr.io/kimsoungryoul/aerospike-ce-operator:latest)
 make install            # Install CRDs into current k8s cluster
 make deploy             # Deploy operator to current k8s cluster
 ```

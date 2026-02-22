@@ -9,7 +9,7 @@ replicaCount: 1
 # -- Operator container image settings
 image:
   # -- Container image repository
-  repository: ghcr.io/kimsoungryoul/aerospike-ce-kubernetes-operator
+  repository: ghcr.io/kimsoungryoul/aerospike-ce-operator
   # -- Container image tag (defaults to Chart appVersion if empty)
   tag: latest
   # -- Image pull policy: Always, IfNotPresent, or Never

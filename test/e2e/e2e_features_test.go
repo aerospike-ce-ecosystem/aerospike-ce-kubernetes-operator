@@ -94,17 +94,18 @@ var _ = Describe("Enhanced Features", Ordered, func() {
 			By("waiting for Completed phase")
 			Expect(utils.WaitForClusterPhase(clusterName, featuresNS, "Completed", defaultTimeout)).To(Succeed())
 
+			By("fetching fresh metrics after cluster reconciliation")
+			refreshCurlMetricsPod()
+
 			By("verifying custom metrics exist in the metrics endpoint")
-			Eventually(func(g Gomega) {
-				metricsOutput, err := getMetricsOutput()
-				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(metricsOutput).To(ContainSubstring("aerospike_ce_cluster_phase"),
-					"cluster phase metric should be present")
-				g.Expect(metricsOutput).To(ContainSubstring("aerospike_ce_cluster_ready_pods"),
-					"ready pods metric should be present")
-				g.Expect(metricsOutput).To(ContainSubstring("aerospike_ce_reconcile_duration_seconds"),
-					"reconcile duration metric should be present")
-			}, defaultTimeout, 5*time.Second).Should(Succeed())
+			metricsOutput, err := getMetricsOutput()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(metricsOutput).To(ContainSubstring("aerospike_ce_cluster_phase"),
+				"cluster phase metric should be present")
+			Expect(metricsOutput).To(ContainSubstring("aerospike_ce_cluster_ready_pods"),
+				"ready pods metric should be present")
+			Expect(metricsOutput).To(ContainSubstring("aerospike_ce_reconcile_duration_seconds"),
+				"reconcile duration metric should be present")
 		})
 	})
 

@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -82,6 +83,25 @@ var _ = BeforeSuite(func() {
 	cmd = exec.Command("make", "deploy", fmt.Sprintf("IMG=%s", managerImage))
 	_, err = utils.Run(cmd)
 	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to deploy the controller-manager")
+
+	By("waiting for the controller-manager pod to be ready")
+	Eventually(func(g Gomega) {
+		cmd = exec.Command("kubectl", "get", "pods", "-l", "control-plane=controller-manager",
+			"-n", namespace, "-o", "jsonpath={.items[0].status.conditions[?(@.type=='Ready')].status}")
+		output, err := utils.Run(cmd)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(output).To(Equal("True"), "controller-manager pod not ready")
+	}, 2*time.Minute, time.Second).Should(Succeed())
+
+	By("waiting for webhook to be ready")
+	Eventually(func(g Gomega) {
+		cmd = exec.Command("kubectl", "get", "validatingwebhookconfigurations",
+			"aerospike-ce-operator-validating-webhook-configuration",
+			"-o", "jsonpath={.webhooks[0].clientConfig.caBundle}")
+		output, err := utils.Run(cmd)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(output).NotTo(BeEmpty(), "webhook CA bundle not yet injected")
+	}, 2*time.Minute, time.Second).Should(Succeed())
 })
 
 var _ = AfterSuite(func() {

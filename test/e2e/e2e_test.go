@@ -284,6 +284,59 @@ func getMetricsOutput() (string, error) {
 	return utils.Run(cmd)
 }
 
+// refreshCurlMetricsPod deletes the existing curl-metrics pod and creates a new
+// one to fetch fresh metrics from the metrics endpoint.
+func refreshCurlMetricsPod() {
+	By("deleting old curl-metrics pod")
+	cmd := exec.Command("kubectl", "delete", "pod", "curl-metrics", "-n", namespace, "--ignore-not-found", "--wait=true")
+	_, _ = utils.Run(cmd)
+
+	token, err := serviceAccountToken()
+	ExpectWithOffset(1, err).NotTo(HaveOccurred())
+
+	By("creating fresh curl-metrics pod")
+	cmd = exec.Command("kubectl", "run", "curl-metrics", "--restart=Never",
+		"--namespace", namespace,
+		"--image=curlimages/curl:latest",
+		"--overrides",
+		fmt.Sprintf(`{
+			"spec": {
+				"containers": [{
+					"name": "curl",
+					"image": "curlimages/curl:latest",
+					"command": ["/bin/sh", "-c"],
+					"args": [
+						"for i in $(seq 1 30); do curl -v -k -H 'Authorization: Bearer %s' https://%s.%s.svc.cluster.local:8443/metrics && exit 0 || sleep 2; done; exit 1"
+					],
+					"securityContext": {
+						"readOnlyRootFilesystem": true,
+						"allowPrivilegeEscalation": false,
+						"capabilities": {
+							"drop": ["ALL"]
+						},
+						"runAsNonRoot": true,
+						"runAsUser": 1000,
+						"seccompProfile": {
+							"type": "RuntimeDefault"
+						}
+					}
+				}],
+				"serviceAccountName": "%s"
+			}
+		}`, token, metricsServiceName, namespace, serviceAccountName))
+	_, err = utils.Run(cmd)
+	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to create curl-metrics pod")
+
+	By("waiting for curl-metrics pod to complete")
+	Eventually(func(g Gomega) {
+		cmd := exec.Command("kubectl", "get", "pods", "curl-metrics",
+			"-o", "jsonpath={.status.phase}", "-n", namespace)
+		output, err := utils.Run(cmd)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(output).To(Equal("Succeeded"), "curl pod in wrong status")
+	}, 2*time.Minute, time.Second).Should(Succeed())
+}
+
 // tokenRequest is a simplified representation of the Kubernetes TokenRequest API response,
 // containing only the token field that we need to extract.
 type tokenRequest struct {

@@ -60,7 +60,11 @@ webhook:
 # =============================================================================
 certManager:
   # -- Use cert-manager to provision webhook TLS certificates.
-  # When disabled, you must provide a TLS secret manually via webhook.tlsSecret.
+  # This controls whether Certificate/Issuer resources are created.
+  # Requires cert-manager to be installed in the cluster — either:
+  #   1) Via subchart: set cert-manager.enabled=true below, OR
+  #   2) Pre-installed: install cert-manager separately before this chart.
+  # When disabled, you must provide a TLS secret manually via webhookTlsSecret.
   enabled: true
 
   # -- Issuer configuration for cert-manager

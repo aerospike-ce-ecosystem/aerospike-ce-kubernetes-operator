@@ -6,21 +6,14 @@ import {themes as prismThemes} from 'prism-react-renderer';
 const config = {
   title: 'ACKO',
   tagline: 'Aerospike CE Kubernetes Operator',
-  favicon: 'img/favicon.ico',
-
-  url: 'https://kimsoungryoul.github.io',
+  url: process.env.DOCS_URL || 'https://kimsoungryoul.github.io',
   baseUrl: '/aerospike-ce-kubernetes-operator/',
 
-  organizationName: 'KimSoungRyoul',
+  organizationName: process.env.ORG_NAME || 'KimSoungRyoul',
   projectName: 'aerospike-ce-kubernetes-operator',
 
   onBrokenLinks: 'throw',
-
-  markdown: {
-    hooks: {
-      onBrokenMarkdownLinks: 'throw',
-    },
-  },
+  onBrokenMarkdownLinks: 'throw',
 
   i18n: {
     defaultLocale: 'en',

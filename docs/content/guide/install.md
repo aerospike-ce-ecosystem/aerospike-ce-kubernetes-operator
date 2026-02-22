@@ -43,7 +43,7 @@ The simplest installation method using the published OCI Helm chart.
 
 ```bash
 helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
-  --version 0.1.0 \
+  --version 0.1.0 \  # Replace with latest version
   -n aerospike-operator --create-namespace
 ```
 
@@ -53,7 +53,7 @@ You can override default values:
 
 ```bash
 helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
-  --version 0.1.0 \
+  --version 0.1.0 \  # Replace with latest version
   -n aerospike-operator --create-namespace \
   --set replicaCount=2 \
   --set resources.limits.memory=256Mi
@@ -62,7 +62,7 @@ helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
 To see all available values:
 
 ```bash
-helm show values oci://ghcr.io/kimsoungryoul/aerospike-operator --version 0.1.0
+helm show values oci://ghcr.io/kimsoungryoul/aerospike-operator --version 0.1.0  # Replace with latest version
 ```
 
 </TabItem>

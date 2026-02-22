@@ -303,4 +303,4 @@ kubectl -n aerospike-operator logs -l control-plane=controller-manager -f
 
 **Webhook rejection:**
 - Read the error message — the webhook validates CE constraints
-- Check [CE Validation Rules](./create-cluster.md#ce-validation-rules)
+- Check [CE Validation Rules](./create-cluster#ce-validation-rules)

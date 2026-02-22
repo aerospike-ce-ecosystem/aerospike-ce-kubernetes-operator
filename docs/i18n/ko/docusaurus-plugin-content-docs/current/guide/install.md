@@ -43,7 +43,7 @@ kubectl -n cert-manager wait --for=condition=Available deployment/cert-manager-w
 
 ```bash
 helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
-  --version 0.1.0 \
+  --version 0.1.0 \  # 최신 버전으로 교체
   -n aerospike-operator --create-namespace
 ```
 
@@ -53,7 +53,7 @@ helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
 
 ```bash
 helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
-  --version 0.1.0 \
+  --version 0.1.0 \  # 최신 버전으로 교체
   -n aerospike-operator --create-namespace \
   --set replicaCount=2 \
   --set resources.limits.memory=256Mi
@@ -62,7 +62,7 @@ helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
 사용 가능한 모든 값 조회:
 
 ```bash
-helm show values oci://ghcr.io/kimsoungryoul/aerospike-operator --version 0.1.0
+helm show values oci://ghcr.io/kimsoungryoul/aerospike-operator --version 0.1.0  # 최신 버전으로 교체
 ```
 
 </TabItem>

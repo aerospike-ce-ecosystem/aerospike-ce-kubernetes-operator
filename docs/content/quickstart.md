@@ -73,7 +73,7 @@ kubectl -n cert-manager wait --for=condition=Available deployment/cert-manager -
 
 ```bash
 helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
-  --version 0.1.0 \
+  --version 0.1.0 \  # Replace with latest version
   -n aerospike-operator --create-namespace
 ```
 
@@ -198,7 +198,7 @@ kubectl -n aerospike run asinfo-client --rm -it --restart=Never \
 
 ## Next Steps
 
-- [Installation Guide](./guide/install.md) — detailed installation options (Helm, Kustomize)
-- [Create Cluster](./guide/create-cluster.md) — sample configurations and CRD field reference
-- [Manage Cluster](./guide/manage-cluster.md) — scaling, rolling updates, monitoring
-- [API Reference](./api-reference/aerospikececluster.md) — full CRD type documentation
+- [Installation Guide](./guide/install) — detailed installation options (Helm, Kustomize)
+- [Create Cluster](./guide/create-cluster) — sample configurations and CRD field reference
+- [Manage Cluster](./guide/manage-cluster) — scaling, rolling updates, monitoring
+- [API Reference](./api-reference/aerospikececluster) — full CRD type documentation

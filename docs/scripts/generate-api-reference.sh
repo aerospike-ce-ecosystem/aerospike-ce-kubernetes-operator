@@ -2,7 +2,7 @@
 # Generate API reference documentation from Go types using elastic/crd-ref-docs.
 #
 # Prerequisites:
-#   go install github.com/elastic/crd-ref-docs@latest
+#   go install github.com/elastic/crd-ref-docs@v0.1.0
 #
 # Usage:
 #   bash docs/scripts/generate-api-reference.sh
@@ -18,7 +18,7 @@ SOURCE_PATH="${REPO_ROOT}/api/v1alpha1"
 # Check if crd-ref-docs is installed
 if ! command -v crd-ref-docs &>/dev/null; then
   echo "crd-ref-docs not found. Installing..."
-  go install github.com/elastic/crd-ref-docs@latest
+  go install github.com/elastic/crd-ref-docs@v0.1.0
 fi
 
 TEMP_FILE=$(mktemp)

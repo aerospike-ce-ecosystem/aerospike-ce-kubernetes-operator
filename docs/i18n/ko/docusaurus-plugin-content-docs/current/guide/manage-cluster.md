@@ -303,4 +303,4 @@ kubectl -n aerospike-operator logs -l control-plane=controller-manager -f
 
 **웹훅 거부:**
 - 오류 메시지를 읽으세요 — 웹훅이 CE 제약 조건을 검증합니다
-- [CE 검증 규칙](./create-cluster.md#ce-검증-규칙)을 확인하세요
+- [CE 검증 규칙](./create-cluster#ce-검증-규칙)을 확인하세요

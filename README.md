@@ -28,73 +28,86 @@ Deploy, scale, and perform rolling updates of Aerospike CE clusters via a custom
 
 ### Prerequisites
 
-- Kubernetes cluster v1.26+
+- Kubernetes cluster v1.26+ (or [Kind](https://kind.sigs.k8s.io/) for local development)
 - kubectl configured to access the cluster
-- cert-manager installed (for webhook TLS)
+- [Helm](https://helm.sh/) v3.x
 
 Install required tools (macOS):
 
 ```sh
-brew install kind kustomize kubectl
-brew install helm
+brew install kind kubectl helm
 ```
 
-Install cert-manager via Helm:
+### Step 1: Create a Kind Cluster (local development)
+
+Skip this step if you already have a Kubernetes cluster.
 
 ```sh
-helm repo add jetstack https://charts.jetstack.io --force-update
+kind create cluster --name aerospike
+```
+
+### Step 2: Install cert-manager
+
+cert-manager is required for webhook TLS certificate management.
+
+```sh
+helm repo add jetstack https://charts.jetstack.io
+helm repo update
 helm install cert-manager jetstack/cert-manager \
   --namespace cert-manager \
   --create-namespace \
-  --set crds.enabled=true \
-  --set global.privateKeyRotationPolicy=Always
+  --set crds.enabled=true
 ```
 
-### Option A: Install with Helm (Recommended)
+Verify cert-manager is running:
+
+```sh
+kubectl -n cert-manager wait --for=condition=Available deployment/cert-manager --timeout=60s
+```
+
+### Step 3: Install the Operator
+
+#### Option A: From Helm Repository (Recommended)
 
 ```sh
 helm repo add acko https://kimsoungryoul.github.io/aerospike-ce-kubernetes-operator
-helm install -n aerospike-system --create-namespace aerospike-operator acko/aerospike-operator
+helm repo update
+helm install aerospike-operator acko/aerospike-operator \
+  -n aerospike-operator --create-namespace
 ```
 
-Or install from local chart:
+#### Option B: From Local Chart
 
 ```sh
-helm install -n aerospike-system --create-namespace aerospike-operator charts/aerospike-operator
+helm install aerospike-operator ./charts/aerospike-operator \
+  -n aerospike-operator --create-namespace
 ```
 
-### Option B: Install with Kustomize
-
-#### 1. Install CRDs
-
-```
-kind create cluster
-```
-
-
-```sh
-make install
-```
-
-#### 2. Deploy the Operator
+#### Option C: With Kustomize
 
 ```sh
 # Build and push the operator image
 make docker-build docker-push IMG=<your-registry>/aerospike-ce-operator:latest
 
-# Deploy to the cluster
+# Install CRDs and deploy the operator
+make install
 make deploy IMG=<your-registry>/aerospike-ce-operator:latest
 ```
 
-### 3. Create an Aerospike Cluster
+Verify the operator is running:
 
-Create the target namespace:
+```sh
+kubectl -n aerospike-operator get pods
+```
+
+### Step 4: Deploy an Aerospike Cluster
 
 ```sh
 kubectl create namespace aerospike
+kubectl apply -f config/samples/acko_v1alpha1_aerospikececluster.yaml
 ```
 
-#### Minimal single-node (in-memory)
+Or apply inline:
 
 ```yaml
 apiVersion: acko.io/v1alpha1
@@ -105,7 +118,6 @@ metadata:
 spec:
   size: 1
   image: aerospike:ce-8.1.1.1
-
   aerospikeConfig:
     namespaces:
       - name: test
@@ -115,79 +127,17 @@ spec:
           data-size: 1073741824
 ```
 
-```sh
-kubectl apply -f config/samples/acko_v1alpha1_aerospikececluster.yaml
-```
-
-#### 3-node cluster with persistent storage
-
-```yaml
-apiVersion: acko.io/v1alpha1
-kind: AerospikeCECluster
-metadata:
-  name: aerospike-ce-3node
-  namespace: aerospike
-spec:
-  size: 3
-  image: aerospike:ce-8.1.1.1
-
-  podSpec:
-    aerospikeContainer:
-      resources:
-        requests:
-          memory: "2Gi"
-          cpu: "1"
-        limits:
-          memory: "4Gi"
-          cpu: "2"
-
-  storage:
-    volumes:
-      - name: data-vol
-        source:
-          persistentVolume:
-            storageClass: standard
-            size: 10Gi
-            volumeMode: Filesystem
-        aerospike:
-          path: /opt/aerospike/data
-        cascadeDelete: true
-
-  aerospikeConfig:
-    namespaces:
-      - name: testns
-        replication-factor: 2
-        storage-engine:
-          type: device
-          file: /opt/aerospike/data/testns.dat
-          filesize: 4294967296
-          data-in-memory: true
-```
+### Step 5: Verify
 
 ```sh
-kubectl apply -f config/samples/aerospike-ce-cluster-3node.yaml
-```
-
-### 4. Verify the Cluster
-
-```sh
-# Check the CR status
+# Check cluster status (Phase should be "Completed")
 kubectl -n aerospike get asce
 
 # Check pods
 kubectl -n aerospike get pods
 
-# Check logs
-kubectl -n aerospike logs -l app.kubernetes.io/name=aerospike-ce-operator
-```
-
-### 5. Connect to Aerospike
-
-```sh
-# Port-forward to a pod
+# Connect to Aerospike
 kubectl -n aerospike port-forward aerospike-ce-basic-0-0 3000:3000
-
-# Connect using aql or asadm
 aql -h 127.0.0.1 -p 3000
 ```
 
@@ -203,13 +153,14 @@ aql -h 127.0.0.1 -p 3000
 ## Uninstall
 
 ```sh
-# Delete the cluster
+# Delete the Aerospike cluster
 kubectl -n aerospike delete asce aerospike-ce-basic
 
-# Remove the operator
-make undeploy
+# Uninstall the operator (Helm)
+helm uninstall aerospike-operator -n aerospike-operator
 
-# Remove CRDs
+# Or uninstall the operator (Kustomize)
+make undeploy
 make uninstall
 ```
 

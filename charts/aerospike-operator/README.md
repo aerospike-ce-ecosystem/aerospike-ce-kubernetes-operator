@@ -49,14 +49,14 @@ helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
 
 ```bash
 helm install aerospike-operator ./charts/aerospike-operator \
-  --namespace aerospike-operator-system --create-namespace
+  --namespace aerospike-operator --create-namespace
 ```
 
 ### With monitoring enabled
 
 ```bash
 helm install aerospike-operator ./charts/aerospike-operator \
-  --namespace aerospike-operator-system --create-namespace \
+  --namespace aerospike-operator --create-namespace \
   --set serviceMonitor.enabled=true \
   --set prometheusRule.enabled=true \
   --set grafanaDashboard.enabled=true
@@ -66,7 +66,7 @@ helm install aerospike-operator ./charts/aerospike-operator \
 
 ```bash
 helm install aerospike-operator ./charts/aerospike-operator \
-  --namespace aerospike-operator-system --create-namespace \
+  --namespace aerospike-operator --create-namespace \
   --set cilium.enabled=true
 ```
 
@@ -74,7 +74,7 @@ helm install aerospike-operator ./charts/aerospike-operator \
 
 ```bash
 helm install aerospike-operator ./charts/aerospike-operator \
-  --namespace aerospike-operator-system --create-namespace \
+  --namespace aerospike-operator --create-namespace \
   --set serviceMonitor.enabled=true \
   --set prometheusRule.enabled=true \
   --set grafanaDashboard.enabled=true \
@@ -135,5 +135,5 @@ See [values.yaml](values.yaml) for all available configuration options with desc
 ## Uninstall
 
 ```bash
-helm uninstall aerospike-operator -n aerospike-operator-system
+helm uninstall aerospike-operator -n aerospike-operator
 ```

@@ -43,11 +43,11 @@ func ResolveWipeMethod(vol *v1alpha1.VolumeSpec, storageSpec *v1alpha1.Aerospike
 }
 
 // ResolveCascadeDelete returns the effective cascade delete setting for a volume.
-// Precedence: per-volume true > global policy > false.
+// Precedence: per-volume (explicit true/false) > global policy > false.
 func ResolveCascadeDelete(vol *v1alpha1.VolumeSpec, storageSpec *v1alpha1.AerospikeStorageSpec) bool {
-	// Per-volume override
-	if vol.CascadeDelete {
-		return true
+	// Per-volume override (nil means "not set", defer to policy)
+	if vol.CascadeDelete != nil {
+		return *vol.CascadeDelete
 	}
 
 	// Global policy fallback

@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
@@ -74,6 +75,9 @@ func DeleteLocalPVCsForPod(
 
 	for i := range localPVCs {
 		if err := c.Delete(ctx, &localPVCs[i]); err != nil {
+			if errors.IsNotFound(err) {
+				continue
+			}
 			return fmt.Errorf("deleting local PVC %s: %w", localPVCs[i].Name, err)
 		}
 	}

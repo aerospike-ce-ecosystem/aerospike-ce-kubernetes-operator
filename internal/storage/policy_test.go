@@ -168,7 +168,7 @@ func TestResolveWipeMethod_NoPolicyDefaultNone(t *testing.T) {
 
 func TestResolveCascadeDelete_PerVolumeTrueOverridesPolicy(t *testing.T) {
 	vol := &v1alpha1.VolumeSpec{
-		CascadeDelete: true,
+		CascadeDelete: boolPtr(true),
 		Source: v1alpha1.VolumeSource{
 			PersistentVolume: &v1alpha1.PersistentVolumeSpec{Size: "10Gi"},
 		},
@@ -184,9 +184,27 @@ func TestResolveCascadeDelete_PerVolumeTrueOverridesPolicy(t *testing.T) {
 	}
 }
 
+func TestResolveCascadeDelete_PerVolumeFalseOverridesPolicy(t *testing.T) {
+	vol := &v1alpha1.VolumeSpec{
+		CascadeDelete: boolPtr(false),
+		Source: v1alpha1.VolumeSource{
+			PersistentVolume: &v1alpha1.PersistentVolumeSpec{Size: "10Gi"},
+		},
+	}
+	spec := &v1alpha1.AerospikeStorageSpec{
+		FilesystemVolumePolicy: &v1alpha1.AerospikeVolumePolicy{
+			CascadeDelete: boolPtr(true),
+		},
+	}
+
+	if ResolveCascadeDelete(vol, spec) {
+		t.Error("expected false when per-volume cascadeDelete is explicitly false")
+	}
+}
+
 func TestResolveCascadeDelete_PolicyFallback(t *testing.T) {
 	vol := &v1alpha1.VolumeSpec{
-		CascadeDelete: false,
+		// CascadeDelete is nil → falls back to policy
 		Source: v1alpha1.VolumeSource{
 			PersistentVolume: &v1alpha1.PersistentVolumeSpec{Size: "10Gi"},
 		},

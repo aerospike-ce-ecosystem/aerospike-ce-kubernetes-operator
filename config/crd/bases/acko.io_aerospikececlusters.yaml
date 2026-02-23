@@ -6197,10 +6197,9 @@ spec:
                                     - path
                                     type: object
                                   cascadeDelete:
-                                    default: false
                                     description: |-
                                       CascadeDelete determines if PVCs should be deleted when the CR is deleted.
-                                      Only applicable to persistent volumes.
+                                      Only applicable to persistent volumes. When nil, falls back to global volume policy.
                                     type: boolean
                                   initContainers:
                                     description: InitContainers defines volume mounts
@@ -6839,10 +6838,9 @@ spec:
                           - path
                           type: object
                         cascadeDelete:
-                          default: false
                           description: |-
                             CascadeDelete determines if PVCs should be deleted when the CR is deleted.
-                            Only applicable to persistent volumes.
+                            Only applicable to persistent volumes. When nil, falls back to global volume policy.
                           type: boolean
                         initContainers:
                           description: InitContainers defines volume mounts for init

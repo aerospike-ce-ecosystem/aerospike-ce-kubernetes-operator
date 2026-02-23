@@ -89,10 +89,9 @@ type VolumeSpec struct {
 	WipeMethod VolumeWipeMethod `json:"wipeMethod,omitempty"`
 
 	// CascadeDelete determines if PVCs should be deleted when the CR is deleted.
-	// Only applicable to persistent volumes.
-	// +kubebuilder:default=false
+	// Only applicable to persistent volumes. When nil, falls back to global volume policy.
 	// +optional
-	CascadeDelete bool `json:"cascadeDelete,omitempty"`
+	CascadeDelete *bool `json:"cascadeDelete,omitempty"`
 }
 
 // VolumeSource describes the volume data source.

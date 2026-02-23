@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"maps"
 
@@ -169,7 +170,9 @@ func (r *AerospikeCEClusterReconciler) reconcileServiceMonitor(
 	interval := monitoring.ServiceMonitor.Interval
 
 	labels := utils.LabelsForCluster(cluster.Name)
-	maps.Copy(labels, monitoring.ServiceMonitor.Labels)
+	if monitoring.ServiceMonitor.Labels != nil {
+		maps.Copy(labels, monitoring.ServiceMonitor.Labels)
+	}
 
 	selectorLabels := utils.SelectorLabelsForCluster(cluster.Name)
 
@@ -249,6 +252,12 @@ func (r *AerospikeCEClusterReconciler) reconcilePrometheusRule(
 		return err
 	}
 
+	// Defensive nil check: while the caller guarantees PrometheusRule != nil
+	// when enabled=true, guard against misuse from other call sites.
+	if cluster.Spec.Monitoring == nil || cluster.Spec.Monitoring.PrometheusRule == nil {
+		return nil
+	}
+
 	monitoring := cluster.Spec.Monitoring
 	labels := utils.LabelsForCluster(cluster.Name)
 	if monitoring.PrometheusRule.Labels != nil {
@@ -259,7 +268,11 @@ func (r *AerospikeCEClusterReconciler) reconcilePrometheusRule(
 	var groups []any
 	if len(monitoring.PrometheusRule.CustomRules) > 0 {
 		for _, raw := range monitoring.PrometheusRule.CustomRules {
-			groups = append(groups, raw)
+			var ruleGroup map[string]any
+			if err := json.Unmarshal(raw.Raw, &ruleGroup); err != nil {
+				return fmt.Errorf("parsing custom PrometheusRule group: %w", err)
+			}
+			groups = append(groups, ruleGroup)
 		}
 	} else {
 		groups = defaultAlertRules(cluster.Name, cluster.Namespace)

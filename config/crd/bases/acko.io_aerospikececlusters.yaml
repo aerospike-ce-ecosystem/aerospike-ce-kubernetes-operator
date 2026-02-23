@@ -443,8 +443,9 @@ spec:
                     properties:
                       customRules:
                         description: |-
-                          CustomRules overrides the default alert rules when provided.
-                          Each entry should be a complete Prometheus rule group in JSON format.
+                          CustomRules completely replaces the default alert rules when provided.
+                          When set, the built-in alerts (NodeDown, StopWrites, HighDiskUsage, HighMemoryUsage)
+                          are NOT generated. Each entry must be a complete Prometheus rule group object.
                         items:
                           x-kubernetes-preserve-unknown-fields: true
                         type: array

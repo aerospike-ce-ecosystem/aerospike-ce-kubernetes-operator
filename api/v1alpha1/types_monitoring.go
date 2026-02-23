@@ -86,8 +86,9 @@ type PrometheusRuleSpec struct {
 	// +optional
 	Labels map[string]string `json:"labels,omitempty"`
 
-	// CustomRules overrides the default alert rules when provided.
-	// Each entry should be a complete Prometheus rule group in JSON format.
+	// CustomRules completely replaces the default alert rules when provided.
+	// When set, the built-in alerts (NodeDown, StopWrites, HighDiskUsage, HighMemoryUsage)
+	// are NOT generated. Each entry must be a complete Prometheus rule group object.
 	// +optional
 	CustomRules []apiextensionsv1.JSON `json:"customRules,omitempty"`
 }

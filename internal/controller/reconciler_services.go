@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -93,7 +94,7 @@ func (r *AerospikeCEClusterReconciler) reconcileHeadlessService(
 
 	if needsUpdate {
 		existing.Labels = labels
-		existing.Annotations = desiredAnnotations
+		existing.Annotations = reconcileAnnotations(existing.Annotations, desiredAnnotations)
 		existing.Spec.Ports = desiredPorts
 		existing.Spec.Selector = selectorLabels
 		log.Info("Updating headless service", "name", svcName)
@@ -103,20 +104,43 @@ func (r *AerospikeCEClusterReconciler) reconcileHeadlessService(
 	return nil
 }
 
-// equalAnnotations compares the custom annotations subset.
-// It checks that all desired annotations exist in actual with matching values.
-// It does not require actual to be an exact match, since Kubernetes may add its own annotations.
+// equalAnnotations checks whether the existing annotations already match the
+// desired state after reconciliation. It builds the expected annotation map
+// (preserving system annotations, applying desired) and compares it to actual.
+// This correctly detects additions, updates, and removals of operator-managed annotations.
 func equalAnnotations(actual, desired map[string]string) bool {
-	if len(desired) == 0 {
-		return true
+	reconciled := reconcileAnnotations(actual, desired)
+	return maps.Equal(actual, reconciled)
+}
+
+// reconcileAnnotations builds the target annotations map by preserving
+// Kubernetes system annotations from existing and overlaying operator-managed
+// annotations from desired. Operator-managed annotations not present in desired
+// are removed, allowing annotation cleanup when users remove entries from the CR.
+//
+// System annotations (containing "kubernetes.io/" or "k8s.io/" in the key) are
+// preserved to avoid conflicts with Kubernetes and admission controllers.
+func reconcileAnnotations(existing, desired map[string]string) map[string]string {
+	if existing == nil && desired == nil {
+		return nil
 	}
-	if actual == nil {
-		return false
-	}
-	for k, v := range desired {
-		if actual[k] != v {
-			return false
+	result := make(map[string]string)
+	// Preserve system annotations from existing.
+	for k, v := range existing {
+		if isSystemAnnotation(k) {
+			result[k] = v
 		}
 	}
-	return true
+	// Overlay desired operator annotations.
+	maps.Copy(result, desired)
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+// isSystemAnnotation returns true for annotations managed by Kubernetes itself
+// or by admission controllers (e.g., kubectl.kubernetes.io/last-applied-configuration).
+func isSystemAnnotation(key string) bool {
+	return strings.Contains(key, "kubernetes.io/") || strings.Contains(key, "k8s.io/")
 }

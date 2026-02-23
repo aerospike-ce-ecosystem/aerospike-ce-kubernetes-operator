@@ -171,6 +171,51 @@ var _ = Describe("reconcilePodServices", func() {
 		})
 	})
 
+	Context("when annotations are removed from the CR", func() {
+		It("should remove stale operator annotations from the service", func() {
+			clusterName := "test-remove-ann"
+
+			// Start with annotations.
+			podSvc := &asdbcev1alpha1.AerospikeServiceSpec{
+				Metadata: &asdbcev1alpha1.AerospikeObjectMeta{
+					Annotations: map[string]string{
+						"example.com/env":    "staging",
+						"example.com/region": "us-east-1",
+					},
+				},
+			}
+			cluster := newCluster(ns.Name, clusterName, podSvc)
+			createClusterCR(cluster)
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: clusterName, Namespace: ns.Name}, cluster)).To(Succeed())
+
+			podName := fmt.Sprintf("%s-0", clusterName)
+			createPod(ns.Name, podName, clusterName)
+
+			// First reconcile: create with both annotations.
+			Expect(reconciler.reconcilePodServices(ctx, cluster)).To(Succeed())
+
+			svcName := fmt.Sprintf("%s-pod", podName)
+			svc := &corev1.Service{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: svcName, Namespace: ns.Name}, svc)).To(Succeed())
+			Expect(svc.Annotations).To(HaveKeyWithValue("example.com/env", "staging"))
+			Expect(svc.Annotations).To(HaveKeyWithValue("example.com/region", "us-east-1"))
+
+			// Update CR: remove all annotations.
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: clusterName, Namespace: ns.Name}, cluster)).To(Succeed())
+			cluster.Spec.PodService = &asdbcev1alpha1.AerospikeServiceSpec{}
+			Expect(k8sClient.Update(ctx, cluster)).To(Succeed())
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: clusterName, Namespace: ns.Name}, cluster)).To(Succeed())
+
+			// Second reconcile: should remove stale annotations.
+			Expect(reconciler.reconcilePodServices(ctx, cluster)).To(Succeed())
+
+			// Verify annotations are removed.
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: svcName, Namespace: ns.Name}, svc)).To(Succeed())
+			Expect(svc.Annotations).ToNot(HaveKey("example.com/env"))
+			Expect(svc.Annotations).ToNot(HaveKey("example.com/region"))
+		})
+	})
+
 	Context("when podService is nil", func() {
 		It("should skip reconciliation and return nil", func() {
 			clusterName := "test-skip"

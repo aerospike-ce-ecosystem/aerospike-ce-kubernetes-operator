@@ -81,7 +81,7 @@ func (r *AerospikeCEClusterReconciler) getOrCreateKubeClientset() (kubernetes.In
 		return nil, fmt.Errorf("creating kubernetes clientset: %w", err)
 	}
 	r.KubeClientset = cs
-	return r.KubeClientset, nil
+	return cs, nil
 }
 
 // warmRestartPod sends SIGUSR1 to PID 1 in the Aerospike container to trigger

@@ -337,4 +337,3 @@ func buildExporterSidecar(monitoring *v1alpha1.AerospikeMonitoringSpec) corev1.C
 func PodNameForIndex(stsName string, index int) string {
 	return fmt.Sprintf("%s-%d", stsName, index)
 }
-// test

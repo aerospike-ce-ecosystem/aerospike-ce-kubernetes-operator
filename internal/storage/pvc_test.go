@@ -7,6 +7,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const testVolumeName = "data"
+
 func pvcWithName(name string) corev1.PersistentVolumeClaim {
 	return corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
@@ -113,8 +115,8 @@ func TestExtractVolumeName_Valid(t *testing.T) {
 	if !ok {
 		t.Fatal("expected extraction to succeed")
 	}
-	if name != "data" {
-		t.Errorf("volume name = %q, want %q", name, "data")
+	if name != testVolumeName {
+		t.Errorf("volume name = %q, want %q", name, testVolumeName)
 	}
 }
 

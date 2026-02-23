@@ -260,19 +260,23 @@ make uninstall
 ## Codebase Stats
 
 ```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  Language              Files        Lines         Code     Comments       Blanks
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- Go                       61        11598         8678         1287         1633
- YAML                     26          793          634          121           38
- Makefile                  1          260          167           46           47
- Dockerfile                2           37           23            8            6
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- Total                    96        14331         9736         2528         2067
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ CSS                       1           22           21            0            1
+ Dockerfile                2           38           23            9            6
+ Go                       77        17852        13821         1690         2341
+ Makefile                  1          291          187           49           55
+ Markdown                 14         3607            0         2505         1102
+ Shell                     2          144          102           18           24
+ TOML                      1           10            3            5            2
+ YAML                     29         1057          851          137           69
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ Total                   127        24278        16143         4478         3657
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-> Measured with [tokei](https://github.com/XAMPPRocky/tokei) (`tokei -C`). Auto-generated code, Helm chart templates, and CRD/RBAC manifests are excluded via `.tokeignore`.
+> Measured with [tokei](https://github.com/XAMPPRocky/tokei) (`tokei -C`). Auto-generated code, Helm chart templates, and CRD/RBAC manifests are excluded via `.tokeignore`. JavaScript and JSON are excluded via `tokei.toml`.
 
 ## Development
 

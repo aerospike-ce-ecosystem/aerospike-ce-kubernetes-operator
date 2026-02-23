@@ -13,12 +13,15 @@ import (
 )
 
 const (
-	AerospikeContainerName = "aerospike-server"
+	// AerospikeContainerName aliases the canonical constant from api/v1alpha1.
+	AerospikeContainerName = v1alpha1.AerospikeContainerName
 	InitContainerName      = "aerospike-init"
 
-	ServicePort   int32 = 3000
-	FabricPort    int32 = 3001
-	HeartbeatPort int32 = 3002
+	// Port constants alias the canonical values from api/v1alpha1
+	// so existing callers (e.g. podutil.ServicePort) continue to work.
+	ServicePort         = v1alpha1.DefaultServicePort
+	FabricPort          = v1alpha1.DefaultFabricPort
+	HeartbeatPort       = v1alpha1.DefaultHeartbeatPort
 	InfoPort      int32 = 3003
 
 	configMapVolumeMountPath = "/configmap"

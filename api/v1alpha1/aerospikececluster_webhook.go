@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -34,9 +35,6 @@ var aerospikececlusterlog = logf.Log.WithName("aerospikececluster-resource")
 const (
 	maxCEClusterSize     = 8
 	maxCENamespaces      = 2
-	defaultServicePort   = 3000
-	defaultFabricPort    = 3001
-	defaultHeartbeatPort = 3002
 	defaultProtoFdMax    = 15000
 	defaultHeartbeatMode = "mesh"
 
@@ -106,9 +104,9 @@ func (d *AerospikeCEClusterDefaulter) defaultNetworkConfig(cluster *AerospikeCEC
 
 	// Default values for each network sub-section.
 	networkDefaults := map[string]map[string]any{
-		"service":   {"port": defaultServicePort},
-		"heartbeat": {"port": defaultHeartbeatPort, "mode": defaultHeartbeatMode},
-		"fabric":    {"port": defaultFabricPort},
+		"service":   {"port": int(DefaultServicePort)},
+		"heartbeat": {"port": int(DefaultHeartbeatPort), "mode": defaultHeartbeatMode},
+		"fabric":    {"port": int(DefaultFabricPort)},
 	}
 
 	for name, defs := range networkDefaults {
@@ -413,11 +411,11 @@ func (v *AerospikeCEClusterValidator) validateNamespaceConfig(nsMap map[string]a
 	return errors, warnings
 }
 
-// builtinRoleNames are Aerospike predefined roles that do not need to be
-// defined in the ACL Roles list.
+// aerospikeCEBuiltinRoles lists the predefined role/privilege names in Aerospike CE.
+// In CE, every builtin role name is also a valid privilege code, so a single
+// set serves both purposes. Enterprise adds "superuser" which is excluded here.
 // Reference: https://aerospike.com/docs/server/operations/configure/security/access-control/index.html
-// Note: CE does not include "superuser" (Enterprise-only).
-var builtinRoleNames = map[string]bool{
+var aerospikeCEBuiltinRoles = map[string]bool{
 	"user-admin":     true,
 	"sys-admin":      true,
 	"data-admin":     true,
@@ -428,17 +426,13 @@ var builtinRoleNames = map[string]bool{
 	"truncate":       true,
 }
 
+// builtinRoleNames are Aerospike predefined roles that do not need to be
+// defined in the ACL Roles list. Backed by aerospikeCEBuiltinRoles.
+var builtinRoleNames = aerospikeCEBuiltinRoles
+
 // validPrivilegeCodes lists accepted privilege code strings.
-var validPrivilegeCodes = map[string]bool{
-	"read":           true,
-	"write":          true,
-	"read-write":     true,
-	"read-write-udf": true,
-	"sys-admin":      true,
-	"user-admin":     true,
-	"data-admin":     true,
-	"truncate":       true,
-}
+// In CE, privilege codes and builtin role names are identical.
+var validPrivilegeCodes = aerospikeCEBuiltinRoles
 
 // validateAccessControl validates the ACL configuration.
 func (v *AerospikeCEClusterValidator) validateAccessControl(acl *AerospikeAccessControlSpec) []string {
@@ -828,6 +822,33 @@ func (v *AerospikeCEClusterValidator) validateMonitoring(m *AerospikeMonitoringS
 		}
 	} else if m.ExporterImage != "" {
 		warnings = append(warnings, fmt.Sprintf("monitoring.exporterImage %q has no tag; use an explicit version tag for reproducible deployments", m.ExporterImage))
+	}
+
+	// Validate MetricLabels keys and values do not contain reserved characters.
+	for k, val := range m.MetricLabels {
+		if strings.ContainsAny(k, "=,") {
+			errors = append(errors, fmt.Sprintf("monitoring.metricLabels key %q must not contain '=' or ','", k))
+		}
+		if strings.ContainsAny(val, "=,") {
+			errors = append(errors, fmt.Sprintf("monitoring.metricLabels[%q] value %q must not contain '=' or ','", k, val))
+		}
+	}
+
+	// Validate CustomRules structure.
+	if m.PrometheusRule != nil {
+		for i, raw := range m.PrometheusRule.CustomRules {
+			var ruleGroup map[string]any
+			if err := json.Unmarshal(raw.Raw, &ruleGroup); err != nil {
+				errors = append(errors, fmt.Sprintf("monitoring.prometheusRule.customRules[%d]: invalid JSON: %v", i, err))
+				continue
+			}
+			if _, ok := ruleGroup["name"]; !ok {
+				errors = append(errors, fmt.Sprintf("monitoring.prometheusRule.customRules[%d]: missing required field 'name'", i))
+			}
+			if _, ok := ruleGroup["rules"]; !ok {
+				errors = append(errors, fmt.Sprintf("monitoring.prometheusRule.customRules[%d]: missing required field 'rules'", i))
+			}
+		}
 	}
 
 	return errors, warnings

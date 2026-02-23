@@ -91,7 +91,10 @@ func BuildPodTemplateSpec(
 
 	// Build containers.
 	initVolumeMounts := storage.VolumeMountsForContainer(storageSpec, InitContainerName, false)
-	// TODO(P2): Pass actual dirtyVolumes from pod status once DirtyVolumes tracking is implemented.
+	// DirtyVolumes tracking is implemented in reconciler_restart.go (markDirtyVolumes)
+	// and reconciler_status.go (preserve/clear on ready). The init container receives
+	// nil here because StatefulSet applies a uniform pod template; per-pod WIPE_VOLUMES
+	// injection requires an annotation-based mechanism (future work).
 	initContainer := BuildInitContainer(cluster, configMapName, storageSpec, initVolumeMounts, nil)
 	aerospikeContainer := BuildAerospikeContainer(cluster, aerospikeMounts)
 

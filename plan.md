@@ -2,9 +2,10 @@
 
 > AKO(Aerospike Kubernetes Operator) 공식 문서 분석 기반, 현재 구현 상태 대비 향후 구현해야 할 기능 TODO 리스트
 >
-> 작성일: 2026-02-22 (P0 구현 완료: 2026-02-23)
+> 작성일: 2026-02-22 (P0 구현 완료: 2026-02-23, P1 구현 완료: 2026-02-23)
 > 참고: https://aerospike.com/docs/kubernetes/
-> PR: https://github.com/KimSoungRyoul/aerospike-ce-kubernetes-operator/pull/7
+> PR(P0): https://github.com/KimSoungRyoul/aerospike-ce-kubernetes-operator/pull/7
+> PR(P1): https://github.com/KimSoungRyoul/aerospike-ce-kubernetes-operator/pull/10
 
 ---
 
@@ -15,9 +16,9 @@
 항목 수: 6개 (6/6 완료)
 핵심 내용: On-demand Operations, ScaleDownBatchSize, MaxIgnorablePods, ValidationPolicy, Headless/Pod Service 커스터마이징, Rack 추가 필드
 ────────────────────────────────────────
-우선순위: P1
+우선순위: P1 ✅ 완료 (PR #10)
 카테고리: Storage 고급
-항목 수: 6개
+항목 수: 6개 (6/6 완료)
 핵심 내용: Global Volume Policy, WipeMethod, HostPath, Local Storage 인식, Mount 옵션, PVC Metadata
 ────────────────────────────────────────
 우선순위: P2
@@ -98,6 +99,12 @@
 | **Service** | Headless Service custom annotations/labels | Done (P0, PR #7) |
 | **Service** | Per-pod Service 생성 (spec.podService) | Done (P0, PR #7) |
 | **Config** | EnableRackIDOverride (pod annotation 기반 rack ID) | Done (P0, PR #7) |
+| **Storage** | Global Volume Policy (filesystemVolumePolicy / blockVolumePolicy) | Done (P1, PR #10) |
+| **Storage** | WipeMethod (6가지: none, deleteFiles, dd, blkdiscard, headerCleanup, blkdiscardWithHeaderCleanup) | Done (P1, PR #10) |
+| **Storage** | HostPath 볼륨 소스 (webhook warning 포함) | Done (P1, PR #10) |
+| **Storage** | Local Storage 인식 (localStorageClasses, deleteLocalStorageOnRestart) | Done (P1, PR #10) |
+| **Storage** | Volume Mount 고급 옵션 (readOnly, subPath, subPathExpr, mountPropagation) | Done (P1, PR #10) |
+| **Storage** | PVC Metadata (custom labels/annotations) | Done (P1, PR #10) |
 
 ---
 
@@ -237,79 +244,101 @@ spec:
 
 ---
 
-### P1: Storage 고급 기능
+### P1: Storage 고급 기능 ✅ 완료
 
-#### 7. Global Volume Policy (filesystemVolumePolicy / blockVolumePolicy)
+> **구현 완료**: 2026-02-23 | PR: [#10](https://github.com/KimSoungRyoul/aerospike-ce-kubernetes-operator/pull/10) (`feature/p1-storage-advanced`)
+
+#### 7. Global Volume Policy (filesystemVolumePolicy / blockVolumePolicy) ✅
 > AKO 문서: https://aerospike.com/docs/kubernetes/manage/storage/overview/
-
-현재는 per-volume 단위로만 policy 설정 가능. AKO는 global default policy를 지원.
 
 ```yaml
 spec:
   storage:
-    filesystemVolumePolicy:     # NEW: filesystem 볼륨 기본 정책
+    filesystemVolumePolicy:
       initMethod: deleteFiles
+      wipeMethod: deleteFiles
       cascadeDelete: true
-    blockVolumePolicy:          # NEW: block 볼륨 기본 정책
+    blockVolumePolicy:
       initMethod: blkdiscard
-      cascadeDelete: true
-    volumes:
-      - name: data
-        # per-volume policy가 없으면 global policy 적용
+      wipeMethod: blkdiscardWithHeaderCleanup
 ```
 
-- [ ] `AerospikeStorageSpec`에 `FilesystemVolumePolicy` 추가
-- [ ] `AerospikeStorageSpec`에 `BlockVolumePolicy` 추가
-- [ ] Policy 해석 로직: per-volume > global > default 우선순위
-- [ ] Input/Effective 분리 패턴 (`inputInitMethod` → `initMethod` 해석)
+- [x] `AerospikeStorageSpec`에 `FilesystemVolumePolicy` 추가
+- [x] `AerospikeStorageSpec`에 `BlockVolumePolicy` 추가
+- [x] Policy 해석 로직: per-volume > global > default 우선순위 (`internal/storage/policy.go`)
+- [x] `CascadeDelete` `*bool` 타입으로 per-volume explicit false가 global policy를 override 가능
 
-#### 8. WipeMethod (InitMethod과 별도)
+**구현 파일**:
+- `api/v1alpha1/types_storage.go` — `AerospikeVolumePolicy` 타입, `FilesystemVolumePolicy`, `BlockVolumePolicy` 필드
+- `internal/storage/policy.go` — `ResolveInitMethod`, `ResolveWipeMethod`, `ResolveCascadeDelete`
+- `internal/storage/policy_test.go` — 정책 해석 테스트 (274줄)
+
+#### 8. WipeMethod (InitMethod과 별도) ✅
 > AKO 문서: https://aerospike.com/docs/kubernetes/manage/storage/persistent-volume/
 
 ```yaml
 storage:
   blockVolumePolicy:
-    initMethod: blkdiscard            # 최초 프로비저닝 시
-    wipeMethod: blkdiscardWithHeaderCleanup  # storage format 변경 시
+    initMethod: blkdiscard
+    wipeMethod: blkdiscardWithHeaderCleanup
+  volumes:
+    - name: data
+      wipeMethod: headerCleanup  # per-volume override
 ```
 
-- [ ] `AerospikePersistentVolumePolicySpec`에 `WipeMethod` 필드 추가
-- [ ] Init container에서 wipe vs init 분기 로직
-- [ ] `blkdiscardWithHeaderCleanup` 메소드 추가
+- [x] `VolumeSpec`에 `WipeMethod` 필드 추가 (6가지: none, deleteFiles, dd, blkdiscard, headerCleanup, blkdiscardWithHeaderCleanup)
+- [x] Init container에서 wipe vs init 분기 로직 (`WIPE_VOLUMES` env → INIT 전에 실행)
+- [x] `blkdiscardWithHeaderCleanup` 메소드 추가
 
-#### 9. HostPath 볼륨 소스
+**구현 파일**:
+- `api/v1alpha1/types_storage.go` — `VolumeWipeMethod` 타입
+- `internal/initcontainer/scripts/aerospike-init.sh` — `process_volumes()` 헬퍼, WIPE→INIT 순서
+- `internal/podutil/container.go` — `buildWipeVolumesEnv()`
+
+#### 9. HostPath 볼륨 소스 ✅
 > AKO CRD Reference
 
 ```yaml
 volumes:
-  - name: local-data
+  - name: host-logs
     source:
       hostPath:
-        path: /mnt/ssd
+        path: /var/log/aerospike
         type: DirectoryOrCreate
 ```
 
-- [ ] `VolumeSource`에 `HostPath` 필드 추가 (`*corev1.HostPathVolumeSource`)
-- [ ] StatefulSet 빌더에서 hostPath 볼륨 처리
+- [x] `VolumeSource`에 `HostPath` 필드 추가 (`*corev1.HostPathVolumeSource`)
+- [x] StatefulSet 빌더에서 hostPath 볼륨 처리
+- [x] Webhook warning: 프로덕션 환경에서 hostPath 사용 시 경고
 
-#### 10. Local Storage 인식
+**구현 파일**:
+- `api/v1alpha1/types_storage.go` — `VolumeSource.HostPath`
+- `internal/storage/volume.go` — `volumeForSpec()` hostPath case
+- `api/v1alpha1/aerospikececluster_webhook.go` — `validateStorage()` hostPath 경고
+
+#### 10. Local Storage 인식 ✅
 > AKO 문서: https://aerospike.com/docs/kubernetes/manage/storage/local-volume/
 
 ```yaml
 spec:
   storage:
     localStorageClasses:
-      - local-ssd
-      - nvme-local
+      - local-path
+      - openebs-hostpath
     deleteLocalStorageOnRestart: true
 ```
 
-- [ ] `AerospikeStorageSpec`에 `LocalStorageClasses` 필드 추가
-- [ ] `AerospikeStorageSpec`에 `DeleteLocalStorageOnRestart` 필드 추가
-- [ ] Pod restart 시 local PVC 삭제 로직
-- [ ] Local volume의 node affinity 제약 사항 처리
+- [x] `AerospikeStorageSpec`에 `LocalStorageClasses` 필드 추가
+- [x] `AerospikeStorageSpec`에 `DeleteLocalStorageOnRestart` 필드 추가
+- [x] Pod cold restart 시 local PVC 삭제 로직 (NotFound 에러 방어 포함)
+- [x] Webhook: `deleteLocalStorageOnRestart: true` + `localStorageClasses` 비어있으면 에러
 
-#### 11. Volume Mount 고급 옵션
+**구현 파일**:
+- `internal/storage/local.go` — `DeleteLocalPVCsForPod`, `GetLocalPVCsForPod`, `ParsePodName`
+- `internal/controller/reconciler_restart.go` — `coldRestartPod`에서 local PVC 삭제 호출
+- `internal/storage/local_test.go` — 테스트 (77줄)
+
+#### 11. Volume Mount 고급 옵션 ✅
 > AKO CRD Reference
 
 ```yaml
@@ -317,15 +346,22 @@ volumes:
   - name: data
     aerospike:
       path: /opt/aerospike/data
-      readOnly: false           # NEW
-      subPath: "subdir"         # NEW
-      mountPropagation: None    # NEW
+      readOnly: false
+      subPath: "subdir"
+      subPathExpr: "$(POD_NAME)"  # mutually exclusive with subPath
+      mountPropagation: HostToContainer
 ```
 
-- [ ] `VolumeAttachment`에 `ReadOnly`, `SubPath`, `MountPropagation`, `SubPathExpr` 추가
-- [ ] StatefulSet 빌더에서 mount option 적용
+- [x] `AerospikeVolumeAttachment`에 `ReadOnly`, `SubPath`, `SubPathExpr`, `MountPropagation` 추가
+- [x] `VolumeAttachment`에 동일 필드 추가 (sidecar/init containers)
+- [x] StatefulSet 빌더에서 mount option 적용 (`buildVolumeMount()` 헬퍼)
+- [x] Webhook: `SubPath`와 `SubPathExpr` 상호 배타 검증
 
-#### 12. PVC Metadata (Annotations/Labels)
+**구현 파일**:
+- `api/v1alpha1/types_storage.go` — `AerospikeVolumeAttachment`, `VolumeAttachment` 확장
+- `internal/storage/volume.go` — `buildVolumeMount()`
+
+#### 12. PVC Metadata (Annotations/Labels) ✅
 > AKO CRD Reference
 
 ```yaml
@@ -333,15 +369,20 @@ volumes:
   - name: data
     source:
       persistentVolume:
+        size: 50Gi
         metadata:
-          annotations:
-            ebs.csi.aws.com/iops: "3000"
           labels:
-            tier: storage
+            backup-policy: "daily"
+          annotations:
+            volume.kubernetes.io/storage-provisioner: "ebs.csi.aws.com"
 ```
 
-- [ ] `PersistentVolumeSpec`에 `Metadata` (AerospikeObjectMeta) 필드 추가
-- [ ] PVC template에 custom annotations/labels 적용
+- [x] `PersistentVolumeSpec`에 `Metadata` (`AerospikeObjectMeta`) 필드 추가
+- [x] PVC template에 custom annotations/labels 적용 (`maps.Clone`)
+
+**구현 파일**:
+- `api/v1alpha1/types_storage.go` — `PersistentVolumeSpec.Metadata`
+- `internal/storage/volume.go` — `BuildVolumeClaimTemplates()` metadata 적용
 
 ---
 
@@ -544,7 +585,7 @@ podSpec:
 | 우선순위 | 카테고리 | 항목 수 | 상태 | 핵심 이유 |
 |---------|---------|--------|------|----------|
 | **P0** | Configure Cluster | 6개 | ✅ 완료 (PR #7) | AKO 핵심 기능, 운영 필수 |
-| **P1** | Storage 고급 | 6개 | 미착수 | 프로덕션 스토리지 관리 |
+| **P1** | Storage 고급 | 6개 | ✅ 완료 (PR #10) | 프로덕션 스토리지 관리 |
 | **P2** | Observability | 4개 | 미착수 | 모니터링/알림 강화 |
 | **P3** | Security | 2개 | 미착수 | 보안 강화 |
 | **P4** | Network 고급 | 2개 | 1/2 완료 | 고급 네트워킹 |
@@ -593,8 +634,8 @@ podSpec:
 | Strong Consistency | 지원 | 미지원 (CE 제한) |
 | Heartbeat Mode | mesh + multicast | mesh만 (CE 제한) |
 | Init Container | 커스텀 이미지 | 내장 |
-| Volume Sources | PV, EmptyDir, Secret, ConfigMap, HostPath | PV, EmptyDir, Secret, ConfigMap |
-| Volume Policy | Global + Per-volume + Wipe 분리 | Per-volume만 |
+| Volume Sources | PV, EmptyDir, Secret, ConfigMap, HostPath | PV, EmptyDir, Secret, ConfigMap, HostPath ✅ |
+| Volume Policy | Global + Per-volume + Wipe 분리 | Global + Per-volume + Wipe 분리 ✅ |
 | Operations | WarmRestart, PodRestart (on-demand) | WarmRestart, PodRestart (on-demand) ✅ |
 | Rack 배치 | rollingUpdateBatchSize + scaleDownBatchSize + maxIgnorablePods | rollingUpdateBatchSize + scaleDownBatchSize + maxIgnorablePods ✅ |
 | ValidationPolicy | skipWorkDirValidate | skipWorkDirValidate ✅ |

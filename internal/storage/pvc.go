@@ -26,6 +26,14 @@ func GetPVCsForStatefulSet(ctx context.Context, c client.Client, namespace, stsN
 		return nil, fmt.Errorf("listing PVCs in namespace %s: %w", namespace, err)
 	}
 
+	// Fallback: if label-based query returned no results, re-list without labels
+	// to find PVCs created before labels were added to VolumeClaimTemplates.
+	if len(pvcList.Items) == 0 {
+		if err := c.List(ctx, pvcList, client.InNamespace(namespace)); err != nil {
+			return nil, fmt.Errorf("listing all PVCs in namespace %s: %w", namespace, err)
+		}
+	}
+
 	var matched []corev1.PersistentVolumeClaim
 	for i := range pvcList.Items {
 		pvc := &pvcList.Items[i]
@@ -55,7 +63,9 @@ func DeleteOrphanedPVCs(ctx context.Context, c client.Client, namespace, stsName
 
 		if ordinal >= desiredReplicas {
 			if err := c.Delete(ctx, pvc); err != nil {
-				return fmt.Errorf("deleting orphaned PVC %s: %w", pvc.Name, err)
+				if !errors.IsNotFound(err) {
+					return fmt.Errorf("deleting orphaned PVC %s: %w", pvc.Name, err)
+				}
 			}
 		}
 	}

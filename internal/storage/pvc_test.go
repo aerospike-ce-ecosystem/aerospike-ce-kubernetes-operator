@@ -7,6 +7,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const testVolumeName = "data"
+
 func pvcWithName(name string) corev1.PersistentVolumeClaim {
 	return corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
@@ -94,5 +96,57 @@ func TestIsOwnedByStatefulSet_DifferentSTS(t *testing.T) {
 	pvc := pvcWithName("data-other-sts-0")
 	if isOwnedByStatefulSet(&pvc, "my-sts") {
 		t.Error("PVC from different STS should not match")
+	}
+}
+
+// --- extractOrdinal overflow ---
+
+func TestExtractOrdinal_Overflow(t *testing.T) {
+	_, ok := extractOrdinal("data-my-cluster-0-99999999999999999999", "my-cluster-0")
+	if ok {
+		t.Error("should not match PVC with overflowing ordinal")
+	}
+}
+
+// --- extractVolumeName tests ---
+
+func TestExtractVolumeName_Valid(t *testing.T) {
+	name, ok := extractVolumeName("data-my-cluster-0-0", "my-cluster-0")
+	if !ok {
+		t.Fatal("expected extraction to succeed")
+	}
+	if name != testVolumeName {
+		t.Errorf("volume name = %q, want %q", name, testVolumeName)
+	}
+}
+
+func TestExtractVolumeName_MultiPartName(t *testing.T) {
+	name, ok := extractVolumeName("my-data-vol-my-cluster-0-3", "my-cluster-0")
+	if !ok {
+		t.Fatal("expected extraction to succeed")
+	}
+	if name != "my-data-vol" {
+		t.Errorf("volume name = %q, want %q", name, "my-data-vol")
+	}
+}
+
+func TestExtractVolumeName_Invalid(t *testing.T) {
+	_, ok := extractVolumeName("unrelated-pvc-name", "my-cluster-0")
+	if ok {
+		t.Error("should not extract volume name from unrelated PVC")
+	}
+}
+
+func TestExtractVolumeName_NoOrdinal(t *testing.T) {
+	_, ok := extractVolumeName("data-my-cluster-0-", "my-cluster-0")
+	if ok {
+		t.Error("should not extract when ordinal is missing")
+	}
+}
+
+func TestExtractVolumeName_NonNumericOrdinal(t *testing.T) {
+	_, ok := extractVolumeName("data-my-cluster-0-abc", "my-cluster-0")
+	if ok {
+		t.Error("should not extract when ordinal is non-numeric")
 	}
 }

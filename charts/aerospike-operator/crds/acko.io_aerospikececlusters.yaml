@@ -208,6 +208,30 @@ spec:
                   EnableDynamicConfigUpdate enables runtime configuration changes
                   without pod restart using Aerospike's set-config command.
                 type: boolean
+              enableRackIDOverride:
+                description: EnableRackIDOverride enables dynamic rack ID assignment
+                  via pod annotations.
+                type: boolean
+              headlessService:
+                description: HeadlessService defines custom metadata for the headless
+                  service.
+                properties:
+                  metadata:
+                    description: Metadata defines custom annotations and labels for
+                      the service.
+                    properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        description: Annotations is a map of custom annotations.
+                        type: object
+                      labels:
+                        additionalProperties:
+                          type: string
+                        description: Labels is a map of custom labels.
+                        type: object
+                    type: object
+                type: object
               image:
                 description: |-
                   Image is the Aerospike CE server container image.
@@ -341,9 +365,65 @@ spec:
                     - cilium
                     type: string
                 type: object
+              operations:
+                description: |-
+                  Operations defines on-demand operations (e.g., WarmRestart, PodRestart).
+                  Only one operation can be active at a time.
+                items:
+                  description: OperationSpec defines an on-demand operation to trigger.
+                  properties:
+                    id:
+                      description: ID is a unique identifier for tracking the operation
+                        (1-20 chars).
+                      maxLength: 20
+                      minLength: 1
+                      type: string
+                    kind:
+                      description: |-
+                        Kind is the type of operation.
+                        WarmRestart sends SIGUSR1 to the Aerospike process.
+                        PodRestart deletes and recreates the pod.
+                      enum:
+                      - WarmRestart
+                      - PodRestart
+                      type: string
+                    podList:
+                      description: |-
+                        PodList is an optional list of specific pod names to target.
+                        If empty, the operation applies to all pods.
+                      items:
+                        type: string
+                      type: array
+                  required:
+                  - id
+                  - kind
+                  type: object
+                maxItems: 1
+                type: array
               paused:
                 description: Paused stops reconciliation when set to true.
                 type: boolean
+              podService:
+                description: |-
+                  PodService defines custom metadata for per-pod services.
+                  When set, the operator creates an individual Service for each pod.
+                properties:
+                  metadata:
+                    description: Metadata defines custom annotations and labels for
+                      the service.
+                    properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        description: Annotations is a map of custom annotations.
+                        type: object
+                      labels:
+                        additionalProperties:
+                          type: string
+                        description: Labels is a map of custom labels.
+                        type: object
+                    type: object
+                type: object
               podSpec:
                 description: PodSpec defines pod-level configuration (sidecars, resources,
                   scheduling).
@@ -4931,6 +5011,14 @@ spec:
               rackConfig:
                 description: RackConfig defines rack-aware deployment topology.
                 properties:
+                  maxIgnorablePods:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: |-
+                      MaxIgnorablePods is the maximum number of pending/failed pods to ignore
+                      during reconciliation. Useful when pods are stuck due to scheduling issues.
+                    x-kubernetes-int-or-string: true
                   namespaces:
                     description: |-
                       Namespaces lists Aerospike namespace names that are rack-aware.
@@ -5943,15 +6031,56 @@ spec:
                                 type: object
                               type: array
                           type: object
+                        rackLabel:
+                          description: |-
+                            RackLabel is a custom label value for rack-based affinity scheduling.
+                            When set, pods are scheduled to nodes with the label "acko.io/rack=<rackLabel>".
+                          type: string
                         region:
                           description: |-
                             Region is the cloud provider region label value for scheduling.
                             Maps to topology.kubernetes.io/region.
                           type: string
+                        revision:
+                          description: Revision is a version identifier for controlled
+                            rack migrations.
+                          type: string
                         storage:
                           description: Storage overrides the cluster-level storage
                             config for this rack.
                           properties:
+                            blockVolumePolicy:
+                              description: |-
+                                BlockVolumePolicy defines the default policy for block-mode persistent volumes.
+                                Per-volume settings override this policy.
+                              properties:
+                                cascadeDelete:
+                                  description: CascadeDelete controls whether PVCs
+                                    are deleted when the CR is deleted.
+                                  type: boolean
+                                initMethod:
+                                  description: InitMethod is the default initialization
+                                    method for this volume category.
+                                  enum:
+                                  - none
+                                  - deleteFiles
+                                  - dd
+                                  - blkdiscard
+                                  - headerCleanup
+                                  type: string
+                                wipeMethod:
+                                  description: |-
+                                    WipeMethod is the default wipe method for this volume category.
+                                    Wipe runs on volumes that are marked dirty (e.g., after unclean shutdown).
+                                  enum:
+                                  - none
+                                  - deleteFiles
+                                  - dd
+                                  - blkdiscard
+                                  - headerCleanup
+                                  - blkdiscardWithHeaderCleanup
+                                  type: string
+                              type: object
                             cleanupThreads:
                               default: 1
                               description: CleanupThreads is the max number of threads
@@ -5959,6 +6088,50 @@ spec:
                               format: int32
                               minimum: 1
                               type: integer
+                            deleteLocalStorageOnRestart:
+                              description: |-
+                                DeleteLocalStorageOnRestart controls whether PVCs backed by local storage classes
+                                are deleted before pod restart, forcing re-provisioning on the new node.
+                              type: boolean
+                            filesystemVolumePolicy:
+                              description: |-
+                                FilesystemVolumePolicy defines the default policy for filesystem-mode persistent volumes.
+                                Per-volume settings override this policy.
+                              properties:
+                                cascadeDelete:
+                                  description: CascadeDelete controls whether PVCs
+                                    are deleted when the CR is deleted.
+                                  type: boolean
+                                initMethod:
+                                  description: InitMethod is the default initialization
+                                    method for this volume category.
+                                  enum:
+                                  - none
+                                  - deleteFiles
+                                  - dd
+                                  - blkdiscard
+                                  - headerCleanup
+                                  type: string
+                                wipeMethod:
+                                  description: |-
+                                    WipeMethod is the default wipe method for this volume category.
+                                    Wipe runs on volumes that are marked dirty (e.g., after unclean shutdown).
+                                  enum:
+                                  - none
+                                  - deleteFiles
+                                  - dd
+                                  - blkdiscard
+                                  - headerCleanup
+                                  - blkdiscardWithHeaderCleanup
+                                  type: string
+                              type: object
+                            localStorageClasses:
+                              description: |-
+                                LocalStorageClasses lists StorageClass names that use local storage (e.g., local-path, openebs-hostpath).
+                                Volumes using these classes require special handling on pod restart.
+                              items:
+                                type: string
+                              type: array
                             volumes:
                               description: Volumes defines a list of volumes to attach
                                 to Aerospike pods.
@@ -5969,18 +6142,34 @@ spec:
                                     description: Aerospike defines how this volume
                                       maps into Aerospike config.
                                     properties:
+                                      mountPropagation:
+                                        description: MountPropagation determines how
+                                          mounts are propagated.
+                                        type: string
                                       path:
                                         description: Path is the mount path in the
                                           Aerospike container.
+                                        type: string
+                                      readOnly:
+                                        description: ReadOnly mounts the volume as
+                                          read-only.
+                                        type: boolean
+                                      subPath:
+                                        description: SubPath mounts only a sub-path
+                                          of the volume.
+                                        type: string
+                                      subPathExpr:
+                                        description: |-
+                                          SubPathExpr is an expanded path using environment variables.
+                                          Mutually exclusive with SubPath.
                                         type: string
                                     required:
                                     - path
                                     type: object
                                   cascadeDelete:
-                                    default: false
                                     description: |-
                                       CascadeDelete determines if PVCs should be deleted when the CR is deleted.
-                                      Only applicable to persistent volumes.
+                                      Only applicable to persistent volumes. When nil, falls back to global volume policy.
                                     type: boolean
                                   initContainers:
                                     description: InitContainers defines volume mounts
@@ -5993,9 +6182,26 @@ spec:
                                           description: ContainerName is the name of
                                             the container to mount to.
                                           type: string
+                                        mountPropagation:
+                                          description: MountPropagation determines
+                                            how mounts are propagated.
+                                          type: string
                                         path:
                                           description: Path is the mount path in the
                                             container.
+                                          type: string
+                                        readOnly:
+                                          description: ReadOnly mounts the volume
+                                            as read-only.
+                                          type: boolean
+                                        subPath:
+                                          description: SubPath mounts only a sub-path
+                                            of the volume.
+                                          type: string
+                                        subPathExpr:
+                                          description: |-
+                                            SubPathExpr is an expanded path using environment variables.
+                                            Mutually exclusive with SubPath.
                                           type: string
                                       required:
                                       - containerName
@@ -6016,9 +6222,9 @@ spec:
                                       - dd
                                       - blkdiscard
                                       - headerCleanup
-                                    default: none
-                                    description: InitMethod defines how this volume
-                                      should be initialized.
+                                    description: |-
+                                      InitMethod defines how this volume should be initialized.
+                                      When empty, falls back to the global volume policy. Set to "none" to explicitly disable initialization.
                                     type: string
                                   name:
                                     description: Name is the volume name, used in
@@ -6035,9 +6241,26 @@ spec:
                                           description: ContainerName is the name of
                                             the container to mount to.
                                           type: string
+                                        mountPropagation:
+                                          description: MountPropagation determines
+                                            how mounts are propagated.
+                                          type: string
                                         path:
                                           description: Path is the mount path in the
                                             container.
+                                          type: string
+                                        readOnly:
+                                          description: ReadOnly mounts the volume
+                                            as read-only.
+                                          type: boolean
+                                        subPath:
+                                          description: SubPath mounts only a sub-path
+                                            of the volume.
+                                          type: string
+                                        subPathExpr:
+                                          description: |-
+                                            SubPathExpr is an expanded path using environment variables.
+                                            Mutually exclusive with SubPath.
                                           type: string
                                       required:
                                       - containerName
@@ -6046,7 +6269,7 @@ spec:
                                     type: array
                                   source:
                                     description: 'Source defines the volume source:
-                                      PVC, emptyDir, secret, or configMap.'
+                                      PVC, emptyDir, secret, configMap, or hostPath.'
                                     properties:
                                       configMap:
                                         description: ConfigMap uses a Kubernetes ConfigMap
@@ -6141,6 +6364,25 @@ spec:
                                             pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                                             x-kubernetes-int-or-string: true
                                         type: object
+                                      hostPath:
+                                        description: HostPath uses a path on the host
+                                          node as the volume source.
+                                        properties:
+                                          path:
+                                            description: |-
+                                              path of the directory on the host.
+                                              If the path is a symlink, it will follow the link to the real path.
+                                              More info: https://kubernetes.io/docs/concepts/storage/volumes#hostpath
+                                            type: string
+                                          type:
+                                            description: |-
+                                              type for HostPath Volume
+                                              Defaults to ""
+                                              More info: https://kubernetes.io/docs/concepts/storage/volumes#hostpath
+                                            type: string
+                                        required:
+                                        - path
+                                        type: object
                                       persistentVolume:
                                         description: PersistentVolume creates a PVC
                                           for this volume.
@@ -6151,6 +6393,23 @@ spec:
                                             items:
                                               type: string
                                             type: array
+                                          metadata:
+                                            description: Metadata defines custom labels
+                                              and annotations for the PVC.
+                                            properties:
+                                              annotations:
+                                                additionalProperties:
+                                                  type: string
+                                                description: Annotations is a map
+                                                  of custom annotations.
+                                                type: object
+                                              labels:
+                                                additionalProperties:
+                                                  type: string
+                                                description: Labels is a map of custom
+                                                  labels.
+                                                type: object
+                                            type: object
                                           selector:
                                             description: Selector is a label selector
                                               for binding to a specific PV.
@@ -6284,6 +6543,26 @@ spec:
                                             type: string
                                         type: object
                                     type: object
+                                  wipeMethod:
+                                    allOf:
+                                    - enum:
+                                      - none
+                                      - deleteFiles
+                                      - dd
+                                      - blkdiscard
+                                      - headerCleanup
+                                      - blkdiscardWithHeaderCleanup
+                                    - enum:
+                                      - none
+                                      - deleteFiles
+                                      - dd
+                                      - blkdiscard
+                                      - headerCleanup
+                                      - blkdiscardWithHeaderCleanup
+                                    description: |-
+                                      WipeMethod defines how this volume should be wiped when marked dirty.
+                                      Wipe runs on volumes listed in the pod's DirtyVolumes status.
+                                    type: string
                                 required:
                                 - name
                                 - source
@@ -6300,6 +6579,24 @@ spec:
                       type: object
                     minItems: 1
                     type: array
+                  rollingUpdateBatchSize:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: |-
+                      RollingUpdateBatchSize is the number of pods to restart simultaneously per rack.
+                      Can be an absolute number or percentage string (e.g., "25%").
+                      Defaults to 1. Takes precedence over spec.rollingUpdateBatchSize when set.
+                    x-kubernetes-int-or-string: true
+                  scaleDownBatchSize:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: |-
+                      ScaleDownBatchSize is the number of pods to scale down simultaneously per rack.
+                      Can be an absolute number or percentage string (e.g., "25%").
+                      Defaults to 1.
+                    x-kubernetes-int-or-string: true
                 required:
                 - racks
                 type: object
@@ -6365,6 +6662,38 @@ spec:
                 description: Storage defines volumes and volume mounts for Aerospike
                   pods.
                 properties:
+                  blockVolumePolicy:
+                    description: |-
+                      BlockVolumePolicy defines the default policy for block-mode persistent volumes.
+                      Per-volume settings override this policy.
+                    properties:
+                      cascadeDelete:
+                        description: CascadeDelete controls whether PVCs are deleted
+                          when the CR is deleted.
+                        type: boolean
+                      initMethod:
+                        description: InitMethod is the default initialization method
+                          for this volume category.
+                        enum:
+                        - none
+                        - deleteFiles
+                        - dd
+                        - blkdiscard
+                        - headerCleanup
+                        type: string
+                      wipeMethod:
+                        description: |-
+                          WipeMethod is the default wipe method for this volume category.
+                          Wipe runs on volumes that are marked dirty (e.g., after unclean shutdown).
+                        enum:
+                        - none
+                        - deleteFiles
+                        - dd
+                        - blkdiscard
+                        - headerCleanup
+                        - blkdiscardWithHeaderCleanup
+                        type: string
+                    type: object
                   cleanupThreads:
                     default: 1
                     description: CleanupThreads is the max number of threads used
@@ -6372,6 +6701,50 @@ spec:
                     format: int32
                     minimum: 1
                     type: integer
+                  deleteLocalStorageOnRestart:
+                    description: |-
+                      DeleteLocalStorageOnRestart controls whether PVCs backed by local storage classes
+                      are deleted before pod restart, forcing re-provisioning on the new node.
+                    type: boolean
+                  filesystemVolumePolicy:
+                    description: |-
+                      FilesystemVolumePolicy defines the default policy for filesystem-mode persistent volumes.
+                      Per-volume settings override this policy.
+                    properties:
+                      cascadeDelete:
+                        description: CascadeDelete controls whether PVCs are deleted
+                          when the CR is deleted.
+                        type: boolean
+                      initMethod:
+                        description: InitMethod is the default initialization method
+                          for this volume category.
+                        enum:
+                        - none
+                        - deleteFiles
+                        - dd
+                        - blkdiscard
+                        - headerCleanup
+                        type: string
+                      wipeMethod:
+                        description: |-
+                          WipeMethod is the default wipe method for this volume category.
+                          Wipe runs on volumes that are marked dirty (e.g., after unclean shutdown).
+                        enum:
+                        - none
+                        - deleteFiles
+                        - dd
+                        - blkdiscard
+                        - headerCleanup
+                        - blkdiscardWithHeaderCleanup
+                        type: string
+                    type: object
+                  localStorageClasses:
+                    description: |-
+                      LocalStorageClasses lists StorageClass names that use local storage (e.g., local-path, openebs-hostpath).
+                      Volumes using these classes require special handling on pod restart.
+                    items:
+                      type: string
+                    type: array
                   volumes:
                     description: Volumes defines a list of volumes to attach to Aerospike
                       pods.
@@ -6382,18 +6755,32 @@ spec:
                           description: Aerospike defines how this volume maps into
                             Aerospike config.
                           properties:
+                            mountPropagation:
+                              description: MountPropagation determines how mounts
+                                are propagated.
+                              type: string
                             path:
                               description: Path is the mount path in the Aerospike
                                 container.
+                              type: string
+                            readOnly:
+                              description: ReadOnly mounts the volume as read-only.
+                              type: boolean
+                            subPath:
+                              description: SubPath mounts only a sub-path of the volume.
+                              type: string
+                            subPathExpr:
+                              description: |-
+                                SubPathExpr is an expanded path using environment variables.
+                                Mutually exclusive with SubPath.
                               type: string
                           required:
                           - path
                           type: object
                         cascadeDelete:
-                          default: false
                           description: |-
                             CascadeDelete determines if PVCs should be deleted when the CR is deleted.
-                            Only applicable to persistent volumes.
+                            Only applicable to persistent volumes. When nil, falls back to global volume policy.
                           type: boolean
                         initContainers:
                           description: InitContainers defines volume mounts for init
@@ -6406,8 +6793,24 @@ spec:
                                 description: ContainerName is the name of the container
                                   to mount to.
                                 type: string
+                              mountPropagation:
+                                description: MountPropagation determines how mounts
+                                  are propagated.
+                                type: string
                               path:
                                 description: Path is the mount path in the container.
+                                type: string
+                              readOnly:
+                                description: ReadOnly mounts the volume as read-only.
+                                type: boolean
+                              subPath:
+                                description: SubPath mounts only a sub-path of the
+                                  volume.
+                                type: string
+                              subPathExpr:
+                                description: |-
+                                  SubPathExpr is an expanded path using environment variables.
+                                  Mutually exclusive with SubPath.
                                 type: string
                             required:
                             - containerName
@@ -6428,9 +6831,9 @@ spec:
                             - dd
                             - blkdiscard
                             - headerCleanup
-                          default: none
-                          description: InitMethod defines how this volume should be
-                            initialized.
+                          description: |-
+                            InitMethod defines how this volume should be initialized.
+                            When empty, falls back to the global volume policy. Set to "none" to explicitly disable initialization.
                           type: string
                         name:
                           description: Name is the volume name, used in Aerospike
@@ -6447,8 +6850,24 @@ spec:
                                 description: ContainerName is the name of the container
                                   to mount to.
                                 type: string
+                              mountPropagation:
+                                description: MountPropagation determines how mounts
+                                  are propagated.
+                                type: string
                               path:
                                 description: Path is the mount path in the container.
+                                type: string
+                              readOnly:
+                                description: ReadOnly mounts the volume as read-only.
+                                type: boolean
+                              subPath:
+                                description: SubPath mounts only a sub-path of the
+                                  volume.
+                                type: string
+                              subPathExpr:
+                                description: |-
+                                  SubPathExpr is an expanded path using environment variables.
+                                  Mutually exclusive with SubPath.
                                 type: string
                             required:
                             - containerName
@@ -6457,7 +6876,7 @@ spec:
                           type: array
                         source:
                           description: 'Source defines the volume source: PVC, emptyDir,
-                            secret, or configMap.'
+                            secret, configMap, or hostPath.'
                           properties:
                             configMap:
                               description: ConfigMap uses a Kubernetes ConfigMap as
@@ -6552,6 +6971,25 @@ spec:
                                   pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                                   x-kubernetes-int-or-string: true
                               type: object
+                            hostPath:
+                              description: HostPath uses a path on the host node as
+                                the volume source.
+                              properties:
+                                path:
+                                  description: |-
+                                    path of the directory on the host.
+                                    If the path is a symlink, it will follow the link to the real path.
+                                    More info: https://kubernetes.io/docs/concepts/storage/volumes#hostpath
+                                  type: string
+                                type:
+                                  description: |-
+                                    type for HostPath Volume
+                                    Defaults to ""
+                                    More info: https://kubernetes.io/docs/concepts/storage/volumes#hostpath
+                                  type: string
+                              required:
+                              - path
+                              type: object
                             persistentVolume:
                               description: PersistentVolume creates a PVC for this
                                 volume.
@@ -6562,6 +7000,22 @@ spec:
                                   items:
                                     type: string
                                   type: array
+                                metadata:
+                                  description: Metadata defines custom labels and
+                                    annotations for the PVC.
+                                  properties:
+                                    annotations:
+                                      additionalProperties:
+                                        type: string
+                                      description: Annotations is a map of custom
+                                        annotations.
+                                      type: object
+                                    labels:
+                                      additionalProperties:
+                                        type: string
+                                      description: Labels is a map of custom labels.
+                                      type: object
+                                  type: object
                                 selector:
                                   description: Selector is a label selector for binding
                                     to a specific PV.
@@ -6694,11 +7148,40 @@ spec:
                                   type: string
                               type: object
                           type: object
+                        wipeMethod:
+                          allOf:
+                          - enum:
+                            - none
+                            - deleteFiles
+                            - dd
+                            - blkdiscard
+                            - headerCleanup
+                            - blkdiscardWithHeaderCleanup
+                          - enum:
+                            - none
+                            - deleteFiles
+                            - dd
+                            - blkdiscard
+                            - headerCleanup
+                            - blkdiscardWithHeaderCleanup
+                          description: |-
+                            WipeMethod defines how this volume should be wiped when marked dirty.
+                            Wipe runs on volumes listed in the pod's DirtyVolumes status.
+                          type: string
                       required:
                       - name
                       - source
                       type: object
                     type: array
+                type: object
+              validationPolicy:
+                description: ValidationPolicy controls validation behavior.
+                properties:
+                  skipWorkDirValidate:
+                    description: |-
+                      SkipWorkDirValidate skips validation that the Aerospike work directory
+                      is mounted on persistent storage.
+                    type: boolean
                 type: object
             required:
             - image
@@ -6778,6 +7261,39 @@ spec:
                   by the controller.
                 format: int64
                 type: integer
+              operationStatus:
+                description: OperationStatus tracks the current on-demand operation
+                  status.
+                properties:
+                  completedPods:
+                    description: CompletedPods lists pods that have completed the
+                      operation.
+                    items:
+                      type: string
+                    type: array
+                  failedPods:
+                    description: FailedPods lists pods where the operation failed.
+                    items:
+                      type: string
+                    type: array
+                  id:
+                    description: ID is the operation identifier.
+                    type: string
+                  kind:
+                    description: Kind is the operation type.
+                    enum:
+                    - WarmRestart
+                    - PodRestart
+                    type: string
+                  phase:
+                    description: 'Phase is the operation phase: InProgress, Completed,
+                      Error.'
+                    enum:
+                    - InProgress
+                    - Completed
+                    - Error
+                    type: string
+                type: object
               phase:
                 description: Phase indicates the overall cluster phase.
                 enum:

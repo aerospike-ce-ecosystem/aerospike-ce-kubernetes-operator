@@ -916,6 +916,421 @@ func TestDefault_PreservesExistingConfig(t *testing.T) {
 	}
 }
 
+// --- Storage validation tests ---
+
+func TestValidate_Storage_NoSourceSpecified(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				Volumes: []VolumeSpec{
+					{Name: "data"},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error when no volume source is specified")
+	}
+	if !strings.Contains(err.Error(), "exactly one volume source") {
+		t.Errorf("error should mention 'exactly one volume source', got: %v", err)
+	}
+}
+
+func TestValidate_Storage_MultipleSourcesRejected(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				Volumes: []VolumeSpec{
+					{
+						Name: "data",
+						Source: VolumeSource{
+							PersistentVolume: &PersistentVolumeSpec{Size: "10Gi"},
+							EmptyDir:         &corev1.EmptyDirVolumeSource{},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error when multiple volume sources are specified")
+	}
+	if !strings.Contains(err.Error(), "only one volume source") {
+		t.Errorf("error should mention 'only one volume source', got: %v", err)
+	}
+}
+
+func TestValidate_Storage_HostPathWarning(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				Volumes: []VolumeSpec{
+					{
+						Name: "host-data",
+						Source: VolumeSource{
+							HostPath: &corev1.HostPathVolumeSource{Path: "/mnt/data"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "hostPath") && strings.Contains(w, "not recommended") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected hostPath warning, got warnings: %v", warnings)
+	}
+}
+
+func TestValidate_Storage_SubPathAndSubPathExprMutuallyExclusive_Aerospike(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				Volumes: []VolumeSpec{
+					{
+						Name: "data",
+						Source: VolumeSource{
+							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+						Aerospike: &AerospikeVolumeAttachment{
+							Path:        "/data",
+							SubPath:     "sub",
+							SubPathExpr: "$(POD_NAME)",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error when both subPath and subPathExpr are set")
+	}
+	if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("error should mention 'mutually exclusive', got: %v", err)
+	}
+}
+
+func TestValidate_Storage_SubPathAndSubPathExprMutuallyExclusive_Sidecar(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				Volumes: []VolumeSpec{
+					{
+						Name: "data",
+						Source: VolumeSource{
+							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+						Sidecars: []VolumeAttachment{
+							{
+								ContainerName: "exporter",
+								Path:          "/data",
+								SubPath:       "sub",
+								SubPathExpr:   "$(POD_NAME)",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error when sidecar has both subPath and subPathExpr")
+	}
+	if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("error should mention 'mutually exclusive', got: %v", err)
+	}
+}
+
+func TestValidate_Storage_SubPathAndSubPathExprMutuallyExclusive_InitContainer(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				Volumes: []VolumeSpec{
+					{
+						Name: "data",
+						Source: VolumeSource{
+							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+						InitContainers: []VolumeAttachment{
+							{
+								ContainerName: "init",
+								Path:          "/data",
+								SubPath:       "sub",
+								SubPathExpr:   "$(POD_NAME)",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error when init container has both subPath and subPathExpr")
+	}
+}
+
+func TestValidate_Storage_DeleteLocalStorageWithoutClasses(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				DeleteLocalStorageOnRestart: boolPtr(true),
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error when deleteLocalStorageOnRestart is true but localStorageClasses is empty")
+	}
+	if !strings.Contains(err.Error(), "localStorageClasses") {
+		t.Errorf("error should mention 'localStorageClasses', got: %v", err)
+	}
+}
+
+func TestValidate_Storage_LocalStorageClassesWithoutDeleteFlag(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				LocalStorageClasses: []string{"local-path"},
+				Volumes: []VolumeSpec{
+					{
+						Name: "data",
+						Source: VolumeSource{
+							PersistentVolume: &PersistentVolumeSpec{Size: "10Gi"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "localStorageClasses") && strings.Contains(w, "deleteLocalStorageOnRestart") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning about localStorageClasses without deleteLocalStorageOnRestart, got: %v", warnings)
+	}
+}
+
+func TestValidate_Storage_ValidConfig(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				LocalStorageClasses:         []string{"local-path"},
+				DeleteLocalStorageOnRestart: boolPtr(true),
+				Volumes: []VolumeSpec{
+					{
+						Name: "data",
+						Source: VolumeSource{
+							PersistentVolume: &PersistentVolumeSpec{
+								Size:         "10Gi",
+								StorageClass: "local-path",
+							},
+						},
+						Aerospike:  &AerospikeVolumeAttachment{Path: "/data"},
+						InitMethod: VolumeInitMethodDeleteFiles,
+						WipeMethod: VolumeWipeMethodDeleteFiles,
+					},
+					{
+						Name: "logs",
+						Source: VolumeSource{
+							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+						Aerospike: &AerospikeVolumeAttachment{Path: "/logs"},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error for valid storage config: %v", err)
+	}
+}
+
+func TestValidate_Storage_DeleteLocalStorageFalse_NoError(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				DeleteLocalStorageOnRestart: boolPtr(false),
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error when deleteLocalStorageOnRestart is false: %v", err)
+	}
+}
+
+func TestValidate_Storage_CascadeDeleteOnNonPersistent(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				Volumes: []VolumeSpec{
+					{
+						Name: "data",
+						Source: VolumeSource{
+							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+						CascadeDelete: boolPtr(true),
+					},
+				},
+			},
+		},
+	}
+
+	// CascadeDelete on non-persistent should not cause error but should warn
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "cascadeDelete") && strings.Contains(w, "no effect") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning about cascadeDelete on non-persistent volume, got warnings: %v", warnings)
+	}
+}
+
+func TestValidate_Storage_DuplicateVolumeNames(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				Volumes: []VolumeSpec{
+					{
+						Name: "data",
+						Source: VolumeSource{
+							PersistentVolume: &PersistentVolumeSpec{Size: "10Gi"},
+						},
+					},
+					{
+						Name: "data",
+						Source: VolumeSource{
+							PersistentVolume: &PersistentVolumeSpec{Size: "20Gi"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error for duplicate volume names")
+	}
+	if !strings.Contains(err.Error(), "duplicate volume name") {
+		t.Errorf("error should mention 'duplicate volume name', got: %v", err)
+	}
+}
+
+func TestValidate_Storage_GlobalPoliciesAccepted(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				FilesystemVolumePolicy: &AerospikeVolumePolicy{
+					InitMethod:    VolumeInitMethodDeleteFiles,
+					WipeMethod:    VolumeWipeMethodDeleteFiles,
+					CascadeDelete: boolPtr(true),
+				},
+				BlockVolumePolicy: &AerospikeVolumePolicy{
+					InitMethod:    VolumeInitMethodBlkdiscard,
+					WipeMethod:    VolumeWipeMethodBlkdiscard,
+					CascadeDelete: boolPtr(false),
+				},
+				Volumes: []VolumeSpec{
+					{
+						Name: "data",
+						Source: VolumeSource{
+							PersistentVolume: &PersistentVolumeSpec{Size: "10Gi"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error for valid storage with global policies: %v", err)
+	}
+}
+
 // --- isEnterpriseTag tests ---
 
 func TestIsEnterpriseTag(t *testing.T) {

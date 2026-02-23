@@ -268,6 +268,13 @@ func (v *AerospikeCEClusterValidator) validate(cluster *AerospikeCECluster) (adm
 		allErrors = append(allErrors, rackErrors...)
 	}
 
+	// Validate storage
+	if cluster.Spec.Storage != nil {
+		storageErrors, storageWarnings := v.validateStorage(cluster.Spec.Storage)
+		allErrors = append(allErrors, storageErrors...)
+		warnings = append(warnings, storageWarnings...)
+	}
+
 	// Validate replication-factor, work directory, batch size, and operations
 	rfErrors := v.validateReplicationFactor(cluster)
 	allErrors = append(allErrors, rfErrors...)
@@ -643,4 +650,97 @@ func validateNonNegativeIntOrString(val *intstr.IntOrString, fieldName string) s
 		}
 	}
 	return ""
+}
+
+// validateStorage validates the storage configuration.
+func (v *AerospikeCEClusterValidator) validateStorage(storage *AerospikeStorageSpec) ([]string, admission.Warnings) {
+	var errors []string
+	var warnings admission.Warnings
+
+	// Check for duplicate volume names
+	namesSeen := make(map[string]bool, len(storage.Volumes))
+	for _, vol := range storage.Volumes {
+		if namesSeen[vol.Name] {
+			errors = append(errors, fmt.Sprintf("storage.volumes: duplicate volume name %q", vol.Name))
+		}
+		namesSeen[vol.Name] = true
+	}
+
+	for i, vol := range storage.Volumes {
+		// Validate exactly one volume source is specified
+		sourceCount := 0
+		if vol.Source.PersistentVolume != nil {
+			sourceCount++
+		}
+		if vol.Source.EmptyDir != nil {
+			sourceCount++
+		}
+		if vol.Source.Secret != nil {
+			sourceCount++
+		}
+		if vol.Source.ConfigMap != nil {
+			sourceCount++
+		}
+		if vol.Source.HostPath != nil {
+			sourceCount++
+		}
+		if sourceCount == 0 {
+			errors = append(errors, fmt.Sprintf("storage.volumes[%d] %q: exactly one volume source must be specified", i, vol.Name))
+		} else if sourceCount > 1 {
+			errors = append(errors, fmt.Sprintf("storage.volumes[%d] %q: only one volume source can be specified (found %d)", i, vol.Name, sourceCount))
+		}
+
+		// Warn about HostPath usage
+		if vol.Source.HostPath != nil {
+			warnings = append(warnings, fmt.Sprintf(
+				"storage.volumes[%d] %q: hostPath volumes are not recommended for production; data is tied to a specific node and not portable",
+				i, vol.Name))
+		}
+
+		// Warn about cascadeDelete on non-persistent volumes (has no effect)
+		if vol.CascadeDelete != nil && *vol.CascadeDelete && vol.Source.PersistentVolume == nil {
+			warnings = append(warnings, fmt.Sprintf(
+				"storage.volumes[%d] %q: cascadeDelete has no effect on non-persistent volumes",
+				i, vol.Name))
+		}
+
+		// Validate SubPath and SubPathExpr are mutually exclusive (Aerospike attachment)
+		if vol.Aerospike != nil && vol.Aerospike.SubPath != "" && vol.Aerospike.SubPathExpr != "" {
+			errors = append(errors, fmt.Sprintf(
+				"storage.volumes[%d] %q: aerospike.subPath and aerospike.subPathExpr are mutually exclusive",
+				i, vol.Name))
+		}
+
+		// Validate SubPath and SubPathExpr in sidecar attachments
+		for j, sc := range vol.Sidecars {
+			if sc.SubPath != "" && sc.SubPathExpr != "" {
+				errors = append(errors, fmt.Sprintf(
+					"storage.volumes[%d] %q: sidecars[%d] %q subPath and subPathExpr are mutually exclusive",
+					i, vol.Name, j, sc.ContainerName))
+			}
+		}
+
+		// Validate SubPath and SubPathExpr in init container attachments
+		for j, ic := range vol.InitContainers {
+			if ic.SubPath != "" && ic.SubPathExpr != "" {
+				errors = append(errors, fmt.Sprintf(
+					"storage.volumes[%d] %q: initContainers[%d] %q subPath and subPathExpr are mutually exclusive",
+					i, vol.Name, j, ic.ContainerName))
+			}
+		}
+	}
+
+	// Validate deleteLocalStorageOnRestart requires localStorageClasses
+	if storage.DeleteLocalStorageOnRestart != nil && *storage.DeleteLocalStorageOnRestart {
+		if len(storage.LocalStorageClasses) == 0 {
+			errors = append(errors, "storage.deleteLocalStorageOnRestart is true but storage.localStorageClasses is empty; specify which storage classes are local")
+		}
+	}
+
+	// Warn if local storage class is used but deleteLocalStorageOnRestart is not set
+	if len(storage.LocalStorageClasses) > 0 && storage.DeleteLocalStorageOnRestart == nil {
+		warnings = append(warnings, "storage.localStorageClasses is set but storage.deleteLocalStorageOnRestart is not configured; local PVCs will not be deleted on pod restart")
+	}
+
+	return errors, warnings
 }

@@ -32,6 +32,26 @@ type AerospikeStorageSpec struct {
 	// +kubebuilder:default=1
 	// +optional
 	CleanupThreads int32 `json:"cleanupThreads,omitempty"`
+
+	// FilesystemVolumePolicy defines the default policy for filesystem-mode persistent volumes.
+	// Per-volume settings override this policy.
+	// +optional
+	FilesystemVolumePolicy *AerospikeVolumePolicy `json:"filesystemVolumePolicy,omitempty"`
+
+	// BlockVolumePolicy defines the default policy for block-mode persistent volumes.
+	// Per-volume settings override this policy.
+	// +optional
+	BlockVolumePolicy *AerospikeVolumePolicy `json:"blockVolumePolicy,omitempty"`
+
+	// LocalStorageClasses lists StorageClass names that use local storage (e.g., local-path, openebs-hostpath).
+	// Volumes using these classes require special handling on pod restart.
+	// +optional
+	LocalStorageClasses []string `json:"localStorageClasses,omitempty"`
+
+	// DeleteLocalStorageOnRestart controls whether PVCs backed by local storage classes
+	// are deleted before pod restart, forcing re-provisioning on the new node.
+	// +optional
+	DeleteLocalStorageOnRestart *bool `json:"deleteLocalStorageOnRestart,omitempty"`
 }
 
 // VolumeSpec defines a single volume attachment.
@@ -40,7 +60,7 @@ type VolumeSpec struct {
 	// +kubebuilder:validation:Required
 	Name string `json:"name"`
 
-	// Source defines the volume source: PVC, emptyDir, secret, or configMap.
+	// Source defines the volume source: PVC, emptyDir, secret, configMap, or hostPath.
 	// +kubebuilder:validation:Required
 	Source VolumeSource `json:"source"`
 
@@ -57,16 +77,21 @@ type VolumeSpec struct {
 	InitContainers []VolumeAttachment `json:"initContainers,omitempty"`
 
 	// InitMethod defines how this volume should be initialized.
+	// When empty, falls back to the global volume policy. Set to "none" to explicitly disable initialization.
 	// +kubebuilder:validation:Enum=none;deleteFiles;dd;blkdiscard;headerCleanup
-	// +kubebuilder:default=none
 	// +optional
 	InitMethod VolumeInitMethod `json:"initMethod,omitempty"`
 
-	// CascadeDelete determines if PVCs should be deleted when the CR is deleted.
-	// Only applicable to persistent volumes.
-	// +kubebuilder:default=false
+	// WipeMethod defines how this volume should be wiped when marked dirty.
+	// Wipe runs on volumes listed in the pod's DirtyVolumes status.
+	// +kubebuilder:validation:Enum=none;deleteFiles;dd;blkdiscard;headerCleanup;blkdiscardWithHeaderCleanup
 	// +optional
-	CascadeDelete bool `json:"cascadeDelete,omitempty"`
+	WipeMethod VolumeWipeMethod `json:"wipeMethod,omitempty"`
+
+	// CascadeDelete determines if PVCs should be deleted when the CR is deleted.
+	// Only applicable to persistent volumes. When nil, falls back to global volume policy.
+	// +optional
+	CascadeDelete *bool `json:"cascadeDelete,omitempty"`
 }
 
 // VolumeSource describes the volume data source.
@@ -86,6 +111,10 @@ type VolumeSource struct {
 	// ConfigMap uses a Kubernetes ConfigMap as the volume source.
 	// +optional
 	ConfigMap *corev1.ConfigMapVolumeSource `json:"configMap,omitempty"`
+
+	// HostPath uses a path on the host node as the volume source.
+	// +optional
+	HostPath *corev1.HostPathVolumeSource `json:"hostPath,omitempty"`
 }
 
 // PersistentVolumeSpec defines a persistent volume claim template.
@@ -111,6 +140,10 @@ type PersistentVolumeSpec struct {
 	// Selector is a label selector for binding to a specific PV.
 	// +optional
 	Selector *metav1.LabelSelector `json:"selector,omitempty"`
+
+	// Metadata defines custom labels and annotations for the PVC.
+	// +optional
+	Metadata *AerospikeObjectMeta `json:"metadata,omitempty"`
 }
 
 // AerospikeVolumeAttachment defines how a volume is mounted in the Aerospike container.
@@ -118,6 +151,23 @@ type AerospikeVolumeAttachment struct {
 	// Path is the mount path in the Aerospike container.
 	// +kubebuilder:validation:Required
 	Path string `json:"path"`
+
+	// ReadOnly mounts the volume as read-only.
+	// +optional
+	ReadOnly bool `json:"readOnly,omitempty"`
+
+	// SubPath mounts only a sub-path of the volume.
+	// +optional
+	SubPath string `json:"subPath,omitempty"`
+
+	// SubPathExpr is an expanded path using environment variables.
+	// Mutually exclusive with SubPath.
+	// +optional
+	SubPathExpr string `json:"subPathExpr,omitempty"`
+
+	// MountPropagation determines how mounts are propagated.
+	// +optional
+	MountPropagation *corev1.MountPropagationMode `json:"mountPropagation,omitempty"`
 }
 
 // VolumeAttachment defines a volume mount for sidecar or init containers.
@@ -129,6 +179,39 @@ type VolumeAttachment struct {
 	// Path is the mount path in the container.
 	// +kubebuilder:validation:Required
 	Path string `json:"path"`
+
+	// ReadOnly mounts the volume as read-only.
+	// +optional
+	ReadOnly bool `json:"readOnly,omitempty"`
+
+	// SubPath mounts only a sub-path of the volume.
+	// +optional
+	SubPath string `json:"subPath,omitempty"`
+
+	// SubPathExpr is an expanded path using environment variables.
+	// Mutually exclusive with SubPath.
+	// +optional
+	SubPathExpr string `json:"subPathExpr,omitempty"`
+
+	// MountPropagation determines how mounts are propagated.
+	// +optional
+	MountPropagation *corev1.MountPropagationMode `json:"mountPropagation,omitempty"`
+}
+
+// AerospikeVolumePolicy defines default policies for a category of persistent volumes.
+type AerospikeVolumePolicy struct {
+	// InitMethod is the default initialization method for this volume category.
+	// +optional
+	InitMethod VolumeInitMethod `json:"initMethod,omitempty"`
+
+	// WipeMethod is the default wipe method for this volume category.
+	// Wipe runs on volumes that are marked dirty (e.g., after unclean shutdown).
+	// +optional
+	WipeMethod VolumeWipeMethod `json:"wipeMethod,omitempty"`
+
+	// CascadeDelete controls whether PVCs are deleted when the CR is deleted.
+	// +optional
+	CascadeDelete *bool `json:"cascadeDelete,omitempty"`
 }
 
 // VolumeInitMethod defines how a volume is initialized on first use.
@@ -141,4 +224,17 @@ const (
 	VolumeInitMethodDD            VolumeInitMethod = "dd"
 	VolumeInitMethodBlkdiscard    VolumeInitMethod = "blkdiscard"
 	VolumeInitMethodHeaderCleanup VolumeInitMethod = "headerCleanup"
+)
+
+// VolumeWipeMethod defines how a volume is wiped when marked dirty.
+// +kubebuilder:validation:Enum=none;deleteFiles;dd;blkdiscard;headerCleanup;blkdiscardWithHeaderCleanup
+type VolumeWipeMethod string
+
+const (
+	VolumeWipeMethodNone                        VolumeWipeMethod = "none"
+	VolumeWipeMethodDeleteFiles                 VolumeWipeMethod = "deleteFiles"
+	VolumeWipeMethodDD                          VolumeWipeMethod = "dd"
+	VolumeWipeMethodBlkdiscard                  VolumeWipeMethod = "blkdiscard"
+	VolumeWipeMethodHeaderCleanup               VolumeWipeMethod = "headerCleanup"
+	VolumeWipeMethodBlkdiscardWithHeaderCleanup VolumeWipeMethod = "blkdiscardWithHeaderCleanup"
 )

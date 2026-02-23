@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -405,6 +406,21 @@ func (v *AerospikeCEClusterValidator) validateNamespaceConfig(nsMap map[string]a
 	return errors, warnings
 }
 
+// builtinRoleNames are Aerospike predefined roles that do not need to be
+// defined in the ACL Roles list.
+// Reference: https://aerospike.com/docs/server/operations/configure/security/access-control/index.html
+// Note: CE does not include "superuser" (Enterprise-only).
+var builtinRoleNames = map[string]bool{
+	"user-admin":     true,
+	"sys-admin":      true,
+	"data-admin":     true,
+	"read":           true,
+	"write":          true,
+	"read-write":     true,
+	"read-write-udf": true,
+	"truncate":       true,
+}
+
 // validPrivilegeCodes lists accepted privilege code strings.
 var validPrivilegeCodes = map[string]bool{
 	"read":           true,
@@ -443,6 +459,19 @@ func (v *AerospikeCEClusterValidator) validateAccessControl(acl *AerospikeAccess
 
 	if !hasAdmin {
 		errors = append(errors, "aerospikeAccessControl must have at least one user with both 'sys-admin' and 'user-admin' roles")
+	}
+
+	// Validate that users reference only built-in or explicitly defined roles
+	definedRoles := make(map[string]bool)
+	for _, role := range acl.Roles {
+		definedRoles[role.Name] = true
+	}
+	for _, user := range acl.Users {
+		for _, roleName := range user.Roles {
+			if !builtinRoleNames[roleName] && !definedRoles[roleName] {
+				errors = append(errors, fmt.Sprintf("user %q references undefined role %q", user.Name, roleName))
+			}
+		}
 	}
 
 	// Validate privilege codes in role definitions
@@ -633,6 +662,14 @@ func validatePositiveIntOrString(val *intstr.IntOrString, fieldName string) stri
 		if !strings.HasSuffix(s, "%") {
 			return fmt.Sprintf("%s must be a positive integer or a percentage string (e.g., \"25%%\"); got %q", fieldName, s)
 		}
+		numStr := strings.TrimSuffix(s, "%")
+		num, err := strconv.Atoi(numStr)
+		if err != nil {
+			return fmt.Sprintf("%s percentage %q is not a valid integer", fieldName, s)
+		}
+		if num < 1 || num > 100 {
+			return fmt.Sprintf("%s percentage must be between 1 and 100 (got %d)", fieldName, num)
+		}
 	}
 	return ""
 }
@@ -647,6 +684,14 @@ func validateNonNegativeIntOrString(val *intstr.IntOrString, fieldName string) s
 		s := val.StrVal
 		if !strings.HasSuffix(s, "%") {
 			return fmt.Sprintf("%s must be a non-negative integer or a percentage string (e.g., \"25%%\"); got %q", fieldName, s)
+		}
+		numStr := strings.TrimSuffix(s, "%")
+		num, err := strconv.Atoi(numStr)
+		if err != nil {
+			return fmt.Sprintf("%s percentage %q is not a valid integer", fieldName, s)
+		}
+		if num < 0 || num > 100 {
+			return fmt.Sprintf("%s percentage must be between 0 and 100 (got %d)", fieldName, num)
 		}
 	}
 	return ""

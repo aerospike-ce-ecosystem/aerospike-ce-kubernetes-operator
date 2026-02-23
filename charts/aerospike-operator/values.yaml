@@ -10,8 +10,8 @@ replicaCount: 1
 image:
   # -- Container image repository
   repository: ghcr.io/kimsoungryoul/aerospike-ce-operator
-  # -- Container image tag (defaults to Chart appVersion if empty)
-  tag: latest
+  # -- Container image tag; defaults to Chart.appVersion when empty
+  tag: ""
   # -- Image pull policy: Always, IfNotPresent, or Never
   pullPolicy: IfNotPresent
 

@@ -12,6 +12,7 @@ const sidebars = {
         'guide/install',
         'guide/create-cluster',
         'guide/manage-cluster',
+        'guide/access-control',
       ],
     },
     {

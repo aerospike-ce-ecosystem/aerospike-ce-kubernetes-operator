@@ -8,6 +8,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func boolPtr(b bool) *bool { return &b }
@@ -916,6 +917,789 @@ func TestDefault_PreservesExistingConfig(t *testing.T) {
 	}
 }
 
+// --- Storage validation tests ---
+
+func TestValidate_Storage_NoSourceSpecified(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				Volumes: []VolumeSpec{
+					{Name: "data"},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error when no volume source is specified")
+	}
+	if !strings.Contains(err.Error(), "exactly one volume source") {
+		t.Errorf("error should mention 'exactly one volume source', got: %v", err)
+	}
+}
+
+func TestValidate_Storage_MultipleSourcesRejected(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				Volumes: []VolumeSpec{
+					{
+						Name: "data",
+						Source: VolumeSource{
+							PersistentVolume: &PersistentVolumeSpec{Size: "10Gi"},
+							EmptyDir:         &corev1.EmptyDirVolumeSource{},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error when multiple volume sources are specified")
+	}
+	if !strings.Contains(err.Error(), "only one volume source") {
+		t.Errorf("error should mention 'only one volume source', got: %v", err)
+	}
+}
+
+func TestValidate_Storage_HostPathWarning(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				Volumes: []VolumeSpec{
+					{
+						Name: "host-data",
+						Source: VolumeSource{
+							HostPath: &corev1.HostPathVolumeSource{Path: "/mnt/data"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "hostPath") && strings.Contains(w, "not recommended") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected hostPath warning, got warnings: %v", warnings)
+	}
+}
+
+func TestValidate_Storage_SubPathAndSubPathExprMutuallyExclusive_Aerospike(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				Volumes: []VolumeSpec{
+					{
+						Name: "data",
+						Source: VolumeSource{
+							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+						Aerospike: &AerospikeVolumeAttachment{
+							Path:        "/data",
+							SubPath:     "sub",
+							SubPathExpr: "$(POD_NAME)",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error when both subPath and subPathExpr are set")
+	}
+	if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("error should mention 'mutually exclusive', got: %v", err)
+	}
+}
+
+func TestValidate_Storage_SubPathAndSubPathExprMutuallyExclusive_Sidecar(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				Volumes: []VolumeSpec{
+					{
+						Name: "data",
+						Source: VolumeSource{
+							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+						Sidecars: []VolumeAttachment{
+							{
+								ContainerName: "exporter",
+								Path:          "/data",
+								SubPath:       "sub",
+								SubPathExpr:   "$(POD_NAME)",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error when sidecar has both subPath and subPathExpr")
+	}
+	if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("error should mention 'mutually exclusive', got: %v", err)
+	}
+}
+
+func TestValidate_Storage_SubPathAndSubPathExprMutuallyExclusive_InitContainer(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				Volumes: []VolumeSpec{
+					{
+						Name: "data",
+						Source: VolumeSource{
+							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+						InitContainers: []VolumeAttachment{
+							{
+								ContainerName: "init",
+								Path:          "/data",
+								SubPath:       "sub",
+								SubPathExpr:   "$(POD_NAME)",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error when init container has both subPath and subPathExpr")
+	}
+}
+
+func TestValidate_Storage_DeleteLocalStorageWithoutClasses(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				DeleteLocalStorageOnRestart: boolPtr(true),
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error when deleteLocalStorageOnRestart is true but localStorageClasses is empty")
+	}
+	if !strings.Contains(err.Error(), "localStorageClasses") {
+		t.Errorf("error should mention 'localStorageClasses', got: %v", err)
+	}
+}
+
+func TestValidate_Storage_LocalStorageClassesWithoutDeleteFlag(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				LocalStorageClasses: []string{"local-path"},
+				Volumes: []VolumeSpec{
+					{
+						Name: "data",
+						Source: VolumeSource{
+							PersistentVolume: &PersistentVolumeSpec{Size: "10Gi"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "localStorageClasses") && strings.Contains(w, "deleteLocalStorageOnRestart") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning about localStorageClasses without deleteLocalStorageOnRestart, got: %v", warnings)
+	}
+}
+
+func TestValidate_Storage_ValidConfig(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				LocalStorageClasses:         []string{"local-path"},
+				DeleteLocalStorageOnRestart: boolPtr(true),
+				Volumes: []VolumeSpec{
+					{
+						Name: "data",
+						Source: VolumeSource{
+							PersistentVolume: &PersistentVolumeSpec{
+								Size:         "10Gi",
+								StorageClass: "local-path",
+							},
+						},
+						Aerospike:  &AerospikeVolumeAttachment{Path: "/data"},
+						InitMethod: VolumeInitMethodDeleteFiles,
+						WipeMethod: VolumeWipeMethodDeleteFiles,
+					},
+					{
+						Name: "logs",
+						Source: VolumeSource{
+							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+						Aerospike: &AerospikeVolumeAttachment{Path: "/logs"},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error for valid storage config: %v", err)
+	}
+}
+
+func TestValidate_Storage_DeleteLocalStorageFalse_NoError(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				DeleteLocalStorageOnRestart: boolPtr(false),
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error when deleteLocalStorageOnRestart is false: %v", err)
+	}
+}
+
+func TestValidate_Storage_CascadeDeleteOnNonPersistent(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				Volumes: []VolumeSpec{
+					{
+						Name: "data",
+						Source: VolumeSource{
+							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+						CascadeDelete: boolPtr(true),
+					},
+				},
+			},
+		},
+	}
+
+	// CascadeDelete on non-persistent should not cause error but should warn
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "cascadeDelete") && strings.Contains(w, "no effect") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning about cascadeDelete on non-persistent volume, got warnings: %v", warnings)
+	}
+}
+
+func TestValidate_Storage_DuplicateVolumeNames(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				Volumes: []VolumeSpec{
+					{
+						Name: "data",
+						Source: VolumeSource{
+							PersistentVolume: &PersistentVolumeSpec{Size: "10Gi"},
+						},
+					},
+					{
+						Name: "data",
+						Source: VolumeSource{
+							PersistentVolume: &PersistentVolumeSpec{Size: "20Gi"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error for duplicate volume names")
+	}
+	if !strings.Contains(err.Error(), "duplicate volume name") {
+		t.Errorf("error should mention 'duplicate volume name', got: %v", err)
+	}
+}
+
+func TestValidate_Storage_GlobalPoliciesAccepted(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				FilesystemVolumePolicy: &AerospikeVolumePolicy{
+					InitMethod:    VolumeInitMethodDeleteFiles,
+					WipeMethod:    VolumeWipeMethodDeleteFiles,
+					CascadeDelete: boolPtr(true),
+				},
+				BlockVolumePolicy: &AerospikeVolumePolicy{
+					InitMethod:    VolumeInitMethodBlkdiscard,
+					WipeMethod:    VolumeWipeMethodBlkdiscard,
+					CascadeDelete: boolPtr(false),
+				},
+				Volumes: []VolumeSpec{
+					{
+						Name: "data",
+						Source: VolumeSource{
+							PersistentVolume: &PersistentVolumeSpec{Size: "10Gi"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error for valid storage with global policies: %v", err)
+	}
+}
+
+// --- isEnterpriseTag tests ---
+
+func TestIsEnterpriseTag(t *testing.T) {
+	tests := []struct {
+		image    string
+		expected bool
+	}{
+		{"aerospike:ce-8.1.1.1", false},
+		{"aerospike:ee-8.0.0.1_1", true},
+		{"aerospike:EE-8.0.0.1", true},
+		{"aerospike:latest", false},
+		{"aerospike", false},
+		{"myrepo/aerospike:ce-8.1.1.1", false},
+		{"myrepo/aerospike:ee-8.1.1.1", true},
+	}
+
+	for _, tc := range tests {
+		got := isEnterpriseTag(tc.image)
+		if got != tc.expected {
+			t.Errorf("isEnterpriseTag(%q) = %v, want %v", tc.image, got, tc.expected)
+		}
+	}
+}
+
+// --- Percentage validation edge case tests ---
+
+func TestValidatePositiveIntOrString_PercentageEdgeCases(t *testing.T) {
+	tests := []struct {
+		name      string
+		val       intstr.IntOrString
+		wantError bool
+	}{
+		{"valid 50%", intstr.FromString("50%"), false},
+		{"valid 1%", intstr.FromString("1%"), false},
+		{"valid 100%", intstr.FromString("100%"), false},
+		{"invalid 0%", intstr.FromString("0%"), true},
+		{"invalid 101%", intstr.FromString("101%"), true},
+		{"invalid abc%", intstr.FromString("abc%"), true},
+		{"invalid -5%", intstr.FromString("-5%"), true},
+		{"invalid 200%", intstr.FromString("200%"), true},
+		{"not a percentage", intstr.FromString("hello"), true},
+		{"valid int", intstr.FromInt32(5), false},
+		{"invalid zero int", intstr.FromInt32(0), true},
+		{"invalid negative int", intstr.FromInt32(-1), true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			val := tc.val
+			result := validatePositiveIntOrString(&val, "testField")
+			if tc.wantError && result == "" {
+				t.Errorf("expected error for %v, got none", tc.val)
+			}
+			if !tc.wantError && result != "" {
+				t.Errorf("unexpected error for %v: %s", tc.val, result)
+			}
+		})
+	}
+}
+
+func TestValidateNonNegativeIntOrString_PercentageEdgeCases(t *testing.T) {
+	tests := []struct {
+		name      string
+		val       intstr.IntOrString
+		wantError bool
+	}{
+		{"valid 50%", intstr.FromString("50%"), false},
+		{"valid 0%", intstr.FromString("0%"), false},
+		{"valid 100%", intstr.FromString("100%"), false},
+		{"invalid 101%", intstr.FromString("101%"), true},
+		{"invalid abc%", intstr.FromString("abc%"), true},
+		{"invalid -5%", intstr.FromString("-5%"), true},
+		{"not a percentage", intstr.FromString("hello"), true},
+		{"valid zero int", intstr.FromInt32(0), false},
+		{"valid positive int", intstr.FromInt32(5), false},
+		{"invalid negative int", intstr.FromInt32(-1), true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			val := tc.val
+			result := validateNonNegativeIntOrString(&val, "testField")
+			if tc.wantError && result == "" {
+				t.Errorf("expected error for %v, got none", tc.val)
+			}
+			if !tc.wantError && result != "" {
+				t.Errorf("unexpected error for %v: %s", tc.val, result)
+			}
+		})
+	}
+}
+
+// --- ACL role cross-reference tests ---
+
+func TestValidate_ACLUserReferencesUndefinedRole(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeAccessControl: &AerospikeAccessControlSpec{
+				Roles: []AerospikeRoleSpec{
+					{
+						Name:       "custom-reader",
+						Privileges: []string{"read"},
+					},
+				},
+				Users: []AerospikeUserSpec{
+					{
+						Name:       "admin",
+						SecretName: "admin-secret",
+						Roles:      []string{"sys-admin", "user-admin"},
+					},
+					{
+						Name:       "app-user",
+						SecretName: "app-secret",
+						Roles:      []string{"custom-reader", "nonexistent-role"},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error for user referencing undefined role")
+	}
+	if !strings.Contains(err.Error(), "nonexistent-role") {
+		t.Errorf("error should mention 'nonexistent-role', got: %v", err)
+	}
+	// "custom-reader" is defined in Roles, should not be flagged
+	if strings.Contains(err.Error(), "custom-reader") {
+		t.Errorf("error should not mention 'custom-reader' (it is defined), got: %v", err)
+	}
+}
+
+func TestValidate_ACLUserReferencesBuiltinRolesOnly(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeAccessControl: &AerospikeAccessControlSpec{
+				Users: []AerospikeUserSpec{
+					{
+						Name:       "admin",
+						SecretName: "admin-secret",
+						Roles:      []string{"sys-admin", "user-admin"},
+					},
+					{
+						Name:       "reader",
+						SecretName: "reader-secret",
+						Roles:      []string{"read"},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error for users referencing only built-in roles: %v", err)
+	}
+}
+
+func TestValidate_ACLUserReferencesCustomDefinedRole(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeAccessControl: &AerospikeAccessControlSpec{
+				Roles: []AerospikeRoleSpec{
+					{
+						Name:       "app-role",
+						Privileges: []string{"read-write"},
+					},
+				},
+				Users: []AerospikeUserSpec{
+					{
+						Name:       "admin",
+						SecretName: "admin-secret",
+						Roles:      []string{"sys-admin", "user-admin"},
+					},
+					{
+						Name:       "app-user",
+						SecretName: "app-secret",
+						Roles:      []string{"app-role"},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error for user referencing a defined custom role: %v", err)
+	}
+}
+
+// --- Operations InProgress change attempt tests ---
+
+func TestValidateUpdate_RejectsOperationChangeWhileInProgress(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+
+	oldCluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Operations: []OperationSpec{
+				{Kind: OperationWarmRestart, ID: "op-1"},
+			},
+		},
+		Status: AerospikeCEClusterStatus{
+			OperationStatus: &OperationStatus{
+				ID:    "op-1",
+				Kind:  OperationWarmRestart,
+				Phase: AerospikePhaseInProgress,
+			},
+		},
+	}
+
+	newCluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Operations: []OperationSpec{
+				{Kind: OperationPodRestart, ID: "op-2"},
+			},
+		},
+	}
+
+	_, err := v.ValidateUpdate(context.Background(), oldCluster, newCluster)
+	if err == nil {
+		t.Fatal("expected error when changing operation while one is InProgress")
+	}
+	if !strings.Contains(err.Error(), "InProgress") {
+		t.Errorf("error should mention 'InProgress', got: %v", err)
+	}
+}
+
+func TestValidateUpdate_AllowsSameOperationWhileInProgress(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+
+	oldCluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Operations: []OperationSpec{
+				{Kind: OperationWarmRestart, ID: "op-1"},
+			},
+		},
+		Status: AerospikeCEClusterStatus{
+			OperationStatus: &OperationStatus{
+				ID:    "op-1",
+				Kind:  OperationWarmRestart,
+				Phase: AerospikePhaseInProgress,
+			},
+		},
+	}
+
+	newCluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Operations: []OperationSpec{
+				{Kind: OperationWarmRestart, ID: "op-1"},
+			},
+		},
+	}
+
+	_, err := v.ValidateUpdate(context.Background(), oldCluster, newCluster)
+	if err != nil {
+		t.Errorf("unexpected error when keeping same operation while InProgress: %v", err)
+	}
+}
+
+func TestValidateUpdate_AllowsOperationChangeWhenCompleted(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+
+	oldCluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Operations: []OperationSpec{
+				{Kind: OperationWarmRestart, ID: "op-1"},
+			},
+		},
+		Status: AerospikeCEClusterStatus{
+			OperationStatus: &OperationStatus{
+				ID:    "op-1",
+				Kind:  OperationWarmRestart,
+				Phase: AerospikePhaseCompleted,
+			},
+		},
+	}
+
+	newCluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Operations: []OperationSpec{
+				{Kind: OperationPodRestart, ID: "op-2"},
+			},
+		},
+	}
+
+	_, err := v.ValidateUpdate(context.Background(), oldCluster, newCluster)
+	if err != nil {
+		t.Errorf("unexpected error when changing operation after previous completed: %v", err)
+	}
+}
+
+// --- Replication-factor vs spec.size cross-validation tests ---
+
+func TestValidate_ReplicationFactorExceedsClusterSize(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  2,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"namespaces": []any{
+						map[string]any{
+							"name":               "test",
+							"replication-factor": 3,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error when replication-factor exceeds cluster size")
+	}
+	if !strings.Contains(err.Error(), "exceeds cluster size") {
+		t.Errorf("error should mention 'exceeds cluster size', got: %v", err)
+	}
+}
+
+func TestValidate_ReplicationFactorEqualsClusterSize(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"namespaces": []any{
+						map[string]any{
+							"name":               "test",
+							"replication-factor": 3,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error when replication-factor equals cluster size: %v", err)
+	}
+}
+
 // --- Monitoring validation tests ---
 
 func TestValidate_MonitoringPortConflict(t *testing.T) {
@@ -1124,29 +1908,5 @@ func TestDefaultMonitoring_DefaultImageVersion(t *testing.T) {
 	expected := "aerospike/aerospike-prometheus-exporter:v1.16.1"
 	if cluster.Spec.Monitoring.ExporterImage != expected {
 		t.Errorf("ExporterImage = %q, want %q", cluster.Spec.Monitoring.ExporterImage, expected)
-	}
-}
-
-// --- isEnterpriseTag tests ---
-
-func TestIsEnterpriseTag(t *testing.T) {
-	tests := []struct {
-		image    string
-		expected bool
-	}{
-		{"aerospike:ce-8.1.1.1", false},
-		{"aerospike:ee-8.0.0.1_1", true},
-		{"aerospike:EE-8.0.0.1", true},
-		{"aerospike:latest", false},
-		{"aerospike", false},
-		{"myrepo/aerospike:ce-8.1.1.1", false},
-		{"myrepo/aerospike:ee-8.1.1.1", true},
-	}
-
-	for _, tc := range tests {
-		got := isEnterpriseTag(tc.image)
-		if got != tc.expected {
-			t.Errorf("isEnterpriseTag(%q) = %v, want %v", tc.image, got, tc.expected)
-		}
 	}
 }

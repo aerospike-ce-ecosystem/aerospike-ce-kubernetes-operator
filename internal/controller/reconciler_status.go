@@ -12,6 +12,7 @@ import (
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/metrics"
+	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/podutil"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
@@ -100,7 +101,7 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 		// During rolling updates the pod may still run the old image.
 		podImage := cluster.Spec.Image
 		for _, c := range pod.Spec.Containers {
-			if c.Name == "aerospike-server" {
+			if c.Name == podutil.AerospikeContainerName {
 				podImage = c.Image
 				break
 			}
@@ -110,7 +111,7 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 			PodIP:             pod.Status.PodIP,
 			HostIP:            pod.Status.HostIP,
 			Image:             podImage,
-			PodPort:           3000,
+			PodPort:           podutil.ServicePort,
 			Rack:              rackID,
 			IsRunningAndReady: isReady,
 			ConfigHash:        configHash,

@@ -62,8 +62,14 @@ func (r *AerospikeCEClusterReconciler) shouldWarmRestart(
 	return true
 }
 
-// getOrCreateKubeClientset returns the cached kubernetes.Clientset, creating it on first use.
+// getOrCreateKubeClientset returns the cached kubernetes.Clientset, creating it
+// on first use. Uses sync.Mutex to ensure thread-safe initialization when
+// multiple reconcile goroutines run concurrently. Unlike sync.Once, the mutex
+// allows retrying if the initial creation fails (e.g., transient network error).
 func (r *AerospikeCEClusterReconciler) getOrCreateKubeClientset() (kubernetes.Interface, error) {
+	r.kubeClientMu.Lock()
+	defer r.kubeClientMu.Unlock()
+
 	if r.KubeClientset != nil {
 		return r.KubeClientset, nil
 	}

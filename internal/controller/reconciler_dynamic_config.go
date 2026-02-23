@@ -125,9 +125,12 @@ func (r *AerospikeCEClusterReconciler) updateDynamicConfigStatus(
 	cluster *asdbcev1alpha1.AerospikeCECluster,
 	podName, status string,
 ) {
+	log := logf.FromContext(ctx)
+
 	// Re-fetch the cluster to get the latest status
 	latest := &asdbcev1alpha1.AerospikeCECluster{}
 	if err := r.Get(ctx, types.NamespacedName{Name: cluster.Name, Namespace: cluster.Namespace}, latest); err != nil {
+		log.Error(err, "Failed to re-fetch cluster for dynamic config status update", "pod", podName)
 		return
 	}
 
@@ -138,6 +141,8 @@ func (r *AerospikeCEClusterReconciler) updateDynamicConfigStatus(
 	if podStatus, ok := latest.Status.Pods[podName]; ok {
 		podStatus.DynamicConfigStatus = status
 		latest.Status.Pods[podName] = podStatus
-		_ = r.Status().Update(ctx, latest)
+		if err := r.Status().Update(ctx, latest); err != nil {
+			log.Error(err, "Failed to update dynamic config status", "pod", podName)
+		}
 	}
 }

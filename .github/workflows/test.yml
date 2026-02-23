@@ -1,4 +1,4 @@
-name: Integration Tests
+name: Tests
 
 on:
   push:
@@ -10,8 +10,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Run on Ubuntu
+  unit-test:
+    name: Unit Tests
     runs-on: ubuntu-latest
     steps:
       - name: Clone the code
@@ -22,7 +22,24 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Running integration tests (envtest)
+      - name: Running unit tests
         run: |
           go mod tidy
-          make test
+          make test-unit
+
+  integration-test:
+    name: Integration Tests (envtest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Running integration tests
+        run: |
+          go mod tidy
+          make test-integration

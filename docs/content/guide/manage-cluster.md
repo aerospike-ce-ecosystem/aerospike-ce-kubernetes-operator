@@ -89,20 +89,44 @@ kubectl -n aerospike patch asce aerospike-ce-3node --type merge -p '{"spec":{"pa
 | `emptyDir` | Temporary scratch space |
 | `secret` | Credentials, TLS certs |
 | `configMap` | Custom config files |
+| `hostPath` | Node-local path (dev/test only) |
 
-### Cascade Delete
+### Global Volume Policy
 
-When `cascadeDelete: true`, PVCs are automatically deleted when the AerospikeCECluster CR is deleted.
+Set default policies for all persistent volumes by category (filesystem or block). Per-volume settings always override the global policy.
 
 ```yaml
 storage:
+  filesystemVolumePolicy:
+    initMethod: deleteFiles
+    wipeMethod: deleteFiles
+    cascadeDelete: true
+  blockVolumePolicy:
+    initMethod: blkdiscard
+    wipeMethod: blkdiscardWithHeaderCleanup
+```
+
+The operator resolves settings with this precedence:
+1. **Per-volume** `initMethod` / `wipeMethod` / `cascadeDelete`
+2. **Global policy** (based on `volumeMode`: `filesystemVolumePolicy` or `blockVolumePolicy`)
+3. **Default**: `none` / `none` / `false`
+
+### Cascade Delete
+
+When `cascadeDelete: true`, PVCs are automatically deleted when the AerospikeCECluster CR is deleted. This can be set per-volume or via global policy.
+
+```yaml
+storage:
+  # Global: delete all filesystem PVCs on CR deletion
+  filesystemVolumePolicy:
+    cascadeDelete: true
   volumes:
     - name: data-vol
-      cascadeDelete: true       # PVC deleted with CR
       source:
         persistentVolume:
           storageClass: standard
           size: 10Gi
+      # Inherits cascadeDelete: true from filesystemVolumePolicy
 ```
 
 ### Volume Init Methods
@@ -121,6 +145,104 @@ storage:
     - name: data-vol
       initMethod: deleteFiles
 ```
+
+### Wipe Methods
+
+Wipe methods are similar to init methods but apply to **dirty volumes** (volumes that need cleanup after unclean shutdown). The `wipeMethod` field supports the same values as `initMethod` plus:
+
+| Method | Description |
+|---|---|
+| `blkdiscardWithHeaderCleanup` | Discard blocks and then clear Aerospike headers |
+
+```yaml
+storage:
+  volumes:
+    - name: data-vol
+      wipeMethod: headerCleanup
+```
+
+### HostPath Volumes
+
+:::warning
+HostPath volumes are **not recommended for production**. Data is tied to a specific node and is not portable across pod rescheduling.
+:::
+
+```yaml
+storage:
+  volumes:
+    - name: host-logs
+      source:
+        hostPath:
+          path: /var/log/aerospike
+          type: DirectoryOrCreate
+      aerospike:
+        path: /opt/aerospike/logs
+```
+
+### PVC Custom Metadata
+
+Add custom labels and annotations to PersistentVolumeClaims:
+
+```yaml
+storage:
+  volumes:
+    - name: data-vol
+      source:
+        persistentVolume:
+          storageClass: standard
+          size: 50Gi
+          metadata:
+            labels:
+              backup-policy: "daily"
+            annotations:
+              volume.kubernetes.io/storage-provisioner: "ebs.csi.aws.com"
+```
+
+### Volume Mount Options
+
+Advanced mount options for Aerospike and sidecar containers:
+
+```yaml
+storage:
+  volumes:
+    - name: shared-data
+      source:
+        emptyDir: {}
+      aerospike:
+        path: /opt/aerospike/shared
+        readOnly: false
+        subPath: "aerospike-data"       # Mount a sub-directory
+        mountPropagation: HostToContainer
+      sidecars:
+        - containerName: exporter
+          path: /shared
+          readOnly: true
+```
+
+| Option | Description |
+|---|---|
+| `readOnly` | Mount the volume as read-only |
+| `subPath` | Mount a specific sub-directory of the volume |
+| `subPathExpr` | Like subPath but supports environment variable expansion |
+| `mountPropagation` | Control mount propagation (`None`, `HostToContainer`, `Bidirectional`) |
+
+:::note
+`subPath` and `subPathExpr` are mutually exclusive.
+:::
+
+### Local Storage
+
+Mark storage classes as local to enable special handling during pod restarts:
+
+```yaml
+storage:
+  localStorageClasses:
+    - local-path
+    - openebs-hostpath
+  deleteLocalStorageOnRestart: true
+```
+
+When `deleteLocalStorageOnRestart: true`, the operator deletes PVCs backed by local storage classes **before** pod deletion during a cold restart. This forces re-provisioning on the new node, which is necessary because local storage is node-bound.
 
 ## Network Configuration
 

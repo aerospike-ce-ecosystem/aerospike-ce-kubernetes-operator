@@ -1,0 +1,114 @@
+apiVersion: acko.io/v1alpha1
+kind: AerospikeCECluster
+metadata:
+  name: aerospike-ce-storage-advanced
+  namespace: aerospike
+spec:
+  size: 3
+  image: aerospike:ce-8.1.1.1
+
+  storage:
+    # Global volume policies: applied to all persistent volumes unless overridden per-volume
+    filesystemVolumePolicy:
+      initMethod: deleteFiles
+      wipeMethod: deleteFiles
+      cascadeDelete: true
+    blockVolumePolicy:
+      initMethod: blkdiscard
+      wipeMethod: blkdiscardWithHeaderCleanup
+
+    # Local storage recognition: delete local PVCs before pod restart
+    localStorageClasses:
+      - local-path
+      - openebs-hostpath
+    deleteLocalStorageOnRestart: true
+
+    cleanupThreads: 2
+
+    volumes:
+      # PVC with custom metadata (labels and annotations on the PVC itself)
+      - name: data-vol
+        source:
+          persistentVolume:
+            storageClass: standard
+            size: 50Gi
+            volumeMode: Filesystem
+            metadata:
+              labels:
+                app.kubernetes.io/data-tier: "aerospike"
+                backup-policy: "daily"
+              annotations:
+                volume.kubernetes.io/storage-provisioner: "ebs.csi.aws.com"
+        aerospike:
+          path: /opt/aerospike/data
+        # Per-volume override: uses dd instead of global policy's deleteFiles
+        initMethod: dd
+
+      # Block device volume (uses blockVolumePolicy defaults)
+      - name: sindex-vol
+        source:
+          persistentVolume:
+            storageClass: fast-ssd
+            size: 20Gi
+            volumeMode: Block
+        aerospike:
+          path: /opt/aerospike/sindex
+        # initMethod not set → falls back to blockVolumePolicy.initMethod (blkdiscard)
+        # wipeMethod not set → falls back to blockVolumePolicy.wipeMethod (blkdiscardWithHeaderCleanup)
+
+      # Volume with advanced mount options
+      - name: shared-data
+        source:
+          emptyDir: {}
+        aerospike:
+          path: /opt/aerospike/shared
+          readOnly: false
+          subPath: "aerospike-data"
+        sidecars:
+          - containerName: aerospike-prometheus-exporter
+            path: /shared
+            readOnly: true
+
+      # HostPath volume (for development/testing only)
+      - name: host-logs
+        source:
+          hostPath:
+            path: /var/log/aerospike
+            type: DirectoryOrCreate
+        aerospike:
+          path: /opt/aerospike/logs
+
+      # Volume with mountPropagation
+      - name: csi-data
+        source:
+          persistentVolume:
+            storageClass: csi-driver
+            size: 100Gi
+        aerospike:
+          path: /opt/aerospike/csi
+          mountPropagation: HostToContainer
+
+      # Volume with per-volume wipeMethod
+      - name: temp-data
+        source:
+          persistentVolume:
+            storageClass: standard
+            size: 5Gi
+        aerospike:
+          path: /opt/aerospike/temp
+        wipeMethod: headerCleanup
+        cascadeDelete: true
+
+  aerospikeConfig:
+    service:
+      cluster-name: storage-advanced-demo
+    namespaces:
+      - name: test
+        memory-size: 1073741824
+        replication-factor: 2
+        storage-engine:
+          type: device
+          devices:
+            - /opt/aerospike/data/test.dat
+          filesize: 4294967296
+          data-in-memory: true

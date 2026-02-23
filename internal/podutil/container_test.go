@@ -23,7 +23,7 @@ func newTestCluster() *v1alpha1.AerospikeCECluster {
 func TestBuildInitContainer_UsesClusterImage(t *testing.T) {
 	cluster := newTestCluster()
 
-	c := BuildInitContainer(cluster, "my-config", nil, nil)
+	c := BuildInitContainer(cluster, "my-config", nil, nil, nil)
 
 	if c.Image != "aerospike:ce-8.1.1.1" {
 		t.Errorf("expected image %q, got %q", "aerospike:ce-8.1.1.1", c.Image)
@@ -33,7 +33,7 @@ func TestBuildInitContainer_UsesClusterImage(t *testing.T) {
 func TestBuildInitContainer_RunsInitScript(t *testing.T) {
 	cluster := newTestCluster()
 
-	c := BuildInitContainer(cluster, "my-config", nil, nil)
+	c := BuildInitContainer(cluster, "my-config", nil, nil, nil)
 
 	if len(c.Command) != 2 || c.Command[0] != "bash" {
 		t.Fatalf("expected command [bash /configmap/aerospike-init.sh], got %v", c.Command)
@@ -46,7 +46,7 @@ func TestBuildInitContainer_RunsInitScript(t *testing.T) {
 func TestBuildInitContainer_HasDownwardAPIEnvVars(t *testing.T) {
 	cluster := newTestCluster()
 
-	c := BuildInitContainer(cluster, "my-config", nil, nil)
+	c := BuildInitContainer(cluster, "my-config", nil, nil, nil)
 
 	envMap := make(map[string]*corev1.EnvVar)
 	for i := range c.Env {
@@ -78,7 +78,7 @@ func TestBuildInitContainer_HasDownwardAPIEnvVars(t *testing.T) {
 func TestBuildInitContainer_HasConfigMapAndConfigMounts(t *testing.T) {
 	cluster := newTestCluster()
 
-	c := BuildInitContainer(cluster, "my-config", nil, nil)
+	c := BuildInitContainer(cluster, "my-config", nil, nil, nil)
 
 	mountNames := make(map[string]string)
 	for _, m := range c.VolumeMounts {
@@ -105,7 +105,7 @@ func TestBuildInitContainer_AppendsExtraVolumeMounts(t *testing.T) {
 		{Name: "data-vol", MountPath: "/opt/aerospike/data"},
 	}
 
-	c := BuildInitContainer(cluster, "my-config", nil, extraMounts)
+	c := BuildInitContainer(cluster, "my-config", nil, extraMounts, nil)
 
 	found := false
 	for _, m := range c.VolumeMounts {
@@ -197,7 +197,7 @@ func TestBuildInitContainer_INIT_VOLUMES_EnvVar(t *testing.T) {
 		},
 	}
 
-	c := BuildInitContainer(cluster, "my-config", storage, nil)
+	c := BuildInitContainer(cluster, "my-config", storage, nil, nil)
 
 	var initVolumes string
 	for _, env := range c.Env {
@@ -214,7 +214,7 @@ func TestBuildInitContainer_INIT_VOLUMES_EnvVar(t *testing.T) {
 func TestBuildInitContainer_NoINIT_VOLUMES_WhenEmpty(t *testing.T) {
 	cluster := newTestCluster()
 
-	c := BuildInitContainer(cluster, "my-config", nil, nil)
+	c := BuildInitContainer(cluster, "my-config", nil, nil, nil)
 
 	for _, env := range c.Env {
 		if env.Name == "INIT_VOLUMES" {

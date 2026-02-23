@@ -88,7 +88,7 @@ func BuildPodTemplateSpec(
 
 	// Build containers.
 	initVolumeMounts := storage.VolumeMountsForContainer(storageSpec, InitContainerName, false)
-	initContainer := BuildInitContainer(cluster, configMapName, storageSpec, initVolumeMounts)
+	initContainer := BuildInitContainer(cluster, configMapName, storageSpec, initVolumeMounts, nil)
 	aerospikeContainer := BuildAerospikeContainer(cluster, aerospikeMounts)
 
 	// Init containers: operator init + user-defined.

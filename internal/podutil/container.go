@@ -2,12 +2,14 @@ package podutil
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	v1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/storage"
 )
 
 const (
@@ -78,11 +80,13 @@ func BuildAerospikeContainer(cluster *v1alpha1.AerospikeCECluster, volumeMounts 
 
 // BuildInitContainer creates the init container that runs the aerospike-init.sh script
 // to copy and process configuration files (placeholder substitution, volume initialization).
+// dirtyVolumes is the list of volume names that need wiping (from pod status DirtyVolumes).
 func BuildInitContainer(
 	cluster *v1alpha1.AerospikeCECluster,
 	configMapName string,
 	storageSpec *v1alpha1.AerospikeStorageSpec,
 	volumeMounts []corev1.VolumeMount,
+	dirtyVolumes []string,
 ) corev1.Container {
 	// Ensure the init container has mounts for both the configmap source
 	// and the aerospike config destination.
@@ -101,6 +105,12 @@ func BuildInitContainer(
 	initMounts = append(initMounts, volumeMounts...)
 
 	env := buildInitEnvVars()
+	if wipeVolumes := buildWipeVolumesEnv(storageSpec, dirtyVolumes); wipeVolumes != "" {
+		env = append(env, corev1.EnvVar{
+			Name:  "WIPE_VOLUMES",
+			Value: wipeVolumes,
+		})
+	}
 	if initVolumes := buildInitVolumesEnv(storageSpec); initVolumes != "" {
 		env = append(env, corev1.EnvVar{
 			Name:  "INIT_VOLUMES",
@@ -151,6 +161,7 @@ func buildInitEnvVars() []corev1.EnvVar {
 
 // buildInitVolumesEnv converts storage spec InitMethod fields into an INIT_VOLUMES
 // environment variable value. Format: "method1:path1,method2:path2"
+// Uses policy resolution: per-volume InitMethod > global policy > "none".
 func buildInitVolumesEnv(storageSpec *v1alpha1.AerospikeStorageSpec) string {
 	if storageSpec == nil {
 		return ""
@@ -159,13 +170,41 @@ func buildInitVolumesEnv(storageSpec *v1alpha1.AerospikeStorageSpec) string {
 	var parts []string
 	for i := range storageSpec.Volumes {
 		vol := &storageSpec.Volumes[i]
-		if vol.InitMethod == "" || vol.InitMethod == v1alpha1.VolumeInitMethodNone {
+		method := storage.ResolveInitMethod(vol, storageSpec)
+		if method == "" || method == v1alpha1.VolumeInitMethodNone {
 			continue
 		}
 		if vol.Aerospike == nil {
 			continue
 		}
-		parts = append(parts, fmt.Sprintf("%s:%s", vol.InitMethod, vol.Aerospike.Path))
+		parts = append(parts, fmt.Sprintf("%s:%s", method, vol.Aerospike.Path))
+	}
+
+	return strings.Join(parts, ",")
+}
+
+// buildWipeVolumesEnv builds the WIPE_VOLUMES environment variable for dirty volumes.
+// Only volumes that are in the dirtyVolumes list and have a resolved wipe method
+// (per-volume or global policy) are included. Format: "method1:path1,method2:path2"
+func buildWipeVolumesEnv(storageSpec *v1alpha1.AerospikeStorageSpec, dirtyVolumes []string) string {
+	if storageSpec == nil || len(dirtyVolumes) == 0 {
+		return ""
+	}
+
+	var parts []string
+	for i := range storageSpec.Volumes {
+		vol := &storageSpec.Volumes[i]
+		if !slices.Contains(dirtyVolumes, vol.Name) {
+			continue
+		}
+		method := storage.ResolveWipeMethod(vol, storageSpec)
+		if method == "" || method == v1alpha1.VolumeWipeMethodNone {
+			continue
+		}
+		if vol.Aerospike == nil {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s:%s", method, vol.Aerospike.Path))
 	}
 
 	return strings.Join(parts, ",")

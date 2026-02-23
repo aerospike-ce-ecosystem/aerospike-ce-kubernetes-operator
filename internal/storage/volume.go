@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"maps"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,10 +29,10 @@ func BuildVolumes(storageSpec *v1alpha1.AerospikeStorageSpec) ([]corev1.Volume, 
 		}
 
 		if vol.Aerospike != nil {
-			mounts = append(mounts, corev1.VolumeMount{
-				Name:      vol.Name,
-				MountPath: vol.Aerospike.Path,
-			})
+			mounts = append(mounts, buildVolumeMount(
+				vol.Name, vol.Aerospike.Path, vol.Aerospike.ReadOnly,
+				vol.Aerospike.SubPath, vol.Aerospike.SubPathExpr, vol.Aerospike.MountPropagation,
+			))
 		}
 	}
 
@@ -64,6 +66,11 @@ func volumeForSpec(vol *v1alpha1.VolumeSpec) *corev1.Volume {
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: src.ConfigMap,
 			},
+		}
+	case src.HostPath != nil:
+		return &corev1.Volume{
+			Name:         vol.Name,
+			VolumeSource: corev1.VolumeSource{HostPath: src.HostPath},
 		}
 	case src.PersistentVolume != nil:
 		// PVC-backed volumes are handled via volumeClaimTemplates, not inline volumes.
@@ -115,6 +122,15 @@ func BuildVolumeClaimTemplates(storageSpec *v1alpha1.AerospikeStorageSpec) []cor
 			},
 		}
 
+		if pv.Metadata != nil {
+			if len(pv.Metadata.Labels) > 0 {
+				pvc.Labels = maps.Clone(pv.Metadata.Labels)
+			}
+			if len(pv.Metadata.Annotations) > 0 {
+				pvc.Annotations = maps.Clone(pv.Metadata.Annotations)
+			}
+		}
+
 		if pv.StorageClass != "" {
 			pvc.Spec.StorageClassName = &pv.StorageClass
 		}
@@ -150,13 +166,32 @@ func VolumeMountsForContainer(storageSpec *v1alpha1.AerospikeStorageSpec, contai
 
 		for _, att := range attachments {
 			if att.ContainerName == containerName {
-				mounts = append(mounts, corev1.VolumeMount{
-					Name:      vol.Name,
-					MountPath: att.Path,
-				})
+				mounts = append(mounts, buildVolumeMount(
+					vol.Name, att.Path, att.ReadOnly,
+					att.SubPath, att.SubPathExpr, att.MountPropagation,
+				))
 			}
 		}
 	}
 
 	return mounts
+}
+
+// buildVolumeMount creates a VolumeMount with optional advanced options.
+func buildVolumeMount(name, path string, readOnly bool, subPath, subPathExpr string, mountProp *corev1.MountPropagationMode) corev1.VolumeMount {
+	vm := corev1.VolumeMount{
+		Name:      name,
+		MountPath: path,
+		ReadOnly:  readOnly,
+	}
+	if subPath != "" {
+		vm.SubPath = subPath
+	}
+	if subPathExpr != "" {
+		vm.SubPathExpr = subPathExpr
+	}
+	if mountProp != nil {
+		vm.MountPropagation = mountProp
+	}
+	return vm
 }

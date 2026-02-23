@@ -13,6 +13,7 @@ import (
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/metrics"
+	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/storage"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
@@ -190,6 +191,21 @@ func (r *AerospikeCEClusterReconciler) coldRestartPod(
 	cluster *asdbcev1alpha1.AerospikeCECluster,
 	pod *corev1.Pod,
 ) error {
+	log := logf.FromContext(ctx)
+
+	// Delete local storage PVCs before pod deletion if configured
+	if cluster.Spec.Storage != nil &&
+		cluster.Spec.Storage.DeleteLocalStorageOnRestart != nil &&
+		*cluster.Spec.Storage.DeleteLocalStorageOnRestart {
+		stsName, ordinal, ok := storage.ParsePodName(pod.Name)
+		if ok {
+			if err := storage.DeleteLocalPVCsForPod(ctx, r.Client, cluster.Namespace, stsName, ordinal, cluster.Spec.Storage); err != nil {
+				log.Error(err, "Failed to delete local PVCs before restart", "pod", pod.Name)
+				// Non-fatal: continue with pod deletion
+			}
+		}
+	}
+
 	if err := r.Delete(ctx, pod); err != nil && !errors.IsNotFound(err) {
 		return err
 	}

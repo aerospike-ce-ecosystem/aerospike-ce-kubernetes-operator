@@ -26,23 +26,27 @@ func (r *AerospikeCEClusterReconciler) handleDeletion(
 
 	log.Info("Handling cluster deletion")
 
-	// Check if any volumes have cascadeDelete
+	// Check if any volumes have cascadeDelete (per-volume or via global policy)
 	if cluster.Spec.Storage != nil {
-		for _, vol := range cluster.Spec.Storage.Volumes {
-			if vol.CascadeDelete && vol.Source.PersistentVolume != nil {
-				// Delete PVCs for all racks
-				stsList, err := r.listClusterStatefulSets(ctx, cluster)
-				if err != nil {
-					return ctrl.Result{}, err
-				}
-				for _, sts := range stsList.Items {
-					if err := storage.DeletePVCsForStatefulSet(ctx, r.Client, cluster.Namespace, sts.Name); err != nil {
-						if !errors.IsNotFound(err) {
-							return ctrl.Result{}, err
-						}
+		hasCascade := false
+		for i := range cluster.Spec.Storage.Volumes {
+			vol := &cluster.Spec.Storage.Volumes[i]
+			if vol.Source.PersistentVolume != nil && storage.ResolveCascadeDelete(vol, cluster.Spec.Storage) {
+				hasCascade = true
+				break
+			}
+		}
+		if hasCascade {
+			stsList, err := r.listClusterStatefulSets(ctx, cluster)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			for _, sts := range stsList.Items {
+				if err := storage.DeletePVCsForStatefulSet(ctx, r.Client, cluster.Namespace, sts.Name); err != nil {
+					if !errors.IsNotFound(err) {
+						return ctrl.Result{}, err
 					}
 				}
-				break
 			}
 		}
 	}

@@ -38,11 +38,17 @@ if [ -n "${NODE_IP}" ]; then
     sed -i "s/MY_NODE_IP/${NODE_IP}/g" "${CONFIG_DST}/aerospike.conf"
 fi
 
-# Volume initialization
-INIT_VOLUMES="${INIT_VOLUMES:-}"
-if [ -n "${INIT_VOLUMES}" ]; then
-    echo "Processing volume initialization..."
-    IFS=',' read -ra VOLS <<< "${INIT_VOLUMES}"
+# Helper: process volume operations (used by both WIPE and INIT)
+process_volumes() {
+    local label="$1"
+    local volumes="$2"
+
+    if [ -z "${volumes}" ]; then
+        return
+    fi
+
+    echo "Processing ${label}..."
+    IFS=',' read -ra VOLS <<< "${volumes}"
     for vol_spec in "${VOLS[@]}"; do
         IFS=':' read -ra PARTS <<< "${vol_spec}"
         method="${PARTS[0]}"
@@ -50,26 +56,39 @@ if [ -n "${INIT_VOLUMES}" ]; then
 
         case "${method}" in
             deleteFiles)
-                echo "Deleting files in ${path}..."
+                echo "[${label}] Deleting files in ${path}..."
                 rm -rf "${path:?}"/*
                 ;;
             dd)
-                echo "Zeroing first 1MB of ${path}..."
+                echo "[${label}] Zeroing first 1MB of ${path}..."
                 dd if=/dev/zero of="${path}" bs=1M count=1 conv=notrunc 2>/dev/null
                 ;;
             blkdiscard)
-                echo "Discarding blocks on ${path}..."
+                echo "[${label}] Discarding blocks on ${path}..."
                 blkdiscard "${path}" 2>/dev/null || echo "blkdiscard failed for ${path}, continuing..."
                 ;;
             headerCleanup)
-                echo "Cleaning Aerospike headers on ${path}..."
+                echo "[${label}] Cleaning Aerospike headers on ${path}..."
+                dd if=/dev/zero of="${path}" bs=4096 count=1 conv=notrunc 2>/dev/null
+                ;;
+            blkdiscardWithHeaderCleanup)
+                echo "[${label}] Discarding blocks and cleaning headers on ${path}..."
+                blkdiscard "${path}" 2>/dev/null || echo "blkdiscard failed for ${path}, continuing..."
                 dd if=/dev/zero of="${path}" bs=4096 count=1 conv=notrunc 2>/dev/null
                 ;;
             *)
-                echo "Skipping initialization for ${path} (method: ${method})"
+                echo "[${label}] Skipping ${path} (method: ${method})"
                 ;;
         esac
     done
-fi
+}
+
+# Wipe dirty volumes (runs before init, only for volumes marked dirty)
+WIPE_VOLUMES="${WIPE_VOLUMES:-}"
+process_volumes "WIPE" "${WIPE_VOLUMES}"
+
+# Volume initialization
+INIT_VOLUMES="${INIT_VOLUMES:-}"
+process_volumes "INIT" "${INIT_VOLUMES}"
 
 echo "Init container completed successfully."

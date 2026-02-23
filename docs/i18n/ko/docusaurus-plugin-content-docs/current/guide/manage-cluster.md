@@ -89,20 +89,44 @@ kubectl -n aerospike patch asce aerospike-ce-3node --type merge -p '{"spec":{"pa
 | `emptyDir` | 임시 작업 공간 |
 | `secret` | 자격 증명, TLS 인증서 |
 | `configMap` | 커스텀 설정 파일 |
+| `hostPath` | 노드 로컬 경로 (개발/테스트 전용) |
 
-### Cascade Delete
+### 글로벌 볼륨 정책
 
-`cascadeDelete: true`이면 AerospikeCECluster CR 삭제 시 PVC가 자동으로 삭제됩니다.
+카테고리별(파일시스템 또는 블록) 모든 영구 볼륨의 기본 정책을 설정합니다. 볼륨별 설정이 항상 글로벌 정책보다 우선합니다.
 
 ```yaml
 storage:
+  filesystemVolumePolicy:
+    initMethod: deleteFiles
+    wipeMethod: deleteFiles
+    cascadeDelete: true
+  blockVolumePolicy:
+    initMethod: blkdiscard
+    wipeMethod: blkdiscardWithHeaderCleanup
+```
+
+오퍼레이터는 다음 우선순위로 설정을 결정합니다:
+1. **볼륨별** `initMethod` / `wipeMethod` / `cascadeDelete`
+2. **글로벌 정책** (`volumeMode` 기반: `filesystemVolumePolicy` 또는 `blockVolumePolicy`)
+3. **기본값**: `none` / `none` / `false`
+
+### Cascade Delete
+
+`cascadeDelete: true`이면 AerospikeCECluster CR 삭제 시 PVC가 자동으로 삭제됩니다. 볼륨별 또는 글로벌 정책으로 설정할 수 있습니다.
+
+```yaml
+storage:
+  # 글로벌: CR 삭제 시 모든 파일시스템 PVC 삭제
+  filesystemVolumePolicy:
+    cascadeDelete: true
   volumes:
     - name: data-vol
-      cascadeDelete: true       # CR과 함께 PVC 삭제
       source:
         persistentVolume:
           storageClass: standard
           size: 10Gi
+      # filesystemVolumePolicy에서 cascadeDelete: true 상속
 ```
 
 ### 볼륨 초기화 방법
@@ -121,6 +145,104 @@ storage:
     - name: data-vol
       initMethod: deleteFiles
 ```
+
+### 와이프 방법
+
+와이프 방법은 초기화 방법과 유사하지만 **더티 볼륨** (비정상 종료 후 정리가 필요한 볼륨)에 적용됩니다. `wipeMethod` 필드는 `initMethod`와 동일한 값을 지원하며 추가로:
+
+| 방법 | 설명 |
+|---|---|
+| `blkdiscardWithHeaderCleanup` | 블록 디스카드 후 Aerospike 헤더 정리 |
+
+```yaml
+storage:
+  volumes:
+    - name: data-vol
+      wipeMethod: headerCleanup
+```
+
+### HostPath 볼륨
+
+:::warning
+HostPath 볼륨은 **프로덕션에 권장되지 않습니다**. 데이터가 특정 노드에 종속되어 파드 재스케줄링 시 이동이 불가능합니다.
+:::
+
+```yaml
+storage:
+  volumes:
+    - name: host-logs
+      source:
+        hostPath:
+          path: /var/log/aerospike
+          type: DirectoryOrCreate
+      aerospike:
+        path: /opt/aerospike/logs
+```
+
+### PVC 커스텀 메타데이터
+
+PersistentVolumeClaim에 커스텀 라벨과 어노테이션을 추가합니다:
+
+```yaml
+storage:
+  volumes:
+    - name: data-vol
+      source:
+        persistentVolume:
+          storageClass: standard
+          size: 50Gi
+          metadata:
+            labels:
+              backup-policy: "daily"
+            annotations:
+              volume.kubernetes.io/storage-provisioner: "ebs.csi.aws.com"
+```
+
+### 볼륨 마운트 옵션
+
+Aerospike 및 사이드카 컨테이너의 고급 마운트 옵션:
+
+```yaml
+storage:
+  volumes:
+    - name: shared-data
+      source:
+        emptyDir: {}
+      aerospike:
+        path: /opt/aerospike/shared
+        readOnly: false
+        subPath: "aerospike-data"       # 하위 디렉토리 마운트
+        mountPropagation: HostToContainer
+      sidecars:
+        - containerName: exporter
+          path: /shared
+          readOnly: true
+```
+
+| 옵션 | 설명 |
+|---|---|
+| `readOnly` | 볼륨을 읽기 전용으로 마운트 |
+| `subPath` | 볼륨의 특정 하위 디렉토리 마운트 |
+| `subPathExpr` | subPath와 유사하나 환경 변수 확장 지원 |
+| `mountPropagation` | 마운트 전파 제어 (`None`, `HostToContainer`, `Bidirectional`) |
+
+:::note
+`subPath`와 `subPathExpr`는 상호 배타적입니다.
+:::
+
+### 로컬 스토리지
+
+파드 재시작 시 특수 처리를 위해 스토리지 클래스를 로컬로 표시합니다:
+
+```yaml
+storage:
+  localStorageClasses:
+    - local-path
+    - openebs-hostpath
+  deleteLocalStorageOnRestart: true
+```
+
+`deleteLocalStorageOnRestart: true`이면 오퍼레이터는 콜드 리스타트 시 파드 삭제 **전에** 로컬 스토리지 클래스로 지원되는 PVC를 삭제합니다. 로컬 스토리지는 노드에 종속되므로 새 노드에서 재프로비저닝이 필요합니다.
 
 ## 네트워크 설정
 

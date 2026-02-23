@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -186,6 +187,24 @@ func (v *AerospikeCEClusterValidator) ValidateCreate(ctx context.Context, cluste
 // ValidateUpdate implements admission.Validator[*AerospikeCECluster].
 func (v *AerospikeCEClusterValidator) ValidateUpdate(ctx context.Context, oldCluster, cluster *AerospikeCECluster) (admission.Warnings, error) {
 	aerospikececlusterlog.Info("Validating update", "name", cluster.Name)
+
+	// Don't allow changing operations while one is InProgress
+	if oldCluster.Status.OperationStatus != nil &&
+		oldCluster.Status.OperationStatus.Phase == AerospikePhaseInProgress {
+		// Check if operations changed
+		oldOpID := ""
+		newOpID := ""
+		if len(oldCluster.Spec.Operations) > 0 {
+			oldOpID = oldCluster.Spec.Operations[0].ID
+		}
+		if len(cluster.Spec.Operations) > 0 {
+			newOpID = cluster.Spec.Operations[0].ID
+		}
+		if oldOpID != newOpID {
+			return nil, fmt.Errorf("cannot change operations while operation %q is InProgress", oldOpID)
+		}
+	}
+
 	return v.validate(cluster)
 }
 
@@ -249,39 +268,13 @@ func (v *AerospikeCEClusterValidator) validate(cluster *AerospikeCECluster) (adm
 		allErrors = append(allErrors, rackErrors...)
 	}
 
-	// Validate replication-factor does not exceed cluster size
-	if cluster.Spec.AerospikeConfig != nil {
-		if nsList, ok := cluster.Spec.AerospikeConfig.Value["namespaces"].([]any); ok {
-			for _, ns := range nsList {
-				if nsMap, ok := ns.(map[string]any); ok {
-					nsName, _ := nsMap["name"].(string)
-					if rf, ok := nsMap["replication-factor"]; ok {
-						rfInt := 0
-						switch v := rf.(type) {
-						case int:
-							rfInt = v
-						case int64:
-							rfInt = int(v)
-						case float64:
-							rfInt = int(v)
-						}
-						if rfInt > int(cluster.Spec.Size) {
-							allErrors = append(allErrors, fmt.Sprintf(
-								"namespace %q: replication-factor %d exceeds cluster size %d",
-								nsName, rfInt, cluster.Spec.Size))
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// Validate rolling update batch size
-	if cluster.Spec.RollingUpdateBatchSize != nil {
-		bs := *cluster.Spec.RollingUpdateBatchSize
-		if bs > cluster.Spec.Size {
-			warnings = append(warnings, fmt.Sprintf("rollingUpdateBatchSize (%d) is greater than cluster size (%d); all pods may restart simultaneously", bs, cluster.Spec.Size))
-		}
+	// Validate replication-factor, work directory, batch size, and operations
+	rfErrors := v.validateReplicationFactor(cluster)
+	allErrors = append(allErrors, rfErrors...)
+	warnings = append(warnings, v.validateWorkDirectory(cluster)...)
+	warnings = append(warnings, v.validateBatchSize(cluster)...)
+	if len(cluster.Spec.Operations) > 0 {
+		allErrors = append(allErrors, v.validateOperations(cluster.Spec.Operations)...)
 	}
 
 	if len(allErrors) > 0 {
@@ -469,17 +462,185 @@ func isEnterpriseTag(image string) bool {
 	return strings.HasPrefix(strings.ToLower(parts[1]), "ee-")
 }
 
+// hasVolumeForPath checks if any volume mounts to the given path.
+func hasVolumeForPath(storage *AerospikeStorageSpec, path string) bool {
+	if storage == nil {
+		return false
+	}
+	for _, vol := range storage.Volumes {
+		if vol.Aerospike != nil && vol.Aerospike.Path == path {
+			return true
+		}
+	}
+	return false
+}
+
+// validateReplicationFactor validates that replication-factor does not exceed cluster size.
+func (v *AerospikeCEClusterValidator) validateReplicationFactor(cluster *AerospikeCECluster) []string {
+	if cluster.Spec.AerospikeConfig == nil {
+		return nil
+	}
+	nsList, ok := cluster.Spec.AerospikeConfig.Value["namespaces"].([]any)
+	if !ok {
+		return nil
+	}
+	var errors []string
+	for _, ns := range nsList {
+		nsMap, ok := ns.(map[string]any)
+		if !ok {
+			continue
+		}
+		nsName, _ := nsMap["name"].(string)
+		rf, ok := nsMap["replication-factor"]
+		if !ok {
+			continue
+		}
+		rfInt := 0
+		switch val := rf.(type) {
+		case int:
+			rfInt = val
+		case int64:
+			rfInt = int(val)
+		case float64:
+			rfInt = int(val)
+		}
+		if rfInt > int(cluster.Spec.Size) {
+			errors = append(errors, fmt.Sprintf(
+				"namespace %q: replication-factor %d exceeds cluster size %d",
+				nsName, rfInt, cluster.Spec.Size))
+		}
+	}
+	return errors
+}
+
+// validateWorkDirectory checks that the work directory has persistent storage.
+func (v *AerospikeCEClusterValidator) validateWorkDirectory(cluster *AerospikeCECluster) admission.Warnings {
+	if cluster.Spec.ValidationPolicy != nil && cluster.Spec.ValidationPolicy.SkipWorkDirValidate {
+		return nil
+	}
+	if cluster.Spec.AerospikeConfig == nil {
+		return nil
+	}
+	svcCfg, ok := cluster.Spec.AerospikeConfig.Value["service"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	workDir, ok := svcCfg["work-directory"].(string)
+	if !ok || workDir == "" {
+		return nil
+	}
+	if !hasVolumeForPath(cluster.Spec.Storage, workDir) {
+		return admission.Warnings{fmt.Sprintf(
+			"work-directory %q has no persistent volume; data may be lost on pod restart (set validationPolicy.skipWorkDirValidate to suppress)", workDir)}
+	}
+	return nil
+}
+
+// validateBatchSize checks the rolling update batch size against cluster size.
+func (v *AerospikeCEClusterValidator) validateBatchSize(cluster *AerospikeCECluster) admission.Warnings {
+	if cluster.Spec.RollingUpdateBatchSize == nil {
+		return nil
+	}
+	bs := *cluster.Spec.RollingUpdateBatchSize
+	if bs > cluster.Spec.Size {
+		return admission.Warnings{fmt.Sprintf("rollingUpdateBatchSize (%d) is greater than cluster size (%d); all pods may restart simultaneously", bs, cluster.Spec.Size)}
+	}
+	return nil
+}
+
 // validateRackConfig validates the rack configuration.
 func (v *AerospikeCEClusterValidator) validateRackConfig(rackConfig *RackConfig) []string {
 	var errors []string
 
 	rackIDs := make(map[int]bool)
+	rackLabels := make(map[string]bool)
 	for _, rack := range rackConfig.Racks {
 		if rackIDs[rack.ID] {
 			errors = append(errors, fmt.Sprintf("duplicate rack ID %d in rackConfig", rack.ID))
 		}
 		rackIDs[rack.ID] = true
+
+		// Validate RackLabel uniqueness across racks
+		if rack.RackLabel != "" {
+			if rackLabels[rack.RackLabel] {
+				errors = append(errors, fmt.Sprintf("duplicate rackLabel %q in rackConfig; each rack must have a unique rackLabel", rack.RackLabel))
+			}
+			rackLabels[rack.RackLabel] = true
+		}
+	}
+
+	// Validate ScaleDownBatchSize is positive if set
+	if rackConfig.ScaleDownBatchSize != nil {
+		if err := validatePositiveIntOrString(rackConfig.ScaleDownBatchSize, "rackConfig.scaleDownBatchSize"); err != "" {
+			errors = append(errors, err)
+		}
+	}
+
+	// Validate MaxIgnorablePods is non-negative if set
+	if rackConfig.MaxIgnorablePods != nil {
+		if err := validateNonNegativeIntOrString(rackConfig.MaxIgnorablePods, "rackConfig.maxIgnorablePods"); err != "" {
+			errors = append(errors, err)
+		}
+	}
+
+	// Validate RollingUpdateBatchSize is positive if set
+	if rackConfig.RollingUpdateBatchSize != nil {
+		if err := validatePositiveIntOrString(rackConfig.RollingUpdateBatchSize, "rackConfig.rollingUpdateBatchSize"); err != "" {
+			errors = append(errors, err)
+		}
 	}
 
 	return errors
+}
+
+// validateOperations validates the on-demand operations spec.
+func (v *AerospikeCEClusterValidator) validateOperations(ops []OperationSpec) []string {
+	var errors []string
+
+	if len(ops) > 1 {
+		errors = append(errors, "only one operation can be specified at a time")
+	}
+
+	seenIDs := make(map[string]bool)
+	for _, op := range ops {
+		if len(op.ID) < 1 || len(op.ID) > 20 {
+			errors = append(errors, fmt.Sprintf("operation id %q must be 1-20 characters", op.ID))
+		}
+		if seenIDs[op.ID] {
+			errors = append(errors, fmt.Sprintf("duplicate operation id %q", op.ID))
+		}
+		seenIDs[op.ID] = true
+	}
+
+	return errors
+}
+
+// validatePositiveIntOrString returns an error string if the value is not positive.
+func validatePositiveIntOrString(val *intstr.IntOrString, fieldName string) string {
+	if val.Type == intstr.Int {
+		if val.IntVal < 1 {
+			return fmt.Sprintf("%s must be a positive integer (got %d)", fieldName, val.IntVal)
+		}
+	} else {
+		s := val.StrVal
+		if !strings.HasSuffix(s, "%") {
+			return fmt.Sprintf("%s must be a positive integer or a percentage string (e.g., \"25%%\"); got %q", fieldName, s)
+		}
+	}
+	return ""
+}
+
+// validateNonNegativeIntOrString returns an error string if the value is negative.
+func validateNonNegativeIntOrString(val *intstr.IntOrString, fieldName string) string {
+	if val.Type == intstr.Int {
+		if val.IntVal < 0 {
+			return fmt.Sprintf("%s must be a non-negative integer (got %d)", fieldName, val.IntVal)
+		}
+	} else {
+		s := val.StrVal
+		if !strings.HasSuffix(s, "%") {
+			return fmt.Sprintf("%s must be a non-negative integer or a percentage string (e.g., \"25%%\"); got %q", fieldName, s)
+		}
+	}
+	return ""
 }

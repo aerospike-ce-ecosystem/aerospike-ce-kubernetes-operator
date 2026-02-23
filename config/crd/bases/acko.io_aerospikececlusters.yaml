@@ -208,6 +208,30 @@ spec:
                   EnableDynamicConfigUpdate enables runtime configuration changes
                   without pod restart using Aerospike's set-config command.
                 type: boolean
+              enableRackIDOverride:
+                description: EnableRackIDOverride enables dynamic rack ID assignment
+                  via pod annotations.
+                type: boolean
+              headlessService:
+                description: HeadlessService defines custom metadata for the headless
+                  service.
+                properties:
+                  metadata:
+                    description: Metadata defines custom annotations and labels for
+                      the service.
+                    properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        description: Annotations is a map of custom annotations.
+                        type: object
+                      labels:
+                        additionalProperties:
+                          type: string
+                        description: Labels is a map of custom labels.
+                        type: object
+                    type: object
+                type: object
               image:
                 description: |-
                   Image is the Aerospike CE server container image.
@@ -341,9 +365,65 @@ spec:
                     - cilium
                     type: string
                 type: object
+              operations:
+                description: |-
+                  Operations defines on-demand operations (e.g., WarmRestart, PodRestart).
+                  Only one operation can be active at a time.
+                items:
+                  description: OperationSpec defines an on-demand operation to trigger.
+                  properties:
+                    id:
+                      description: ID is a unique identifier for tracking the operation
+                        (1-20 chars).
+                      maxLength: 20
+                      minLength: 1
+                      type: string
+                    kind:
+                      description: |-
+                        Kind is the type of operation.
+                        WarmRestart sends SIGUSR1 to the Aerospike process.
+                        PodRestart deletes and recreates the pod.
+                      enum:
+                      - WarmRestart
+                      - PodRestart
+                      type: string
+                    podList:
+                      description: |-
+                        PodList is an optional list of specific pod names to target.
+                        If empty, the operation applies to all pods.
+                      items:
+                        type: string
+                      type: array
+                  required:
+                  - id
+                  - kind
+                  type: object
+                maxItems: 1
+                type: array
               paused:
                 description: Paused stops reconciliation when set to true.
                 type: boolean
+              podService:
+                description: |-
+                  PodService defines custom metadata for per-pod services.
+                  When set, the operator creates an individual Service for each pod.
+                properties:
+                  metadata:
+                    description: Metadata defines custom annotations and labels for
+                      the service.
+                    properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        description: Annotations is a map of custom annotations.
+                        type: object
+                      labels:
+                        additionalProperties:
+                          type: string
+                        description: Labels is a map of custom labels.
+                        type: object
+                    type: object
+                type: object
               podSpec:
                 description: PodSpec defines pod-level configuration (sidecars, resources,
                   scheduling).
@@ -4931,6 +5011,14 @@ spec:
               rackConfig:
                 description: RackConfig defines rack-aware deployment topology.
                 properties:
+                  maxIgnorablePods:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: |-
+                      MaxIgnorablePods is the maximum number of pending/failed pods to ignore
+                      during reconciliation. Useful when pods are stuck due to scheduling issues.
+                    x-kubernetes-int-or-string: true
                   namespaces:
                     description: |-
                       Namespaces lists Aerospike namespace names that are rack-aware.
@@ -5943,10 +6031,19 @@ spec:
                                 type: object
                               type: array
                           type: object
+                        rackLabel:
+                          description: |-
+                            RackLabel is a custom label value for rack-based affinity scheduling.
+                            When set, pods are scheduled to nodes with the label "acko.io/rack=<rackLabel>".
+                          type: string
                         region:
                           description: |-
                             Region is the cloud provider region label value for scheduling.
                             Maps to topology.kubernetes.io/region.
+                          type: string
+                        revision:
+                          description: Revision is a version identifier for controlled
+                            rack migrations.
                           type: string
                         storage:
                           description: Storage overrides the cluster-level storage
@@ -6300,6 +6397,24 @@ spec:
                       type: object
                     minItems: 1
                     type: array
+                  rollingUpdateBatchSize:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: |-
+                      RollingUpdateBatchSize is the number of pods to restart simultaneously per rack.
+                      Can be an absolute number or percentage string (e.g., "25%").
+                      Defaults to 1. Takes precedence over spec.rollingUpdateBatchSize when set.
+                    x-kubernetes-int-or-string: true
+                  scaleDownBatchSize:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: |-
+                      ScaleDownBatchSize is the number of pods to scale down simultaneously per rack.
+                      Can be an absolute number or percentage string (e.g., "25%").
+                      Defaults to 1.
+                    x-kubernetes-int-or-string: true
                 required:
                 - racks
                 type: object
@@ -6700,6 +6815,15 @@ spec:
                       type: object
                     type: array
                 type: object
+              validationPolicy:
+                description: ValidationPolicy controls validation behavior.
+                properties:
+                  skipWorkDirValidate:
+                    description: |-
+                      SkipWorkDirValidate skips validation that the Aerospike work directory
+                      is mounted on persistent storage.
+                    type: boolean
+                type: object
             required:
             - image
             - size
@@ -6778,6 +6902,39 @@ spec:
                   by the controller.
                 format: int64
                 type: integer
+              operationStatus:
+                description: OperationStatus tracks the current on-demand operation
+                  status.
+                properties:
+                  completedPods:
+                    description: CompletedPods lists pods that have completed the
+                      operation.
+                    items:
+                      type: string
+                    type: array
+                  failedPods:
+                    description: FailedPods lists pods where the operation failed.
+                    items:
+                      type: string
+                    type: array
+                  id:
+                    description: ID is the operation identifier.
+                    type: string
+                  kind:
+                    description: Kind is the operation type.
+                    enum:
+                    - WarmRestart
+                    - PodRestart
+                    type: string
+                  phase:
+                    description: 'Phase is the operation phase: InProgress, Completed,
+                      Error.'
+                    enum:
+                    - InProgress
+                    - Completed
+                    - Error
+                    type: string
+                type: object
               phase:
                 description: Phase indicates the overall cluster phase.
                 enum:

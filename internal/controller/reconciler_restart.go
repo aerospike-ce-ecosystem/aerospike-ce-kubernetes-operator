@@ -48,11 +48,6 @@ func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
 		return false, nil
 	}
 
-	batchSize := int32(1)
-	if cluster.Spec.RollingUpdateBatchSize != nil && *cluster.Spec.RollingUpdateBatchSize > 0 {
-		batchSize = *cluster.Spec.RollingUpdateBatchSize
-	}
-
 	// Compute the old and new config for dynamic config comparison.
 	// Old config comes from the CR's last-applied status; new config from the spec.
 	var oldConfig, newConfig map[string]any
@@ -68,7 +63,12 @@ func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
 	if sts.Spec.Replicas != nil {
 		replicas = *sts.Spec.Replicas
 	}
+
+	batchSize := r.getRollingUpdateBatchSize(cluster, replicas)
+	maxIgnorablePods := r.getMaxIgnorablePods(cluster, replicas)
+
 	var podsToRestart []*corev1.Pod
+	ignoredCount := int32(0)
 	for i := int(replicas) - 1; i >= 0; i-- {
 		podName := fmt.Sprintf("%s-%d", stsName, i)
 
@@ -78,6 +78,15 @@ func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
 				continue
 			}
 			return false, err
+		}
+
+		// Skip pending/failed pods if within ignorable limit
+		if pod.Status.Phase == corev1.PodPending || pod.Status.Phase == corev1.PodFailed {
+			if ignoredCount < maxIgnorablePods {
+				ignoredCount++
+				log.V(1).Info("Ignoring pending/failed pod", "pod", podName)
+				continue
+			}
 		}
 
 		currentHash := ""
@@ -125,35 +134,44 @@ func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
 			}
 		}
 
-		// 2. Try warm restart if only config changed (same image, same podspec)
-		if r.shouldWarmRestart(cluster, pod, sts) {
-			log.Info("Attempting warm restart (SIGUSR1)", "pod", pod.Name)
-			if err := r.warmRestartPod(ctx, pod); err != nil {
-				log.Info("Warm restart failed, falling back to cold restart", "pod", pod.Name, "error", err)
-				if err := r.coldRestartPod(ctx, cluster, pod); err != nil {
-					return false, err
-				}
-			} else {
-				// Update config hash annotation so next reconcile won't re-restart this pod.
-				if err := r.updatePodConfigHash(ctx, pod, desiredHash); err != nil {
-					log.Error(err, "Failed to update pod config hash after warm restart", "pod", pod.Name)
-				}
-				metrics.WarmRestartsTotal.WithLabelValues(cluster.Namespace, cluster.Name).Inc()
-				restarted++
-				continue
-			}
-		} else {
-			// 3. Cold restart (pod delete)
-			log.Info("Pod config/spec hash mismatch, deleting for restart", "pod", pod.Name)
-			if err := r.coldRestartPod(ctx, cluster, pod); err != nil {
-				return false, err
-			}
+		// 2. Restart pod (warm or cold)
+		if err := r.restartPod(ctx, cluster, pod, sts, desiredHash); err != nil {
+			return false, err
 		}
 
 		restarted++
 	}
 
 	return true, nil
+}
+
+// restartPod attempts a warm restart first, falling back to cold restart.
+func (r *AerospikeCEClusterReconciler) restartPod(
+	ctx context.Context,
+	cluster *asdbcev1alpha1.AerospikeCECluster,
+	pod *corev1.Pod,
+	sts *appsv1.StatefulSet,
+	desiredHash string,
+) error {
+	log := logf.FromContext(ctx)
+
+	if !r.shouldWarmRestart(cluster, pod, sts) {
+		log.Info("Pod config/spec hash mismatch, deleting for restart", "pod", pod.Name)
+		return r.coldRestartPod(ctx, cluster, pod)
+	}
+
+	log.Info("Attempting warm restart (SIGUSR1)", "pod", pod.Name)
+	if err := r.warmRestartPod(ctx, pod); err != nil {
+		log.Info("Warm restart failed, falling back to cold restart", "pod", pod.Name, "error", err)
+		return r.coldRestartPod(ctx, cluster, pod)
+	}
+
+	// Update config hash annotation so next reconcile won't re-restart this pod.
+	if err := r.updatePodConfigHash(ctx, pod, desiredHash); err != nil {
+		log.Error(err, "Failed to update pod config hash after warm restart", "pod", pod.Name)
+	}
+	metrics.WarmRestartsTotal.WithLabelValues(cluster.Namespace, cluster.Name).Inc()
+	return nil
 }
 
 // updatePodConfigHash updates the config hash annotation on a pod after a warm restart.
@@ -177,4 +195,26 @@ func (r *AerospikeCEClusterReconciler) coldRestartPod(
 	}
 	metrics.ColdRestartsTotal.WithLabelValues(cluster.Namespace, cluster.Name).Inc()
 	return nil
+}
+
+// getRollingUpdateBatchSize returns the effective rolling update batch size.
+// RackConfig-level setting takes precedence over spec-level setting.
+func (r *AerospikeCEClusterReconciler) getRollingUpdateBatchSize(cluster *asdbcev1alpha1.AerospikeCECluster, totalPods int32) int32 {
+	// RackConfig-level takes precedence
+	if cluster.Spec.RackConfig != nil && cluster.Spec.RackConfig.RollingUpdateBatchSize != nil {
+		return resolveIntOrPercent(cluster.Spec.RackConfig.RollingUpdateBatchSize, totalPods)
+	}
+	// Fall back to spec-level (legacy int32 field)
+	if cluster.Spec.RollingUpdateBatchSize != nil && *cluster.Spec.RollingUpdateBatchSize > 0 {
+		return *cluster.Spec.RollingUpdateBatchSize
+	}
+	return 1
+}
+
+// getMaxIgnorablePods returns the number of pods that can be ignored.
+func (r *AerospikeCEClusterReconciler) getMaxIgnorablePods(cluster *asdbcev1alpha1.AerospikeCECluster, totalPods int32) int32 {
+	if cluster.Spec.RackConfig != nil && cluster.Spec.RackConfig.MaxIgnorablePods != nil {
+		return resolveIntOrPercent(cluster.Spec.RackConfig.MaxIgnorablePods, totalPods)
+	}
+	return 0
 }

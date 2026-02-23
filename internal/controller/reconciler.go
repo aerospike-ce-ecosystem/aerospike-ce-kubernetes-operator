@@ -122,10 +122,26 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, err
 	}
 
-	// 7. Get rack list (default rack if not specified)
+	// 6b. Reconcile per-pod services
+	if err := r.reconcilePodServices(ctx, cluster); err != nil {
+		log.Error(err, "Failed to reconcile per-pod services")
+		return ctrl.Result{}, err
+	}
+
+	// 7-17. Reconcile cluster resources
+	return r.reconcileCluster(ctx, req.NamespacedName, cluster)
+}
+
+// reconcileCluster reconciles all cluster resources (racks, services, operations, ACL, status).
+func (r *AerospikeCEClusterReconciler) reconcileCluster(
+	ctx context.Context,
+	namespacedName types.NamespacedName,
+	cluster *asdbcev1alpha1.AerospikeCECluster,
+) (ctrl.Result, error) {
+	log := logf.FromContext(ctx)
 	racks := r.getRacks(cluster)
 
-	// 8. Pre-compute effective config and hash per rack to avoid redundant work.
+	// Pre-compute effective config and hash per rack.
 	type rackInfo struct {
 		effectiveConfig *asdbcev1alpha1.AerospikeConfigSpec
 		hash            string
@@ -141,48 +157,41 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	}
 
-	// 9. Reconcile each rack
+	// Reconcile each rack's ConfigMap + StatefulSet
 	for i, rack := range racks {
 		ri := rackInfos[i]
-
-		// ConfigMap
 		if err := r.reconcileConfigMap(ctx, cluster, &rack, ri.effectiveConfig); err != nil {
-			log.Error(err, "Failed to reconcile ConfigMap", "rack", rack.ID)
 			return ctrl.Result{}, err
 		}
-
-		// StatefulSet
 		if err := r.reconcileStatefulSet(ctx, cluster, &rack, ri.effectiveConfig, ri.hash, ri.rackSize); err != nil {
-			log.Error(err, "Failed to reconcile StatefulSet", "rack", rack.ID)
 			return ctrl.Result{}, err
 		}
 	}
 
-	// 10. Clean up removed racks
+	// Clean up removed racks
 	if err := r.cleanupRemovedRacks(ctx, cluster, racks); err != nil {
-		log.Error(err, "Failed to clean up removed racks")
 		return ctrl.Result{}, err
 	}
 
-	// 11. Reconcile PDB
-	if err := r.reconcilePDB(ctx, cluster); err != nil {
-		log.Error(err, "Failed to reconcile PDB")
-		return ctrl.Result{}, err
+	// Reconcile auxiliary resources: PDB, Monitoring, NetworkPolicy
+	for _, fn := range []func(context.Context, *asdbcev1alpha1.AerospikeCECluster) error{
+		r.reconcilePDB,
+		r.reconcileMonitoring,
+		r.reconcileNetworkPolicy,
+	} {
+		if err := fn(ctx, cluster); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
-	// 12. Reconcile Monitoring (metrics Service + ServiceMonitor)
-	if err := r.reconcileMonitoring(ctx, cluster); err != nil {
-		log.Error(err, "Failed to reconcile monitoring")
+	// Handle on-demand operations
+	if inProgress, err := r.reconcileOperations(ctx, cluster); err != nil {
 		return ctrl.Result{}, err
+	} else if inProgress {
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 	}
 
-	// 13. Reconcile NetworkPolicy
-	if err := r.reconcileNetworkPolicy(ctx, cluster); err != nil {
-		log.Error(err, "Failed to reconcile network policy")
-		return ctrl.Result{}, err
-	}
-
-	// 14. Rolling restart if needed
+	// Rolling restart if needed
 	for _, rack := range racks {
 		restarted, err := r.reconcileRollingRestart(ctx, cluster, &rack)
 		if err != nil {
@@ -190,26 +199,21 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 			return ctrl.Result{}, err
 		}
 		if restarted {
-			// Requeue to check again
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 		}
 	}
 
-	// 15. Reconcile ACL (roles and users) after cluster is stable
+	// Reconcile ACL (non-fatal)
 	if err := r.reconcileACL(ctx, cluster); err != nil {
 		log.Error(err, "Failed to reconcile ACL")
 		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "ACLSyncError", "ACL sync failed: %v", err)
-		// ACL errors are not fatal — continue to status update
 	}
 
-	// 16. Update status and set phase to Completed.
-	// updateStatusAndPhase re-fetches internally to avoid conflict errors.
-	if err := r.updateStatusAndPhase(ctx, req.NamespacedName, asdbcev1alpha1.AerospikePhaseCompleted); err != nil {
+	// Update status and set phase to Completed.
+	if err := r.updateStatusAndPhase(ctx, namespacedName, asdbcev1alpha1.AerospikePhaseCompleted); err != nil {
 		if errors.IsConflict(err) {
-			log.V(1).Info("Conflict updating final status, will requeue")
 			return ctrl.Result{Requeue: true}, nil
 		}
-		log.Error(err, "Failed to update status")
 		return ctrl.Result{}, err
 	}
 

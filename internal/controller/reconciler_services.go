@@ -74,11 +74,11 @@ func (r *AerospikeCEClusterReconciler) reconcileHeadlessService(
 		return fmt.Errorf("getting headless service %s: %w", svcName, err)
 	}
 
-	// Update if ports, labels, or annotations changed.
-	needsUpdate := !maps.Equal(existing.Labels, labels)
+	// Update if annotations, labels, or ports changed.
+	needsUpdate := !equalAnnotations(existing.Annotations, desiredAnnotations)
 
 	if !needsUpdate {
-		needsUpdate = !equalAnnotations(existing.Annotations, desiredAnnotations)
+		needsUpdate = !maps.Equal(existing.Labels, labels)
 	}
 
 	if !needsUpdate && len(existing.Spec.Ports) == len(desiredPorts) {

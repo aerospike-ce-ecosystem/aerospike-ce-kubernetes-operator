@@ -25,6 +25,12 @@ func TestEqualAnnotations(t *testing.T) {
 			expected: true,
 		},
 		{
+			name:     "actual nil, desired empty map",
+			actual:   nil,
+			desired:  map[string]string{},
+			expected: true,
+		},
+		{
 			name:     "desired nil, actual has system annotation only",
 			actual:   map[string]string{"kubectl.kubernetes.io/last-applied-configuration": "{}"},
 			desired:  nil,
@@ -106,6 +112,12 @@ func TestReconcileAnnotations(t *testing.T) {
 		{
 			name:     "existing only (non-system) — cleaned up",
 			existing: map[string]string{"foo": "bar"},
+			desired:  nil,
+			expected: nil,
+		},
+		{
+			name:     "existing empty map, desired nil",
+			existing: map[string]string{},
 			desired:  nil,
 			expected: nil,
 		},

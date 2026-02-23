@@ -588,6 +588,124 @@ func TestBuildVolumeClaimTemplates_MetadataNil(t *testing.T) {
 	}
 }
 
+// --- Block Volume Mode tests ---
+
+func TestBuildVolumeClaimTemplates_BlockVolumeMode(t *testing.T) {
+	spec := &v1alpha1.AerospikeStorageSpec{
+		Volumes: []v1alpha1.VolumeSpec{
+			{
+				Name: "block-data",
+				Source: v1alpha1.VolumeSource{
+					PersistentVolume: &v1alpha1.PersistentVolumeSpec{
+						Size:       "10Gi",
+						VolumeMode: corev1.PersistentVolumeBlock,
+					},
+				},
+			},
+		},
+	}
+
+	claims := BuildVolumeClaimTemplates(spec)
+	if len(claims) != 1 {
+		t.Fatalf("expected 1 claim, got %d", len(claims))
+	}
+
+	if claims[0].Spec.VolumeMode == nil || *claims[0].Spec.VolumeMode != corev1.PersistentVolumeBlock {
+		t.Error("volume mode should be Block")
+	}
+}
+
+// --- PVC Metadata edge case tests ---
+
+func TestBuildVolumeClaimTemplates_MetadataLabelsOnly(t *testing.T) {
+	spec := &v1alpha1.AerospikeStorageSpec{
+		Volumes: []v1alpha1.VolumeSpec{
+			{
+				Name: "data",
+				Source: v1alpha1.VolumeSource{
+					PersistentVolume: &v1alpha1.PersistentVolumeSpec{
+						Size: "10Gi",
+						Metadata: &v1alpha1.AerospikeObjectMeta{
+							Labels: map[string]string{"app": "aerospike"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	claims := BuildVolumeClaimTemplates(spec)
+	if len(claims) != 1 {
+		t.Fatalf("expected 1 claim, got %d", len(claims))
+	}
+
+	pvc := claims[0]
+	if pvc.Labels == nil || pvc.Labels["app"] != "aerospike" {
+		t.Errorf("expected label app=aerospike, got labels: %v", pvc.Labels)
+	}
+	if pvc.Annotations != nil {
+		t.Errorf("expected nil annotations when only labels set, got: %v", pvc.Annotations)
+	}
+}
+
+func TestBuildVolumeClaimTemplates_MetadataAnnotationsOnly(t *testing.T) {
+	spec := &v1alpha1.AerospikeStorageSpec{
+		Volumes: []v1alpha1.VolumeSpec{
+			{
+				Name: "data",
+				Source: v1alpha1.VolumeSource{
+					PersistentVolume: &v1alpha1.PersistentVolumeSpec{
+						Size: "10Gi",
+						Metadata: &v1alpha1.AerospikeObjectMeta{
+							Annotations: map[string]string{"backup.io/enabled": "true"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	claims := BuildVolumeClaimTemplates(spec)
+	if len(claims) != 1 {
+		t.Fatalf("expected 1 claim, got %d", len(claims))
+	}
+
+	pvc := claims[0]
+	if pvc.Annotations == nil || pvc.Annotations["backup.io/enabled"] != "true" {
+		t.Errorf("expected annotation backup.io/enabled=true, got annotations: %v", pvc.Annotations)
+	}
+	if pvc.Labels != nil {
+		t.Errorf("expected nil labels when only annotations set, got: %v", pvc.Labels)
+	}
+}
+
+func TestBuildVolumeClaimTemplates_MetadataDoesNotMutateSrc(t *testing.T) {
+	origLabels := map[string]string{"app": "aerospike"}
+	spec := &v1alpha1.AerospikeStorageSpec{
+		Volumes: []v1alpha1.VolumeSpec{
+			{
+				Name: "data",
+				Source: v1alpha1.VolumeSource{
+					PersistentVolume: &v1alpha1.PersistentVolumeSpec{
+						Size: "10Gi",
+						Metadata: &v1alpha1.AerospikeObjectMeta{
+							Labels: origLabels,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	claims := BuildVolumeClaimTemplates(spec)
+	// Mutating the PVC labels should not affect the original
+	claims[0].Labels["extra"] = "value"
+
+	if _, exists := origLabels["extra"]; exists {
+		t.Error("mutating PVC labels should not affect source metadata (should be cloned)")
+	}
+}
+
 // --- HostPath tests ---
 
 func TestBuildVolumes_HostPath(t *testing.T) {
@@ -735,6 +853,34 @@ func TestBuildVolumes_MountPropagation(t *testing.T) {
 	}
 	if *mounts[0].MountPropagation != corev1.MountPropagationBidirectional {
 		t.Errorf("mount propagation = %v, want Bidirectional", *mounts[0].MountPropagation)
+	}
+}
+
+func TestBuildVolumes_SubPathExpr(t *testing.T) {
+	spec := &v1alpha1.AerospikeStorageSpec{
+		Volumes: []v1alpha1.VolumeSpec{
+			{
+				Name: "shared",
+				Source: v1alpha1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{},
+				},
+				Aerospike: &v1alpha1.AerospikeVolumeAttachment{
+					Path:        "/opt/aerospike/data",
+					SubPathExpr: "$(POD_NAME)",
+				},
+			},
+		},
+	}
+
+	_, mounts := BuildVolumes(spec)
+	if len(mounts) != 1 {
+		t.Fatalf("expected 1 mount, got %d", len(mounts))
+	}
+	if mounts[0].SubPathExpr != "$(POD_NAME)" {
+		t.Errorf("subPathExpr = %q, want %q", mounts[0].SubPathExpr, "$(POD_NAME)")
+	}
+	if mounts[0].SubPath != "" {
+		t.Error("subPath should be empty when subPathExpr is set")
 	}
 }
 

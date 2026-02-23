@@ -233,6 +233,252 @@ func TestResolveCascadeDelete_NoPolicyDefaultFalse(t *testing.T) {
 	}
 }
 
+// --- ResolveInitMethod edge cases ---
+
+func TestResolveInitMethod_ExplicitNoneFallsToPolicy(t *testing.T) {
+	// When per-volume is explicitly "none", it should fall through to the global policy
+	vol := &v1alpha1.VolumeSpec{
+		InitMethod: v1alpha1.VolumeInitMethodNone,
+		Source: v1alpha1.VolumeSource{
+			PersistentVolume: &v1alpha1.PersistentVolumeSpec{Size: "10Gi"},
+		},
+	}
+	spec := &v1alpha1.AerospikeStorageSpec{
+		FilesystemVolumePolicy: &v1alpha1.AerospikeVolumePolicy{
+			InitMethod: v1alpha1.VolumeInitMethodDeleteFiles,
+		},
+	}
+
+	result := ResolveInitMethod(vol, spec)
+	if result != v1alpha1.VolumeInitMethodDeleteFiles {
+		t.Errorf("explicit 'none' should fall to policy, expected %q, got %q", v1alpha1.VolumeInitMethodDeleteFiles, result)
+	}
+}
+
+func TestResolveInitMethod_EmptyStringFallsToPolicy(t *testing.T) {
+	vol := &v1alpha1.VolumeSpec{
+		// InitMethod is zero value ""
+		Source: v1alpha1.VolumeSource{
+			PersistentVolume: &v1alpha1.PersistentVolumeSpec{
+				Size:       "10Gi",
+				VolumeMode: corev1.PersistentVolumeBlock,
+			},
+		},
+	}
+	spec := &v1alpha1.AerospikeStorageSpec{
+		BlockVolumePolicy: &v1alpha1.AerospikeVolumePolicy{
+			InitMethod: v1alpha1.VolumeInitMethodBlkdiscard,
+		},
+	}
+
+	result := ResolveInitMethod(vol, spec)
+	if result != v1alpha1.VolumeInitMethodBlkdiscard {
+		t.Errorf("expected block policy fallback %q, got %q", v1alpha1.VolumeInitMethodBlkdiscard, result)
+	}
+}
+
+func TestResolveInitMethod_NonPersistentVolume_NoPolicy(t *testing.T) {
+	vol := &v1alpha1.VolumeSpec{
+		Source: v1alpha1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	}
+	spec := &v1alpha1.AerospikeStorageSpec{
+		FilesystemVolumePolicy: &v1alpha1.AerospikeVolumePolicy{
+			InitMethod: v1alpha1.VolumeInitMethodDeleteFiles,
+		},
+	}
+
+	result := ResolveInitMethod(vol, spec)
+	if result != v1alpha1.VolumeInitMethodNone {
+		t.Errorf("non-persistent volume should return none, got %q", result)
+	}
+}
+
+func TestResolveInitMethod_NilStorageSpec(t *testing.T) {
+	vol := &v1alpha1.VolumeSpec{
+		Source: v1alpha1.VolumeSource{
+			PersistentVolume: &v1alpha1.PersistentVolumeSpec{Size: "10Gi"},
+		},
+	}
+
+	result := ResolveInitMethod(vol, nil)
+	if result != v1alpha1.VolumeInitMethodNone {
+		t.Errorf("nil storage spec should return none, got %q", result)
+	}
+}
+
+func TestResolveInitMethod_PolicyAlsoNone(t *testing.T) {
+	vol := &v1alpha1.VolumeSpec{
+		Source: v1alpha1.VolumeSource{
+			PersistentVolume: &v1alpha1.PersistentVolumeSpec{Size: "10Gi"},
+		},
+	}
+	spec := &v1alpha1.AerospikeStorageSpec{
+		FilesystemVolumePolicy: &v1alpha1.AerospikeVolumePolicy{
+			InitMethod: v1alpha1.VolumeInitMethodNone,
+		},
+	}
+
+	result := ResolveInitMethod(vol, spec)
+	if result != v1alpha1.VolumeInitMethodNone {
+		t.Errorf("policy none should return none, got %q", result)
+	}
+}
+
+// --- ResolveWipeMethod edge cases ---
+
+func TestResolveWipeMethod_BlockPolicyFallback(t *testing.T) {
+	vol := &v1alpha1.VolumeSpec{
+		Source: v1alpha1.VolumeSource{
+			PersistentVolume: &v1alpha1.PersistentVolumeSpec{
+				Size:       "10Gi",
+				VolumeMode: corev1.PersistentVolumeBlock,
+			},
+		},
+	}
+	spec := &v1alpha1.AerospikeStorageSpec{
+		BlockVolumePolicy: &v1alpha1.AerospikeVolumePolicy{
+			WipeMethod: v1alpha1.VolumeWipeMethodBlkdiscard,
+		},
+		FilesystemVolumePolicy: &v1alpha1.AerospikeVolumePolicy{
+			WipeMethod: v1alpha1.VolumeWipeMethodDeleteFiles,
+		},
+	}
+
+	result := ResolveWipeMethod(vol, spec)
+	if result != v1alpha1.VolumeWipeMethodBlkdiscard {
+		t.Errorf("expected block policy wipe %q, got %q", v1alpha1.VolumeWipeMethodBlkdiscard, result)
+	}
+}
+
+func TestResolveWipeMethod_ExplicitNoneFallsToPolicy(t *testing.T) {
+	vol := &v1alpha1.VolumeSpec{
+		WipeMethod: v1alpha1.VolumeWipeMethodNone,
+		Source: v1alpha1.VolumeSource{
+			PersistentVolume: &v1alpha1.PersistentVolumeSpec{Size: "10Gi"},
+		},
+	}
+	spec := &v1alpha1.AerospikeStorageSpec{
+		FilesystemVolumePolicy: &v1alpha1.AerospikeVolumePolicy{
+			WipeMethod: v1alpha1.VolumeWipeMethodDeleteFiles,
+		},
+	}
+
+	result := ResolveWipeMethod(vol, spec)
+	if result != v1alpha1.VolumeWipeMethodDeleteFiles {
+		t.Errorf("explicit 'none' should fall to policy, expected %q, got %q", v1alpha1.VolumeWipeMethodDeleteFiles, result)
+	}
+}
+
+func TestResolveWipeMethod_NonPersistentVolume(t *testing.T) {
+	vol := &v1alpha1.VolumeSpec{
+		Source: v1alpha1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	}
+	spec := &v1alpha1.AerospikeStorageSpec{
+		FilesystemVolumePolicy: &v1alpha1.AerospikeVolumePolicy{
+			WipeMethod: v1alpha1.VolumeWipeMethodDeleteFiles,
+		},
+	}
+
+	result := ResolveWipeMethod(vol, spec)
+	if result != v1alpha1.VolumeWipeMethodNone {
+		t.Errorf("non-persistent volume should return none, got %q", result)
+	}
+}
+
+func TestResolveWipeMethod_BlkdiscardWithHeaderCleanup(t *testing.T) {
+	vol := &v1alpha1.VolumeSpec{
+		WipeMethod: v1alpha1.VolumeWipeMethodBlkdiscardWithHeaderCleanup,
+		Source: v1alpha1.VolumeSource{
+			PersistentVolume: &v1alpha1.PersistentVolumeSpec{Size: "10Gi"},
+		},
+	}
+	spec := &v1alpha1.AerospikeStorageSpec{}
+
+	result := ResolveWipeMethod(vol, spec)
+	if result != v1alpha1.VolumeWipeMethodBlkdiscardWithHeaderCleanup {
+		t.Errorf("expected %q, got %q", v1alpha1.VolumeWipeMethodBlkdiscardWithHeaderCleanup, result)
+	}
+}
+
+// --- ResolveCascadeDelete edge cases ---
+
+func TestResolveCascadeDelete_BlockPolicyFallback(t *testing.T) {
+	vol := &v1alpha1.VolumeSpec{
+		Source: v1alpha1.VolumeSource{
+			PersistentVolume: &v1alpha1.PersistentVolumeSpec{
+				Size:       "10Gi",
+				VolumeMode: corev1.PersistentVolumeBlock,
+			},
+		},
+	}
+	spec := &v1alpha1.AerospikeStorageSpec{
+		BlockVolumePolicy: &v1alpha1.AerospikeVolumePolicy{
+			CascadeDelete: boolPtr(true),
+		},
+		FilesystemVolumePolicy: &v1alpha1.AerospikeVolumePolicy{
+			CascadeDelete: boolPtr(false),
+		},
+	}
+
+	if !ResolveCascadeDelete(vol, spec) {
+		t.Error("block volume should use block policy (true)")
+	}
+}
+
+func TestResolveCascadeDelete_NonPersistentVolume(t *testing.T) {
+	vol := &v1alpha1.VolumeSpec{
+		Source: v1alpha1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	}
+	spec := &v1alpha1.AerospikeStorageSpec{
+		FilesystemVolumePolicy: &v1alpha1.AerospikeVolumePolicy{
+			CascadeDelete: boolPtr(true),
+		},
+	}
+
+	if ResolveCascadeDelete(vol, spec) {
+		t.Error("non-persistent volume should return false regardless of policy")
+	}
+}
+
+func TestResolveCascadeDelete_NilStorageSpec(t *testing.T) {
+	vol := &v1alpha1.VolumeSpec{
+		Source: v1alpha1.VolumeSource{
+			PersistentVolume: &v1alpha1.PersistentVolumeSpec{Size: "10Gi"},
+		},
+	}
+
+	if ResolveCascadeDelete(vol, nil) {
+		t.Error("nil storage spec should return false")
+	}
+}
+
+func TestResolveCascadeDelete_PerVolumeOverridesBlockPolicy(t *testing.T) {
+	vol := &v1alpha1.VolumeSpec{
+		CascadeDelete: boolPtr(false),
+		Source: v1alpha1.VolumeSource{
+			PersistentVolume: &v1alpha1.PersistentVolumeSpec{
+				Size:       "10Gi",
+				VolumeMode: corev1.PersistentVolumeBlock,
+			},
+		},
+	}
+	spec := &v1alpha1.AerospikeStorageSpec{
+		BlockVolumePolicy: &v1alpha1.AerospikeVolumePolicy{
+			CascadeDelete: boolPtr(true),
+		},
+	}
+
+	if ResolveCascadeDelete(vol, spec) {
+		t.Error("per-volume false should override block policy true")
+	}
+}
+
 // --- getVolumePolicy tests ---
 
 func TestGetVolumePolicy_NonPersistent_ReturnsNil(t *testing.T) {

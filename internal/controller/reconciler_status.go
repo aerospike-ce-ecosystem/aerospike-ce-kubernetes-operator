@@ -101,7 +101,7 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 		// During rolling updates the pod may still run the old image.
 		podImage := cluster.Spec.Image
 		for _, c := range pod.Spec.Containers {
-			if c.Name == "aerospike-server" {
+			if c.Name == podutil.AerospikeContainerName {
 				podImage = c.Image
 				break
 			}

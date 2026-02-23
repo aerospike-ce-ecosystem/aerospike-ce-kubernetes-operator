@@ -3,9 +3,12 @@ package podutil
 import (
 	"fmt"
 	"maps"
+	"sort"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	v1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/storage"
@@ -99,7 +102,7 @@ func BuildPodTemplateSpec(
 
 	// Inject Prometheus exporter sidecar if monitoring is enabled.
 	if cluster.Spec.Monitoring != nil && cluster.Spec.Monitoring.Enabled {
-		sidecars = append(sidecars, buildExporterSidecar(cluster.Spec.Monitoring))
+		sidecars = append(sidecars, buildExporterSidecar(cluster.Spec.Monitoring, cluster.Spec.AerospikeAccessControl))
 	}
 
 	if cluster.Spec.PodSpec != nil {
@@ -307,8 +310,66 @@ func injectPodAntiAffinity(podSpec *corev1.PodSpec, clusterName string) {
 	)
 }
 
-// buildExporterSidecar creates the Prometheus exporter sidecar container.
-func buildExporterSidecar(monitoring *v1alpha1.AerospikeMonitoringSpec) corev1.Container {
+// buildExporterSidecar creates the Prometheus exporter sidecar container with
+// health probes, ACL authentication, custom env vars, and metric labels.
+func buildExporterSidecar(
+	monitoring *v1alpha1.AerospikeMonitoringSpec,
+	acl *v1alpha1.AerospikeAccessControlSpec,
+) corev1.Container {
+	envVars := []corev1.EnvVar{
+		{Name: "AS_HOST", Value: "localhost"},
+		{Name: "AS_PORT", Value: fmt.Sprintf("%d", ServicePort)},
+	}
+
+	// Inject ACL credentials when access control is configured.
+	if adminUser := utils.FindAdminUser(acl); adminUser != nil {
+		envVars = append(envVars,
+			corev1.EnvVar{Name: "AS_AUTH_USER", Value: adminUser.Name},
+			corev1.EnvVar{
+				Name: "AS_AUTH_PASSWORD",
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: adminUser.SecretName,
+						},
+						Key: "password",
+					},
+				},
+			},
+			corev1.EnvVar{Name: "AS_AUTH_MODE", Value: "internal"},
+		)
+	}
+
+	// Inject metric labels as METRIC_LABELS env var (sorted key=value pairs).
+	if len(monitoring.MetricLabels) > 0 {
+		keys := make([]string, 0, len(monitoring.MetricLabels))
+		for k := range monitoring.MetricLabels {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+
+		pairs := make([]string, 0, len(keys))
+		for _, k := range keys {
+			pairs = append(pairs, fmt.Sprintf("%s=%s", k, monitoring.MetricLabels[k]))
+		}
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "METRIC_LABELS",
+			Value: strings.Join(pairs, ","),
+		})
+	}
+
+	// Append user-provided env vars last so they can override defaults.
+	envVars = append(envVars, monitoring.Env...)
+
+	metricsProbe := &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			HTTPGet: &corev1.HTTPGetAction{
+				Path: "/metrics",
+				Port: intstr.FromInt32(monitoring.Port),
+			},
+		},
+	}
+
 	c := corev1.Container{
 		Name:  "aerospike-prometheus-exporter",
 		Image: monitoring.ExporterImage,
@@ -319,9 +380,20 @@ func buildExporterSidecar(monitoring *v1alpha1.AerospikeMonitoringSpec) corev1.C
 				Protocol:      corev1.ProtocolTCP,
 			},
 		},
-		Env: []corev1.EnvVar{
-			{Name: "AS_HOST", Value: "localhost"},
-			{Name: "AS_PORT", Value: fmt.Sprintf("%d", ServicePort)},
+		Env: envVars,
+		ReadinessProbe: &corev1.Probe{
+			ProbeHandler:        metricsProbe.ProbeHandler,
+			InitialDelaySeconds: 10,
+			PeriodSeconds:       10,
+			TimeoutSeconds:      5,
+			FailureThreshold:    3,
+		},
+		LivenessProbe: &corev1.Probe{
+			ProbeHandler:        metricsProbe.ProbeHandler,
+			InitialDelaySeconds: 30,
+			PeriodSeconds:       30,
+			TimeoutSeconds:      5,
+			FailureThreshold:    3,
 		},
 	}
 

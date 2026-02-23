@@ -1,0 +1,57 @@
+apiVersion: acko.io/v1alpha1
+kind: AerospikeCECluster
+metadata:
+  name: aerospike-monitoring
+  namespace: default
+spec:
+  size: 3
+  image: aerospike:ce-8.1.1.1
+
+  monitoring:
+    enabled: true
+    exporterImage: aerospike/aerospike-prometheus-exporter:v1.16.1
+    port: 9145
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+    # Custom environment variables for the exporter
+    env:
+      - name: AS_STAT_NAMESPACES
+        value: "test"
+    # Custom labels added to all exported metrics
+    metricLabels:
+      environment: production
+      team: platform
+    # Prometheus Operator ServiceMonitor
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      labels:
+        release: prometheus
+    # Prometheus alert rules
+    prometheusRule:
+      enabled: true
+      labels:
+        release: prometheus
+
+  aerospikeConfig:
+    namespaces:
+      - name: test
+        replication-factor: 2
+        memory-size: 2147483648  # 2 GiB
+        storage-engine:
+          type: memory
+
+  storage:
+    volumes:
+      - name: workdir
+        source:
+          persistentVolume:
+            storageClass: standard
+            size: 10Gi
+        aerospike:
+          path: /opt/aerospike

@@ -182,11 +182,11 @@ func TestInjectPodAntiAffinity_AppendsToExistingAntiAffinity(t *testing.T) {
 func TestBuildExporterSidecar_Basic(t *testing.T) {
 	monitoring := &v1alpha1.AerospikeMonitoringSpec{
 		Enabled:       true,
-		ExporterImage: "aerospike/aerospike-prometheus-exporter:latest",
+		ExporterImage: "aerospike/aerospike-prometheus-exporter:v1.16.1",
 		Port:          9145,
 	}
 
-	c := buildExporterSidecar(monitoring)
+	c := buildExporterSidecar(monitoring, nil)
 
 	if c.Name != exporterContainerName {
 		t.Errorf("name = %q, want %q", c.Name, exporterContainerName)
@@ -223,7 +223,7 @@ func TestBuildExporterSidecar_WithResources(t *testing.T) {
 		},
 	}
 
-	c := buildExporterSidecar(monitoring)
+	c := buildExporterSidecar(monitoring, nil)
 
 	if c.Resources.Requests.Cpu().String() != "50m" {
 		t.Errorf("expected CPU request 50m, got %s", c.Resources.Requests.Cpu().String())
@@ -237,10 +237,167 @@ func TestBuildExporterSidecar_CustomPort(t *testing.T) {
 		Port:          9999,
 	}
 
-	c := buildExporterSidecar(monitoring)
+	c := buildExporterSidecar(monitoring, nil)
 
 	if c.Ports[0].ContainerPort != 9999 {
 		t.Errorf("expected port 9999, got %d", c.Ports[0].ContainerPort)
+	}
+}
+
+func TestBuildExporterSidecar_HealthProbes(t *testing.T) {
+	monitoring := &v1alpha1.AerospikeMonitoringSpec{
+		Enabled:       true,
+		ExporterImage: "exporter:v1",
+		Port:          9145,
+	}
+
+	c := buildExporterSidecar(monitoring, nil)
+
+	// Readiness probe
+	if c.ReadinessProbe == nil {
+		t.Fatal("expected readiness probe to be set")
+	}
+	if c.ReadinessProbe.HTTPGet == nil {
+		t.Fatal("expected readiness probe to use HTTPGet")
+	}
+	if c.ReadinessProbe.HTTPGet.Path != "/metrics" {
+		t.Errorf("readiness probe path = %q, want /metrics", c.ReadinessProbe.HTTPGet.Path)
+	}
+	if c.ReadinessProbe.HTTPGet.Port.IntVal != 9145 {
+		t.Errorf("readiness probe port = %d, want 9145", c.ReadinessProbe.HTTPGet.Port.IntVal)
+	}
+	if c.ReadinessProbe.InitialDelaySeconds != 10 {
+		t.Errorf("readiness initialDelay = %d, want 10", c.ReadinessProbe.InitialDelaySeconds)
+	}
+
+	// Liveness probe
+	if c.LivenessProbe == nil {
+		t.Fatal("expected liveness probe to be set")
+	}
+	if c.LivenessProbe.HTTPGet == nil {
+		t.Fatal("expected liveness probe to use HTTPGet")
+	}
+	if c.LivenessProbe.InitialDelaySeconds != 30 {
+		t.Errorf("liveness initialDelay = %d, want 30", c.LivenessProbe.InitialDelaySeconds)
+	}
+	if c.LivenessProbe.PeriodSeconds != 30 {
+		t.Errorf("liveness period = %d, want 30", c.LivenessProbe.PeriodSeconds)
+	}
+}
+
+func TestBuildExporterSidecar_ACLAuth(t *testing.T) {
+	monitoring := &v1alpha1.AerospikeMonitoringSpec{
+		Enabled:       true,
+		ExporterImage: "exporter:v1",
+		Port:          9145,
+	}
+	acl := &v1alpha1.AerospikeAccessControlSpec{
+		Users: []v1alpha1.AerospikeUserSpec{
+			{
+				Name:       "admin",
+				SecretName: "admin-secret",
+				Roles:      []string{"sys-admin", "user-admin"},
+			},
+		},
+	}
+
+	c := buildExporterSidecar(monitoring, acl)
+
+	envMap := make(map[string]string)
+	var passwordRef *corev1.SecretKeySelector
+	for _, e := range c.Env {
+		if e.ValueFrom != nil && e.ValueFrom.SecretKeyRef != nil {
+			passwordRef = e.ValueFrom.SecretKeyRef
+		} else {
+			envMap[e.Name] = e.Value
+		}
+	}
+
+	if envMap["AS_AUTH_USER"] != "admin" {
+		t.Errorf("AS_AUTH_USER = %q, want %q", envMap["AS_AUTH_USER"], "admin")
+	}
+	if envMap["AS_AUTH_MODE"] != "internal" {
+		t.Errorf("AS_AUTH_MODE = %q, want %q", envMap["AS_AUTH_MODE"], "internal")
+	}
+	if passwordRef == nil {
+		t.Fatal("expected AS_AUTH_PASSWORD to use SecretKeyRef")
+	}
+	if passwordRef.Name != "admin-secret" {
+		t.Errorf("secret name = %q, want %q", passwordRef.Name, "admin-secret")
+	}
+	if passwordRef.Key != "password" {
+		t.Errorf("secret key = %q, want %q", passwordRef.Key, "password")
+	}
+}
+
+func TestBuildExporterSidecar_NoACLAuth(t *testing.T) {
+	monitoring := &v1alpha1.AerospikeMonitoringSpec{
+		Enabled:       true,
+		ExporterImage: "exporter:v1",
+		Port:          9145,
+	}
+
+	c := buildExporterSidecar(monitoring, nil)
+
+	for _, e := range c.Env {
+		if e.Name == "AS_AUTH_USER" || e.Name == "AS_AUTH_PASSWORD" || e.Name == "AS_AUTH_MODE" {
+			t.Errorf("unexpected ACL env var %q when ACL is nil", e.Name)
+		}
+	}
+}
+
+func TestBuildExporterSidecar_MetricLabels(t *testing.T) {
+	monitoring := &v1alpha1.AerospikeMonitoringSpec{
+		Enabled:       true,
+		ExporterImage: "exporter:v1",
+		Port:          9145,
+		MetricLabels: map[string]string{
+			"env":  "prod",
+			"team": "platform",
+		},
+	}
+
+	c := buildExporterSidecar(monitoring, nil)
+
+	var metricLabelsValue string
+	for _, e := range c.Env {
+		if e.Name == "METRIC_LABELS" {
+			metricLabelsValue = e.Value
+		}
+	}
+
+	// Keys should be sorted
+	expected := "env=prod,team=platform"
+	if metricLabelsValue != expected {
+		t.Errorf("METRIC_LABELS = %q, want %q", metricLabelsValue, expected)
+	}
+}
+
+func TestBuildExporterSidecar_CustomEnv(t *testing.T) {
+	monitoring := &v1alpha1.AerospikeMonitoringSpec{
+		Enabled:       true,
+		ExporterImage: "exporter:v1",
+		Port:          9145,
+		Env: []corev1.EnvVar{
+			{Name: "CUSTOM_VAR", Value: "custom_value"},
+			{Name: "AS_HOST", Value: "override"}, // intentional override
+		},
+	}
+
+	c := buildExporterSidecar(monitoring, nil)
+
+	// User env vars should be appended last
+	envMap := make(map[string]string)
+	for _, e := range c.Env {
+		envMap[e.Name] = e.Value // last value wins
+	}
+
+	if envMap["CUSTOM_VAR"] != "custom_value" {
+		t.Errorf("CUSTOM_VAR = %q, want %q", envMap["CUSTOM_VAR"], "custom_value")
+	}
+	// User override should take effect (last wins)
+	if envMap["AS_HOST"] != "override" {
+		t.Errorf("AS_HOST = %q, want %q (user override)", envMap["AS_HOST"], "override")
 	}
 }
 

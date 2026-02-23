@@ -22,27 +22,9 @@ const (
 	defaultAeroPort   = 3000
 )
 
-// findAdminUser returns the first user that has both "sys-admin" and "user-admin"
-// roles, which is the user the operator uses to manage ACL.
+// findAdminUser delegates to utils.FindAdminUser for backward compatibility.
 func findAdminUser(acl *asdbcev1alpha1.AerospikeAccessControlSpec) *asdbcev1alpha1.AerospikeUserSpec {
-	if acl == nil {
-		return nil
-	}
-	for i, user := range acl.Users {
-		hasSysAdmin, hasUserAdmin := false, false
-		for _, role := range user.Roles {
-			switch role {
-			case "sys-admin":
-				hasSysAdmin = true
-			case "user-admin":
-				hasUserAdmin = true
-			}
-		}
-		if hasSysAdmin && hasUserAdmin {
-			return &acl.Users[i]
-		}
-	}
-	return nil
+	return utils.FindAdminUser(acl)
 }
 
 // getServicePort returns the configured Aerospike service port from the cluster

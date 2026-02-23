@@ -137,10 +137,19 @@ spec:
   rackConfig:
     namespaces:
       - testns              # Rack-aware namespace
+    rollingUpdateBatchSize: "50%"  # Restart 50% of pods per rack during rolling update
+    scaleDownBatchSize: 1          # Remove 1 pod per rack during scale-down
+    maxIgnorablePods: 1            # Continue reconciling if 1 pod is stuck
     racks:
       - id: 1
+        rackLabel: zone-a          # Schedule to nodes with acko.io/rack=zone-a
+        revision: "v1.0"
       - id: 2
+        rackLabel: zone-b
+        revision: "v1.0"
       - id: 3
+        rackLabel: zone-c
+        revision: "v1.0"
 
   podSpec:
     aerospikeContainer:
@@ -173,7 +182,7 @@ spec:
           filesize: 4294967296
 ```
 
-**Use case:** High availability across zones. Each rack ID creates a separate StatefulSet (`<name>-<rackID>`) and ConfigMap.
+**Use case:** High availability across zones with rack-label-based scheduling. Each rack ID creates a separate StatefulSet (`<name>-<rackID>`) and ConfigMap.
 
 ```bash
 kubectl apply -f config/samples/aerospike-ce-cluster-multirack.yaml
@@ -268,6 +277,13 @@ The validating webhook enforces Community Edition constraints:
 | Replication factor | must not exceed `spec.size` | `replication-factor N exceeds cluster size` |
 | Replication factor range | 1 to 4 | `must be between 1 and 4` |
 | Rack IDs | Must be unique | `duplicate rack ID` |
+| Rack labels | Must be unique across racks | `duplicate rackLabel` |
+| Operations | Max 1 active at a time | `only one operation allowed` |
+| Operation ID | 1-20 characters | `id must be between 1 and 20 characters` |
+| Operations (in-progress) | Cannot modify while InProgress | `cannot modify operations while InProgress` |
+| `scaleDownBatchSize` | Must be positive | `must be positive` |
+| `rollingUpdateBatchSize` (rackConfig) | Must be positive | `must be positive` |
+| `maxIgnorablePods` | Must be >= 0 | `must not be negative` |
 
 ### Enterprise-Only Namespace Keys
 

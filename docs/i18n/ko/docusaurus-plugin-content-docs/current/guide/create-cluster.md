@@ -137,10 +137,19 @@ spec:
   rackConfig:
     namespaces:
       - testns              # 랙 인식 네임스페이스
+    rollingUpdateBatchSize: "50%"  # 롤링 업데이트 시 랙당 50% 파드 동시 재시작
+    scaleDownBatchSize: 1          # 스케일 다운 시 랙당 1개 파드 제거
+    maxIgnorablePods: 1            # 멈춘 파드 1개까지 무시하고 계속 진행
     racks:
       - id: 1
+        rackLabel: zone-a          # acko.io/rack=zone-a 노드에 스케줄링
+        revision: "v1.0"
       - id: 2
+        rackLabel: zone-b
+        revision: "v1.0"
       - id: 3
+        rackLabel: zone-c
+        revision: "v1.0"
 
   podSpec:
     aerospikeContainer:
@@ -173,7 +182,7 @@ spec:
           filesize: 4294967296
 ```
 
-**사용 사례:** 존 간 고가용성. 각 랙 ID는 별도의 StatefulSet(`<이름>-<랙ID>`)과 ConfigMap을 생성합니다.
+**사용 사례:** 랙 라벨 기반 스케줄링을 활용한 존 간 고가용성. 각 랙 ID는 별도의 StatefulSet(`<이름>-<랙ID>`)과 ConfigMap을 생성합니다.
 
 ```bash
 kubectl apply -f config/samples/aerospike-ce-cluster-multirack.yaml
@@ -268,6 +277,13 @@ validating 웹훅은 Community Edition 제약 조건을 적용합니다:
 | 복제 팩터 | `spec.size` 이하 | `replication-factor N exceeds cluster size` |
 | 복제 팩터 범위 | 1~4 | `must be between 1 and 4` |
 | 랙 ID | 고유해야 함 | `duplicate rack ID` |
+| 랙 라벨 | 랙 간 고유해야 함 | `duplicate rackLabel` |
+| 오퍼레이션 | 동시에 최대 1개 | `only one operation allowed` |
+| 오퍼레이션 ID | 1-20자 | `id must be between 1 and 20 characters` |
+| 오퍼레이션 (진행 중) | InProgress 중 변경 불가 | `cannot modify operations while InProgress` |
+| `scaleDownBatchSize` | 양수여야 함 | `must be positive` |
+| `rollingUpdateBatchSize` (rackConfig) | 양수여야 함 | `must be positive` |
+| `maxIgnorablePods` | 0 이상이어야 함 | `must not be negative` |
 
 ### Enterprise 전용 네임스페이스 키
 

@@ -43,6 +43,37 @@ spec:
   rollingUpdateBatchSize: 2   # Restart 2 pods at a time (default: 1)
 ```
 
+For rack-aware deployments, you can set batch size per rack in `rackConfig`. This takes precedence over `spec.rollingUpdateBatchSize`:
+
+```yaml
+spec:
+  rackConfig:
+    rollingUpdateBatchSize: "50%"   # Restart 50% of pods per rack simultaneously
+```
+
+### Scale Down Batch Size
+
+Control how many pods are removed simultaneously per rack during scale-down:
+
+```yaml
+spec:
+  rackConfig:
+    scaleDownBatchSize: 2            # Remove 2 pods per rack at a time
+    # scaleDownBatchSize: "25%"      # Or use percentage
+```
+
+### Max Ignorable Pods
+
+Allow reconciliation to continue even when some pods are in Pending/Failed state:
+
+```yaml
+spec:
+  rackConfig:
+    maxIgnorablePods: 1   # Ignore up to 1 stuck pod and continue reconciling
+```
+
+This is useful when pods are stuck due to scheduling issues and you don't want to block the entire reconciliation.
+
 ## Configuration Updates
 
 ### Static Configuration Changes
@@ -78,6 +109,111 @@ kubectl -n aerospike patch asce aerospike-ce-3node --type merge -p '{"spec":{"pa
 # Resume
 kubectl -n aerospike patch asce aerospike-ce-3node --type merge -p '{"spec":{"paused":null}}'
 ```
+
+## On-Demand Operations
+
+Trigger pod restarts declaratively via `spec.operations`. Only one operation can be active at a time.
+
+### WarmRestart
+
+Sends SIGUSR1 to the Aerospike process for a graceful restart without pod deletion:
+
+```yaml
+spec:
+  operations:
+    - kind: WarmRestart
+      id: "config-reload-v2"       # Unique ID (1-20 chars)
+      podList:                      # Optional: empty = all pods
+        - aerospike-ce-3node-0
+        - aerospike-ce-3node-1
+```
+
+### PodRestart
+
+Deletes and recreates pods (cold restart):
+
+```yaml
+spec:
+  operations:
+    - kind: PodRestart
+      id: "cold-restart-01"
+      podList:
+        - aerospike-ce-3node-2
+```
+
+### Checking Operation Status
+
+```bash
+kubectl -n aerospike get asce aerospike-ce-3node -o jsonpath='{.status.operationStatus}' | jq .
+```
+
+The status includes `phase` (`InProgress`, `Completed`, `Error`), `completedPods`, and `failedPods`.
+
+:::warning
+- Operations cannot be modified while InProgress
+- The operation `id` must be unique (1-20 characters)
+- Remove the operation from the spec after it completes
+:::
+
+## Service Customization
+
+### Headless Service Metadata
+
+Add custom annotations and labels to the headless service (used for pod discovery):
+
+```yaml
+spec:
+  headlessService:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8687"
+      labels:
+        monitoring: enabled
+```
+
+### Per-Pod Services
+
+When `podService` is set, the operator creates an individual ClusterIP Service for each pod, enabling direct pod-level access:
+
+```yaml
+spec:
+  podService:
+    metadata:
+      annotations:
+        external-dns.alpha.kubernetes.io/hostname: "aero.example.com"
+      labels:
+        service-type: pod-local
+```
+
+**Use case:** External DNS integration, pod-level load balancing, or direct client access to specific pods.
+
+## Validation Policy
+
+Control webhook validation behavior:
+
+```yaml
+spec:
+  validationPolicy:
+    skipWorkDirValidate: true   # Skip work directory PV validation
+```
+
+| Field | Default | Description |
+|---|---|---|
+| `skipWorkDirValidate` | `false` | Skip validation that work directory is on persistent storage |
+
+This is useful for development environments or in-memory deployments that don't require persistent work directories.
+
+## Rack ID Override
+
+Enable dynamic rack ID assignment via pod annotations:
+
+```yaml
+spec:
+  enableRackIDOverride: true
+```
+
+When enabled, the operator allows rack IDs to be overridden by pod annotations instead of being strictly managed by the operator. This is useful for manual rack management scenarios.
 
 ## Storage
 
@@ -210,6 +346,37 @@ spec:
     # Defaults applied automatically:
     #   multiPodPerHost: false
     #   dnsPolicy: ClusterFirstWithHostNet
+```
+
+## Rack Label Scheduling
+
+Use `rackLabel` to schedule pods to nodes with a specific label. The operator sets a node affinity for `acko.io/rack=<rackLabel>`:
+
+```yaml
+spec:
+  rackConfig:
+    racks:
+      - id: 1
+        rackLabel: zone-a    # Pods scheduled to nodes with acko.io/rack=zone-a
+      - id: 2
+        rackLabel: zone-b
+      - id: 3
+        rackLabel: zone-c
+```
+
+:::warning
+`rackLabel` values must be unique across racks.
+:::
+
+You can also attach a `revision` to each rack for controlled migrations:
+
+```yaml
+spec:
+  rackConfig:
+    racks:
+      - id: 1
+        rackLabel: zone-a
+        revision: "v1.0"     # Version identifier for migration tracking
 ```
 
 ## Node Scheduling

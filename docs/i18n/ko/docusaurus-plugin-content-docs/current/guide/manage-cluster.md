@@ -43,6 +43,37 @@ spec:
   rollingUpdateBatchSize: 2   # 한 번에 2개 파드 재시작 (기본값: 1)
 ```
 
+랙 인식 배포의 경우, `rackConfig`에서 랙별 배치 크기를 설정할 수 있습니다. 이 값은 `spec.rollingUpdateBatchSize`보다 우선합니다:
+
+```yaml
+spec:
+  rackConfig:
+    rollingUpdateBatchSize: "50%"   # 랙당 파드의 50%를 동시에 재시작
+```
+
+### 스케일 다운 배치 크기
+
+스케일 다운 시 랙당 동시에 제거하는 파드 수를 제어합니다:
+
+```yaml
+spec:
+  rackConfig:
+    scaleDownBatchSize: 2            # 랙당 한 번에 2개 파드 제거
+    # scaleDownBatchSize: "25%"      # 퍼센트도 사용 가능
+```
+
+### 무시 가능한 파드 수
+
+일부 파드가 Pending/Failed 상태일 때도 재조정을 계속 진행할 수 있습니다:
+
+```yaml
+spec:
+  rackConfig:
+    maxIgnorablePods: 1   # 멈춘 파드 1개까지 무시하고 재조정 계속
+```
+
+스케줄링 문제로 파드가 멈췄을 때 전체 재조정이 차단되지 않도록 하는 데 유용합니다.
+
 ## 설정 변경
 
 ### 정적 설정 변경
@@ -78,6 +109,111 @@ kubectl -n aerospike patch asce aerospike-ce-3node --type merge -p '{"spec":{"pa
 # 재개
 kubectl -n aerospike patch asce aerospike-ce-3node --type merge -p '{"spec":{"paused":null}}'
 ```
+
+## 온디맨드 오퍼레이션
+
+`spec.operations`를 통해 파드 재시작을 선언적으로 트리거합니다. 한 번에 하나의 오퍼레이션만 활성화할 수 있습니다.
+
+### WarmRestart
+
+Aerospike 프로세스에 SIGUSR1을 보내 파드 삭제 없이 graceful restart합니다:
+
+```yaml
+spec:
+  operations:
+    - kind: WarmRestart
+      id: "config-reload-v2"       # 고유 ID (1-20자)
+      podList:                      # 선택사항: 비우면 전체 파드 대상
+        - aerospike-ce-3node-0
+        - aerospike-ce-3node-1
+```
+
+### PodRestart
+
+파드를 삭제하고 재생성합니다 (cold restart):
+
+```yaml
+spec:
+  operations:
+    - kind: PodRestart
+      id: "cold-restart-01"
+      podList:
+        - aerospike-ce-3node-2
+```
+
+### 오퍼레이션 상태 확인
+
+```bash
+kubectl -n aerospike get asce aerospike-ce-3node -o jsonpath='{.status.operationStatus}' | jq .
+```
+
+상태에는 `phase` (`InProgress`, `Completed`, `Error`), `completedPods`, `failedPods`가 포함됩니다.
+
+:::warning
+- InProgress 중에는 오퍼레이션을 변경할 수 없습니다
+- 오퍼레이션 `id`는 고유해야 합니다 (1-20자)
+- 완료 후 spec에서 오퍼레이션을 제거하세요
+:::
+
+## 서비스 커스터마이징
+
+### Headless 서비스 메타데이터
+
+Headless 서비스(파드 디스커버리용)에 커스텀 어노테이션과 레이블을 추가합니다:
+
+```yaml
+spec:
+  headlessService:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8687"
+      labels:
+        monitoring: enabled
+```
+
+### Pod별 서비스
+
+`podService`를 설정하면 오퍼레이터가 각 파드에 대해 개별 ClusterIP Service를 생성하여 직접적인 파드 레벨 접근을 가능하게 합니다:
+
+```yaml
+spec:
+  podService:
+    metadata:
+      annotations:
+        external-dns.alpha.kubernetes.io/hostname: "aero.example.com"
+      labels:
+        service-type: pod-local
+```
+
+**사용 사례:** 외부 DNS 연동, 파드 레벨 로드밸런싱, 특정 파드에 대한 직접 클라이언트 접근.
+
+## 검증 정책
+
+웹훅 검증 동작을 제어합니다:
+
+```yaml
+spec:
+  validationPolicy:
+    skipWorkDirValidate: true   # 작업 디렉토리 PV 검증 건너뛰기
+```
+
+| 필드 | 기본값 | 설명 |
+|---|---|---|
+| `skipWorkDirValidate` | `false` | 작업 디렉토리가 영구 스토리지에 있는지 검증을 건너뜁니다 |
+
+개발 환경이나 영구 작업 디렉토리가 필요 없는 인메모리 배포에 유용합니다.
+
+## 랙 ID 오버라이드
+
+파드 어노테이션을 통한 동적 랙 ID 할당을 활성화합니다:
+
+```yaml
+spec:
+  enableRackIDOverride: true
+```
+
+활성화하면 오퍼레이터가 엄격하게 관리하는 대신 파드 어노테이션으로 랙 ID를 오버라이드할 수 있습니다. 수동 랙 관리 시나리오에 유용합니다.
 
 ## 스토리지
 
@@ -210,6 +346,37 @@ spec:
     # 자동으로 적용되는 기본값:
     #   multiPodPerHost: false
     #   dnsPolicy: ClusterFirstWithHostNet
+```
+
+## 랙 라벨 스케줄링
+
+`rackLabel`을 사용하여 특정 라벨이 있는 노드에 파드를 스케줄링합니다. 오퍼레이터가 `acko.io/rack=<rackLabel>`에 대한 노드 어피니티를 설정합니다:
+
+```yaml
+spec:
+  rackConfig:
+    racks:
+      - id: 1
+        rackLabel: zone-a    # acko.io/rack=zone-a 노드에 스케줄링
+      - id: 2
+        rackLabel: zone-b
+      - id: 3
+        rackLabel: zone-c
+```
+
+:::warning
+`rackLabel` 값은 랙 간에 고유해야 합니다.
+:::
+
+제어된 마이그레이션을 위해 각 랙에 `revision`을 부여할 수도 있습니다:
+
+```yaml
+spec:
+  rackConfig:
+    racks:
+      - id: 1
+        rackLabel: zone-a
+        revision: "v1.0"     # 마이그레이션 추적용 버전 식별자
 ```
 
 ## 노드 스케줄링

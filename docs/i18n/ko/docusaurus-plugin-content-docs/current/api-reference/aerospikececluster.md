@@ -52,6 +52,11 @@ Aerospike CE 클러스터의 원하는 상태를 정의합니다.
 | `paused` | *bool | 아니요 | `false` | true이면 재조정 중지. |
 | `seedsFinderServices` | [SeedsFinderServices](#seedsfinderservices) | 아니요 | — | 시드 디스커버리용 LoadBalancer 서비스. |
 | `k8sNodeBlockList` | []string | 아니요 | — | 스케줄링에서 제외할 노드 이름. |
+| `operations` | [][OperationSpec](#operationspec) | 아니요 | — | 온디맨드 오퍼레이션 (WarmRestart, PodRestart). 동시에 최대 1개. |
+| `validationPolicy` | [ValidationPolicySpec](#validationpolicyspec) | 아니요 | — | 웹훅 검증 동작 제어. |
+| `headlessService` | [AerospikeServiceSpec](#aerospikeservicespec) | 아니요 | — | Headless 서비스 커스텀 메타데이터. |
+| `podService` | [AerospikeServiceSpec](#aerospikeservicespec) | 아니요 | — | Pod별 서비스 커스텀 메타데이터. 설정 시 파드마다 개별 Service 생성. |
+| `enableRackIDOverride` | *bool | 아니요 | `false` | 파드 어노테이션을 통한 동적 랙 ID 할당 활성화. |
 
 ---
 
@@ -101,6 +106,7 @@ Aerospike CE 클러스터의 관측된 상태입니다.
 | `observedGeneration` | int64 | 컨트롤러가 관측한 가장 최근 세대. |
 | `selector` | string | HPA 호환을 위한 레이블 셀렉터 문자열. |
 | `aerospikeConfig` | [AerospikeConfigSpec](#aerospikeconfigspec) | 마지막으로 적용된 Aerospike 설정. |
+| `operationStatus` | [OperationStatus](#operationstatus) | 현재 온디맨드 오퍼레이션 상태. |
 
 ---
 
@@ -293,6 +299,9 @@ Aerospike 서버 컨테이너를 커스터마이징합니다.
 |---|---|---|---|
 | `racks` | [][Rack](#rack) | 예 | 랙 정의 목록 (최소 1). |
 | `namespaces` | []string | 아니요 | 랙 인식 Aerospike 네임스페이스 이름. |
+| `scaleDownBatchSize` | [IntOrString](https://pkg.go.dev/k8s.io/apimachinery/pkg/util/intstr#IntOrString) | 아니요 | 랙당 동시 스케일 다운 파드 수. 정수 또는 퍼센트 문자열 (예: `"25%"`). 기본값: 1. |
+| `maxIgnorablePods` | [IntOrString](https://pkg.go.dev/k8s.io/apimachinery/pkg/util/intstr#IntOrString) | 아니요 | 재조정 중 무시할 수 있는 최대 Pending/Failed 파드 수. |
+| `rollingUpdateBatchSize` | [IntOrString](https://pkg.go.dev/k8s.io/apimachinery/pkg/util/intstr#IntOrString) | 아니요 | 랙당 동시 재시작 파드 수. 정수 또는 퍼센트 문자열. `spec.rollingUpdateBatchSize`보다 우선. |
 
 ---
 
@@ -306,6 +315,8 @@ Aerospike 서버 컨테이너를 커스터마이징합니다.
 | `zone` | string | 아니요 | 존 레이블 값 (`topology.kubernetes.io/zone`). |
 | `region` | string | 아니요 | 리전 레이블 값 (`topology.kubernetes.io/region`). |
 | `nodeName` | string | 아니요 | 특정 노드로 제한. |
+| `rackLabel` | string | 아니요 | 랙 어피니티용 커스텀 라벨. `acko.io/rack=<rackLabel>` 노드에 스케줄링. 랙 간 고유해야 함. |
+| `revision` | string | 아니요 | 제어된 랙 마이그레이션용 버전 식별자. |
 | `aerospikeConfig` | [AerospikeConfigSpec](#aerospikeconfigspec) | 아니요 | 랙별 Aerospike 설정 오버라이드. |
 | `storage` | [AerospikeStorageSpec](#aerospikestoragespec) | 아니요 | 랙별 스토리지 오버라이드. |
 | `podSpec` | [RackPodSpec](#rackpodspec) | 아니요 | 랙별 파드 스케줄링 오버라이드. |
@@ -415,3 +426,60 @@ CNI 트래픽 셰이핑을 위한 대역폭 어노테이션입니다.
 |---|---|---|
 | `ingress` | string | 최대 인그레스 대역폭 (예: `1Gbps`, `500Mbps`). |
 | `egress` | string | 최대 이그레스 대역폭 (예: `1Gbps`, `500Mbps`). |
+
+---
+
+## OperationSpec
+
+클러스터 파드에 대한 온디맨드 오퍼레이션을 정의합니다.
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `kind` | string | 예 | 오퍼레이션 타입: `WarmRestart` (SIGUSR1) 또는 `PodRestart` (삭제/재생성). |
+| `id` | string | 예 | 고유 오퍼레이션 식별자 (1-20자). |
+| `podList` | []string | 아니요 | 대상 파드 이름 목록. 비우면 전체 파드 대상. |
+
+---
+
+## OperationStatus
+
+온디맨드 오퍼레이션의 상태를 추적합니다.
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `id` | string | 오퍼레이션 식별자. |
+| `kind` | string | 오퍼레이션 타입: `WarmRestart` 또는 `PodRestart`. |
+| `phase` | string | 오퍼레이션 단계: `InProgress`, `Completed`, 또는 `Error`. |
+| `completedPods` | []string | 오퍼레이션이 완료된 파드 목록. |
+| `failedPods` | []string | 오퍼레이션이 실패한 파드 목록. |
+
+---
+
+## ValidationPolicySpec
+
+웹훅 검증 동작을 제어합니다.
+
+| 필드 | 타입 | 기본값 | 설명 |
+|---|---|---|---|
+| `skipWorkDirValidate` | bool | `false` | Aerospike 작업 디렉토리가 영구 스토리지에 있는지 검증을 건너뜁니다. |
+
+---
+
+## AerospikeServiceSpec
+
+Kubernetes Service의 커스텀 메타데이터를 정의합니다.
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `metadata` | [AerospikeObjectMeta](#aerospikeobjectmeta) | 아니요 | 서비스의 커스텀 어노테이션 및 레이블. |
+
+---
+
+## AerospikeObjectMeta
+
+Kubernetes 객체의 커스텀 메타데이터입니다.
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `annotations` | map[string]string | 커스텀 어노테이션. |
+| `labels` | map[string]string | 커스텀 레이블. |

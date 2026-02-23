@@ -52,6 +52,11 @@ Defines the desired state of an Aerospike CE cluster.
 | `paused` | *bool | No | `false` | Stop reconciliation when true. |
 | `seedsFinderServices` | [SeedsFinderServices](#seedsfinderservices) | No | — | LoadBalancer service for seed discovery. |
 | `k8sNodeBlockList` | []string | No | — | Node names to exclude from scheduling. |
+| `operations` | [][OperationSpec](#operationspec) | No | — | On-demand operations (WarmRestart, PodRestart). Max 1 at a time. |
+| `validationPolicy` | [ValidationPolicySpec](#validationpolicyspec) | No | — | Controls webhook validation behavior. |
+| `headlessService` | [AerospikeServiceSpec](#aerospikeservicespec) | No | — | Custom metadata for the headless service. |
+| `podService` | [AerospikeServiceSpec](#aerospikeservicespec) | No | — | Custom metadata for per-pod services. Creates individual Service per pod when set. |
+| `enableRackIDOverride` | *bool | No | `false` | Enable dynamic rack ID assignment via pod annotations. |
 
 ---
 
@@ -101,6 +106,7 @@ Observed state of the Aerospike CE cluster.
 | `observedGeneration` | int64 | Most recent generation observed by the controller. |
 | `selector` | string | Label selector string for HPA compatibility. |
 | `aerospikeConfig` | [AerospikeConfigSpec](#aerospikeconfigspec) | Last applied Aerospike configuration. |
+| `operationStatus` | [OperationStatus](#operationstatus) | Current on-demand operation status. |
 
 ---
 
@@ -293,6 +299,9 @@ Defines rack-aware deployment configuration.
 |---|---|---|---|
 | `racks` | [][Rack](#rack) | Yes | List of rack definitions (min 1). |
 | `namespaces` | []string | No | Aerospike namespace names that are rack-aware. |
+| `scaleDownBatchSize` | [IntOrString](https://pkg.go.dev/k8s.io/apimachinery/pkg/util/intstr#IntOrString) | No | Pods to scale down simultaneously per rack. Int or percent string (e.g., `"25%"`). Default: 1. |
+| `maxIgnorablePods` | [IntOrString](https://pkg.go.dev/k8s.io/apimachinery/pkg/util/intstr#IntOrString) | No | Max pending/failed pods to ignore during reconciliation. |
+| `rollingUpdateBatchSize` | [IntOrString](https://pkg.go.dev/k8s.io/apimachinery/pkg/util/intstr#IntOrString) | No | Pods to restart simultaneously per rack. Int or percent string. Takes precedence over `spec.rollingUpdateBatchSize`. |
 
 ---
 
@@ -306,6 +315,8 @@ Defines a single rack in the cluster topology.
 | `zone` | string | No | Zone label value (`topology.kubernetes.io/zone`). |
 | `region` | string | No | Region label value (`topology.kubernetes.io/region`). |
 | `nodeName` | string | No | Constrain to a specific node. |
+| `rackLabel` | string | No | Custom label for rack affinity. Schedules to nodes with `acko.io/rack=<rackLabel>`. Must be unique across racks. |
+| `revision` | string | No | Version identifier for controlled rack migrations. |
 | `aerospikeConfig` | [AerospikeConfigSpec](#aerospikeconfigspec) | No | Per-rack Aerospike config override. |
 | `storage` | [AerospikeStorageSpec](#aerospikestoragespec) | No | Per-rack storage override. |
 | `podSpec` | [RackPodSpec](#rackpodspec) | No | Per-rack pod scheduling override. |
@@ -415,3 +426,60 @@ Bandwidth annotations for CNI traffic shaping.
 |---|---|---|
 | `ingress` | string | Max ingress bandwidth (e.g., `1Gbps`, `500Mbps`). |
 | `egress` | string | Max egress bandwidth (e.g., `1Gbps`, `500Mbps`). |
+
+---
+
+## OperationSpec
+
+Defines an on-demand operation to trigger on cluster pods.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `kind` | string | Yes | Operation type: `WarmRestart` (SIGUSR1) or `PodRestart` (delete/recreate). |
+| `id` | string | Yes | Unique operation identifier (1-20 characters). |
+| `podList` | []string | No | Specific pod names to target. Empty means all pods. |
+
+---
+
+## OperationStatus
+
+Tracks the status of an on-demand operation.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | Operation identifier. |
+| `kind` | string | Operation type: `WarmRestart` or `PodRestart`. |
+| `phase` | string | Operation phase: `InProgress`, `Completed`, or `Error`. |
+| `completedPods` | []string | Pods that have completed the operation. |
+| `failedPods` | []string | Pods where the operation failed. |
+
+---
+
+## ValidationPolicySpec
+
+Controls webhook validation behavior.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `skipWorkDirValidate` | bool | `false` | Skip validation that the Aerospike work directory is on persistent storage. |
+
+---
+
+## AerospikeServiceSpec
+
+Defines custom metadata for a Kubernetes Service.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `metadata` | [AerospikeObjectMeta](#aerospikeobjectmeta) | No | Custom annotations and labels for the service. |
+
+---
+
+## AerospikeObjectMeta
+
+Custom metadata for Kubernetes objects.
+
+| Field | Type | Description |
+|---|---|---|
+| `annotations` | map[string]string | Custom annotations. |
+| `labels` | map[string]string | Custom labels. |

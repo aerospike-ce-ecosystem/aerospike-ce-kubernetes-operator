@@ -64,6 +64,7 @@ func TestParsePodName_Invalid(t *testing.T) {
 		{"trailing-dash", "my-cluster-"},
 		{"no-number", "my-cluster-abc"},
 		{"empty", ""},
+		{"overflow", "my-cluster-99999999999999999999"},
 	}
 
 	for _, tt := range tests {

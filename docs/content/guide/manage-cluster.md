@@ -148,10 +148,15 @@ storage:
 
 ### Wipe Methods
 
-Wipe methods are similar to init methods but apply to **dirty volumes** (volumes that need cleanup after unclean shutdown). The `wipeMethod` field supports the same values as `initMethod` plus:
+Wipe methods are similar to init methods but apply to **dirty volumes** (volumes that need cleanup after unclean shutdown). The `wipeMethod` field supports the following values:
 
 | Method | Description |
 |---|---|
+| `none` | No wiping (default) |
+| `deleteFiles` | Delete all files in the volume |
+| `dd` | Zero-fill the device using `dd` |
+| `blkdiscard` | Discard all blocks on the device |
+| `headerCleanup` | Clear Aerospike file headers only |
 | `blkdiscardWithHeaderCleanup` | Discard blocks and then clear Aerospike headers |
 
 ```yaml

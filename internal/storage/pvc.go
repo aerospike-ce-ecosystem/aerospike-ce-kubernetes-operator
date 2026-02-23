@@ -3,9 +3,14 @@ package storage
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	v1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
 // GetPVCsForStatefulSet lists PVCs belonging to the given StatefulSet.
@@ -14,7 +19,10 @@ import (
 // (e.g., for PVCs created before labels were added to VolumeClaimTemplates).
 func GetPVCsForStatefulSet(ctx context.Context, c client.Client, namespace, stsName string) ([]corev1.PersistentVolumeClaim, error) {
 	pvcList := &corev1.PersistentVolumeClaimList{}
-	if err := c.List(ctx, pvcList, client.InNamespace(namespace)); err != nil {
+	if err := c.List(ctx, pvcList,
+		client.InNamespace(namespace),
+		client.MatchingLabels{"app.kubernetes.io/name": "aerospike-cluster"},
+	); err != nil {
 		return nil, fmt.Errorf("listing PVCs in namespace %s: %w", namespace, err)
 	}
 
@@ -106,11 +114,84 @@ func extractOrdinal(pvcName, stsName string) (int32, bool) {
 		return 0, false
 	}
 
-	// Parse ordinal.
-	var ordinal int32
-	for _, c := range pvcName[idx+1:] {
-		ordinal = ordinal*10 + (c - '0')
+	// Parse ordinal using strconv for proper overflow/error handling.
+	ordinal, err := strconv.ParseInt(pvcName[idx+1:], 10, 32)
+	if err != nil {
+		return 0, false
 	}
 
-	return ordinal, true
+	return int32(ordinal), true
+}
+
+// extractVolumeName extracts the volume claim template name from a PVC name
+// that follows the StatefulSet naming pattern: <volumeName>-<stsName>-<ordinal>.
+func extractVolumeName(pvcName, stsName string) (string, bool) {
+	pattern := "-" + stsName + "-"
+	idx := strings.LastIndex(pvcName, pattern)
+	if idx <= 0 {
+		return "", false
+	}
+
+	// Verify the suffix after the pattern is a valid ordinal
+	suffix := pvcName[idx+len(pattern):]
+	if suffix == "" {
+		return "", false
+	}
+	if _, err := strconv.ParseInt(suffix, 10, 32); err != nil {
+		return "", false
+	}
+
+	return pvcName[:idx], true
+}
+
+// DeleteCascadeDeletePVCs deletes only PVCs for volumes that have cascadeDelete=true.
+// This ensures non-cascade volumes are preserved when the CR is deleted.
+func DeleteCascadeDeletePVCs(
+	ctx context.Context,
+	c client.Client,
+	namespace, stsName string,
+	storageSpec *v1alpha1.AerospikeStorageSpec,
+) error {
+	if storageSpec == nil {
+		return nil
+	}
+
+	// Build a set of volume names that have cascadeDelete enabled
+	cascadeVolumes := make(map[string]bool)
+	for i := range storageSpec.Volumes {
+		vol := &storageSpec.Volumes[i]
+		if vol.Source.PersistentVolume != nil && ResolveCascadeDelete(vol, storageSpec) {
+			cascadeVolumes[vol.Name] = true
+		}
+	}
+
+	if len(cascadeVolumes) == 0 {
+		return nil
+	}
+
+	pvcs, err := GetPVCsForStatefulSet(ctx, c, namespace, stsName)
+	if err != nil {
+		return err
+	}
+
+	for i := range pvcs {
+		pvc := &pvcs[i]
+		volName, ok := extractVolumeName(pvc.Name, stsName)
+		if !ok {
+			continue
+		}
+
+		if !cascadeVolumes[volName] {
+			continue
+		}
+
+		if err := c.Delete(ctx, pvc); err != nil {
+			if errors.IsNotFound(err) {
+				continue
+			}
+			return fmt.Errorf("deleting cascade PVC %s: %w", pvc.Name, err)
+		}
+	}
+
+	return nil
 }

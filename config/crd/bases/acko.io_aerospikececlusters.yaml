@@ -6059,41 +6059,26 @@ spec:
                                     are deleted when the CR is deleted.
                                   type: boolean
                                 initMethod:
-                                  allOf:
-                                  - enum:
-                                    - none
-                                    - deleteFiles
-                                    - dd
-                                    - blkdiscard
-                                    - headerCleanup
-                                  - enum:
-                                    - none
-                                    - deleteFiles
-                                    - dd
-                                    - blkdiscard
-                                    - headerCleanup
                                   description: InitMethod is the default initialization
                                     method for this volume category.
+                                  enum:
+                                  - none
+                                  - deleteFiles
+                                  - dd
+                                  - blkdiscard
+                                  - headerCleanup
                                   type: string
                                 wipeMethod:
-                                  allOf:
-                                  - enum:
-                                    - none
-                                    - deleteFiles
-                                    - dd
-                                    - blkdiscard
-                                    - headerCleanup
-                                    - blkdiscardWithHeaderCleanup
-                                  - enum:
-                                    - none
-                                    - deleteFiles
-                                    - dd
-                                    - blkdiscard
-                                    - headerCleanup
-                                    - blkdiscardWithHeaderCleanup
                                   description: |-
                                     WipeMethod is the default wipe method for this volume category.
                                     Wipe runs on volumes that are marked dirty (e.g., after unclean shutdown).
+                                  enum:
+                                  - none
+                                  - deleteFiles
+                                  - dd
+                                  - blkdiscard
+                                  - headerCleanup
+                                  - blkdiscardWithHeaderCleanup
                                   type: string
                               type: object
                             cleanupThreads:
@@ -6118,41 +6103,26 @@ spec:
                                     are deleted when the CR is deleted.
                                   type: boolean
                                 initMethod:
-                                  allOf:
-                                  - enum:
-                                    - none
-                                    - deleteFiles
-                                    - dd
-                                    - blkdiscard
-                                    - headerCleanup
-                                  - enum:
-                                    - none
-                                    - deleteFiles
-                                    - dd
-                                    - blkdiscard
-                                    - headerCleanup
                                   description: InitMethod is the default initialization
                                     method for this volume category.
+                                  enum:
+                                  - none
+                                  - deleteFiles
+                                  - dd
+                                  - blkdiscard
+                                  - headerCleanup
                                   type: string
                                 wipeMethod:
-                                  allOf:
-                                  - enum:
-                                    - none
-                                    - deleteFiles
-                                    - dd
-                                    - blkdiscard
-                                    - headerCleanup
-                                    - blkdiscardWithHeaderCleanup
-                                  - enum:
-                                    - none
-                                    - deleteFiles
-                                    - dd
-                                    - blkdiscard
-                                    - headerCleanup
-                                    - blkdiscardWithHeaderCleanup
                                   description: |-
                                     WipeMethod is the default wipe method for this volume category.
                                     Wipe runs on volumes that are marked dirty (e.g., after unclean shutdown).
+                                  enum:
+                                  - none
+                                  - deleteFiles
+                                  - dd
+                                  - blkdiscard
+                                  - headerCleanup
+                                  - blkdiscardWithHeaderCleanup
                                   type: string
                               type: object
                             localStorageClasses:
@@ -6252,9 +6222,9 @@ spec:
                                       - dd
                                       - blkdiscard
                                       - headerCleanup
-                                    default: none
-                                    description: InitMethod defines how this volume
-                                      should be initialized.
+                                    description: |-
+                                      InitMethod defines how this volume should be initialized.
+                                      When empty, falls back to the global volume policy. Set to "none" to explicitly disable initialization.
                                     type: string
                                   name:
                                     description: Name is the volume name, used in
@@ -6299,7 +6269,7 @@ spec:
                                     type: array
                                   source:
                                     description: 'Source defines the volume source:
-                                      PVC, emptyDir, secret, or configMap.'
+                                      PVC, emptyDir, secret, configMap, or hostPath.'
                                     properties:
                                       configMap:
                                         description: ConfigMap uses a Kubernetes ConfigMap
@@ -6702,41 +6672,26 @@ spec:
                           when the CR is deleted.
                         type: boolean
                       initMethod:
-                        allOf:
-                        - enum:
-                          - none
-                          - deleteFiles
-                          - dd
-                          - blkdiscard
-                          - headerCleanup
-                        - enum:
-                          - none
-                          - deleteFiles
-                          - dd
-                          - blkdiscard
-                          - headerCleanup
                         description: InitMethod is the default initialization method
                           for this volume category.
+                        enum:
+                        - none
+                        - deleteFiles
+                        - dd
+                        - blkdiscard
+                        - headerCleanup
                         type: string
                       wipeMethod:
-                        allOf:
-                        - enum:
-                          - none
-                          - deleteFiles
-                          - dd
-                          - blkdiscard
-                          - headerCleanup
-                          - blkdiscardWithHeaderCleanup
-                        - enum:
-                          - none
-                          - deleteFiles
-                          - dd
-                          - blkdiscard
-                          - headerCleanup
-                          - blkdiscardWithHeaderCleanup
                         description: |-
                           WipeMethod is the default wipe method for this volume category.
                           Wipe runs on volumes that are marked dirty (e.g., after unclean shutdown).
+                        enum:
+                        - none
+                        - deleteFiles
+                        - dd
+                        - blkdiscard
+                        - headerCleanup
+                        - blkdiscardWithHeaderCleanup
                         type: string
                     type: object
                   cleanupThreads:
@@ -6761,41 +6716,26 @@ spec:
                           when the CR is deleted.
                         type: boolean
                       initMethod:
-                        allOf:
-                        - enum:
-                          - none
-                          - deleteFiles
-                          - dd
-                          - blkdiscard
-                          - headerCleanup
-                        - enum:
-                          - none
-                          - deleteFiles
-                          - dd
-                          - blkdiscard
-                          - headerCleanup
                         description: InitMethod is the default initialization method
                           for this volume category.
+                        enum:
+                        - none
+                        - deleteFiles
+                        - dd
+                        - blkdiscard
+                        - headerCleanup
                         type: string
                       wipeMethod:
-                        allOf:
-                        - enum:
-                          - none
-                          - deleteFiles
-                          - dd
-                          - blkdiscard
-                          - headerCleanup
-                          - blkdiscardWithHeaderCleanup
-                        - enum:
-                          - none
-                          - deleteFiles
-                          - dd
-                          - blkdiscard
-                          - headerCleanup
-                          - blkdiscardWithHeaderCleanup
                         description: |-
                           WipeMethod is the default wipe method for this volume category.
                           Wipe runs on volumes that are marked dirty (e.g., after unclean shutdown).
+                        enum:
+                        - none
+                        - deleteFiles
+                        - dd
+                        - blkdiscard
+                        - headerCleanup
+                        - blkdiscardWithHeaderCleanup
                         type: string
                     type: object
                   localStorageClasses:
@@ -6891,9 +6831,9 @@ spec:
                             - dd
                             - blkdiscard
                             - headerCleanup
-                          default: none
-                          description: InitMethod defines how this volume should be
-                            initialized.
+                          description: |-
+                            InitMethod defines how this volume should be initialized.
+                            When empty, falls back to the global volume policy. Set to "none" to explicitly disable initialization.
                           type: string
                         name:
                           description: Name is the volume name, used in Aerospike
@@ -6936,7 +6876,7 @@ spec:
                           type: array
                         source:
                           description: 'Source defines the volume source: PVC, emptyDir,
-                            secret, or configMap.'
+                            secret, configMap, or hostPath.'
                           properties:
                             configMap:
                               description: ConfigMap uses a Kubernetes ConfigMap as

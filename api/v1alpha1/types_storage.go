@@ -60,7 +60,7 @@ type VolumeSpec struct {
 	// +kubebuilder:validation:Required
 	Name string `json:"name"`
 
-	// Source defines the volume source: PVC, emptyDir, secret, or configMap.
+	// Source defines the volume source: PVC, emptyDir, secret, configMap, or hostPath.
 	// +kubebuilder:validation:Required
 	Source VolumeSource `json:"source"`
 
@@ -77,8 +77,8 @@ type VolumeSpec struct {
 	InitContainers []VolumeAttachment `json:"initContainers,omitempty"`
 
 	// InitMethod defines how this volume should be initialized.
+	// When empty, falls back to the global volume policy. Set to "none" to explicitly disable initialization.
 	// +kubebuilder:validation:Enum=none;deleteFiles;dd;blkdiscard;headerCleanup
-	// +kubebuilder:default=none
 	// +optional
 	InitMethod VolumeInitMethod `json:"initMethod,omitempty"`
 
@@ -201,13 +201,11 @@ type VolumeAttachment struct {
 // AerospikeVolumePolicy defines default policies for a category of persistent volumes.
 type AerospikeVolumePolicy struct {
 	// InitMethod is the default initialization method for this volume category.
-	// +kubebuilder:validation:Enum=none;deleteFiles;dd;blkdiscard;headerCleanup
 	// +optional
 	InitMethod VolumeInitMethod `json:"initMethod,omitempty"`
 
 	// WipeMethod is the default wipe method for this volume category.
 	// Wipe runs on volumes that are marked dirty (e.g., after unclean shutdown).
-	// +kubebuilder:validation:Enum=none;deleteFiles;dd;blkdiscard;headerCleanup;blkdiscardWithHeaderCleanup
 	// +optional
 	WipeMethod VolumeWipeMethod `json:"wipeMethod,omitempty"`
 

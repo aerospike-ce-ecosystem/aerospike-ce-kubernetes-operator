@@ -1244,10 +1244,55 @@ func TestValidate_Storage_CascadeDeleteOnNonPersistent(t *testing.T) {
 		},
 	}
 
-	// CascadeDelete on non-persistent should not cause error (just ignored)
-	_, err := v.validate(cluster)
+	// CascadeDelete on non-persistent should not cause error but should warn
+	warnings, err := v.validate(cluster)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "cascadeDelete") && strings.Contains(w, "no effect") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning about cascadeDelete on non-persistent volume, got warnings: %v", warnings)
+	}
+}
+
+func TestValidate_Storage_DuplicateVolumeNames(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				Volumes: []VolumeSpec{
+					{
+						Name: "data",
+						Source: VolumeSource{
+							PersistentVolume: &PersistentVolumeSpec{Size: "10Gi"},
+						},
+					},
+					{
+						Name: "data",
+						Source: VolumeSource{
+							PersistentVolume: &PersistentVolumeSpec{Size: "20Gi"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error for duplicate volume names")
+	}
+	if !strings.Contains(err.Error(), "duplicate volume name") {
+		t.Errorf("error should mention 'duplicate volume name', got: %v", err)
 	}
 }
 

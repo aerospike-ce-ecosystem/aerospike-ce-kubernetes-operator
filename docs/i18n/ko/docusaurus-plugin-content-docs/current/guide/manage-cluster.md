@@ -148,10 +148,15 @@ storage:
 
 ### 와이프 방법
 
-와이프 방법은 초기화 방법과 유사하지만 **더티 볼륨** (비정상 종료 후 정리가 필요한 볼륨)에 적용됩니다. `wipeMethod` 필드는 `initMethod`와 동일한 값을 지원하며 추가로:
+와이프 방법은 초기화 방법과 유사하지만 **더티 볼륨** (비정상 종료 후 정리가 필요한 볼륨)에 적용됩니다. `wipeMethod` 필드는 다음 값을 지원합니다:
 
 | 방법 | 설명 |
 |---|---|
+| `none` | 와이프 없음 (기본값) |
+| `deleteFiles` | 볼륨의 모든 파일 삭제 |
+| `dd` | `dd`를 사용하여 디바이스를 제로 필 |
+| `blkdiscard` | 디바이스의 모든 블록 디스카드 |
+| `headerCleanup` | Aerospike 파일 헤더만 정리 |
 | `blkdiscardWithHeaderCleanup` | 블록 디스카드 후 Aerospike 헤더 정리 |
 
 ```yaml

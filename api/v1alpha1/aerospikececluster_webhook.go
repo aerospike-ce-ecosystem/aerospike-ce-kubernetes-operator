@@ -657,6 +657,15 @@ func (v *AerospikeCEClusterValidator) validateStorage(storage *AerospikeStorageS
 	var errors []string
 	var warnings admission.Warnings
 
+	// Check for duplicate volume names
+	namesSeen := make(map[string]bool, len(storage.Volumes))
+	for _, vol := range storage.Volumes {
+		if namesSeen[vol.Name] {
+			errors = append(errors, fmt.Sprintf("storage.volumes: duplicate volume name %q", vol.Name))
+		}
+		namesSeen[vol.Name] = true
+	}
+
 	for i, vol := range storage.Volumes {
 		// Validate exactly one volume source is specified
 		sourceCount := 0
@@ -685,6 +694,13 @@ func (v *AerospikeCEClusterValidator) validateStorage(storage *AerospikeStorageS
 		if vol.Source.HostPath != nil {
 			warnings = append(warnings, fmt.Sprintf(
 				"storage.volumes[%d] %q: hostPath volumes are not recommended for production; data is tied to a specific node and not portable",
+				i, vol.Name))
+		}
+
+		// Warn about cascadeDelete on non-persistent volumes (has no effect)
+		if vol.CascadeDelete != nil && *vol.CascadeDelete && vol.Source.PersistentVolume == nil {
+			warnings = append(warnings, fmt.Sprintf(
+				"storage.volumes[%d] %q: cascadeDelete has no effect on non-persistent volumes",
 				i, vol.Name))
 		}
 

@@ -235,8 +235,8 @@ func TestResolveCascadeDelete_NoPolicyDefaultFalse(t *testing.T) {
 
 // --- ResolveInitMethod edge cases ---
 
-func TestResolveInitMethod_ExplicitNoneFallsToPolicy(t *testing.T) {
-	// When per-volume is explicitly "none", it should fall through to the global policy
+func TestResolveInitMethod_ExplicitNoneOverridesPolicy(t *testing.T) {
+	// When per-volume is explicitly "none", it should override the global policy
 	vol := &v1alpha1.VolumeSpec{
 		InitMethod: v1alpha1.VolumeInitMethodNone,
 		Source: v1alpha1.VolumeSource{
@@ -250,8 +250,28 @@ func TestResolveInitMethod_ExplicitNoneFallsToPolicy(t *testing.T) {
 	}
 
 	result := ResolveInitMethod(vol, spec)
+	if result != v1alpha1.VolumeInitMethodNone {
+		t.Errorf("explicit 'none' should override policy, expected %q, got %q", v1alpha1.VolumeInitMethodNone, result)
+	}
+}
+
+func TestResolveInitMethod_UnsetFallsToPolicy(t *testing.T) {
+	// When per-volume initMethod is empty (unset), it should fall back to global policy
+	vol := &v1alpha1.VolumeSpec{
+		// InitMethod is zero value ""
+		Source: v1alpha1.VolumeSource{
+			PersistentVolume: &v1alpha1.PersistentVolumeSpec{Size: "10Gi"},
+		},
+	}
+	spec := &v1alpha1.AerospikeStorageSpec{
+		FilesystemVolumePolicy: &v1alpha1.AerospikeVolumePolicy{
+			InitMethod: v1alpha1.VolumeInitMethodDeleteFiles,
+		},
+	}
+
+	result := ResolveInitMethod(vol, spec)
 	if result != v1alpha1.VolumeInitMethodDeleteFiles {
-		t.Errorf("explicit 'none' should fall to policy, expected %q, got %q", v1alpha1.VolumeInitMethodDeleteFiles, result)
+		t.Errorf("unset initMethod should fall to policy, expected %q, got %q", v1alpha1.VolumeInitMethodDeleteFiles, result)
 	}
 }
 
@@ -352,7 +372,8 @@ func TestResolveWipeMethod_BlockPolicyFallback(t *testing.T) {
 	}
 }
 
-func TestResolveWipeMethod_ExplicitNoneFallsToPolicy(t *testing.T) {
+func TestResolveWipeMethod_ExplicitNoneOverridesPolicy(t *testing.T) {
+	// When per-volume is explicitly "none", it should override the global policy
 	vol := &v1alpha1.VolumeSpec{
 		WipeMethod: v1alpha1.VolumeWipeMethodNone,
 		Source: v1alpha1.VolumeSource{
@@ -366,8 +387,28 @@ func TestResolveWipeMethod_ExplicitNoneFallsToPolicy(t *testing.T) {
 	}
 
 	result := ResolveWipeMethod(vol, spec)
+	if result != v1alpha1.VolumeWipeMethodNone {
+		t.Errorf("explicit 'none' should override policy, expected %q, got %q", v1alpha1.VolumeWipeMethodNone, result)
+	}
+}
+
+func TestResolveWipeMethod_UnsetFallsToPolicy(t *testing.T) {
+	// When per-volume wipeMethod is empty (unset), it should fall back to global policy
+	vol := &v1alpha1.VolumeSpec{
+		// WipeMethod is zero value ""
+		Source: v1alpha1.VolumeSource{
+			PersistentVolume: &v1alpha1.PersistentVolumeSpec{Size: "10Gi"},
+		},
+	}
+	spec := &v1alpha1.AerospikeStorageSpec{
+		FilesystemVolumePolicy: &v1alpha1.AerospikeVolumePolicy{
+			WipeMethod: v1alpha1.VolumeWipeMethodDeleteFiles,
+		},
+	}
+
+	result := ResolveWipeMethod(vol, spec)
 	if result != v1alpha1.VolumeWipeMethodDeleteFiles {
-		t.Errorf("explicit 'none' should fall to policy, expected %q, got %q", v1alpha1.VolumeWipeMethodDeleteFiles, result)
+		t.Errorf("unset wipeMethod should fall to policy, expected %q, got %q", v1alpha1.VolumeWipeMethodDeleteFiles, result)
 	}
 }
 

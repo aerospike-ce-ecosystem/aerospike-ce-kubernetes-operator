@@ -7,16 +7,16 @@ import (
 )
 
 // ResolveInitMethod returns the effective init method for a volume.
-// Precedence: per-volume > global policy > "none".
+// Precedence: per-volume (any non-empty value including "none") > global policy > "none".
 func ResolveInitMethod(vol *v1alpha1.VolumeSpec, storageSpec *v1alpha1.AerospikeStorageSpec) v1alpha1.VolumeInitMethod {
-	// Per-volume override
-	if vol.InitMethod != "" && vol.InitMethod != v1alpha1.VolumeInitMethodNone {
+	// Per-volume override: any explicit value (including "none") takes precedence
+	if vol.InitMethod != "" {
 		return vol.InitMethod
 	}
 
 	// Global policy fallback
 	if policy := getVolumePolicy(vol, storageSpec); policy != nil {
-		if policy.InitMethod != "" && policy.InitMethod != v1alpha1.VolumeInitMethodNone {
+		if policy.InitMethod != "" {
 			return policy.InitMethod
 		}
 	}
@@ -25,16 +25,16 @@ func ResolveInitMethod(vol *v1alpha1.VolumeSpec, storageSpec *v1alpha1.Aerospike
 }
 
 // ResolveWipeMethod returns the effective wipe method for a volume.
-// Precedence: per-volume > global policy > "none".
+// Precedence: per-volume (any non-empty value including "none") > global policy > "none".
 func ResolveWipeMethod(vol *v1alpha1.VolumeSpec, storageSpec *v1alpha1.AerospikeStorageSpec) v1alpha1.VolumeWipeMethod {
-	// Per-volume override
-	if vol.WipeMethod != "" && vol.WipeMethod != v1alpha1.VolumeWipeMethodNone {
+	// Per-volume override: any explicit value (including "none") takes precedence
+	if vol.WipeMethod != "" {
 		return vol.WipeMethod
 	}
 
 	// Global policy fallback
 	if policy := getVolumePolicy(vol, storageSpec); policy != nil {
-		if policy.WipeMethod != "" && policy.WipeMethod != v1alpha1.VolumeWipeMethodNone {
+		if policy.WipeMethod != "" {
 			return policy.WipeMethod
 		}
 	}

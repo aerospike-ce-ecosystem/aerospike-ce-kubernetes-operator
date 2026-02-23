@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -104,8 +105,9 @@ func ParsePodName(podName string) (stsName string, ordinal int32, ok bool) {
 	}
 
 	stsName = podName[:lastDash]
-	for _, c := range podName[lastDash+1:] {
-		ordinal = ordinal*10 + (c - '0')
+	parsed, err := strconv.ParseInt(podName[lastDash+1:], 10, 32)
+	if err != nil {
+		return "", 0, false
 	}
-	return stsName, ordinal, true
+	return stsName, int32(parsed), true
 }

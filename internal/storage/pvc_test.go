@@ -96,3 +96,55 @@ func TestIsOwnedByStatefulSet_DifferentSTS(t *testing.T) {
 		t.Error("PVC from different STS should not match")
 	}
 }
+
+// --- extractOrdinal overflow ---
+
+func TestExtractOrdinal_Overflow(t *testing.T) {
+	_, ok := extractOrdinal("data-my-cluster-0-99999999999999999999", "my-cluster-0")
+	if ok {
+		t.Error("should not match PVC with overflowing ordinal")
+	}
+}
+
+// --- extractVolumeName tests ---
+
+func TestExtractVolumeName_Valid(t *testing.T) {
+	name, ok := extractVolumeName("data-my-cluster-0-0", "my-cluster-0")
+	if !ok {
+		t.Fatal("expected extraction to succeed")
+	}
+	if name != "data" {
+		t.Errorf("volume name = %q, want %q", name, "data")
+	}
+}
+
+func TestExtractVolumeName_MultiPartName(t *testing.T) {
+	name, ok := extractVolumeName("my-data-vol-my-cluster-0-3", "my-cluster-0")
+	if !ok {
+		t.Fatal("expected extraction to succeed")
+	}
+	if name != "my-data-vol" {
+		t.Errorf("volume name = %q, want %q", name, "my-data-vol")
+	}
+}
+
+func TestExtractVolumeName_Invalid(t *testing.T) {
+	_, ok := extractVolumeName("unrelated-pvc-name", "my-cluster-0")
+	if ok {
+		t.Error("should not extract volume name from unrelated PVC")
+	}
+}
+
+func TestExtractVolumeName_NoOrdinal(t *testing.T) {
+	_, ok := extractVolumeName("data-my-cluster-0-", "my-cluster-0")
+	if ok {
+		t.Error("should not extract when ordinal is missing")
+	}
+}
+
+func TestExtractVolumeName_NonNumericOrdinal(t *testing.T) {
+	_, ok := extractVolumeName("data-my-cluster-0-abc", "my-cluster-0")
+	if ok {
+		t.Error("should not extract when ordinal is non-numeric")
+	}
+}

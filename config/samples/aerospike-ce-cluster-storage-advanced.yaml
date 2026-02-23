@@ -88,6 +88,17 @@ spec:
           path: /opt/aerospike/csi
           mountPropagation: HostToContainer
 
+      # Local storage volume (uses localStorageClasses, PVC deleted on pod restart)
+      - name: local-data
+        source:
+          persistentVolume:
+            storageClass: local-path
+            size: 10Gi
+        aerospike:
+          path: /opt/aerospike/local
+        initMethod: deleteFiles
+        wipeMethod: deleteFiles
+
       # Volume with per-volume wipeMethod
       - name: temp-data
         source:

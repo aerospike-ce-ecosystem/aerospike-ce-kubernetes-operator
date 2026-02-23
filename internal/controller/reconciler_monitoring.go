@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"maps"
 
@@ -23,6 +24,12 @@ var serviceMonitorGVK = schema.GroupVersionKind{
 	Group:   "monitoring.coreos.com",
 	Version: "v1",
 	Kind:    "ServiceMonitor",
+}
+
+var prometheusRuleGVK = schema.GroupVersionKind{
+	Group:   "monitoring.coreos.com",
+	Version: "v1",
+	Kind:    "PrometheusRule",
 }
 
 func (r *AerospikeCEClusterReconciler) reconcileMonitoring(
@@ -49,6 +56,19 @@ func (r *AerospikeCEClusterReconciler) reconcileMonitoring(
 			log.Info("ServiceMonitor CRD not installed, skipping")
 		} else {
 			return fmt.Errorf("reconciling ServiceMonitor: %w", err)
+		}
+	}
+
+	// Reconcile PrometheusRule
+	prEnabled := monitoringEnabled &&
+		cluster.Spec.Monitoring.PrometheusRule != nil &&
+		cluster.Spec.Monitoring.PrometheusRule.Enabled
+
+	if err := r.reconcilePrometheusRule(ctx, cluster, prEnabled); err != nil {
+		if meta.IsNoMatchError(err) {
+			log.Info("PrometheusRule CRD not installed, skipping")
+		} else {
+			return fmt.Errorf("reconciling PrometheusRule: %w", err)
 		}
 	}
 
@@ -150,7 +170,9 @@ func (r *AerospikeCEClusterReconciler) reconcileServiceMonitor(
 	interval := monitoring.ServiceMonitor.Interval
 
 	labels := utils.LabelsForCluster(cluster.Name)
-	maps.Copy(labels, monitoring.ServiceMonitor.Labels)
+	if monitoring.ServiceMonitor.Labels != nil {
+		maps.Copy(labels, monitoring.ServiceMonitor.Labels)
+	}
 
 	selectorLabels := utils.SelectorLabelsForCluster(cluster.Name)
 
@@ -200,4 +222,151 @@ func toStringMap(m map[string]string) map[string]any {
 		out[k] = v
 	}
 	return out
+}
+
+func (r *AerospikeCEClusterReconciler) reconcilePrometheusRule(
+	ctx context.Context,
+	cluster *asdbcev1alpha1.AerospikeCECluster,
+	enabled bool,
+) error {
+	log := logf.FromContext(ctx)
+	prName := utils.PrometheusRuleName(cluster.Name)
+
+	existing := &unstructured.Unstructured{}
+	existing.SetGroupVersionKind(prometheusRuleGVK)
+
+	err := r.Get(ctx, types.NamespacedName{Name: prName, Namespace: cluster.Namespace}, existing)
+
+	if !enabled {
+		if err == nil {
+			log.Info("Deleting PrometheusRule", "name", prName)
+			if delErr := r.Delete(ctx, existing); delErr != nil && !errors.IsNotFound(delErr) {
+				return delErr
+			}
+		}
+		return nil
+	}
+
+	// CRD not installed — return the error so the caller can decide
+	if err != nil && meta.IsNoMatchError(err) {
+		return err
+	}
+
+	// Defensive nil check: while the caller guarantees PrometheusRule != nil
+	// when enabled=true, guard against misuse from other call sites.
+	if cluster.Spec.Monitoring == nil || cluster.Spec.Monitoring.PrometheusRule == nil {
+		return nil
+	}
+
+	monitoring := cluster.Spec.Monitoring
+	labels := utils.LabelsForCluster(cluster.Name)
+	if monitoring.PrometheusRule.Labels != nil {
+		maps.Copy(labels, monitoring.PrometheusRule.Labels)
+	}
+
+	// Build rule groups: use custom rules if provided, otherwise default rules.
+	var groups []any
+	if len(monitoring.PrometheusRule.CustomRules) > 0 {
+		for _, raw := range monitoring.PrometheusRule.CustomRules {
+			var ruleGroup map[string]any
+			if err := json.Unmarshal(raw.Raw, &ruleGroup); err != nil {
+				return fmt.Errorf("parsing custom PrometheusRule group: %w", err)
+			}
+			groups = append(groups, ruleGroup)
+		}
+	} else {
+		groups = defaultAlertRules(cluster.Name, cluster.Namespace)
+	}
+
+	prSpec := map[string]any{
+		"groups": groups,
+	}
+
+	if errors.IsNotFound(err) {
+		pr := &unstructured.Unstructured{}
+		pr.SetGroupVersionKind(prometheusRuleGVK)
+		pr.SetName(prName)
+		pr.SetNamespace(cluster.Namespace)
+		pr.SetLabels(labels)
+		pr.Object["spec"] = prSpec
+
+		if err := r.setOwnerRef(cluster, pr); err != nil {
+			return err
+		}
+		log.Info("Creating PrometheusRule", "name", prName)
+		return r.Create(ctx, pr)
+	} else if err != nil {
+		return fmt.Errorf("getting PrometheusRule %s: %w", prName, err)
+	}
+
+	// Update existing
+	existing.Object["spec"] = prSpec
+	existing.SetLabels(labels)
+	log.Info("Updating PrometheusRule", "name", prName)
+	return r.Update(ctx, existing)
+}
+
+// defaultAlertRules returns the default Prometheus alert rules for an Aerospike cluster.
+func defaultAlertRules(clusterName, namespace string) []any {
+	jobLabel := fmt.Sprintf("%s-metrics", clusterName)
+
+	return []any{
+		map[string]any{
+			"name": fmt.Sprintf("%s.rules", clusterName),
+			"rules": []any{
+				map[string]any{
+					"alert": "AerospikeNodeDown",
+					"expr":  fmt.Sprintf(`up{job="%s",namespace="%s"} == 0`, jobLabel, namespace),
+					"for":   "1m",
+					"labels": map[string]any{
+						"severity": "critical",
+						"cluster":  clusterName,
+					},
+					"annotations": map[string]any{
+						"summary":     fmt.Sprintf("Aerospike node down in cluster %s", clusterName),
+						"description": "{{ $labels.pod }} has been down for more than 1 minute.",
+					},
+				},
+				map[string]any{
+					"alert": "AerospikeNamespaceStopWrites",
+					"expr":  fmt.Sprintf(`aerospike_namespace_stop_writes{job="%s",namespace="%s"} == 1`, jobLabel, namespace),
+					"for":   "0m",
+					"labels": map[string]any{
+						"severity": "critical",
+						"cluster":  clusterName,
+					},
+					"annotations": map[string]any{
+						"summary":     fmt.Sprintf("Aerospike namespace stop-writes in cluster %s", clusterName),
+						"description": "Namespace {{ $labels.ns }} on {{ $labels.pod }} has stopped accepting writes.",
+					},
+				},
+				map[string]any{
+					"alert": "AerospikeHighDiskUsage",
+					"expr":  fmt.Sprintf(`aerospike_namespace_device_used_bytes{job="%s",namespace="%s"} / aerospike_namespace_device_total_bytes{job="%s",namespace="%s"} > 0.8`, jobLabel, namespace, jobLabel, namespace),
+					"for":   "5m",
+					"labels": map[string]any{
+						"severity": "warning",
+						"cluster":  clusterName,
+					},
+					"annotations": map[string]any{
+						"summary":     fmt.Sprintf("Aerospike high disk usage in cluster %s", clusterName),
+						"description": "Namespace {{ $labels.ns }} on {{ $labels.pod }} disk usage is above 80%%.",
+					},
+				},
+				map[string]any{
+					"alert": "AerospikeHighMemoryUsage",
+					"expr":  fmt.Sprintf(`aerospike_namespace_memory_used_bytes{job="%s",namespace="%s"} / aerospike_namespace_memory_total_bytes{job="%s",namespace="%s"} > 0.8`, jobLabel, namespace, jobLabel, namespace),
+					"for":   "5m",
+					"labels": map[string]any{
+						"severity": "warning",
+						"cluster":  clusterName,
+					},
+					"annotations": map[string]any{
+						"summary":     fmt.Sprintf("Aerospike high memory usage in cluster %s", clusterName),
+						"description": "Namespace {{ $labels.ns }} on {{ $labels.pod }} memory usage is above 80%%.",
+					},
+				},
+			},
+		},
+	}
 }

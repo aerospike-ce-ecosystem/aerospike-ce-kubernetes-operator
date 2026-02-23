@@ -46,3 +46,8 @@ func ServiceMonitorName(clusterName string) string {
 func NetworkPolicyName(clusterName string) string {
 	return fmt.Sprintf("%s-netpol", clusterName)
 }
+
+// PrometheusRuleName returns the PrometheusRule name for a cluster.
+func PrometheusRuleName(clusterName string) string {
+	return fmt.Sprintf("%s-alerts", clusterName)
+}

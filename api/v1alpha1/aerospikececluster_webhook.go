@@ -40,7 +40,7 @@ const (
 	defaultProtoFdMax    = 15000
 	defaultHeartbeatMode = "mesh"
 
-	defaultExporterImage  = "aerospike/aerospike-prometheus-exporter:latest"
+	defaultExporterImage  = "aerospike/aerospike-prometheus-exporter:v1.16.1"
 	defaultExporterPort   = int32(9145)
 	defaultScrapeInterval = "30s"
 )
@@ -267,6 +267,13 @@ func (v *AerospikeCEClusterValidator) validate(cluster *AerospikeCECluster) (adm
 	if cluster.Spec.RackConfig != nil {
 		rackErrors := v.validateRackConfig(cluster.Spec.RackConfig)
 		allErrors = append(allErrors, rackErrors...)
+	}
+
+	// Validate monitoring
+	if cluster.Spec.Monitoring != nil && cluster.Spec.Monitoring.Enabled {
+		mErrors, mWarnings := v.validateMonitoring(cluster.Spec.Monitoring)
+		allErrors = append(allErrors, mErrors...)
+		warnings = append(warnings, mWarnings...)
 	}
 
 	// Validate storage
@@ -785,6 +792,42 @@ func (v *AerospikeCEClusterValidator) validateStorage(storage *AerospikeStorageS
 	// Warn if local storage class is used but deleteLocalStorageOnRestart is not set
 	if len(storage.LocalStorageClasses) > 0 && storage.DeleteLocalStorageOnRestart == nil {
 		warnings = append(warnings, "storage.localStorageClasses is set but storage.deleteLocalStorageOnRestart is not configured; local PVCs will not be deleted on pod restart")
+	}
+
+	return errors, warnings
+}
+
+// aerospikeReservedPorts lists ports used by Aerospike server that must not conflict.
+var aerospikeReservedPorts = map[int32]string{
+	3000: "service",
+	3001: "fabric",
+	3002: "heartbeat",
+	3003: "info",
+}
+
+// validateMonitoring validates the monitoring configuration.
+func (v *AerospikeCEClusterValidator) validateMonitoring(m *AerospikeMonitoringSpec) ([]string, admission.Warnings) {
+	var errors []string
+	var warnings admission.Warnings
+
+	// Port conflict check with Aerospike reserved ports.
+	if portName, ok := aerospikeReservedPorts[m.Port]; ok {
+		errors = append(errors, fmt.Sprintf("monitoring.port %d conflicts with Aerospike %s port", m.Port, portName))
+	}
+
+	// Empty image check.
+	if m.ExporterImage == "" {
+		errors = append(errors, "monitoring.exporterImage must not be empty when monitoring is enabled")
+	}
+
+	// Warn about 'latest' tag on exporter image.
+	if strings.Contains(m.ExporterImage, ":") {
+		parts := strings.SplitN(m.ExporterImage, ":", 2)
+		if parts[1] == "latest" {
+			warnings = append(warnings, "monitoring.exporterImage uses 'latest' tag; use an explicit version tag for reproducible deployments")
+		}
+	} else if m.ExporterImage != "" {
+		warnings = append(warnings, fmt.Sprintf("monitoring.exporterImage %q has no tag; use an explicit version tag for reproducible deployments", m.ExporterImage))
 	}
 
 	return errors, warnings

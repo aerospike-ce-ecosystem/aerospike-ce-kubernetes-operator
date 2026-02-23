@@ -1699,3 +1699,214 @@ func TestValidate_ReplicationFactorEqualsClusterSize(t *testing.T) {
 		t.Errorf("unexpected error when replication-factor equals cluster size: %v", err)
 	}
 }
+
+// --- Monitoring validation tests ---
+
+func TestValidate_MonitoringPortConflict(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+
+	conflictPorts := map[int32]string{
+		3000: "service",
+		3001: "fabric",
+		3002: "heartbeat",
+		3003: "info",
+	}
+
+	for port, portName := range conflictPorts {
+		cluster := &AerospikeCECluster{
+			Spec: AerospikeCEClusterSpec{
+				Size:  3,
+				Image: "aerospike:ce-8.1.1.1",
+				Monitoring: &AerospikeMonitoringSpec{
+					Enabled:       true,
+					ExporterImage: "exporter:v1",
+					Port:          port,
+				},
+			},
+		}
+
+		_, err := v.validate(cluster)
+		if err == nil {
+			t.Errorf("expected error for monitoring port %d conflicting with %s", port, portName)
+		}
+		if !strings.Contains(err.Error(), "conflicts") {
+			t.Errorf("error for port %d should mention 'conflicts', got: %v", port, err)
+		}
+	}
+}
+
+func TestValidate_MonitoringPortNoConflict(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled:       true,
+				ExporterImage: "exporter:v1",
+				Port:          9145,
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error for valid monitoring port: %v", err)
+	}
+}
+
+func TestValidate_MonitoringEmptyImage(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled:       true,
+				ExporterImage: "",
+				Port:          9145,
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error for empty exporter image")
+	}
+	if !strings.Contains(err.Error(), "exporterImage") {
+		t.Errorf("error should mention 'exporterImage', got: %v", err)
+	}
+}
+
+func TestValidate_MonitoringLatestTagWarning(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled:       true,
+				ExporterImage: "aerospike/aerospike-prometheus-exporter:latest",
+				Port:          9145,
+			},
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "monitoring.exporterImage") && strings.Contains(w, "latest") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning about 'latest' tag, got warnings: %v", warnings)
+	}
+}
+
+func TestValidate_MonitoringNoTagWarning(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled:       true,
+				ExporterImage: "aerospike/aerospike-prometheus-exporter",
+				Port:          9145,
+			},
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "monitoring.exporterImage") && strings.Contains(w, "no tag") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning about missing tag, got warnings: %v", warnings)
+	}
+}
+
+func TestValidate_MonitoringValidConfig(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled:       true,
+				ExporterImage: "aerospike/aerospike-prometheus-exporter:v1.16.1",
+				Port:          9145,
+			},
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error for valid monitoring config: %v", err)
+	}
+	for _, w := range warnings {
+		if strings.Contains(w, "monitoring") {
+			t.Errorf("unexpected monitoring warning: %v", w)
+		}
+	}
+}
+
+func TestValidate_MonitoringDisabledSkipsValidation(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	// Invalid config but disabled — should pass
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled:       false,
+				ExporterImage: "",
+				Port:          3000,
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("disabled monitoring should not be validated, got error: %v", err)
+	}
+}
+
+// --- Default monitoring image version test ---
+
+func TestDefaultMonitoring_DefaultImageVersion(t *testing.T) {
+	d := &AerospikeCEClusterDefaulter{}
+	cluster := &AerospikeCECluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled: true,
+			},
+		},
+	}
+
+	if err := d.Default(context.Background(), cluster); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expected := "aerospike/aerospike-prometheus-exporter:v1.16.1"
+	if cluster.Spec.Monitoring.ExporterImage != expected {
+		t.Errorf("ExporterImage = %q, want %q", cluster.Spec.Monitoring.ExporterImage, expected)
+	}
+}

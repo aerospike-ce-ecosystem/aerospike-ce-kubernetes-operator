@@ -4,7 +4,7 @@
 # Path exclusions are in .tokeignore (gitignore syntax)
 
 # Only show these languages (excludes JavaScript, etc.)
-types = ["Go", "YAML", "Dockerfile", "Makefile", "Shell", "Markdown", "TOML", "JSON", "CSS"]
+types = ["Go", "YAML", "Dockerfile", "Makefile", "Shell", "Markdown", "TOML", "CSS"]
 
 [languages.Go]
 treat_doc_strings_as_comments = true

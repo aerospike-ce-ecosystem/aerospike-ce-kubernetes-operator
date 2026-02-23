@@ -186,12 +186,24 @@ func (r *AerospikeCEClusterReconciler) updatePodConfigHash(ctx context.Context, 
 }
 
 // coldRestartPod deletes the pod to trigger a cold restart via StatefulSet.
+// It marks volumes that have a wipe method as dirty so the init container
+// can wipe them when the pod is recreated.
 func (r *AerospikeCEClusterReconciler) coldRestartPod(
 	ctx context.Context,
 	cluster *asdbcev1alpha1.AerospikeCECluster,
 	pod *corev1.Pod,
 ) error {
 	log := logf.FromContext(ctx)
+
+	// Mark dirty volumes in pod status before deletion.
+	// The init container will read these via WIPE_VOLUMES env and wipe them on restart.
+	dirtyVols := getDirtyVolumes(cluster.Spec.Storage)
+	if len(dirtyVols) > 0 {
+		if err := r.markDirtyVolumes(ctx, cluster, pod.Name, dirtyVols); err != nil {
+			log.Error(err, "Failed to mark dirty volumes", "pod", pod.Name)
+			// Non-fatal: continue with pod deletion
+		}
+	}
 
 	// Delete local storage PVCs before pod deletion if configured
 	if cluster.Spec.Storage != nil &&
@@ -213,6 +225,48 @@ func (r *AerospikeCEClusterReconciler) coldRestartPod(
 	}
 	metrics.ColdRestartsTotal.WithLabelValues(cluster.Namespace, cluster.Name).Inc()
 	return nil
+}
+
+// getDirtyVolumes returns the names of volumes that have a non-"none" wipe method.
+func getDirtyVolumes(storageSpec *asdbcev1alpha1.AerospikeStorageSpec) []string {
+	if storageSpec == nil {
+		return nil
+	}
+	var dirty []string
+	for i := range storageSpec.Volumes {
+		vol := &storageSpec.Volumes[i]
+		wm := storage.ResolveWipeMethod(vol, storageSpec)
+		if wm != "" && wm != asdbcev1alpha1.VolumeWipeMethodNone {
+			dirty = append(dirty, vol.Name)
+		}
+	}
+	return dirty
+}
+
+// markDirtyVolumes records dirty volumes in the cluster status for the given pod.
+func (r *AerospikeCEClusterReconciler) markDirtyVolumes(
+	ctx context.Context,
+	cluster *asdbcev1alpha1.AerospikeCECluster,
+	podName string,
+	dirtyVols []string,
+) error {
+	latest, err := r.refetchCluster(ctx, types.NamespacedName{Name: cluster.Name, Namespace: cluster.Namespace})
+	if err != nil {
+		return err
+	}
+
+	if latest.Status.Pods == nil {
+		return nil
+	}
+
+	podStatus, ok := latest.Status.Pods[podName]
+	if !ok {
+		return nil
+	}
+
+	podStatus.DirtyVolumes = dirtyVols
+	latest.Status.Pods[podName] = podStatus
+	return r.Status().Update(ctx, latest)
 }
 
 // getRollingUpdateBatchSize returns the effective rolling update batch size.

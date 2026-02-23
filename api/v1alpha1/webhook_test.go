@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
@@ -861,17 +862,17 @@ func TestDefault_SetsNetworkPorts(t *testing.T) {
 	hb := net["heartbeat"].(map[string]any)
 	fabric := net["fabric"].(map[string]any)
 
-	if svcNet["port"] != defaultServicePort {
-		t.Errorf("service port = %v, want %d", svcNet["port"], defaultServicePort)
+	if svcNet["port"] != int(DefaultServicePort) {
+		t.Errorf("service port = %v, want %d", svcNet["port"], int(DefaultServicePort))
 	}
-	if hb["port"] != defaultHeartbeatPort {
-		t.Errorf("heartbeat port = %v, want %d", hb["port"], defaultHeartbeatPort)
+	if hb["port"] != int(DefaultHeartbeatPort) {
+		t.Errorf("heartbeat port = %v, want %d", hb["port"], int(DefaultHeartbeatPort))
 	}
 	if hb["mode"] != defaultHeartbeatMode {
 		t.Errorf("heartbeat mode = %v, want %q", hb["mode"], defaultHeartbeatMode)
 	}
-	if fabric["port"] != defaultFabricPort {
-		t.Errorf("fabric port = %v, want %d", fabric["port"], defaultFabricPort)
+	if fabric["port"] != int(DefaultFabricPort) {
+		t.Errorf("fabric port = %v, want %d", fabric["port"], int(DefaultFabricPort))
 	}
 }
 
@@ -1908,5 +1909,227 @@ func TestDefaultMonitoring_DefaultImageVersion(t *testing.T) {
 	expected := "aerospike/aerospike-prometheus-exporter:v1.16.1"
 	if cluster.Spec.Monitoring.ExporterImage != expected {
 		t.Errorf("ExporterImage = %q, want %q", cluster.Spec.Monitoring.ExporterImage, expected)
+	}
+}
+
+// --- CustomRules validation tests ---
+
+func TestValidate_CustomRules_ValidStructure(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled:       true,
+				ExporterImage: "exporter:v1",
+				Port:          9145,
+				PrometheusRule: &PrometheusRuleSpec{
+					Enabled: true,
+					CustomRules: []apiextensionsv1.JSON{
+						{Raw: []byte(`{"name":"custom.rules","rules":[{"alert":"TestAlert","expr":"up==0"}]}`)},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error for valid custom rules: %v", err)
+	}
+}
+
+func TestValidate_CustomRules_MissingName(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled:       true,
+				ExporterImage: "exporter:v1",
+				Port:          9145,
+				PrometheusRule: &PrometheusRuleSpec{
+					Enabled: true,
+					CustomRules: []apiextensionsv1.JSON{
+						{Raw: []byte(`{"rules":[{"alert":"TestAlert","expr":"up==0"}]}`)},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error for custom rule missing 'name'")
+	}
+	if !strings.Contains(err.Error(), "missing required field 'name'") {
+		t.Errorf("error should mention missing 'name', got: %v", err)
+	}
+}
+
+func TestValidate_CustomRules_MissingRules(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled:       true,
+				ExporterImage: "exporter:v1",
+				Port:          9145,
+				PrometheusRule: &PrometheusRuleSpec{
+					Enabled: true,
+					CustomRules: []apiextensionsv1.JSON{
+						{Raw: []byte(`{"name":"custom.rules"}`)},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error for custom rule missing 'rules'")
+	}
+	if !strings.Contains(err.Error(), "missing required field 'rules'") {
+		t.Errorf("error should mention missing 'rules', got: %v", err)
+	}
+}
+
+func TestValidate_CustomRules_InvalidJSON(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled:       true,
+				ExporterImage: "exporter:v1",
+				Port:          9145,
+				PrometheusRule: &PrometheusRuleSpec{
+					Enabled: true,
+					CustomRules: []apiextensionsv1.JSON{
+						{Raw: []byte(`{invalid json}`)},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error for invalid JSON in custom rules")
+	}
+	if !strings.Contains(err.Error(), "invalid JSON") {
+		t.Errorf("error should mention 'invalid JSON', got: %v", err)
+	}
+}
+
+func TestValidate_CustomRules_MissingBothFields(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled:       true,
+				ExporterImage: "exporter:v1",
+				Port:          9145,
+				PrometheusRule: &PrometheusRuleSpec{
+					Enabled: true,
+					CustomRules: []apiextensionsv1.JSON{
+						{Raw: []byte(`{"foo":"bar"}`)},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error for custom rule missing both 'name' and 'rules'")
+	}
+	if !strings.Contains(err.Error(), "name") || !strings.Contains(err.Error(), "rules") {
+		t.Errorf("error should mention both missing fields, got: %v", err)
+	}
+}
+
+// --- MetricLabels validation tests ---
+
+func TestValidate_MetricLabels_ValidLabels(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled:       true,
+				ExporterImage: "exporter:v1",
+				Port:          9145,
+				MetricLabels: map[string]string{
+					"env":    "prod",
+					"region": "us-west-2",
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error for valid metric labels: %v", err)
+	}
+}
+
+func TestValidate_MetricLabels_KeyContainsEquals(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled:       true,
+				ExporterImage: "exporter:v1",
+				Port:          9145,
+				MetricLabels: map[string]string{
+					"a=b": "value",
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error for metric label key containing '='")
+	}
+	if !strings.Contains(err.Error(), "must not contain") {
+		t.Errorf("error should mention reserved characters, got: %v", err)
+	}
+}
+
+func TestValidate_MetricLabels_ValueContainsComma(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled:       true,
+				ExporterImage: "exporter:v1",
+				Port:          9145,
+				MetricLabels: map[string]string{
+					"env": "prod,staging",
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error for metric label value containing ','")
+	}
+	if !strings.Contains(err.Error(), "must not contain") {
+		t.Errorf("error should mention reserved characters, got: %v", err)
 	}
 }

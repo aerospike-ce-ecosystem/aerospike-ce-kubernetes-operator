@@ -107,6 +107,16 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 			}
 		}
 
+		// Preserve dirty volumes from previous status; clear them once the pod is ready
+		// (meaning the init container has already wiped them during restart).
+		var dirtyVolumes []string
+		if prev, exists := cluster.Status.Pods[pod.Name]; exists && len(prev.DirtyVolumes) > 0 {
+			if !isReady {
+				dirtyVolumes = prev.DirtyVolumes
+			}
+			// else: pod is ready → init container completed wipe → clear dirty volumes
+		}
+
 		podStatuses[pod.Name] = asdbcev1alpha1.AerospikePodStatus{
 			PodIP:             pod.Status.PodIP,
 			HostIP:            pod.Status.HostIP,
@@ -116,6 +126,7 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 			IsRunningAndReady: isReady,
 			ConfigHash:        configHash,
 			PodSpecHash:       podSpecHash,
+			DirtyVolumes:      dirtyVolumes,
 		}
 	}
 

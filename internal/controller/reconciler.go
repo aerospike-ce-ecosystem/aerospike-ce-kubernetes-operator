@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -26,6 +27,8 @@ import (
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
+const defaultReconcileRetryInterval = 5 * time.Second
+
 // AerospikeCEClusterReconciler reconciles an AerospikeCECluster object.
 type AerospikeCEClusterReconciler struct {
 	client.Client
@@ -33,7 +36,9 @@ type AerospikeCEClusterReconciler struct {
 	Recorder   record.EventRecorder
 	RestConfig *rest.Config
 	// KubeClientset is a cached kubernetes.Clientset for pod exec operations.
-	KubeClientset kubernetes.Interface
+	KubeClientset  kubernetes.Interface
+	kubeClientOnce sync.Once
+	kubeClientErr  error
 }
 
 // RBAC markers
@@ -188,7 +193,7 @@ func (r *AerospikeCEClusterReconciler) reconcileCluster(
 	if inProgress, err := r.reconcileOperations(ctx, cluster); err != nil {
 		return ctrl.Result{}, err
 	} else if inProgress {
-		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+		return ctrl.Result{RequeueAfter: defaultReconcileRetryInterval}, nil
 	}
 
 	// Rolling restart if needed
@@ -199,7 +204,7 @@ func (r *AerospikeCEClusterReconciler) reconcileCluster(
 			return ctrl.Result{}, err
 		}
 		if restarted {
-			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+			return ctrl.Result{RequeueAfter: defaultReconcileRetryInterval}, nil
 		}
 	}
 

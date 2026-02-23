@@ -404,6 +404,55 @@ func TestGenerateConfig_StorageEngineInference(t *testing.T) {
 	assertContains(t, result, "file /data/test.dat")
 }
 
+func TestGenerateConfig_EmptyConfigMap(t *testing.T) {
+	config := map[string]any{}
+
+	result, err := GenerateConfig(config)
+	if err != nil {
+		t.Fatalf("unexpected error for empty config map: %v", err)
+	}
+
+	// An empty config map should produce an empty (or whitespace-only) output.
+	if strings.TrimSpace(result) != "" {
+		t.Errorf("expected empty output for empty config map, got:\n%s", result)
+	}
+}
+
+func TestGenerateConfig_NilValuesInMap(t *testing.T) {
+	config := map[string]any{
+		"service": map[string]any{
+			"cluster-name": "test",
+			"proto-fd-max": nil,
+		},
+	}
+
+	result, err := GenerateConfig(config)
+	if err != nil {
+		t.Fatalf("unexpected error for config with nil value: %v", err)
+	}
+
+	// The service section and cluster-name should still be generated.
+	assertContains(t, result, "service {")
+	assertContains(t, result, "cluster-name test")
+	// nil value should be rendered (formatValue handles it via %v).
+	assertContains(t, result, "proto-fd-max")
+}
+
+func TestGenerateConfig_TopLevelNilValue(t *testing.T) {
+	config := map[string]any{
+		"some-key": nil,
+	}
+
+	// Should not panic; the nil value falls into the default case
+	// of the type switch and is rendered via formatValue.
+	result, err := GenerateConfig(config)
+	if err != nil {
+		t.Fatalf("unexpected error for top-level nil value: %v", err)
+	}
+
+	assertContains(t, result, "some-key")
+}
+
 func assertContains(t *testing.T, s, substr string) {
 	t.Helper()
 	if !strings.Contains(s, substr) {

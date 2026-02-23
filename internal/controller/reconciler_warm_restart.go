@@ -62,20 +62,26 @@ func (r *AerospikeCEClusterReconciler) shouldWarmRestart(
 	return true
 }
 
-// getOrCreateKubeClientset returns the cached kubernetes.Clientset, creating it on first use.
+// getOrCreateKubeClientset returns the cached kubernetes.Clientset, creating it
+// on first use. Uses sync.Once to ensure thread-safe initialization when
+// multiple reconcile goroutines run concurrently.
 func (r *AerospikeCEClusterReconciler) getOrCreateKubeClientset() (kubernetes.Interface, error) {
-	if r.KubeClientset != nil {
-		return r.KubeClientset, nil
-	}
-	if r.RestConfig == nil {
-		return nil, fmt.Errorf("RestConfig not available for exec")
-	}
-	cs, err := kubernetes.NewForConfig(r.RestConfig)
-	if err != nil {
-		return nil, fmt.Errorf("creating kubernetes clientset: %w", err)
-	}
-	r.KubeClientset = cs
-	return cs, nil
+	r.kubeClientOnce.Do(func() {
+		if r.KubeClientset != nil {
+			return
+		}
+		if r.RestConfig == nil {
+			r.kubeClientErr = fmt.Errorf("RestConfig not available for exec")
+			return
+		}
+		cs, err := kubernetes.NewForConfig(r.RestConfig)
+		if err != nil {
+			r.kubeClientErr = fmt.Errorf("creating kubernetes clientset: %w", err)
+			return
+		}
+		r.KubeClientset = cs
+	})
+	return r.KubeClientset, r.kubeClientErr
 }
 
 // warmRestartPod sends SIGUSR1 to PID 1 in the Aerospike container to trigger

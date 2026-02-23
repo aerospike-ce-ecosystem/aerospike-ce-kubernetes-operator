@@ -8,6 +8,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func boolPtr(b bool) *bool { return &b }
@@ -937,5 +938,349 @@ func TestIsEnterpriseTag(t *testing.T) {
 		if got != tc.expected {
 			t.Errorf("isEnterpriseTag(%q) = %v, want %v", tc.image, got, tc.expected)
 		}
+	}
+}
+
+// --- Percentage validation edge case tests ---
+
+func TestValidatePositiveIntOrString_PercentageEdgeCases(t *testing.T) {
+	tests := []struct {
+		name      string
+		val       intstr.IntOrString
+		wantError bool
+	}{
+		{"valid 50%", intstr.FromString("50%"), false},
+		{"valid 1%", intstr.FromString("1%"), false},
+		{"valid 100%", intstr.FromString("100%"), false},
+		{"invalid 0%", intstr.FromString("0%"), true},
+		{"invalid 101%", intstr.FromString("101%"), true},
+		{"invalid abc%", intstr.FromString("abc%"), true},
+		{"invalid -5%", intstr.FromString("-5%"), true},
+		{"invalid 200%", intstr.FromString("200%"), true},
+		{"not a percentage", intstr.FromString("hello"), true},
+		{"valid int", intstr.FromInt32(5), false},
+		{"invalid zero int", intstr.FromInt32(0), true},
+		{"invalid negative int", intstr.FromInt32(-1), true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			val := tc.val
+			result := validatePositiveIntOrString(&val, "testField")
+			if tc.wantError && result == "" {
+				t.Errorf("expected error for %v, got none", tc.val)
+			}
+			if !tc.wantError && result != "" {
+				t.Errorf("unexpected error for %v: %s", tc.val, result)
+			}
+		})
+	}
+}
+
+func TestValidateNonNegativeIntOrString_PercentageEdgeCases(t *testing.T) {
+	tests := []struct {
+		name      string
+		val       intstr.IntOrString
+		wantError bool
+	}{
+		{"valid 50%", intstr.FromString("50%"), false},
+		{"valid 0%", intstr.FromString("0%"), false},
+		{"valid 100%", intstr.FromString("100%"), false},
+		{"invalid 101%", intstr.FromString("101%"), true},
+		{"invalid abc%", intstr.FromString("abc%"), true},
+		{"invalid -5%", intstr.FromString("-5%"), true},
+		{"not a percentage", intstr.FromString("hello"), true},
+		{"valid zero int", intstr.FromInt32(0), false},
+		{"valid positive int", intstr.FromInt32(5), false},
+		{"invalid negative int", intstr.FromInt32(-1), true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			val := tc.val
+			result := validateNonNegativeIntOrString(&val, "testField")
+			if tc.wantError && result == "" {
+				t.Errorf("expected error for %v, got none", tc.val)
+			}
+			if !tc.wantError && result != "" {
+				t.Errorf("unexpected error for %v: %s", tc.val, result)
+			}
+		})
+	}
+}
+
+// --- ACL role cross-reference tests ---
+
+func TestValidate_ACLUserReferencesUndefinedRole(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeAccessControl: &AerospikeAccessControlSpec{
+				Roles: []AerospikeRoleSpec{
+					{
+						Name:       "custom-reader",
+						Privileges: []string{"read"},
+					},
+				},
+				Users: []AerospikeUserSpec{
+					{
+						Name:       "admin",
+						SecretName: "admin-secret",
+						Roles:      []string{"sys-admin", "user-admin"},
+					},
+					{
+						Name:       "app-user",
+						SecretName: "app-secret",
+						Roles:      []string{"custom-reader", "nonexistent-role"},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error for user referencing undefined role")
+	}
+	if !strings.Contains(err.Error(), "nonexistent-role") {
+		t.Errorf("error should mention 'nonexistent-role', got: %v", err)
+	}
+	// "custom-reader" is defined in Roles, should not be flagged
+	if strings.Contains(err.Error(), "custom-reader") {
+		t.Errorf("error should not mention 'custom-reader' (it is defined), got: %v", err)
+	}
+}
+
+func TestValidate_ACLUserReferencesBuiltinRolesOnly(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeAccessControl: &AerospikeAccessControlSpec{
+				Users: []AerospikeUserSpec{
+					{
+						Name:       "admin",
+						SecretName: "admin-secret",
+						Roles:      []string{"sys-admin", "user-admin"},
+					},
+					{
+						Name:       "reader",
+						SecretName: "reader-secret",
+						Roles:      []string{"read"},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error for users referencing only built-in roles: %v", err)
+	}
+}
+
+func TestValidate_ACLUserReferencesCustomDefinedRole(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeAccessControl: &AerospikeAccessControlSpec{
+				Roles: []AerospikeRoleSpec{
+					{
+						Name:       "app-role",
+						Privileges: []string{"read-write"},
+					},
+				},
+				Users: []AerospikeUserSpec{
+					{
+						Name:       "admin",
+						SecretName: "admin-secret",
+						Roles:      []string{"sys-admin", "user-admin"},
+					},
+					{
+						Name:       "app-user",
+						SecretName: "app-secret",
+						Roles:      []string{"app-role"},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error for user referencing a defined custom role: %v", err)
+	}
+}
+
+// --- Operations InProgress change attempt tests ---
+
+func TestValidateUpdate_RejectsOperationChangeWhileInProgress(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+
+	oldCluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Operations: []OperationSpec{
+				{Kind: OperationWarmRestart, ID: "op-1"},
+			},
+		},
+		Status: AerospikeCEClusterStatus{
+			OperationStatus: &OperationStatus{
+				ID:    "op-1",
+				Kind:  OperationWarmRestart,
+				Phase: AerospikePhaseInProgress,
+			},
+		},
+	}
+
+	newCluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Operations: []OperationSpec{
+				{Kind: OperationPodRestart, ID: "op-2"},
+			},
+		},
+	}
+
+	_, err := v.ValidateUpdate(context.Background(), oldCluster, newCluster)
+	if err == nil {
+		t.Fatal("expected error when changing operation while one is InProgress")
+	}
+	if !strings.Contains(err.Error(), "InProgress") {
+		t.Errorf("error should mention 'InProgress', got: %v", err)
+	}
+}
+
+func TestValidateUpdate_AllowsSameOperationWhileInProgress(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+
+	oldCluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Operations: []OperationSpec{
+				{Kind: OperationWarmRestart, ID: "op-1"},
+			},
+		},
+		Status: AerospikeCEClusterStatus{
+			OperationStatus: &OperationStatus{
+				ID:    "op-1",
+				Kind:  OperationWarmRestart,
+				Phase: AerospikePhaseInProgress,
+			},
+		},
+	}
+
+	newCluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Operations: []OperationSpec{
+				{Kind: OperationWarmRestart, ID: "op-1"},
+			},
+		},
+	}
+
+	_, err := v.ValidateUpdate(context.Background(), oldCluster, newCluster)
+	if err != nil {
+		t.Errorf("unexpected error when keeping same operation while InProgress: %v", err)
+	}
+}
+
+func TestValidateUpdate_AllowsOperationChangeWhenCompleted(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+
+	oldCluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Operations: []OperationSpec{
+				{Kind: OperationWarmRestart, ID: "op-1"},
+			},
+		},
+		Status: AerospikeCEClusterStatus{
+			OperationStatus: &OperationStatus{
+				ID:    "op-1",
+				Kind:  OperationWarmRestart,
+				Phase: AerospikePhaseCompleted,
+			},
+		},
+	}
+
+	newCluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Operations: []OperationSpec{
+				{Kind: OperationPodRestart, ID: "op-2"},
+			},
+		},
+	}
+
+	_, err := v.ValidateUpdate(context.Background(), oldCluster, newCluster)
+	if err != nil {
+		t.Errorf("unexpected error when changing operation after previous completed: %v", err)
+	}
+}
+
+// --- Replication-factor vs spec.size cross-validation tests ---
+
+func TestValidate_ReplicationFactorExceedsClusterSize(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  2,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"namespaces": []any{
+						map[string]any{
+							"name":               "test",
+							"replication-factor": 3,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error when replication-factor exceeds cluster size")
+	}
+	if !strings.Contains(err.Error(), "exceeds cluster size") {
+		t.Errorf("error should mention 'exceeds cluster size', got: %v", err)
+	}
+}
+
+func TestValidate_ReplicationFactorEqualsClusterSize(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"namespaces": []any{
+						map[string]any{
+							"name":               "test",
+							"replication-factor": 3,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error when replication-factor equals cluster size: %v", err)
 	}
 }

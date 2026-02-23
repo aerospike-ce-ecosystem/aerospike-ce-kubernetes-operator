@@ -214,7 +214,9 @@ $(LOCALBIN):
 ## Tool Binaries
 KUBECTL ?= kubectl
 KIND ?= kind
-KIND_PROVIDER ?= docker  # set to 'podman' to use Podman instead of Docker
+# KIND_PROVIDER sets the container provider for Kind.
+# Override with `make setup-test-e2e KIND_PROVIDER=podman` for Podman.
+KIND_PROVIDER ?= docker
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"maps"
 
 	corev1 "k8s.io/api/core/v1"
@@ -69,7 +70,7 @@ func (r *AerospikeCEClusterReconciler) reconcileHeadlessService(
 		log.Info("Creating headless service", "name", svcName)
 		return r.Create(ctx, svc)
 	} else if err != nil {
-		return err
+		return fmt.Errorf("getting headless service %s: %w", svcName, err)
 	}
 
 	// Update if ports, labels, or annotations changed.

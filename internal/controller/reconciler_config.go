@@ -14,6 +14,7 @@ import (
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/configgen"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/initcontainer"
+	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/podutil"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
@@ -37,15 +38,15 @@ func (r *AerospikeCEClusterReconciler) reconcileConfigMap(
 				"network": map[string]any{
 					"service": map[string]any{
 						"address": "any",
-						"port":    3000,
+						"port":    int(podutil.ServicePort),
 					},
 					"heartbeat": map[string]any{
 						"mode": "mesh",
-						"port": 3002,
+						"port": int(podutil.HeartbeatPort),
 					},
 					"fabric": map[string]any{
 						"address": "any",
-						"port":    3001,
+						"port":    int(podutil.FabricPort),
 					},
 				},
 			},
@@ -71,7 +72,7 @@ func (r *AerospikeCEClusterReconciler) reconcileConfigMap(
 	}
 
 	// Determine heartbeat port
-	heartbeatPort := 3002
+	heartbeatPort := int(podutil.HeartbeatPort)
 	if netCfg, ok := effectiveConfig.Value["network"].(map[string]any); ok {
 		if hbCfg, ok := netCfg["heartbeat"].(map[string]any); ok {
 			if port, ok := hbCfg["port"]; ok {

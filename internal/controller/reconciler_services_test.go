@@ -166,10 +166,18 @@ func TestIsSystemAnnotation(t *testing.T) {
 		{"kubernetes.io/ingress-class", true},
 		{"app.kubernetes.io/managed-by", true},
 		{"app.k8s.io/managed-by", true},
+		{"k8s.io/some-key", true},
 		{"example.com/env", false},
 		{"prometheus.io/scrape", false},
 		{"acko.io/managed", false},
 		{"foo", false},
+		// Edge cases: substring matching should NOT match these
+		{"bypass-kubernetes.io/hack", false},
+		{"notkubernetes.io/key", false},
+		{"notk8s.io/key", false},
+		{"fakek8s.io/something", false},
+		// No domain prefix (bare key)
+		{"kubernetes.io", false},
 	}
 
 	for _, tc := range tests {

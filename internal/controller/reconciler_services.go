@@ -141,6 +141,13 @@ func reconcileAnnotations(existing, desired map[string]string) map[string]string
 
 // isSystemAnnotation returns true for annotations managed by Kubernetes itself
 // or by admission controllers (e.g., kubectl.kubernetes.io/last-applied-configuration).
+// It checks the domain prefix of the annotation key rather than using substring
+// matching, so keys like "bypass-kubernetes.io/x" are correctly excluded.
 func isSystemAnnotation(key string) bool {
-	return strings.Contains(key, "kubernetes.io/") || strings.Contains(key, "k8s.io/")
+	prefix, _, hasDomain := strings.Cut(key, "/")
+	if !hasDomain {
+		return false
+	}
+	return prefix == "kubernetes.io" || strings.HasSuffix(prefix, ".kubernetes.io") ||
+		prefix == "k8s.io" || strings.HasSuffix(prefix, ".k8s.io")
 }

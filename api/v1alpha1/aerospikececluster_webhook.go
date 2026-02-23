@@ -401,6 +401,8 @@ func (v *AerospikeCEClusterValidator) validateNamespaceConfig(nsMap map[string]a
 
 // builtinRoleNames are Aerospike predefined roles that do not need to be
 // defined in the ACL Roles list.
+// Reference: https://aerospike.com/docs/server/operations/configure/security/access-control/index.html
+// Note: CE does not include "superuser" (Enterprise-only).
 var builtinRoleNames = map[string]bool{
 	"user-admin":     true,
 	"sys-admin":      true,

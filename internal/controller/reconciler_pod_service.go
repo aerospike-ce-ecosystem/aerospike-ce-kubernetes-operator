@@ -106,18 +106,13 @@ func (r *AerospikeCEClusterReconciler) reconcilePodServices(
 					break
 				}
 			}
-		} else if !needsUpdate {
+		} else if len(existing.Spec.Ports) != len(desiredPorts) {
 			needsUpdate = true
 		}
 
 		if needsUpdate {
 			existing.Labels = labels
-			if desiredAnnotations != nil {
-				if existing.Annotations == nil {
-					existing.Annotations = make(map[string]string)
-				}
-				maps.Copy(existing.Annotations, desiredAnnotations)
-			}
+			existing.Annotations = desiredAnnotations
 			existing.Spec.Ports = desiredPorts
 			log.Info("Updating per-pod service", "name", svcName)
 			if err := r.Update(ctx, existing); err != nil {

@@ -36,9 +36,8 @@ type AerospikeCEClusterReconciler struct {
 	Recorder   record.EventRecorder
 	RestConfig *rest.Config
 	// KubeClientset is a cached kubernetes.Clientset for pod exec operations.
-	KubeClientset  kubernetes.Interface
-	kubeClientOnce sync.Once
-	kubeClientErr  error
+	KubeClientset kubernetes.Interface
+	kubeClientMu  sync.Mutex
 }
 
 // RBAC markers

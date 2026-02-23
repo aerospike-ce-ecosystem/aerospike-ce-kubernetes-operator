@@ -51,6 +51,20 @@ spec:
     rollingUpdateBatchSize: "50%"   # Restart 50% of pods per rack simultaneously
 ```
 
+#### Batch Size: Integer vs Percentage
+
+Batch size accepts either an integer or a percentage string:
+
+| Format | Example | Behavior (size=6) |
+|--------|---------|-------------------|
+| Integer | `2` | Exactly 2 pods at a time |
+| Percentage | `"50%"` | 50% of 6 = 3 pods at a time |
+| Percentage | `"25%"` | 25% of 6 = 2 pods at a time (rounded up) |
+
+:::tip
+A percentage string must include the `%` suffix (e.g., `"50%"`). The percentage is calculated against the total pod count per rack, rounded up to at least 1.
+:::
+
 ### Scale Down Batch Size
 
 Control how many pods are removed simultaneously per rack during scale-down:
@@ -61,6 +75,8 @@ spec:
     scaleDownBatchSize: 2            # Remove 2 pods per rack at a time
     # scaleDownBatchSize: "25%"      # Or use percentage
 ```
+
+`scaleDownBatchSize` applies **per rack** during scale-down operations. This prevents removing too many pods at once, which could cause data unavailability.
 
 ### Max Ignorable Pods
 
@@ -73,6 +89,15 @@ spec:
 ```
 
 This is useful when pods are stuck due to scheduling issues and you don't want to block the entire reconciliation.
+
+#### Batch Size Summary
+
+| Field | Scope | Default | Description |
+|-------|-------|---------|-------------|
+| `spec.rollingUpdateBatchSize` | Cluster-wide | 1 | Pods restarted simultaneously during rolling update |
+| `rackConfig.rollingUpdateBatchSize` | Per rack | inherits from spec | Overrides cluster-level batch size per rack |
+| `rackConfig.scaleDownBatchSize` | Per rack | all at once | Pods removed simultaneously during scale-down |
+| `rackConfig.maxIgnorablePods` | Per rack | 0 | Stuck pods to ignore during reconciliation |
 
 ## Configuration Updates
 
@@ -90,6 +115,31 @@ spec:
 ```
 
 When enabled, the operator uses Aerospike's `set-config` command to apply configuration changes at runtime where possible. Only changes that cannot be applied dynamically trigger a rolling restart.
+
+#### Which settings are dynamic?
+
+Most Aerospike service and namespace parameters are dynamically configurable. Examples include:
+
+| Category | Dynamic Parameters |
+|----------|-------------------|
+| Service | `proto-fd-max`, `transaction-pending-limit`, `batch-max-buffers-per-queue` |
+| Namespace | `high-water-memory-pct`, `high-water-disk-pct`, `stop-writes-pct`, `nsup-period`, `default-ttl` |
+| Not Dynamic | `replication-factor`, `storage-engine type`, `name` (requires restart) |
+
+#### Checking dynamicConfigStatus
+
+After a config change with `enableDynamicConfigUpdate: true`, check per-pod status:
+
+```bash
+kubectl -n aerospike get asce aerospike-ce-3node -o jsonpath='{.status.pods}' | jq '.[] | {name: .podName, dynamicConfig: .dynamicConfigStatus}'
+```
+
+| Status | Meaning |
+|--------|---------|
+| `Applied` | Dynamic config was applied successfully at runtime |
+| `Failed` | Dynamic update failed — a rolling restart will be triggered |
+| `Pending` | Waiting for the operator to apply the change |
+| (empty) | No dynamic config change was attempted |
 
 ## Pausing Reconciliation
 

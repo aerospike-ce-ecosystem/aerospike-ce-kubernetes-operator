@@ -93,12 +93,7 @@ func (r *AerospikeCEClusterReconciler) reconcileHeadlessService(
 
 	if needsUpdate {
 		existing.Labels = labels
-		if desiredAnnotations != nil {
-			if existing.Annotations == nil {
-				existing.Annotations = make(map[string]string)
-			}
-			maps.Copy(existing.Annotations, desiredAnnotations)
-		}
+		existing.Annotations = desiredAnnotations
 		existing.Spec.Ports = desiredPorts
 		existing.Spec.Selector = selectorLabels
 		log.Info("Updating headless service", "name", svcName)

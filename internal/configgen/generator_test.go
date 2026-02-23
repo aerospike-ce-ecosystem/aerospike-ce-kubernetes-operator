@@ -434,8 +434,10 @@ func TestGenerateConfig_NilValuesInMap(t *testing.T) {
 	// The service section and cluster-name should still be generated.
 	assertContains(t, result, "service {")
 	assertContains(t, result, "cluster-name test")
-	// nil value should be rendered (formatValue handles it via %v).
-	assertContains(t, result, "proto-fd-max")
+	// nil values should be silently skipped (not rendered).
+	if strings.Contains(result, "proto-fd-max") {
+		t.Errorf("expected nil value 'proto-fd-max' to be skipped, got:\n%s", result)
+	}
 }
 
 func TestGenerateConfig_TopLevelNilValue(t *testing.T) {
@@ -443,14 +445,15 @@ func TestGenerateConfig_TopLevelNilValue(t *testing.T) {
 		"some-key": nil,
 	}
 
-	// Should not panic; the nil value falls into the default case
-	// of the type switch and is rendered via formatValue.
+	// Should not panic; nil values are silently skipped.
 	result, err := GenerateConfig(config)
 	if err != nil {
 		t.Fatalf("unexpected error for top-level nil value: %v", err)
 	}
 
-	assertContains(t, result, "some-key")
+	if strings.Contains(result, "some-key") {
+		t.Errorf("expected top-level nil value 'some-key' to be skipped, got:\n%s", result)
+	}
 }
 
 func assertContains(t *testing.T, s, substr string) {

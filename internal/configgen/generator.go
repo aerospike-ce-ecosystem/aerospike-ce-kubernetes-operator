@@ -19,6 +19,9 @@ func GenerateConfig(config map[string]any) (string, error) {
 
 	for _, key := range keys {
 		val := config[key]
+		if val == nil {
+			continue
+		}
 
 		switch key {
 		case "namespaces":
@@ -88,6 +91,9 @@ func GenerateConfForPod(
 
 	for _, key := range keys {
 		val := config[key]
+		if val == nil {
+			continue
+		}
 
 		switch key {
 		case "namespaces":
@@ -163,6 +169,9 @@ func writeMapEntries(b *strings.Builder, m map[string]any, indent int) {
 
 	for _, key := range keys {
 		val := m[key]
+		if val == nil {
+			continue
+		}
 		switch v := val.(type) {
 		case map[string]any:
 			writeBlock(b, prefix, key, v, indent)
@@ -241,6 +250,9 @@ func generateLoggingSection(logs []any) string {
 
 // formatValue formats a config value for aerospike.conf output.
 func formatValue(val any) string {
+	if val == nil {
+		return ""
+	}
 	switch v := val.(type) {
 	case bool:
 		if v {

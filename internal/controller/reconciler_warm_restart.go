@@ -63,25 +63,25 @@ func (r *AerospikeCEClusterReconciler) shouldWarmRestart(
 }
 
 // getOrCreateKubeClientset returns the cached kubernetes.Clientset, creating it
-// on first use. Uses sync.Once to ensure thread-safe initialization when
-// multiple reconcile goroutines run concurrently.
+// on first use. Uses sync.Mutex to ensure thread-safe initialization when
+// multiple reconcile goroutines run concurrently. Unlike sync.Once, the mutex
+// allows retrying if the initial creation fails (e.g., transient network error).
 func (r *AerospikeCEClusterReconciler) getOrCreateKubeClientset() (kubernetes.Interface, error) {
-	r.kubeClientOnce.Do(func() {
-		if r.KubeClientset != nil {
-			return
-		}
-		if r.RestConfig == nil {
-			r.kubeClientErr = fmt.Errorf("RestConfig not available for exec")
-			return
-		}
-		cs, err := kubernetes.NewForConfig(r.RestConfig)
-		if err != nil {
-			r.kubeClientErr = fmt.Errorf("creating kubernetes clientset: %w", err)
-			return
-		}
-		r.KubeClientset = cs
-	})
-	return r.KubeClientset, r.kubeClientErr
+	r.kubeClientMu.Lock()
+	defer r.kubeClientMu.Unlock()
+
+	if r.KubeClientset != nil {
+		return r.KubeClientset, nil
+	}
+	if r.RestConfig == nil {
+		return nil, fmt.Errorf("RestConfig not available for exec")
+	}
+	cs, err := kubernetes.NewForConfig(r.RestConfig)
+	if err != nil {
+		return nil, fmt.Errorf("creating kubernetes clientset: %w", err)
+	}
+	r.KubeClientset = cs
+	return r.KubeClientset, nil
 }
 
 // warmRestartPod sends SIGUSR1 to PID 1 in the Aerospike container to trigger

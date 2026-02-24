@@ -43,7 +43,7 @@ import (
 
 var (
 	// managerImage is the manager image to be built and loaded for testing.
-	managerImage = "ghcr.io/kimsoungryoul/aerospike-ce-operator:v0.0.1"
+	managerImage = "ghcr.io/kimsoungryoul/aerospike-ce-kubernetes-operator:v0.0.1"
 	// shouldCleanupCertManager tracks whether CertManager was installed by this suite.
 	shouldCleanupCertManager = false
 

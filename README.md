@@ -297,7 +297,7 @@ make setup-test-e2e
 make docker-build
 
 # 3. Kind 클러스터에 이미지 로드
-kind load docker-image ghcr.io/kimsoungryoul/aerospike-ce-operator:latest \
+kind load docker-image ghcr.io/kimsoungryoul/aerospike-ce-kubernetes-operator:latest \
   --name aerospike-ce-operator-test-e2e
 
 # 4. CRD 설치 및 오퍼레이터 배포

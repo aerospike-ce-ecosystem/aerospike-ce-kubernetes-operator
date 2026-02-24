@@ -8,7 +8,7 @@ import TabItem from '@theme/TabItem';
 
 # Installation
 
-This guide covers three methods to install the ACKO operator.
+This guide covers two methods to install the ACKO operator.
 
 ## Prerequisites
 
@@ -66,19 +66,6 @@ helm show values oci://ghcr.io/kimsoungryoul/aerospike-operator --version 0.1.0 
 ```
 
 </TabItem>
-<TabItem value="helm-local" label="Helm Local Chart">
-
-Use the chart bundled in the repository.
-
-```bash
-git clone https://github.com/KimSoungRyoul/aerospike-ce-kubernetes-operator.git
-cd aerospike-ce-kubernetes-operator
-
-helm install aerospike-operator ./charts/aerospike-operator \
-  -n aerospike-operator --create-namespace
-```
-
-</TabItem>
 <TabItem value="kustomize" label="Kustomize">
 
 For users who prefer Kustomize-based deployment.
@@ -99,6 +86,177 @@ make deploy IMG=<your-registry>/aerospike-ce-operator:latest
 
 </TabItem>
 </Tabs>
+
+## Monitoring (Optional)
+
+The Helm chart includes built-in support for Prometheus Operator monitoring resources.
+All monitoring features are **disabled by default** and require [Prometheus Operator](https://github.com/prometheus-operator/prometheus-operator) (commonly installed via [kube-prometheus-stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack)).
+
+### ServiceMonitor
+
+Creates a `ServiceMonitor` resource so Prometheus automatically scrapes operator metrics.
+
+```bash
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
+  -n aerospike-operator --create-namespace \
+  --set serviceMonitor.enabled=true \
+  --set serviceMonitor.additionalLabels.release=prometheus
+```
+
+:::tip
+The `additionalLabels.release=prometheus` label must match your Prometheus Operator's `serviceMonitorSelector`. Check with:
+```bash
+kubectl get prometheus -A -o jsonpath='{.items[*].spec.serviceMonitorSelector}'
+```
+:::
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `serviceMonitor.enabled` | `false` | Create ServiceMonitor resource |
+| `serviceMonitor.interval` | — | Scrape interval (e.g., `"30s"`) |
+| `serviceMonitor.scrapeTimeout` | — | Scrape timeout (e.g., `"10s"`) |
+| `serviceMonitor.additionalLabels` | `{}` | Extra labels for Prometheus selector matching |
+
+### PrometheusRule
+
+Creates a `PrometheusRule` resource with built-in alerting rules for the operator.
+
+```bash
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
+  -n aerospike-operator --create-namespace \
+  --set serviceMonitor.enabled=true \
+  --set prometheusRule.enabled=true
+```
+
+**Built-in alerts** (used when `prometheusRule.rules` is empty):
+
+| Alert | Condition | Severity |
+|-------|-----------|----------|
+| `AerospikeOperatorDown` | Operator unreachable for 5m | critical |
+| `AerospikeOperatorReconcileErrors` | Reconcile error rate > 0 for 15m | warning |
+| `AerospikeOperatorSlowReconcile` | p99 reconcile time > 60s for 10m | warning |
+| `AerospikeOperatorWorkQueueDepth` | Queue depth > 10 for 10m | warning |
+| `AerospikeOperatorHighMemory` | Memory > 256Mi for 10m | warning |
+| `AerospikeOperatorPodRestarts` | > 3 restarts in 1h | warning |
+
+To provide **custom rules** instead of the built-in defaults, use a `values.yaml` file:
+
+```yaml
+prometheusRule:
+  enabled: true
+  rules:
+    - alert: CustomAerospikeAlert
+      expr: up{job="aerospike"} == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Custom Aerospike alert"
+```
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `prometheusRule.enabled` | `false` | Create PrometheusRule resource |
+| `prometheusRule.additionalLabels` | `{}` | Extra labels for Prometheus selector matching |
+| `prometheusRule.rules` | `[]` | Custom rules; when empty, built-in defaults are used |
+
+### Grafana Dashboard
+
+Creates a `ConfigMap` with a pre-built Grafana dashboard. Requires the [Grafana sidecar](https://github.com/grafana/helm-charts/tree/main/charts/grafana#sidecar-for-dashboards) to be configured for auto-discovery.
+
+```bash
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
+  -n aerospike-operator --create-namespace \
+  --set grafanaDashboard.enabled=true
+```
+
+The dashboard includes panels for: **Reconcile Rate**, **Reconcile Errors**, **Reconcile Duration (p99/p50)**, **Work Queue Depth**, **Operator Memory Usage**, and **Operator CPU Usage**.
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `grafanaDashboard.enabled` | `false` | Create dashboard ConfigMap |
+| `grafanaDashboard.sidecarLabel` | `grafana_dashboard` | Label key for Grafana sidecar discovery |
+| `grafanaDashboard.sidecarLabelValue` | `"1"` | Label value for Grafana sidecar discovery |
+| `grafanaDashboard.folder` | `""` | Grafana folder name for organizing dashboards |
+
+### Setting Up Grafana with Dashboard Auto-Discovery
+
+A step-by-step guide to install Grafana with sidecar enabled and view the operator dashboard via port-forward.
+
+**1. Add Grafana Helm repository:**
+
+```bash
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update
+```
+
+**2. Install Grafana with sidecar enabled:**
+
+```bash
+helm install grafana grafana/grafana \
+  -n monitoring --create-namespace \
+  --set sidecar.dashboards.enabled=true \
+  --set sidecar.dashboards.label=grafana_dashboard \
+  --set sidecar.dashboards.labelValue="1" \
+  --set sidecar.dashboards.searchNamespace=ALL \
+  --set sidecar.datasources.enabled=true
+```
+
+:::info
+`sidecar.dashboards.searchNamespace=ALL` enables the sidecar to discover dashboard ConfigMaps across **all namespaces**, including `aerospike-operator` where the operator chart deploys the dashboard ConfigMap. Without this, the sidecar only watches its own namespace.
+:::
+
+**3. Install (or upgrade) the operator with the dashboard enabled:**
+
+```bash
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
+  -n aerospike-operator --create-namespace \
+  --set grafanaDashboard.enabled=true
+```
+
+**4. Get the Grafana admin password:**
+
+```bash
+kubectl -n monitoring get secret grafana -o jsonpath="{.data.admin-password}" | base64 -d; echo
+```
+
+**5. Port-forward to access Grafana:**
+
+```bash
+kubectl -n monitoring port-forward svc/grafana 3000:80
+```
+
+**6.** Open [http://localhost:3000](http://localhost:3000) in your browser. Log in with:
+- **Username:** `admin`
+- **Password:** the value from step 4
+
+The **"Aerospike CE Operator"** dashboard will appear automatically under **Dashboards**. If you set `grafanaDashboard.folder`, it will be organized in the specified folder.
+
+:::tip
+If the dashboard does not appear, verify the ConfigMap was created and has the correct label:
+```bash
+kubectl -n aerospike-operator get configmap -l grafana_dashboard=1
+```
+:::
+
+### Full Monitoring Stack Example
+
+Enable all monitoring features at once:
+
+```bash
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
+  -n aerospike-operator --create-namespace \
+  --set serviceMonitor.enabled=true \
+  --set serviceMonitor.additionalLabels.release=prometheus \
+  --set prometheusRule.enabled=true \
+  --set grafanaDashboard.enabled=true \
+  --set grafanaDashboard.folder=Aerospike
+```
 
 ## Verify Installation
 
@@ -121,6 +279,105 @@ Check the CRD is registered:
 kubectl get crd aerospikececlusters.acko.io
 ```
 
+## Quick Start: Full Installation Script
+
+A single copy-paste script that sets up everything from scratch on a Kind cluster — cert-manager, Prometheus, the operator (with all monitoring enabled), Grafana, a sample Aerospike cluster, and verification.
+
+:::info Prerequisites
+- [Kind](https://kind.sigs.k8s.io/) installed
+- [Helm](https://helm.sh/) v3 installed
+- [kubectl](https://kubernetes.io/docs/tasks/tools/) installed
+
+Create a Kind cluster first:
+```bash
+kind create cluster --config kind-config.yaml --name kind
+```
+:::
+
+```bash
+# =============================================================================
+# 1. Install cert-manager
+# =============================================================================
+helm repo add jetstack https://charts.jetstack.io
+helm repo update jetstack
+helm install cert-manager jetstack/cert-manager \
+  --namespace cert-manager \
+  --create-namespace \
+  --set crds.enabled=true \
+  --wait
+
+# =============================================================================
+# 2. Install Prometheus Operator (kube-prometheus-stack)
+# =============================================================================
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update prometheus-community
+helm install prometheus prometheus-community/kube-prometheus-stack \
+  --namespace monitoring \
+  --create-namespace \
+  --set grafana.enabled=false \
+  --wait
+
+# =============================================================================
+# 3. Install Aerospike Operator (all monitoring enabled)
+# =============================================================================
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
+  -n aerospike-operator --create-namespace \
+  --set serviceMonitor.enabled=true \
+  --set serviceMonitor.additionalLabels.release=prometheus \
+  --set prometheusRule.enabled=true \
+  --set grafanaDashboard.enabled=true \
+  --set grafanaDashboard.folder=Aerospike \
+  --wait
+
+# =============================================================================
+# 4. Install Grafana with sidecar dashboard auto-discovery
+# =============================================================================
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update grafana
+helm install grafana grafana/grafana \
+  --namespace monitoring \
+  --set sidecar.dashboards.enabled=true \
+  --set sidecar.dashboards.label=grafana_dashboard \
+  --set sidecar.dashboards.labelValue="1" \
+  --set sidecar.dashboards.searchNamespace=ALL \
+  --set sidecar.datasources.enabled=true \
+  --wait
+
+# =============================================================================
+# 5. Deploy an Aerospike CE cluster
+# =============================================================================
+kubectl create namespace aerospike --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f config/samples/acko_v1alpha1_aerospikececluster.yaml
+
+echo "Waiting for Aerospike pod to be ready..."
+kubectl -n aerospike wait --for=condition=Ready pod/aerospike-ce-basic-0-0 --timeout=120s
+
+# =============================================================================
+# 6. Verify: run asinfo inside the Aerospike pod
+# =============================================================================
+echo "=== Aerospike cluster info ==="
+kubectl -n aerospike exec -it aerospike-ce-basic-0-0 -- asinfo -v status
+kubectl -n aerospike exec -it aerospike-ce-basic-0-0 -- asinfo -v build
+
+# =============================================================================
+# 7. Port-forward Grafana (access at http://localhost:3000)
+# =============================================================================
+GRAFANA_PASSWORD=$(kubectl -n monitoring get secret grafana \
+  -o jsonpath="{.data.admin-password}" | base64 -d)
+echo ""
+echo "=== Grafana ==="
+echo "URL:      http://localhost:3000"
+echo "Username: admin"
+echo "Password: ${GRAFANA_PASSWORD}"
+echo ""
+kubectl -n monitoring port-forward svc/grafana 3000:80
+```
+
+:::tip
+The script uses `--wait` on each Helm install so subsequent steps don't start until the previous component is fully ready. If you want to run this in CI without the final `port-forward`, remove the last command.
+:::
+
 ## Uninstall
 
 :::warning
@@ -129,20 +386,6 @@ Always delete AerospikeCECluster resources before uninstalling the operator. Rem
 
 <Tabs groupId="install-method">
 <TabItem value="helm-oci" label="Helm" default>
-
-```bash
-# Delete all Aerospike clusters first
-kubectl delete asce --all --all-namespaces
-
-# Uninstall the operator
-helm uninstall aerospike-operator -n aerospike-operator
-
-# (Optional) Delete the namespace
-kubectl delete namespace aerospike-operator
-```
-
-</TabItem>
-<TabItem value="helm-local" label="Helm (Local)">
 
 ```bash
 # Delete all Aerospike clusters first

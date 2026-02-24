@@ -266,16 +266,15 @@ make uninstall
  Dockerfile                2           38           23            9            6
  Go                       80        18752        14554         1746         2452
  Makefile                  1          291          187           49           55
- Markdown                 14         3611            0         2509         1102
  Shell                     2          144          102           18           24
  TOML                      1           10            3            5            2
  YAML                     29         1057          851          137           69
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- Total                   129        25160        16855         4538         3767
+ Total                   115        20292        15720         1964         2608
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-> Measured with [tokei](https://github.com/XAMPPRocky/tokei) (`tokei -C`). Auto-generated code, Helm chart templates, and CRD/RBAC manifests are excluded via `.tokeignore`. JavaScript, JSON, and CSS are excluded via `tokei.toml`.
+> Measured with [tokei](https://github.com/XAMPPRocky/tokei) (`tokei -C`). Auto-generated code, Helm chart templates, and CRD/RBAC manifests are excluded via `.tokeignore`. JavaScript, JSON, CSS, and Markdown are excluded via `tokei.toml`.
 
 ## Development
 

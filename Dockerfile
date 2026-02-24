@@ -19,8 +19,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o ma
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
-# Pinned digest last updated: 2026-02-24
-FROM gcr.io/distroless/static:nonroot@sha256:042cf93dd978576a9607dbd8aada9875194123f3dbeeb2a2d4a14c0e9149196a
+FROM gcr.io/distroless/static:nonroot
 WORKDIR /
 COPY --from=builder /workspace/manager .
 USER 65532:65532

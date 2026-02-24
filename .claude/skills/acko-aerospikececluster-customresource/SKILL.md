@@ -55,6 +55,13 @@ spec:
   # enableDynamicConfigUpdate: true
 
   ##########################################################################
+  # [OPTIONAL] rollingUpdateBatchSize: Pods to restart in parallel
+  # during a rolling restart. Defaults to 1 (sequential).
+  # Minimum: 1
+  ##########################################################################
+  # rollingUpdateBatchSize: 1
+
+  ##########################################################################
   # [OPTIONAL] disablePDB: Disable PodDisruptionBudget creation
   ##########################################################################
   # disablePDB: false
@@ -67,11 +74,63 @@ spec:
   # maxUnavailable: 1
 
   ##########################################################################
+  # [OPTIONAL] enableRackIDOverride: Enable dynamic rack ID assignment
+  # via pod annotations. When true, the operator reads rack IDs from
+  # pod annotations instead of static rack config.
+  ##########################################################################
+  # enableRackIDOverride: false
+
+  ##########################################################################
   # [OPTIONAL] k8sNodeBlockList: Nodes that should NOT run Aerospike pods
   ##########################################################################
   # k8sNodeBlockList:
   #   - node-maintenance-1
   #   - node-maintenance-2
+
+  ##########################################################################
+  # [OPTIONAL] validationPolicy: Control validation behavior
+  ##########################################################################
+  # validationPolicy:
+  #   skipWorkDirValidate: false    # Skip work directory persistence check
+
+  ##########################################################################
+  # [OPTIONAL] operations: On-demand operations
+  # Only one operation can be active at a time (maxItems: 1).
+  #
+  # Kinds:
+  #   - WarmRestart: Sends SIGUSR1 to the Aerospike process
+  #   - PodRestart: Deletes and recreates the pod
+  #
+  # ID: Unique tracking identifier (1-20 chars)
+  # podList: Optional list of specific pods to target (empty = all pods)
+  ##########################################################################
+  # operations:
+  #   - kind: WarmRestart
+  #     id: "restart-001"
+  #     podList:                      # Optional: omit to target all pods
+  #       - aerospike-ce-full-example-0-0
+  #       - aerospike-ce-full-example-0-1
+
+  ##########################################################################
+  # [OPTIONAL] headlessService: Custom metadata for the headless service
+  ##########################################################################
+  # headlessService:
+  #   metadata:
+  #     annotations:
+  #       example.com/annotation: value
+  #     labels:
+  #       example.com/label: value
+
+  ##########################################################################
+  # [OPTIONAL] podService: Per-pod individual service creation
+  # When set, the operator creates an individual Service for each pod.
+  ##########################################################################
+  # podService:
+  #   metadata:
+  #     annotations:
+  #       example.com/annotation: value
+  #     labels:
+  #       example.com/label: value
 
   ##########################################################################
   # aerospikeConfig: Raw Aerospike configuration (converted to aerospike.conf)
@@ -139,14 +198,43 @@ spec:
   #   - emptyDir: Ephemeral storage (lost on pod restart)
   #   - secret: Mount a Kubernetes Secret
   #   - configMap: Mount a Kubernetes ConfigMap
+  #   - hostPath: Mount a path from the host node
   #
   # cascadeDelete: Delete PVC when CR is deleted (default: false)
   # initMethod: Volume init on first use
   #   - none (default), deleteFiles, dd, blkdiscard, headerCleanup
+  # wipeMethod: Volume wipe when marked dirty
+  #   - none, deleteFiles, dd, blkdiscard, headerCleanup,
+  #     blkdiscardWithHeaderCleanup
   ##########################################################################
   storage:
     # cleanupThreads: Max threads for volume cleanup/init (default: 1)
     # cleanupThreads: 1
+
+    # filesystemVolumePolicy: Default policy for filesystem-mode PVs
+    # Per-volume settings override this policy.
+    # filesystemVolumePolicy:
+    #   initMethod: deleteFiles
+    #   wipeMethod: deleteFiles
+    #   cascadeDelete: true
+
+    # blockVolumePolicy: Default policy for block-mode PVs
+    # Per-volume settings override this policy.
+    # blockVolumePolicy:
+    #   initMethod: blkdiscard
+    #   wipeMethod: blkdiscard
+    #   cascadeDelete: true
+
+    # localStorageClasses: StorageClasses that use local storage
+    # (e.g., local-path, openebs-hostpath). Requires special handling on pod restart.
+    # localStorageClasses:
+    #   - local-path
+    #   - openebs-hostpath
+
+    # deleteLocalStorageOnRestart: Delete PVCs backed by local storage
+    # classes before pod restart, forcing re-provisioning on the new node.
+    # deleteLocalStorageOnRestart: false
+
     volumes:
       # Persistent data volume (PVC)
       - name: data-vol
@@ -157,10 +245,23 @@ spec:
             volumeMode: Filesystem    # Filesystem (default) or Block
             # accessModes:
             #   - ReadWriteOnce
+            # selector:               # Label selector for binding to specific PV
+            #   matchLabels:
+            #     type: aerospike-data
+            # metadata:               # Custom labels/annotations for PVC
+            #   labels:
+            #     app: aerospike
+            #   annotations:
+            #     volume.beta.kubernetes.io/storage-class: standard
         aerospike:
           path: /opt/aerospike/data   # Mount path in Aerospike container
+          # readOnly: false
+          # subPath: ""               # Mount only a sub-path of the volume
+          # subPathExpr: ""           # Expanded path using env vars (mutually exclusive with subPath)
+          # mountPropagation: None    # None, HostToContainer, Bidirectional
         cascadeDelete: true           # Delete PVC on CR deletion
-        # initMethod: none
+        # initMethod: none            # Per-volume init method override
+        # wipeMethod: none            # Per-volume wipe method override
 
       # Working directory (emptyDir)
       - name: workdir
@@ -169,7 +270,16 @@ spec:
         aerospike:
           path: /opt/aerospike/work
 
-      # Mount sidecar volumes example (uncomment to use)
+      # HostPath volume example (uncomment to use)
+      # - name: host-data
+      #   source:
+      #     hostPath:
+      #       path: /mnt/aerospike-data
+      #       type: DirectoryOrCreate   # DirectoryOrCreate, Directory, File, etc.
+      #   aerospike:
+      #     path: /opt/aerospike/host-data
+
+      # Mount to sidecar and init containers (uncomment to use)
       # - name: shared-logs
       #   source:
       #     emptyDir: {}
@@ -178,6 +288,13 @@ spec:
       #   sidecars:
       #     - containerName: log-collector
       #       path: /logs
+      #       # readOnly: false
+      #       # subPath: ""
+      #       # subPathExpr: ""
+      #       # mountPropagation: None
+      #   initContainers:
+      #     - containerName: custom-init
+      #       path: /init-logs
 
   ##########################################################################
   # podSpec: Pod-level customization
@@ -272,17 +389,38 @@ spec:
   #   # namespaces: Aerospike namespace names that are rack-aware
   #   namespaces:
   #     - test
+  #
+  #   # scaleDownBatchSize: Pods to scale down simultaneously per rack
+  #   # Can be absolute number or percentage string (e.g., "25%"). Default: 1
+  #   # scaleDownBatchSize: 1
+  #
+  #   # maxIgnorablePods: Max pending/failed pods to ignore during reconcile
+  #   # Useful when pods are stuck due to scheduling issues.
+  #   # Can be absolute number or percentage string.
+  #   # maxIgnorablePods: 0
+  #
+  #   # rollingUpdateBatchSize: Pods to restart simultaneously per rack
+  #   # Takes precedence over spec.rollingUpdateBatchSize when set.
+  #   # Can be absolute number or percentage string (e.g., "25%"). Default: 1
+  #   # rollingUpdateBatchSize: 1
+  #
   #   racks:
   #     - id: 1
   #       zone: us-east-1a          # topology.kubernetes.io/zone
   #       # region: us-east-1       # topology.kubernetes.io/region
   #       # nodeName: specific-node # Pin to specific node
+  #       # rackLabel: rack-a       # Custom label: acko.io/rack=rack-a
+  #       # revision: "v1"          # Version identifier for controlled migrations
   #       # aerospikeConfig:        # Override cluster-level config
   #       #   namespaces:
   #       #     - name: test
   #       #       replication-factor: 2
   #       # storage:                # Override cluster-level storage
   #       # podSpec:                # Override scheduling (affinity, tolerations, nodeSelector)
+  #       #   affinity: ...
+  #       #   tolerations: [...]
+  #       #   nodeSelector:
+  #       #     node-type: aerospike
   #     - id: 2
   #       zone: us-east-1b
   #     - id: 3
@@ -340,11 +478,11 @@ spec:
   #   #   - my-fabric-network
 
   ##########################################################################
-  # monitoring: Prometheus exporter sidecar
+  # monitoring: Prometheus exporter sidecar and alerting
   ##########################################################################
   # monitoring:
   #   enabled: true
-  #   exporterImage: aerospike/aerospike-prometheus-exporter:latest
+  #   exporterImage: aerospike/aerospike-prometheus-exporter:v1.16.1
   #   port: 9145                    # Metrics port
   #   resources:
   #     requests:
@@ -353,11 +491,46 @@ spec:
   #     limits:
   #       memory: "128Mi"
   #       cpu: "100m"
+  #
+  #   # env: Additional environment variables for the exporter container
+  #   # Useful for metric filtering, custom configuration, etc.
+  #   # env:
+  #   #   - name: AS_EXPORTER_LOG_LEVEL
+  #   #     value: "debug"
+  #   #   - name: AS_EXPORTER_NAMESPACE_METRICS_ALLOWLIST
+  #   #     value: "client_read_success,client_write_success"
+  #
+  #   # metricLabels: Custom labels added to all exported metrics
+  #   # Passed via METRIC_LABELS env var as sorted key=value pairs
+  #   # metricLabels:
+  #   #   cluster: production
+  #   #   team: platform
+  #
   #   serviceMonitor:
   #     enabled: true               # Create ServiceMonitor for Prometheus Operator
   #     interval: "30s"             # Scrape interval
   #     labels:
   #       release: prometheus       # Label for Prometheus discovery
+  #
+  #   # prometheusRule: Create PrometheusRule for Aerospike cluster alerts
+  #   # When customRules is empty, built-in alerts are generated:
+  #   #   NodeDown, StopWrites, HighDiskUsage, HighMemoryUsage
+  #   # prometheusRule:
+  #   #   enabled: true
+  #   #   labels:
+  #   #     release: prometheus
+  #   #   # customRules: Completely replaces default alerts when provided
+  #   #   # Each entry must be a complete Prometheus rule group object.
+  #   #   # customRules:
+  #   #   #   - name: aerospike-custom-alerts
+  #   #   #     rules:
+  #   #   #       - alert: AerospikeHighLatency
+  #   #   #         expr: aerospike_latencies_read_ms_bucket{le="1"} < 0.9
+  #   #   #         for: 5m
+  #   #   #         labels:
+  #   #   #           severity: warning
+  #   #   #         annotations:
+  #   #   #           summary: "High read latency on {{ $labels.instance }}"
 
   ##########################################################################
   # networkPolicyConfig: Automatic NetworkPolicy creation
@@ -426,6 +599,13 @@ kubectl describe asce -n aerospike aerospike-ce-full-example
 
 # Check aerospike logs
 kubectl logs -n aerospike <pod-name> -c aerospike-server
+
+# Trigger an on-demand operation (e.g., warm restart)
+kubectl patch asce -n aerospike aerospike-ce-full-example --type=merge -p '
+  {"spec":{"operations":[{"kind":"WarmRestart","id":"restart-001"}]}}'
+
+# Check operation status
+kubectl get asce -n aerospike aerospike-ce-full-example -o jsonpath='{.status.operationStatus}'
 
 # Delete cluster
 kubectl delete asce -n aerospike aerospike-ce-full-example

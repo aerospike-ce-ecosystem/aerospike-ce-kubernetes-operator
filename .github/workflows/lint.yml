@@ -3,7 +3,27 @@ name: Lint
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'config/samples/**'
+      - 'tokei.toml'
+      - '.tokeignore'
+      - '.gitignore'
+      - 'LICENSE'
+      - '.github/workflows/docs.yaml'
+      - '.github/workflows/publish-chart.yml'
   pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'config/samples/**'
+      - 'tokei.toml'
+      - '.tokeignore'
+      - '.gitignore'
+      - 'LICENSE'
+      - '.github/workflows/docs.yaml'
+      - '.github/workflows/publish-chart.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}

@@ -8,7 +8,7 @@ import TabItem from '@theme/TabItem';
 
 # 설치
 
-이 가이드는 ACKO 오퍼레이터를 설치하는 세 가지 방법을 다룹니다.
+이 가이드는 ACKO 오퍼레이터를 설치하는 두 가지 방법을 다룹니다.
 
 ## 사전 준비
 
@@ -66,19 +66,6 @@ helm show values oci://ghcr.io/kimsoungryoul/aerospike-operator --version 0.1.0 
 ```
 
 </TabItem>
-<TabItem value="helm-local" label="Helm 로컬 차트">
-
-리포지토리에 포함된 차트를 사용합니다.
-
-```bash
-git clone https://github.com/KimSoungRyoul/aerospike-ce-kubernetes-operator.git
-cd aerospike-ce-kubernetes-operator
-
-helm install aerospike-operator ./charts/aerospike-operator \
-  -n aerospike-operator --create-namespace
-```
-
-</TabItem>
 <TabItem value="kustomize" label="Kustomize">
 
 Kustomize 기반 배포를 선호하는 사용자를 위한 방법입니다.
@@ -99,6 +86,177 @@ make deploy IMG=<your-registry>/aerospike-ce-operator:latest
 
 </TabItem>
 </Tabs>
+
+## 모니터링 (선택사항)
+
+Helm 차트에는 Prometheus Operator 모니터링 리소스가 내장되어 있습니다.
+모든 모니터링 기능은 **기본적으로 비활성화**되어 있으며, [Prometheus Operator](https://github.com/prometheus-operator/prometheus-operator) (일반적으로 [kube-prometheus-stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack)을 통해 설치)가 필요합니다.
+
+### ServiceMonitor
+
+Prometheus가 오퍼레이터 메트릭을 자동으로 스크레이핑하도록 `ServiceMonitor` 리소스를 생성합니다.
+
+```bash
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
+  -n aerospike-operator --create-namespace \
+  --set serviceMonitor.enabled=true \
+  --set serviceMonitor.additionalLabels.release=prometheus
+```
+
+:::tip
+`additionalLabels.release=prometheus` 라벨은 Prometheus Operator의 `serviceMonitorSelector`와 일치해야 합니다. 다음 명령으로 확인할 수 있습니다:
+```bash
+kubectl get prometheus -A -o jsonpath='{.items[*].spec.serviceMonitorSelector}'
+```
+:::
+
+| 파라미터 | 기본값 | 설명 |
+|---------|--------|------|
+| `serviceMonitor.enabled` | `false` | ServiceMonitor 리소스 생성 여부 |
+| `serviceMonitor.interval` | — | 스크레이핑 주기 (예: `"30s"`) |
+| `serviceMonitor.scrapeTimeout` | — | 스크레이핑 타임아웃 (예: `"10s"`) |
+| `serviceMonitor.additionalLabels` | `{}` | Prometheus selector 매칭을 위한 추가 라벨 |
+
+### PrometheusRule
+
+오퍼레이터를 위한 내장 알림 규칙이 포함된 `PrometheusRule` 리소스를 생성합니다.
+
+```bash
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
+  -n aerospike-operator --create-namespace \
+  --set serviceMonitor.enabled=true \
+  --set prometheusRule.enabled=true
+```
+
+**내장 알림 규칙** (`prometheusRule.rules`가 비어있을 때 사용):
+
+| 알림 | 조건 | 심각도 |
+|------|------|--------|
+| `AerospikeOperatorDown` | 오퍼레이터 5분간 접근 불가 | critical |
+| `AerospikeOperatorReconcileErrors` | Reconcile 오류율 > 0 (15분간) | warning |
+| `AerospikeOperatorSlowReconcile` | p99 reconcile 시간 > 60초 (10분간) | warning |
+| `AerospikeOperatorWorkQueueDepth` | 큐 깊이 > 10 (10분간) | warning |
+| `AerospikeOperatorHighMemory` | 메모리 > 256Mi (10분간) | warning |
+| `AerospikeOperatorPodRestarts` | 1시간 내 3회 이상 재시작 | warning |
+
+내장 기본값 대신 **커스텀 규칙**을 사용하려면 `values.yaml` 파일을 사용합니다:
+
+```yaml
+prometheusRule:
+  enabled: true
+  rules:
+    - alert: CustomAerospikeAlert
+      expr: up{job="aerospike"} == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Custom Aerospike alert"
+```
+
+| 파라미터 | 기본값 | 설명 |
+|---------|--------|------|
+| `prometheusRule.enabled` | `false` | PrometheusRule 리소스 생성 여부 |
+| `prometheusRule.additionalLabels` | `{}` | Prometheus selector 매칭을 위한 추가 라벨 |
+| `prometheusRule.rules` | `[]` | 커스텀 규칙; 비어있으면 내장 기본값 사용 |
+
+### Grafana 대시보드
+
+사전 구성된 Grafana 대시보드가 포함된 `ConfigMap`을 생성합니다. [Grafana sidecar](https://github.com/grafana/helm-charts/tree/main/charts/grafana#sidecar-for-dashboards)가 자동 발견을 위해 설정되어 있어야 합니다.
+
+```bash
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
+  -n aerospike-operator --create-namespace \
+  --set grafanaDashboard.enabled=true
+```
+
+대시보드에 포함된 패널: **Reconcile Rate**, **Reconcile Errors**, **Reconcile Duration (p99/p50)**, **Work Queue Depth**, **Operator Memory Usage**, **Operator CPU Usage**.
+
+| 파라미터 | 기본값 | 설명 |
+|---------|--------|------|
+| `grafanaDashboard.enabled` | `false` | 대시보드 ConfigMap 생성 여부 |
+| `grafanaDashboard.sidecarLabel` | `grafana_dashboard` | Grafana sidecar 발견을 위한 라벨 키 |
+| `grafanaDashboard.sidecarLabelValue` | `"1"` | Grafana sidecar 발견을 위한 라벨 값 |
+| `grafanaDashboard.folder` | `""` | 대시보드 정리를 위한 Grafana 폴더 이름 |
+
+### Grafana 설치 및 대시보드 자동 발견 설정
+
+Grafana를 sidecar 활성화 상태로 설치하고 port-forward를 통해 오퍼레이터 대시보드를 확인하는 단계별 가이드입니다.
+
+**1. Grafana Helm 리포지토리 추가:**
+
+```bash
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update
+```
+
+**2. sidecar를 활성화하여 Grafana 설치:**
+
+```bash
+helm install grafana grafana/grafana \
+  -n monitoring --create-namespace \
+  --set sidecar.dashboards.enabled=true \
+  --set sidecar.dashboards.label=grafana_dashboard \
+  --set sidecar.dashboards.labelValue="1" \
+  --set sidecar.dashboards.searchNamespace=ALL \
+  --set sidecar.datasources.enabled=true
+```
+
+:::info
+`sidecar.dashboards.searchNamespace=ALL`을 설정하면 sidecar가 `aerospike-operator` 네임스페이스를 포함한 **모든 네임스페이스**에서 대시보드 ConfigMap을 발견할 수 있습니다. 이 설정이 없으면 sidecar는 자신이 속한 네임스페이스만 감시합니다.
+:::
+
+**3. 대시보드를 활성화하여 오퍼레이터 설치 (또는 업그레이드):**
+
+```bash
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
+  -n aerospike-operator --create-namespace \
+  --set grafanaDashboard.enabled=true
+```
+
+**4. Grafana admin 비밀번호 확인:**
+
+```bash
+kubectl -n monitoring get secret grafana -o jsonpath="{.data.admin-password}" | base64 -d; echo
+```
+
+**5. Grafana에 접근하기 위한 port-forward 실행:**
+
+```bash
+kubectl -n monitoring port-forward svc/grafana 3000:80
+```
+
+**6.** 브라우저에서 [http://localhost:3000](http://localhost:3000)을 열고 다음으로 로그인합니다:
+- **사용자명:** `admin`
+- **비밀번호:** 4단계에서 확인한 값
+
+**"Aerospike CE Operator"** 대시보드가 **Dashboards** 아래에 자동으로 나타납니다. `grafanaDashboard.folder`를 설정한 경우 지정된 폴더 아래에 정리됩니다.
+
+:::tip
+대시보드가 나타나지 않는 경우, ConfigMap이 올바른 라벨로 생성되었는지 확인하세요:
+```bash
+kubectl -n aerospike-operator get configmap -l grafana_dashboard=1
+```
+:::
+
+### 전체 모니터링 스택 예제
+
+모든 모니터링 기능을 한 번에 활성화:
+
+```bash
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
+  -n aerospike-operator --create-namespace \
+  --set serviceMonitor.enabled=true \
+  --set serviceMonitor.additionalLabels.release=prometheus \
+  --set prometheusRule.enabled=true \
+  --set grafanaDashboard.enabled=true \
+  --set grafanaDashboard.folder=Aerospike
+```
 
 ## 설치 확인
 
@@ -121,6 +279,105 @@ CRD가 등록되었는지 확인:
 kubectl get crd aerospikececlusters.acko.io
 ```
 
+## 빠른 시작: 전체 설치 스크립트
+
+Kind 클러스터에서 cert-manager, Prometheus, 오퍼레이터(모니터링 전체 활성화), Grafana, 샘플 Aerospike 클러스터, 검증까지 한 번에 복사-붙여넣기로 설정하는 스크립트입니다.
+
+:::info 사전 준비
+- [Kind](https://kind.sigs.k8s.io/) 설치
+- [Helm](https://helm.sh/) v3 설치
+- [kubectl](https://kubernetes.io/docs/tasks/tools/) 설치
+
+먼저 Kind 클러스터를 생성합니다:
+```bash
+kind create cluster --config kind-config.yaml --name kind
+```
+:::
+
+```bash
+# =============================================================================
+# 1. cert-manager 설치
+# =============================================================================
+helm repo add jetstack https://charts.jetstack.io
+helm repo update jetstack
+helm install cert-manager jetstack/cert-manager \
+  --namespace cert-manager \
+  --create-namespace \
+  --set crds.enabled=true \
+  --wait
+
+# =============================================================================
+# 2. Prometheus Operator 설치 (kube-prometheus-stack)
+# =============================================================================
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update prometheus-community
+helm install prometheus prometheus-community/kube-prometheus-stack \
+  --namespace monitoring \
+  --create-namespace \
+  --set grafana.enabled=false \
+  --wait
+
+# =============================================================================
+# 3. Aerospike Operator 설치 (모니터링 전체 활성화)
+# =============================================================================
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
+  -n aerospike-operator --create-namespace \
+  --set serviceMonitor.enabled=true \
+  --set serviceMonitor.additionalLabels.release=prometheus \
+  --set prometheusRule.enabled=true \
+  --set grafanaDashboard.enabled=true \
+  --set grafanaDashboard.folder=Aerospike \
+  --wait
+
+# =============================================================================
+# 4. Grafana 설치 (sidecar 대시보드 자동 발견 활성화)
+# =============================================================================
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update grafana
+helm install grafana grafana/grafana \
+  --namespace monitoring \
+  --set sidecar.dashboards.enabled=true \
+  --set sidecar.dashboards.label=grafana_dashboard \
+  --set sidecar.dashboards.labelValue="1" \
+  --set sidecar.dashboards.searchNamespace=ALL \
+  --set sidecar.datasources.enabled=true \
+  --wait
+
+# =============================================================================
+# 5. Aerospike CE 클러스터 배포
+# =============================================================================
+kubectl create namespace aerospike --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f config/samples/acko_v1alpha1_aerospikececluster.yaml
+
+echo "Aerospike 파드 준비 대기 중..."
+kubectl -n aerospike wait --for=condition=Ready pod/aerospike-ce-basic-0-0 --timeout=120s
+
+# =============================================================================
+# 6. 검증: Aerospike 파드에서 asinfo 실행
+# =============================================================================
+echo "=== Aerospike 클러스터 정보 ==="
+kubectl -n aerospike exec -it aerospike-ce-basic-0-0 -- asinfo -v status
+kubectl -n aerospike exec -it aerospike-ce-basic-0-0 -- asinfo -v build
+
+# =============================================================================
+# 7. Grafana port-forward (http://localhost:3000 에서 접속)
+# =============================================================================
+GRAFANA_PASSWORD=$(kubectl -n monitoring get secret grafana \
+  -o jsonpath="{.data.admin-password}" | base64 -d)
+echo ""
+echo "=== Grafana ==="
+echo "URL:      http://localhost:3000"
+echo "사용자명: admin"
+echo "비밀번호: ${GRAFANA_PASSWORD}"
+echo ""
+kubectl -n monitoring port-forward svc/grafana 3000:80
+```
+
+:::tip
+각 Helm install에 `--wait` 옵션을 사용하여 이전 컴포넌트가 완전히 준비된 후 다음 단계가 시작됩니다. CI에서 마지막 `port-forward` 없이 실행하려면 마지막 명령을 제거하세요.
+:::
+
 ## 제거
 
 :::warning
@@ -129,20 +386,6 @@ kubectl get crd aerospikececlusters.acko.io
 
 <Tabs groupId="install-method">
 <TabItem value="helm-oci" label="Helm" default>
-
-```bash
-# 먼저 모든 Aerospike 클러스터를 삭제
-kubectl delete asce --all --all-namespaces
-
-# 오퍼레이터 제거
-helm uninstall aerospike-operator -n aerospike-operator
-
-# (선택) 네임스페이스 삭제
-kubectl delete namespace aerospike-operator
-```
-
-</TabItem>
-<TabItem value="helm-local" label="Helm (로컬)">
 
 ```bash
 # 먼저 모든 Aerospike 클러스터를 삭제

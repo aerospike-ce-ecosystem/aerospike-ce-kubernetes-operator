@@ -2133,3 +2133,338 @@ func TestValidate_MetricLabels_ValueContainsComma(t *testing.T) {
 		t.Errorf("error should mention reserved characters, got: %v", err)
 	}
 }
+
+// --- validateAccessControl gap tests ---
+
+func TestValidate_ACLInvalidPrivilegeCodeSuperuser(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeAccessControl: &AerospikeAccessControlSpec{
+				Roles: []AerospikeRoleSpec{
+					{
+						Name:       "super-role",
+						Privileges: []string{"superuser"},
+					},
+				},
+				Users: []AerospikeUserSpec{
+					{
+						Name:       "admin",
+						SecretName: "admin-secret",
+						Roles:      []string{"sys-admin", "user-admin"},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error for enterprise-only privilege code 'superuser'")
+	}
+	if !strings.Contains(err.Error(), "invalid privilege code") {
+		t.Errorf("error should mention 'invalid privilege code', got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "superuser") {
+		t.Errorf("error should mention 'superuser', got: %v", err)
+	}
+}
+
+func TestValidate_ACLUserMissingSecretName(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeAccessControl: &AerospikeAccessControlSpec{
+				Users: []AerospikeUserSpec{
+					{
+						Name:       "admin",
+						SecretName: "admin-secret",
+						Roles:      []string{"sys-admin", "user-admin"},
+					},
+					{
+						Name:  "app-user",
+						Roles: []string{"read"},
+						// SecretName intentionally omitted
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error for user without secretName")
+	}
+	if !strings.Contains(err.Error(), "secretName") {
+		t.Errorf("error should mention 'secretName', got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "app-user") {
+		t.Errorf("error should mention the user name 'app-user', got: %v", err)
+	}
+}
+
+// --- validateRackConfig gap tests ---
+
+func TestValidate_DuplicateRackLabels(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  4,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks: []Rack{
+					{ID: 1, RackLabel: "zone-a"},
+					{ID: 2, RackLabel: "zone-a"},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error for duplicate rack labels")
+	}
+	if !strings.Contains(err.Error(), "duplicate rackLabel") {
+		t.Errorf("error should mention 'duplicate rackLabel', got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "zone-a") {
+		t.Errorf("error should mention the duplicate label 'zone-a', got: %v", err)
+	}
+}
+
+// --- validateOperations gap tests ---
+
+func TestValidate_MultipleOperationsRejected(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Operations: []OperationSpec{
+				{Kind: OperationWarmRestart, ID: "op-1"},
+				{Kind: OperationPodRestart, ID: "op-2"},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error for more than 1 operation")
+	}
+	if !strings.Contains(err.Error(), "only one operation") {
+		t.Errorf("error should mention 'only one operation', got: %v", err)
+	}
+}
+
+func TestValidate_DuplicateOperationIDs(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Operations: []OperationSpec{
+				{Kind: OperationWarmRestart, ID: "op-dup"},
+				{Kind: OperationPodRestart, ID: "op-dup"},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error for duplicate operation IDs")
+	}
+	if !strings.Contains(err.Error(), "duplicate operation id") {
+		t.Errorf("error should mention 'duplicate operation id', got: %v", err)
+	}
+}
+
+func TestValidate_OperationIDTooLong(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	longID := "this-id-is-way-too-long-for-validation"
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Operations: []OperationSpec{
+				{Kind: OperationWarmRestart, ID: longID},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error for operation ID > 20 characters")
+	}
+	if !strings.Contains(err.Error(), "1-20 characters") {
+		t.Errorf("error should mention '1-20 characters', got: %v", err)
+	}
+}
+
+func TestValidate_OperationIDEmpty(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Operations: []OperationSpec{
+				{Kind: OperationWarmRestart, ID: ""},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error for empty operation ID")
+	}
+	if !strings.Contains(err.Error(), "1-20 characters") {
+		t.Errorf("error should mention '1-20 characters', got: %v", err)
+	}
+}
+
+// --- validateWorkDirectory gap tests ---
+
+func TestValidate_WorkDirectoryWithoutVolumeWarning(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"service": map[string]any{
+						"work-directory": "/opt/aerospike",
+					},
+				},
+			},
+			// No storage configured — no volume for the work directory
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "work-directory") && strings.Contains(w, "no persistent volume") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning about work-directory without persistent volume, got warnings: %v", warnings)
+	}
+}
+
+func TestValidate_WorkDirectoryWithVolumeNoWarning(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"service": map[string]any{
+						"work-directory": "/opt/aerospike",
+					},
+				},
+			},
+			Storage: &AerospikeStorageSpec{
+				Volumes: []VolumeSpec{
+					{
+						Name: "workdir",
+						Source: VolumeSource{
+							PersistentVolume: &PersistentVolumeSpec{Size: "10Gi"},
+						},
+						Aerospike: &AerospikeVolumeAttachment{Path: "/opt/aerospike"},
+					},
+				},
+			},
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, w := range warnings {
+		if strings.Contains(w, "work-directory") {
+			t.Errorf("unexpected work-directory warning when volume is present: %v", w)
+		}
+	}
+}
+
+func TestValidate_WorkDirectorySkippedWhenPolicySet(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"service": map[string]any{
+						"work-directory": "/opt/aerospike",
+					},
+				},
+			},
+			ValidationPolicy: &ValidationPolicySpec{
+				SkipWorkDirValidate: true,
+			},
+			// No storage — would normally warn, but skip policy is set
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, w := range warnings {
+		if strings.Contains(w, "work-directory") {
+			t.Errorf("unexpected work-directory warning when skipWorkDirValidate is true: %v", w)
+		}
+	}
+}
+
+// --- ValidateUpdate with in-progress operation removing operations ---
+
+func TestValidateUpdate_RejectsRemovingOperationWhileInProgress(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+
+	oldCluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Operations: []OperationSpec{
+				{Kind: OperationWarmRestart, ID: "op-1"},
+			},
+		},
+		Status: AerospikeCEClusterStatus{
+			OperationStatus: &OperationStatus{
+				ID:    "op-1",
+				Kind:  OperationWarmRestart,
+				Phase: AerospikePhaseInProgress,
+			},
+		},
+	}
+
+	// New cluster removes operations entirely
+	newCluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:       3,
+			Image:      "aerospike:ce-8.1.1.1",
+			Operations: []OperationSpec{},
+		},
+	}
+
+	_, err := v.ValidateUpdate(context.Background(), oldCluster, newCluster)
+	if err == nil {
+		t.Fatal("expected error when removing operation while one is InProgress")
+	}
+	if !strings.Contains(err.Error(), "cannot change operations") {
+		t.Errorf("error should mention 'cannot change operations', got: %v", err)
+	}
+}

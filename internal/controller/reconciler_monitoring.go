@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -130,12 +131,25 @@ func (r *AerospikeCEClusterReconciler) reconcileMetricsService(
 		return fmt.Errorf("getting metrics service %s: %w", svcName, err)
 	}
 
-	// Update existing
-	existing.Spec.Ports = desired.Spec.Ports
-	existing.Spec.Selector = desired.Spec.Selector
-	existing.Labels = labels
-	log.Info("Updating metrics Service", "name", svcName)
-	return r.Update(ctx, existing)
+	// Before updating, check if the service needs changes
+	needsUpdate := false
+	if !reflect.DeepEqual(existing.Spec.Ports, desired.Spec.Ports) {
+		existing.Spec.Ports = desired.Spec.Ports
+		needsUpdate = true
+	}
+	if !reflect.DeepEqual(existing.Spec.Selector, desired.Spec.Selector) {
+		existing.Spec.Selector = desired.Spec.Selector
+		needsUpdate = true
+	}
+	if !maps.Equal(existing.Labels, labels) {
+		existing.Labels = labels
+		needsUpdate = true
+	}
+	if needsUpdate {
+		log.Info("Updating metrics Service", "name", svcName)
+		return r.Update(ctx, existing)
+	}
+	return nil
 }
 
 func (r *AerospikeCEClusterReconciler) reconcileServiceMonitor(

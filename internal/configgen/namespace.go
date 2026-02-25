@@ -2,7 +2,7 @@ package configgen
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -116,7 +116,7 @@ func writeStorageEngine(b *strings.Builder, val any, indent int) {
 			remainingKeys = append(remainingKeys, k)
 		}
 	}
-	sort.Strings(remainingKeys)
+	slices.Sort(remainingKeys)
 
 	if len(remainingKeys) == 0 {
 		// No additional settings: "storage-engine memory"

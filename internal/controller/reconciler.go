@@ -295,10 +295,14 @@ func (r *AerospikeCEClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		For(&asdbcev1alpha1.AerospikeCECluster{},
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
-		Owns(&appsv1.StatefulSet{}).
-		Owns(&corev1.Service{}).
-		Owns(&corev1.ConfigMap{}).
-		Owns(&policyv1.PodDisruptionBudget{}).
+		// GenerationChangedPredicate on Owns() suppresses reconcile triggers from
+		// status-only updates on owned resources (e.g., StatefulSet ready replicas).
+		// The controller reads pod state directly via listClusterPods, not from
+		// StatefulSet status, so these events are noise.
+		Owns(&appsv1.StatefulSet{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		Owns(&corev1.Service{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		Owns(&corev1.ConfigMap{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		Owns(&policyv1.PodDisruptionBudget{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Named("aerospikececluster").
 		WithOptions(controller.Options{MaxConcurrentReconciles: 2}).
 		Complete(r)

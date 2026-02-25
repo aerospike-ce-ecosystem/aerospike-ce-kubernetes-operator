@@ -69,7 +69,10 @@ func (r *AerospikeCEClusterReconciler) reconcileHeadlessService(
 			return err
 		}
 		log.Info("Creating headless service", "name", svcName)
-		return r.Create(ctx, svc)
+		if err := r.Create(ctx, svc); err != nil {
+			return fmt.Errorf("creating headless service %s: %w", svcName, err)
+		}
+		return nil
 	} else if err != nil {
 		return fmt.Errorf("getting headless service %s: %w", svcName, err)
 	}
@@ -81,14 +84,7 @@ func (r *AerospikeCEClusterReconciler) reconcileHeadlessService(
 		needsUpdate = !maps.Equal(existing.Labels, labels)
 	}
 
-	if !needsUpdate && len(existing.Spec.Ports) == len(desiredPorts) {
-		for i, p := range existing.Spec.Ports {
-			if p.Name != desiredPorts[i].Name || p.Port != desiredPorts[i].Port {
-				needsUpdate = true
-				break
-			}
-		}
-	} else if len(existing.Spec.Ports) != len(desiredPorts) {
+	if !needsUpdate && servicePortsChanged(existing.Spec.Ports, desiredPorts) {
 		needsUpdate = true
 	}
 
@@ -98,10 +94,25 @@ func (r *AerospikeCEClusterReconciler) reconcileHeadlessService(
 		existing.Spec.Ports = desiredPorts
 		existing.Spec.Selector = selectorLabels
 		log.Info("Updating headless service", "name", svcName)
-		return r.Update(ctx, existing)
+		if err := r.Update(ctx, existing); err != nil {
+			return fmt.Errorf("updating headless service %s: %w", svcName, err)
+		}
 	}
 
 	return nil
+}
+
+// servicePortsChanged returns true if the existing ports differ from desired ports.
+func servicePortsChanged(existing, desired []corev1.ServicePort) bool {
+	if len(existing) != len(desired) {
+		return true
+	}
+	for i, p := range existing {
+		if p.Name != desired[i].Name || p.Port != desired[i].Port {
+			return true
+		}
+	}
+	return false
 }
 
 // equalAnnotations checks whether the existing annotations already match the

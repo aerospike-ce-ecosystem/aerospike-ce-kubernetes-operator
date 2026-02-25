@@ -143,7 +143,7 @@ func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
 		restarted++
 	}
 
-	return true, nil
+	return restarted > 0, nil
 }
 
 // restartPod attempts a warm restart first, falling back to cold restart.

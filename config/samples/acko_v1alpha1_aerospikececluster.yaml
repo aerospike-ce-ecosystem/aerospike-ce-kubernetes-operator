@@ -1,35 +1,43 @@
+# Minimal single-node in-memory Aerospike CE cluster.
+# This is the simplest possible deployment -- a single pod with no persistent storage.
+# Apply with: kubectl apply -f acko_v1alpha1_aerospikececluster.yaml
 apiVersion: acko.io/v1alpha1
 kind: AerospikeCECluster
 metadata:
   name: aerospike-ce-basic
-  namespace: aerospike
+  namespace: aerospike  # Create namespace first: kubectl create namespace aerospike
 spec:
-  size: 1
-  image: aerospike:ce-8.1.1.1
+  size: 1  # Number of Aerospike server pods (CE max: 8)
+  image: aerospike:ce-8.1.1.1  # Aerospike Community Edition image from Docker Hub
 
+  # Raw Aerospike configuration -- converted to aerospike.conf by the operator.
   aerospikeConfig:
+    # Service-level settings for the Aerospike daemon.
     service:
-      cluster-name: aerospike-ce-basic
-      proto-fd-max: 15000
+      cluster-name: aerospike-ce-basic  # Must match the CR name for mesh discovery
+      proto-fd-max: 15000  # Max client file descriptors (connections)
 
+    # Network configuration -- the operator auto-injects mesh seed addresses.
     network:
       service:
-        address: any
-        port: 3000
+        address: any  # Listen on all interfaces
+        port: 3000  # Client-facing service port
       heartbeat:
-        mode: mesh
-        port: 3002
+        mode: mesh  # Mesh heartbeat for pod-to-pod discovery in Kubernetes
+        port: 3002  # Heartbeat port for intra-cluster communication
       fabric:
         address: any
-        port: 3001
+        port: 3001  # Fabric port for data replication and migration
 
+    # Namespace definitions -- CE allows up to 2 namespaces.
     namespaces:
       - name: test
-        replication-factor: 1
+        replication-factor: 1  # Single node, so replication-factor must be 1
         storage-engine:
-          type: memory
-          data-size: 1073741824
+          type: memory  # Pure in-memory storage (data lost on pod restart)
+          data-size: 1073741824  # 1 GiB of memory allocated for this namespace
 
+    # Logging configuration.
     logging:
       - name: /var/log/aerospike/aerospike.log
-        context: any info
+        context: any info  # Log all contexts at info level

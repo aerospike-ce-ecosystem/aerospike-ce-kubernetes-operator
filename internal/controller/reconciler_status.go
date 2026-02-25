@@ -40,7 +40,10 @@ func (r *AerospikeCEClusterReconciler) updateStatusAndPhase(
 	prevSize := latest.Status.Size
 	prevGeneration := latest.Status.ObservedGeneration
 
-	readyCount := r.populateStatus(ctx, latest)
+	readyCount, err := r.populateStatus(ctx, latest)
+	if err != nil {
+		return err
+	}
 	latest.Status.Phase = phase
 
 	// Skip the update if nothing meaningful changed to avoid
@@ -66,11 +69,13 @@ func (r *AerospikeCEClusterReconciler) updateStatusAndPhase(
 func (r *AerospikeCEClusterReconciler) populateStatus(
 	ctx context.Context,
 	cluster *asdbcev1alpha1.AerospikeCECluster,
-) int32 {
+) (int32, error) {
+	log := logf.FromContext(ctx)
+
 	// List all pods for this cluster
 	podList, err := r.listClusterPods(ctx, cluster)
 	if err != nil {
-		return 0
+		return 0, err
 	}
 
 	podStatuses := make(map[string]asdbcev1alpha1.AerospikePodStatus)
@@ -81,7 +86,9 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 
 		rackID := 0
 		if rackStr, ok := pod.Labels[utils.RackLabel]; ok {
-			_, _ = fmt.Sscanf(rackStr, "%d", &rackID)
+			if _, err := fmt.Sscanf(rackStr, "%d", &rackID); err != nil {
+				log.V(1).Info("Failed to parse rack ID label", "pod", pod.Name, "label", rackStr, "error", err)
+			}
 		}
 
 		isReady := isPodReady(pod)
@@ -147,7 +154,7 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 	setCondition(cluster, "Available", readyCount > 0, "ClusterAvailable", "At least one pod is ready")
 	setCondition(cluster, "Ready", readyCount == cluster.Spec.Size, "AllPodsReady", fmt.Sprintf("%d/%d pods ready", readyCount, cluster.Spec.Size))
 
-	return readyCount
+	return readyCount, nil
 }
 
 func isPodReady(pod *corev1.Pod) bool {

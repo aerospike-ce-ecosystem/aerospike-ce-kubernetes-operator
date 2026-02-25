@@ -68,7 +68,10 @@ func (r *AerospikeCEClusterReconciler) reconcileStatefulSet(
 			return err
 		}
 		log.Info("Creating StatefulSet", "name", stsName, "replicas", rackSize)
-		return r.Create(ctx, sts)
+		if err := r.Create(ctx, sts); err != nil {
+			return fmt.Errorf("creating StatefulSet %s: %w", stsName, err)
+		}
+		return nil
 	} else if err != nil {
 		return fmt.Errorf("getting StatefulSet %s: %w", stsName, err)
 	}
@@ -105,7 +108,7 @@ func (r *AerospikeCEClusterReconciler) reconcileStatefulSet(
 	existing.Spec.Template = podTemplate
 	log.Info("Updating StatefulSet", "name", stsName, "targetReplicas", targetReplicas)
 	if err := r.Update(ctx, existing); err != nil {
-		return err
+		return fmt.Errorf("updating StatefulSet %s: %w", stsName, err)
 	}
 
 	// Cleanup orphaned PVCs after StatefulSet update so pods terminate first.

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
 	policyv1 "k8s.io/api/policy/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -27,7 +28,7 @@ func (r *AerospikeCEClusterReconciler) reconcilePDB(
 		existing := &policyv1.PodDisruptionBudget{}
 		if err := r.Get(ctx, types.NamespacedName{Name: pdbName, Namespace: cluster.Namespace}, existing); err == nil {
 			if err := r.Delete(ctx, existing); err != nil && !errors.IsNotFound(err) {
-				return err
+				return fmt.Errorf("deleting PDB %s: %w", pdbName, err)
 			}
 		}
 		return nil
@@ -63,9 +64,12 @@ func (r *AerospikeCEClusterReconciler) reconcilePDB(
 			return err
 		}
 		log.Info("Creating PDB", "name", pdbName)
-		return r.Create(ctx, pdb)
+		if err := r.Create(ctx, pdb); err != nil {
+			return fmt.Errorf("creating PDB %s: %w", pdbName, err)
+		}
+		return nil
 	} else if err != nil {
-		return err
+		return fmt.Errorf("getting PDB %s: %w", pdbName, err)
 	}
 
 	// Update only if MaxUnavailable changed
@@ -74,5 +78,8 @@ func (r *AerospikeCEClusterReconciler) reconcilePDB(
 	}
 	existing.Spec.MaxUnavailable = &maxUnavailable
 	log.Info("Updating PDB", "name", pdbName)
-	return r.Update(ctx, existing)
+	if err := r.Update(ctx, existing); err != nil {
+		return fmt.Errorf("updating PDB %s: %w", pdbName, err)
+	}
+	return nil
 }

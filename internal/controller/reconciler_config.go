@@ -118,7 +118,10 @@ func (r *AerospikeCEClusterReconciler) reconcileConfigMap(
 			return err
 		}
 		log.Info("Creating ConfigMap", "name", cmName)
-		return r.Create(ctx, cm)
+		if err := r.Create(ctx, cm); err != nil {
+			return fmt.Errorf("creating ConfigMap %s: %w", cmName, err)
+		}
+		return nil
 	} else if err != nil {
 		return fmt.Errorf("getting ConfigMap %s: %w", cmName, err)
 	}
@@ -130,7 +133,10 @@ func (r *AerospikeCEClusterReconciler) reconcileConfigMap(
 	existing.Data = data
 	existing.Labels = labels
 	log.Info("Updating ConfigMap", "name", cmName)
-	return r.Update(ctx, existing)
+	if err := r.Update(ctx, existing); err != nil {
+		return fmt.Errorf("updating ConfigMap %s: %w", cmName, err)
+	}
+	return nil
 }
 
 // getEffectiveConfig returns the merged config for a rack.

@@ -1,0 +1,216 @@
+package controller
+
+import (
+	"testing"
+	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+)
+
+func TestIsPodReady(t *testing.T) {
+	tests := []struct {
+		name string
+		pod  *corev1.Pod
+		want bool
+	}{
+		{
+			name: "pod not in Running phase",
+			pod: &corev1.Pod{
+				Status: corev1.PodStatus{
+					Phase: corev1.PodPending,
+				},
+			},
+			want: false,
+		},
+		{
+			name: "pod in Running phase but no Ready condition",
+			pod: &corev1.Pod{
+				Status: corev1.PodStatus{
+					Phase:      corev1.PodRunning,
+					Conditions: []corev1.PodCondition{},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "pod in Running phase with Ready=False",
+			pod: &corev1.Pod{
+				Status: corev1.PodStatus{
+					Phase: corev1.PodRunning,
+					Conditions: []corev1.PodCondition{
+						{
+							Type:   corev1.PodReady,
+							Status: corev1.ConditionFalse,
+						},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "pod in Running phase with Ready=True",
+			pod: &corev1.Pod{
+				Status: corev1.PodStatus{
+					Phase: corev1.PodRunning,
+					Conditions: []corev1.PodCondition{
+						{
+							Type:   corev1.PodReady,
+							Status: corev1.ConditionTrue,
+						},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "pod Failed phase with Ready=True condition is not ready",
+			pod: &corev1.Pod{
+				Status: corev1.PodStatus{
+					Phase: corev1.PodFailed,
+					Conditions: []corev1.PodCondition{
+						{
+							Type:   corev1.PodReady,
+							Status: corev1.ConditionTrue,
+						},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "pod in Running phase with multiple conditions including Ready=True",
+			pod: &corev1.Pod{
+				Status: corev1.PodStatus{
+					Phase: corev1.PodRunning,
+					Conditions: []corev1.PodCondition{
+						{
+							Type:   corev1.PodScheduled,
+							Status: corev1.ConditionTrue,
+						},
+						{
+							Type:   corev1.PodReady,
+							Status: corev1.ConditionTrue,
+						},
+					},
+				},
+			},
+			want: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isPodReady(tc.pod)
+			if got != tc.want {
+				t.Errorf("isPodReady() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestSetCondition(t *testing.T) {
+	t.Run("new condition type is appended", func(t *testing.T) {
+		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+
+		setCondition(cluster, "Available", true, "ClusterAvailable", "At least one pod is ready")
+
+		if len(cluster.Status.Conditions) != 1 {
+			t.Fatalf("expected 1 condition, got %d", len(cluster.Status.Conditions))
+		}
+		cond := cluster.Status.Conditions[0]
+		if cond.Type != "Available" {
+			t.Errorf("condition type = %q, want %q", cond.Type, "Available")
+		}
+		if cond.Status != metav1.ConditionTrue {
+			t.Errorf("condition status = %q, want %q", cond.Status, metav1.ConditionTrue)
+		}
+		if cond.Reason != "ClusterAvailable" {
+			t.Errorf("condition reason = %q, want %q", cond.Reason, "ClusterAvailable")
+		}
+		if cond.Message != "At least one pod is ready" {
+			t.Errorf("condition message = %q, want %q", cond.Message, "At least one pod is ready")
+		}
+	})
+
+	t.Run("multiple different condition types are appended", func(t *testing.T) {
+		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+
+		setCondition(cluster, "Available", true, "ClusterAvailable", "At least one pod is ready")
+		setCondition(cluster, "Ready", false, "NotReady", "0/3 pods ready")
+
+		if len(cluster.Status.Conditions) != 2 {
+			t.Fatalf("expected 2 conditions, got %d", len(cluster.Status.Conditions))
+		}
+		if cluster.Status.Conditions[0].Type != "Available" {
+			t.Errorf("first condition type = %q, want %q", cluster.Status.Conditions[0].Type, "Available")
+		}
+		if cluster.Status.Conditions[1].Type != "Ready" {
+			t.Errorf("second condition type = %q, want %q", cluster.Status.Conditions[1].Type, "Ready")
+		}
+	})
+
+	t.Run("existing condition with same status is NOT updated (idempotent)", func(t *testing.T) {
+		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+
+		setCondition(cluster, "Available", true, "ClusterAvailable", "At least one pod is ready")
+		originalTime := cluster.Status.Conditions[0].LastTransitionTime
+
+		// Sleep briefly to ensure time difference would be detectable
+		time.Sleep(time.Millisecond)
+
+		// Set the same condition with the same status again
+		setCondition(cluster, "Available", true, "ClusterAvailable", "At least one pod is ready")
+
+		if len(cluster.Status.Conditions) != 1 {
+			t.Fatalf("expected 1 condition, got %d", len(cluster.Status.Conditions))
+		}
+		if !cluster.Status.Conditions[0].LastTransitionTime.Equal(&originalTime) {
+			t.Errorf("LastTransitionTime changed when status was unchanged: was %v, now %v",
+				originalTime, cluster.Status.Conditions[0].LastTransitionTime)
+		}
+	})
+
+	t.Run("existing condition with changed status IS updated", func(t *testing.T) {
+		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+
+		setCondition(cluster, "Available", false, "ClusterUnavailable", "No pods ready")
+		originalTime := cluster.Status.Conditions[0].LastTransitionTime
+
+		// Sleep briefly to ensure time difference
+		time.Sleep(time.Millisecond)
+
+		// Change the status from false to true
+		setCondition(cluster, "Available", true, "ClusterAvailable", "At least one pod is ready")
+
+		if len(cluster.Status.Conditions) != 1 {
+			t.Fatalf("expected 1 condition, got %d", len(cluster.Status.Conditions))
+		}
+
+		cond := cluster.Status.Conditions[0]
+		if cond.Status != metav1.ConditionTrue {
+			t.Errorf("condition status = %q, want %q", cond.Status, metav1.ConditionTrue)
+		}
+		if cond.Reason != "ClusterAvailable" {
+			t.Errorf("condition reason = %q, want %q", cond.Reason, "ClusterAvailable")
+		}
+		if cond.Message != "At least one pod is ready" {
+			t.Errorf("condition message = %q, want %q", cond.Message, "At least one pod is ready")
+		}
+		if cond.LastTransitionTime.Equal(&originalTime) {
+			t.Error("LastTransitionTime should have changed when status changed")
+		}
+	})
+
+	t.Run("status=false produces ConditionFalse", func(t *testing.T) {
+		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+
+		setCondition(cluster, "Ready", false, "NotReady", "0/3 pods ready")
+
+		if cluster.Status.Conditions[0].Status != metav1.ConditionFalse {
+			t.Errorf("condition status = %q, want %q", cluster.Status.Conditions[0].Status, metav1.ConditionFalse)
+		}
+	})
+}

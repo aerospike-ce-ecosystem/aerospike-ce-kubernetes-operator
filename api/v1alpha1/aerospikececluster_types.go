@@ -90,8 +90,11 @@ func deepCopyValue(val any) any {
 type OperationKind string
 
 const (
+	// OperationWarmRestart sends SIGUSR1 to the asd process for a graceful warm restart
+	// without data loss.
 	OperationWarmRestart OperationKind = "WarmRestart"
-	OperationPodRestart  OperationKind = "PodRestart"
+	// OperationPodRestart deletes and recreates the pod for a full cold restart.
+	OperationPodRestart OperationKind = "PodRestart"
 )
 
 // OperationSpec defines an on-demand operation to trigger.
@@ -273,9 +276,12 @@ type AerospikeCEClusterSpec struct {
 type AerospikePhase string
 
 const (
+	// AerospikePhaseInProgress indicates reconciliation is actively in progress.
 	AerospikePhaseInProgress AerospikePhase = "InProgress"
-	AerospikePhaseCompleted  AerospikePhase = "Completed"
-	AerospikePhaseError      AerospikePhase = "Error"
+	// AerospikePhaseCompleted indicates the cluster has reached the desired state.
+	AerospikePhaseCompleted AerospikePhase = "Completed"
+	// AerospikePhaseError indicates an unrecoverable error during reconciliation.
+	AerospikePhaseError AerospikePhase = "Error"
 )
 
 // AerospikeCEClusterStatus defines the observed state of the Aerospike CE cluster.

@@ -3,7 +3,7 @@ package podutil
 import (
 	"fmt"
 	"maps"
-	"sort"
+	"slices"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -350,7 +350,7 @@ func buildExporterSidecar(
 		for k := range monitoring.MetricLabels {
 			keys = append(keys, k)
 		}
-		sort.Strings(keys)
+		slices.Sort(keys)
 
 		pairs := make([]string, 0, len(keys))
 		for _, k := range keys {

@@ -1,39 +1,47 @@
+# 3-node Aerospike CE cluster with persistent volume storage.
+# Demonstrates resource limits, PV-backed data, and an ephemeral work directory.
+# Apply with: kubectl apply -f aerospike-ce-cluster-3node.yaml
 apiVersion: acko.io/v1alpha1
 kind: AerospikeCECluster
 metadata:
   name: aerospike-ce-3node
-  namespace: aerospike
+  namespace: aerospike  # Create namespace first: kubectl create namespace aerospike
 spec:
-  size: 3
-  image: aerospike:ce-8.1.1.1
+  size: 3  # 3 Aerospike server pods
+  image: aerospike:ce-8.1.1.1  # Aerospike Community Edition image
 
+  # Pod-level configuration for the Aerospike container.
   podSpec:
     aerospikeContainer:
       resources:
         requests:
-          memory: "2Gi"
-          cpu: "1"
+          memory: "2Gi"  # Guaranteed memory for scheduling
+          cpu: "1"  # 1 CPU core requested
         limits:
-          memory: "4Gi"
-          cpu: "2"
+          memory: "4Gi"  # Hard memory ceiling
+          cpu: "2"  # Hard CPU ceiling
 
+  # Volume configuration for persistent and ephemeral storage.
   storage:
     volumes:
+      # Persistent volume for Aerospike data files.
       - name: data-vol
         source:
           persistentVolume:
-            storageClass: standard
-            size: 10Gi
+            storageClass: standard  # Use your cluster's storage class
+            size: 10Gi  # PVC size per pod
             volumeMode: Filesystem
         aerospike:
-          path: /opt/aerospike/data
-        cascadeDelete: true
+          path: /opt/aerospike/data  # Mount path inside the container
+        cascadeDelete: true  # PVCs are deleted when the AerospikeCECluster CR is deleted
 
+      # Ephemeral volume for temporary work files (logs, scratch).
+      # emptyDir is wiped when the pod restarts -- do not store data here.
       - name: workdir
         source:
           emptyDir: {}
         aerospike:
-          path: /opt/aerospike/work
+          path: /opt/aerospike/work  # Aerospike work directory
 
   aerospikeConfig:
     service:
@@ -53,11 +61,11 @@ spec:
 
     namespaces:
       - name: testns
-        replication-factor: 2
+        replication-factor: 2  # Each record stored on 2 of the 3 nodes (high availability)
         storage-engine:
-          type: device
-          file: /opt/aerospike/data/testns.dat
-          filesize: 4294967296
+          type: device  # File-backed (device) storage engine
+          file: /opt/aerospike/data/testns.dat  # Data file on the persistent volume
+          filesize: 4294967296  # 4 GiB -- max size of the data file
 
     logging:
       - name: /var/log/aerospike/aerospike.log

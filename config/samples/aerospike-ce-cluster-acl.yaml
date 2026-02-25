@@ -1,7 +1,13 @@
-# NOTE: Aerospike CE 8.x does NOT support the 'security' stanza.
-#       ACL (Access Control / RBAC) is an Enterprise Edition (EE) feature.
-#       This sample demonstrates a 3-node cluster with PV storage instead.
-#       For ACL functionality, use an Aerospike Enterprise Edition image.
+# 3-node Aerospike CE cluster with ACL (Access Control) enabled.
+# Requires Aerospike CE 7.x+ which supports security stanza and RBAC.
+# The operator manages roles and users declaratively via the CR.
+#
+# Prerequisites:
+#   1. Create the namespace:
+#      kubectl create namespace aerospike
+#   2. Create Kubernetes Secrets for user passwords:
+#      kubectl -n aerospike create secret generic aerospike-admin-secret --from-literal=password='admin123'
+#      kubectl -n aerospike create secret generic aerospike-reader-secret --from-literal=password='reader123'
 apiVersion: acko.io/v1alpha1
 kind: AerospikeCECluster
 metadata:
@@ -10,6 +16,28 @@ metadata:
 spec:
   size: 3
   image: aerospike:ce-8.1.1.1
+
+  # ACL configuration -- the operator creates/updates roles and users at reconciliation time.
+  # When security is enabled in aerospikeConfig, an 'admin' user with sys-admin + user-admin
+  # roles is required by the webhook validator.
+  aerospikeAccessControl:
+    roles:
+      - name: reader  # Custom role with read-only access
+        privileges:
+          - read  # Grants read privilege across all namespaces
+      - name: writer  # Custom role with read-write access
+        privileges:
+          - read-write
+    users:
+      - name: admin  # Required admin user for operator management
+        roles:
+          - sys-admin  # Built-in: full system administration
+          - user-admin  # Built-in: manage other users and roles
+        secretName: aerospike-admin-secret  # K8s Secret with a 'password' key
+      - name: reader-user  # Application-level read-only user
+        roles:
+          - reader  # References the custom role defined above
+        secretName: aerospike-reader-secret
 
   storage:
     volumes:
@@ -27,6 +55,10 @@ spec:
       cluster-name: aerospike-ce-acl
       proto-fd-max: 15000
 
+    # Security stanza enables authentication and authorization.
+    security:
+      enable-quotas: false  # Disable rate/quota enforcement (optional)
+
     network:
       service:
         address: any
@@ -40,11 +72,11 @@ spec:
 
     namespaces:
       - name: testns
-        replication-factor: 2
+        replication-factor: 2  # Each record on 2 of the 3 nodes
         storage-engine:
           type: device
           file: /opt/aerospike/data/testns.dat
-          filesize: 4294967296
+          filesize: 4294967296  # 4 GiB
 
     logging:
       - name: /var/log/aerospike/aerospike.log

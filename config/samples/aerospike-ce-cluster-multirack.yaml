@@ -1,19 +1,30 @@
+# 6-node Aerospike CE cluster with multi-rack topology-aware scheduling.
+# Each rack maps to a different availability zone for fault isolation.
+# The operator creates a separate StatefulSet per rack (e.g., aerospike-ce-multirack-1,
+# aerospike-ce-multirack-2, aerospike-ce-multirack-3) and distributes pods evenly.
+# With size=6 and 3 racks, each rack gets 2 pods.
 apiVersion: acko.io/v1alpha1
 kind: AerospikeCECluster
 metadata:
   name: aerospike-ce-multirack
-  namespace: aerospike
+  namespace: aerospike  # Create namespace first: kubectl create namespace aerospike
 spec:
-  size: 6
+  size: 6  # Total pods across all racks (6 / 3 racks = 2 pods per rack)
   image: aerospike:ce-8.1.1.1
 
+  # Rack-aware deployment configuration.
+  # Aerospike uses rack IDs to ensure replicas are placed on different racks,
+  # so a single zone failure does not cause data loss.
   rackConfig:
     namespaces:
-      - testns
+      - testns  # Namespaces that are rack-aware (must match aerospikeConfig namespaces)
     racks:
       - id: 1
+        zone: us-east1-a  # Pins rack-1 pods to this availability zone
       - id: 2
+        zone: us-east1-b  # Pins rack-2 pods to a different zone
       - id: 3
+        zone: us-east1-c  # Pins rack-3 pods to a third zone
 
   podSpec:
     aerospikeContainer:
@@ -34,7 +45,7 @@ spec:
             size: 5Gi
         aerospike:
           path: /opt/aerospike/data
-        cascadeDelete: false
+        cascadeDelete: false  # Retain PVCs after CR deletion (manual cleanup required)
 
   aerospikeConfig:
     service:
@@ -54,8 +65,8 @@ spec:
 
     namespaces:
       - name: testns
-        replication-factor: 2
+        replication-factor: 2  # Each record on 2 nodes, ideally in different racks/zones
         storage-engine:
           type: device
           file: /opt/aerospike/data/testns.dat
-          filesize: 4294967296
+          filesize: 4294967296  # 4 GiB

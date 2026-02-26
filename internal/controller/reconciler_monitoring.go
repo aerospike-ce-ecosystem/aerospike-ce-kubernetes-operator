@@ -97,6 +97,12 @@ func (r *AerospikeCEClusterReconciler) reconcileMetricsService(
 		return nil
 	}
 
+	// Defensive nil check: the caller guarantees Monitoring != nil when
+	// enabled=true, but guard against misuse from other call sites.
+	if cluster.Spec.Monitoring == nil {
+		return nil
+	}
+
 	port := cluster.Spec.Monitoring.Port
 	labels := utils.LabelsForCluster(cluster.Name)
 	selectorLabels := utils.SelectorLabelsForCluster(cluster.Name)
@@ -137,7 +143,7 @@ func (r *AerospikeCEClusterReconciler) reconcileMetricsService(
 		existing.Spec.Ports = desired.Spec.Ports
 		needsUpdate = true
 	}
-	if !reflect.DeepEqual(existing.Spec.Selector, desired.Spec.Selector) {
+	if !maps.Equal(existing.Spec.Selector, desired.Spec.Selector) {
 		existing.Spec.Selector = desired.Spec.Selector
 		needsUpdate = true
 	}
@@ -178,6 +184,12 @@ func (r *AerospikeCEClusterReconciler) reconcileServiceMonitor(
 	// CRD not installed — return the error so the caller can decide
 	if err != nil && meta.IsNoMatchError(err) {
 		return err
+	}
+
+	// Defensive nil check: the caller guarantees Monitoring and ServiceMonitor
+	// are non-nil when enabled=true, but guard against misuse from other call sites.
+	if cluster.Spec.Monitoring == nil || cluster.Spec.Monitoring.ServiceMonitor == nil {
+		return nil
 	}
 
 	monitoring := cluster.Spec.Monitoring

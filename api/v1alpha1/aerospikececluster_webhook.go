@@ -204,6 +204,27 @@ func (v *AerospikeCEClusterValidator) ValidateUpdate(ctx context.Context, oldClu
 		}
 	}
 
+	// Prevent renaming existing rack IDs (which would cause data loss).
+	// Adding or removing racks is fine, but changing an existing rack's ID is not.
+	if oldCluster.Spec.RackConfig != nil && cluster.Spec.RackConfig != nil {
+		oldIDs := make(map[int]bool, len(oldCluster.Spec.RackConfig.Racks))
+		for _, rack := range oldCluster.Spec.RackConfig.Racks {
+			oldIDs[rack.ID] = true
+		}
+		newIDs := make(map[int]bool, len(cluster.Spec.RackConfig.Racks))
+		for _, rack := range cluster.Spec.RackConfig.Racks {
+			newIDs[rack.ID] = true
+		}
+		// If the total rack count is unchanged but IDs differ, it's likely a rename
+		if len(oldIDs) == len(newIDs) {
+			for id := range oldIDs {
+				if !newIDs[id] {
+					return nil, fmt.Errorf("rackConfig rack IDs cannot be changed (rack ID %d was removed and replaced); remove old racks and add new ones in separate updates to avoid data loss", id)
+				}
+			}
+		}
+	}
+
 	return v.validate(cluster)
 }
 
@@ -220,6 +241,11 @@ func (v *AerospikeCEClusterValidator) validate(cluster *AerospikeCECluster) (adm
 	// Validate cluster size
 	if cluster.Spec.Size > maxCEClusterSize {
 		allErrors = append(allErrors, fmt.Sprintf("spec.size %d exceeds CE maximum of %d", cluster.Spec.Size, maxCEClusterSize))
+	}
+
+	// Validate image is not empty
+	if cluster.Spec.Image == "" {
+		allErrors = append(allErrors, "spec.image must not be empty")
 	}
 
 	// Validate image is not enterprise (legacy "enterprise" in name or new ":ee-" tag prefix)
@@ -268,10 +294,20 @@ func (v *AerospikeCEClusterValidator) validate(cluster *AerospikeCECluster) (adm
 	}
 
 	// Validate monitoring
-	if cluster.Spec.Monitoring != nil && cluster.Spec.Monitoring.Enabled {
-		mErrors, mWarnings := v.validateMonitoring(cluster.Spec.Monitoring)
-		allErrors = append(allErrors, mErrors...)
-		warnings = append(warnings, mWarnings...)
+	if cluster.Spec.Monitoring != nil {
+		if cluster.Spec.Monitoring.Enabled {
+			mErrors, mWarnings := v.validateMonitoring(cluster.Spec.Monitoring)
+			allErrors = append(allErrors, mErrors...)
+			warnings = append(warnings, mWarnings...)
+		} else {
+			// Warn if sub-features are enabled but monitoring itself is disabled
+			if cluster.Spec.Monitoring.ServiceMonitor != nil && cluster.Spec.Monitoring.ServiceMonitor.Enabled {
+				warnings = append(warnings, "monitoring.serviceMonitor.enabled is true but monitoring.enabled is false; ServiceMonitor will not be created")
+			}
+			if cluster.Spec.Monitoring.PrometheusRule != nil && cluster.Spec.Monitoring.PrometheusRule.Enabled {
+				warnings = append(warnings, "monitoring.prometheusRule.enabled is true but monitoring.enabled is false; PrometheusRule will not be created")
+			}
+		}
 	}
 
 	// Validate storage
@@ -281,11 +317,12 @@ func (v *AerospikeCEClusterValidator) validate(cluster *AerospikeCECluster) (adm
 		warnings = append(warnings, storageWarnings...)
 	}
 
-	// Validate replication-factor, work directory, batch size, and operations
+	// Validate replication-factor, work directory, batch size, max unavailable, and operations
 	rfErrors := v.validateReplicationFactor(cluster)
 	allErrors = append(allErrors, rfErrors...)
 	warnings = append(warnings, v.validateWorkDirectory(cluster)...)
 	warnings = append(warnings, v.validateBatchSize(cluster)...)
+	warnings = append(warnings, v.validateMaxUnavailable(cluster)...)
 	if len(cluster.Spec.Operations) > 0 {
 		allErrors = append(allErrors, v.validateOperations(cluster.Spec.Operations)...)
 	}
@@ -539,6 +576,11 @@ func (v *AerospikeCEClusterValidator) validateReplicationFactor(cluster *Aerospi
 		case int64:
 			rfInt = int(val)
 		case float64:
+			if val != float64(int(val)) || val < 0 {
+				errors = append(errors, fmt.Sprintf(
+					"namespace %q: replication-factor must be a positive integer, got %v", nsName, val))
+				continue
+			}
 			rfInt = int(val)
 		}
 		if rfInt > int(cluster.Spec.Size) {
@@ -585,13 +627,42 @@ func (v *AerospikeCEClusterValidator) validateBatchSize(cluster *AerospikeCEClus
 	return nil
 }
 
+// validateMaxUnavailable warns if maxUnavailable is >= cluster size.
+func (v *AerospikeCEClusterValidator) validateMaxUnavailable(cluster *AerospikeCECluster) admission.Warnings {
+	if cluster.Spec.MaxUnavailable == nil {
+		return nil
+	}
+	mu := *cluster.Spec.MaxUnavailable
+	if mu.Type == intstr.Int {
+		if mu.IntVal >= cluster.Spec.Size {
+			return admission.Warnings{fmt.Sprintf(
+				"maxUnavailable (%d) is >= cluster size (%d); PodDisruptionBudget will not prevent full disruption",
+				mu.IntVal, cluster.Spec.Size)}
+		}
+	} else {
+		s := mu.StrVal
+		if numStr, ok := strings.CutSuffix(s, "%"); ok {
+			num, err := strconv.Atoi(numStr)
+			if err == nil && num >= 100 {
+				return admission.Warnings{fmt.Sprintf(
+					"maxUnavailable (%s) allows 100%% disruption; PodDisruptionBudget will not protect availability", s)}
+			}
+		}
+	}
+	return nil
+}
+
 // validateRackConfig validates the rack configuration.
 func (v *AerospikeCEClusterValidator) validateRackConfig(rackConfig *RackConfig) []string {
 	var errors []string
 
 	rackIDs := make(map[int]bool)
 	rackLabels := make(map[string]bool)
-	for _, rack := range rackConfig.Racks {
+	nodeNames := make(map[string]int)
+	for i, rack := range rackConfig.Racks {
+		if rack.ID <= 0 {
+			errors = append(errors, fmt.Sprintf("rack ID must be > 0, got %d (rack ID 0 is reserved for the default rack)", rack.ID))
+		}
 		if rackIDs[rack.ID] {
 			errors = append(errors, fmt.Sprintf("duplicate rack ID %d in rackConfig", rack.ID))
 		}
@@ -603,6 +674,16 @@ func (v *AerospikeCEClusterValidator) validateRackConfig(rackConfig *RackConfig)
 				errors = append(errors, fmt.Sprintf("duplicate rackLabel %q in rackConfig; each rack must have a unique rackLabel", rack.RackLabel))
 			}
 			rackLabels[rack.RackLabel] = true
+		}
+
+		// Validate NodeName uniqueness across racks
+		if rack.NodeName != "" {
+			if prevIdx, exists := nodeNames[rack.NodeName]; exists {
+				errors = append(errors, fmt.Sprintf(
+					"rackConfig.racks[%d] and racks[%d] both constrained to node %q; each rack must use a different nodeName",
+					prevIdx, i, rack.NodeName))
+			}
+			nodeNames[rack.NodeName] = i
 		}
 	}
 
@@ -713,67 +794,9 @@ func (v *AerospikeCEClusterValidator) validateStorage(storage *AerospikeStorageS
 	}
 
 	for i, vol := range storage.Volumes {
-		// Validate exactly one volume source is specified
-		sourceCount := 0
-		if vol.Source.PersistentVolume != nil {
-			sourceCount++
-		}
-		if vol.Source.EmptyDir != nil {
-			sourceCount++
-		}
-		if vol.Source.Secret != nil {
-			sourceCount++
-		}
-		if vol.Source.ConfigMap != nil {
-			sourceCount++
-		}
-		if vol.Source.HostPath != nil {
-			sourceCount++
-		}
-		if sourceCount == 0 {
-			errors = append(errors, fmt.Sprintf("storage.volumes[%d] %q: exactly one volume source must be specified", i, vol.Name))
-		} else if sourceCount > 1 {
-			errors = append(errors, fmt.Sprintf("storage.volumes[%d] %q: only one volume source can be specified (found %d)", i, vol.Name, sourceCount))
-		}
-
-		// Warn about HostPath usage
-		if vol.Source.HostPath != nil {
-			warnings = append(warnings, fmt.Sprintf(
-				"storage.volumes[%d] %q: hostPath volumes are not recommended for production; data is tied to a specific node and not portable",
-				i, vol.Name))
-		}
-
-		// Warn about cascadeDelete on non-persistent volumes (has no effect)
-		if vol.CascadeDelete != nil && *vol.CascadeDelete && vol.Source.PersistentVolume == nil {
-			warnings = append(warnings, fmt.Sprintf(
-				"storage.volumes[%d] %q: cascadeDelete has no effect on non-persistent volumes",
-				i, vol.Name))
-		}
-
-		// Validate SubPath and SubPathExpr are mutually exclusive (Aerospike attachment)
-		if vol.Aerospike != nil && vol.Aerospike.SubPath != "" && vol.Aerospike.SubPathExpr != "" {
-			errors = append(errors, fmt.Sprintf(
-				"storage.volumes[%d] %q: aerospike.subPath and aerospike.subPathExpr are mutually exclusive",
-				i, vol.Name))
-		}
-
-		// Validate SubPath and SubPathExpr in sidecar attachments
-		for j, sc := range vol.Sidecars {
-			if sc.SubPath != "" && sc.SubPathExpr != "" {
-				errors = append(errors, fmt.Sprintf(
-					"storage.volumes[%d] %q: sidecars[%d] %q subPath and subPathExpr are mutually exclusive",
-					i, vol.Name, j, sc.ContainerName))
-			}
-		}
-
-		// Validate SubPath and SubPathExpr in init container attachments
-		for j, ic := range vol.InitContainers {
-			if ic.SubPath != "" && ic.SubPathExpr != "" {
-				errors = append(errors, fmt.Sprintf(
-					"storage.volumes[%d] %q: initContainers[%d] %q subPath and subPathExpr are mutually exclusive",
-					i, vol.Name, j, ic.ContainerName))
-			}
-		}
+		volErrors, volWarnings := v.validateVolume(vol, i)
+		errors = append(errors, volErrors...)
+		warnings = append(warnings, volWarnings...)
 	}
 
 	// Validate deleteLocalStorageOnRestart requires localStorageClasses
@@ -786,6 +809,83 @@ func (v *AerospikeCEClusterValidator) validateStorage(storage *AerospikeStorageS
 	// Warn if local storage class is used but deleteLocalStorageOnRestart is not set
 	if len(storage.LocalStorageClasses) > 0 && storage.DeleteLocalStorageOnRestart == nil {
 		warnings = append(warnings, "storage.localStorageClasses is set but storage.deleteLocalStorageOnRestart is not configured; local PVCs will not be deleted on pod restart")
+	}
+
+	return errors, warnings
+}
+
+// validateVolume validates a single volume spec.
+func (v *AerospikeCEClusterValidator) validateVolume(vol VolumeSpec, index int) ([]string, admission.Warnings) {
+	var errors []string
+	var warnings admission.Warnings
+
+	// Validate exactly one volume source is specified
+	sourceCount := 0
+	if vol.Source.PersistentVolume != nil {
+		sourceCount++
+	}
+	if vol.Source.EmptyDir != nil {
+		sourceCount++
+	}
+	if vol.Source.Secret != nil {
+		sourceCount++
+	}
+	if vol.Source.ConfigMap != nil {
+		sourceCount++
+	}
+	if vol.Source.HostPath != nil {
+		sourceCount++
+	}
+	if sourceCount == 0 {
+		errors = append(errors, fmt.Sprintf("storage.volumes[%d] %q: exactly one volume source must be specified", index, vol.Name))
+	} else if sourceCount > 1 {
+		errors = append(errors, fmt.Sprintf("storage.volumes[%d] %q: only one volume source can be specified (found %d)", index, vol.Name, sourceCount))
+	}
+
+	// Warn about HostPath usage
+	if vol.Source.HostPath != nil {
+		warnings = append(warnings, fmt.Sprintf(
+			"storage.volumes[%d] %q: hostPath volumes are not recommended for production; data is tied to a specific node and not portable",
+			index, vol.Name))
+	}
+
+	// Warn about cascadeDelete on non-persistent volumes (has no effect)
+	if vol.CascadeDelete != nil && *vol.CascadeDelete && vol.Source.PersistentVolume == nil {
+		warnings = append(warnings, fmt.Sprintf(
+			"storage.volumes[%d] %q: cascadeDelete has no effect on non-persistent volumes",
+			index, vol.Name))
+	}
+
+	// Validate Aerospike mount path is absolute
+	if vol.Aerospike != nil && vol.Aerospike.Path != "" && !strings.HasPrefix(vol.Aerospike.Path, "/") {
+		errors = append(errors, fmt.Sprintf(
+			"storage.volumes[%d] %q: aerospike.path must be an absolute path (got %q)",
+			index, vol.Name, vol.Aerospike.Path))
+	}
+
+	// Validate SubPath and SubPathExpr are mutually exclusive (Aerospike attachment)
+	if vol.Aerospike != nil && vol.Aerospike.SubPath != "" && vol.Aerospike.SubPathExpr != "" {
+		errors = append(errors, fmt.Sprintf(
+			"storage.volumes[%d] %q: aerospike.subPath and aerospike.subPathExpr are mutually exclusive",
+			index, vol.Name))
+	}
+
+	// Validate SubPath and SubPathExpr in sidecar attachments
+	for j, sc := range vol.Sidecars {
+		if sc.SubPath != "" && sc.SubPathExpr != "" {
+			errors = append(errors, fmt.Sprintf(
+				"storage.volumes[%d] %q: sidecars[%d] %q subPath and subPathExpr are mutually exclusive",
+				index, vol.Name, j, sc.ContainerName))
+		}
+	}
+
+	// Validate SubPath and SubPathExpr in init container attachments
+	for j, ic := range vol.InitContainers {
+		if ic.SubPath != "" && ic.SubPathExpr != "" {
+			errors = append(errors, fmt.Sprintf(
+				"storage.volumes[%d] %q: initContainers[%d] %q subPath and subPathExpr are mutually exclusive",
+				index, vol.Name, j, ic.ContainerName))
+		}
 	}
 
 	return errors, warnings

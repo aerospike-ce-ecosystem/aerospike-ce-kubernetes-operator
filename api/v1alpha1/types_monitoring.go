@@ -33,6 +33,8 @@ type AerospikeMonitoringSpec struct {
 	ExporterImage string `json:"exporterImage,omitempty"`
 
 	// Port is the metrics port for the exporter. Defaults to 9145.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
 	// +optional
 	Port int32 `json:"port,omitempty"`
 

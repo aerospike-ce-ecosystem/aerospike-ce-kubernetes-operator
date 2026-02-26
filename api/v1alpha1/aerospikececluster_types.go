@@ -356,9 +356,11 @@ type AerospikePodStatus struct {
 // +kubebuilder:subresource:scale:specpath=.spec.size,statuspath=.status.size,selectorpath=.status.selector
 // +kubebuilder:resource:shortName=asce;ascecluster
 // +kubebuilder:printcolumn:name="Size",type=integer,JSONPath=`.spec.size`
+// +kubebuilder:printcolumn:name="Ready",type=integer,JSONPath=`.status.size`
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 // +kubebuilder:printcolumn:name="Image",type=string,JSONPath=`.spec.image`,priority=1
+// +kubebuilder:printcolumn:name="ObservedGen",type=integer,JSONPath=`.status.observedGeneration`,priority=1
 
 // AerospikeCECluster is the Schema for the aerospikececlusters API.
 // It manages the lifecycle of an Aerospike Community Edition cluster.

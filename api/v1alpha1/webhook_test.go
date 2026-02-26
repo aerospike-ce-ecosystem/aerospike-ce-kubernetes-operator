@@ -2468,3 +2468,578 @@ func TestValidateUpdate_RejectsRemovingOperationWhileInProgress(t *testing.T) {
 		t.Errorf("error should mention 'cannot change operations', got: %v", err)
 	}
 }
+
+// --- Replication factor float64 bounds check tests ---
+
+func TestValidate_ReplicationFactorNonIntegerFloat(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"namespaces": []any{
+						map[string]any{
+							"name":               "test",
+							"replication-factor": float64(2.5),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error when replication-factor is non-integer float")
+	}
+	if !strings.Contains(err.Error(), "must be a positive integer") {
+		t.Errorf("error should mention 'must be a positive integer', got: %v", err)
+	}
+}
+
+func TestValidate_ReplicationFactorNegativeFloat(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"namespaces": []any{
+						map[string]any{
+							"name":               "test",
+							"replication-factor": float64(-1),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error when replication-factor is negative")
+	}
+	if !strings.Contains(err.Error(), "must be a positive integer") {
+		t.Errorf("error should mention 'must be a positive integer', got: %v", err)
+	}
+}
+
+func TestValidate_ReplicationFactorValidFloat(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"namespaces": []any{
+						map[string]any{
+							"name":               "test",
+							"replication-factor": float64(2),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error for valid float64 replication-factor: %v", err)
+	}
+}
+
+// --- Rack ID validation tests ---
+
+func TestValidate_RackIDZero(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks: []Rack{
+					{ID: 0},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error when rack ID is 0")
+	}
+	if !strings.Contains(err.Error(), "rack ID must be > 0") {
+		t.Errorf("error should mention 'rack ID must be > 0', got: %v", err)
+	}
+}
+
+func TestValidate_RackIDNegative(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks: []Rack{
+					{ID: -1},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error when rack ID is negative")
+	}
+	if !strings.Contains(err.Error(), "rack ID must be > 0") {
+		t.Errorf("error should mention 'rack ID must be > 0', got: %v", err)
+	}
+}
+
+func TestValidate_RackIDPositive(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  6,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks: []Rack{
+					{ID: 1},
+					{ID: 2},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error for valid rack IDs: %v", err)
+	}
+}
+
+// --- Empty image validation tests ---
+
+func TestValidate_EmptyImage(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  1,
+			Image: "",
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error for empty image")
+	}
+	if !strings.Contains(err.Error(), "spec.image must not be empty") {
+		t.Errorf("error = %q, want it to mention empty image", err.Error())
+	}
+}
+
+// --- Storage volume path validation tests ---
+
+func TestValidate_StorageRelativePath(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  1,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				Volumes: []VolumeSpec{
+					{
+						Name: "data",
+						Source: VolumeSource{
+							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+						Aerospike: &AerospikeVolumeAttachment{
+							Path: "opt/aerospike/data", // missing leading /
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error for relative aerospike path")
+	}
+	if !strings.Contains(err.Error(), "must be an absolute path") {
+		t.Errorf("error = %q, want it to mention absolute path", err.Error())
+	}
+}
+
+func TestValidate_StorageAbsolutePathOK(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  1,
+			Image: "aerospike:ce-8.1.1.1",
+			Storage: &AerospikeStorageSpec{
+				Volumes: []VolumeSpec{
+					{
+						Name: "data",
+						Source: VolumeSource{
+							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+						Aerospike: &AerospikeVolumeAttachment{
+							Path: "/opt/aerospike/data",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error for absolute path: %v", err)
+	}
+}
+
+// --- Rack node name uniqueness tests ---
+
+func TestValidate_DuplicateRackNodeName(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  4,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks: []Rack{
+					{ID: 1, NodeName: "node-1"},
+					{ID: 2, NodeName: "node-1"}, // duplicate
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error for duplicate node names")
+	}
+	if !strings.Contains(err.Error(), "both constrained to node") {
+		t.Errorf("error = %q, want it to mention duplicate node constraint", err.Error())
+	}
+}
+
+func TestValidate_UniqueRackNodeNamesOK(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  4,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks: []Rack{
+					{ID: 1, NodeName: "node-1"},
+					{ID: 2, NodeName: "node-2"},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error for unique node names: %v", err)
+	}
+}
+
+// --- Immutable rack ID validation tests ---
+
+func TestValidateUpdate_RackIDRename(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	oldCluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  4,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks: []Rack{
+					{ID: 1},
+					{ID: 2},
+				},
+			},
+		},
+	}
+	newCluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  4,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks: []Rack{
+					{ID: 1},
+					{ID: 3}, // renamed from 2 → 3
+				},
+			},
+		},
+	}
+
+	_, err := v.ValidateUpdate(context.Background(), oldCluster, newCluster)
+	if err == nil {
+		t.Fatal("expected error for rack ID rename")
+	}
+	if !strings.Contains(err.Error(), "rack IDs cannot be changed") {
+		t.Errorf("error = %q, want it to mention rack ID change", err.Error())
+	}
+}
+
+func TestValidateUpdate_RackAddRemoveOK(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	oldCluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  4,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks: []Rack{
+					{ID: 1},
+					{ID: 2},
+				},
+			},
+		},
+	}
+	newCluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  6,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks: []Rack{
+					{ID: 1},
+					{ID: 2},
+					{ID: 3}, // new rack added
+				},
+			},
+		},
+	}
+
+	_, err := v.ValidateUpdate(context.Background(), oldCluster, newCluster)
+	if err != nil {
+		t.Errorf("unexpected error for rack addition: %v", err)
+	}
+}
+
+// --- MaxUnavailable validation tests ---
+
+func TestValidate_MaxUnavailableExceedsClusterSize(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	mu := intstr.FromInt32(4)
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:           3,
+			Image:          "aerospike:ce-8.1.1.1",
+			MaxUnavailable: &mu,
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "maxUnavailable") && strings.Contains(w, "cluster size") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning about maxUnavailable >= clusterSize, got warnings: %v", warnings)
+	}
+}
+
+func TestValidate_MaxUnavailableEqualsClusterSize(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	mu := intstr.FromInt32(3)
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:           3,
+			Image:          "aerospike:ce-8.1.1.1",
+			MaxUnavailable: &mu,
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "maxUnavailable") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning about maxUnavailable >= clusterSize, got warnings: %v", warnings)
+	}
+}
+
+func TestValidate_MaxUnavailableLessThanClusterSize(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	mu := intstr.FromInt32(1)
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:           3,
+			Image:          "aerospike:ce-8.1.1.1",
+			MaxUnavailable: &mu,
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for _, w := range warnings {
+		if strings.Contains(w, "maxUnavailable") {
+			t.Errorf("unexpected maxUnavailable warning: %v", w)
+		}
+	}
+}
+
+func TestValidate_MaxUnavailablePercentage100(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	mu := intstr.FromString("100%")
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:           3,
+			Image:          "aerospike:ce-8.1.1.1",
+			MaxUnavailable: &mu,
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "maxUnavailable") && strings.Contains(w, "100%") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning about maxUnavailable 100%%, got warnings: %v", warnings)
+	}
+}
+
+func TestValidate_MaxUnavailableNil(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for _, w := range warnings {
+		if strings.Contains(w, "maxUnavailable") {
+			t.Errorf("unexpected maxUnavailable warning: %v", w)
+		}
+	}
+}
+
+// --- ServiceMonitor / Monitoring consistency tests ---
+
+func TestValidate_ServiceMonitorEnabledWithoutMonitoring(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled: false,
+				ServiceMonitor: &ServiceMonitorSpec{
+					Enabled: true,
+				},
+			},
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "serviceMonitor") && strings.Contains(w, "monitoring.enabled is false") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning about serviceMonitor with monitoring disabled, got warnings: %v", warnings)
+	}
+}
+
+func TestValidate_PrometheusRuleEnabledWithoutMonitoring(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled: false,
+				PrometheusRule: &PrometheusRuleSpec{
+					Enabled: true,
+				},
+			},
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "prometheusRule") && strings.Contains(w, "monitoring.enabled is false") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning about prometheusRule with monitoring disabled, got warnings: %v", warnings)
+	}
+}
+
+func TestValidate_MonitoringDisabledSubfeaturesDisabled(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled: false,
+				ServiceMonitor: &ServiceMonitorSpec{
+					Enabled: false,
+				},
+			},
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for _, w := range warnings {
+		if strings.Contains(w, "serviceMonitor") || strings.Contains(w, "prometheusRule") {
+			t.Errorf("unexpected monitoring warning: %v", w)
+		}
+	}
+}

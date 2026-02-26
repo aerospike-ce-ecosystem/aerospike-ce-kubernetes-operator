@@ -197,22 +197,72 @@ func TestGenerateConfig_NilConfig(t *testing.T) {
 
 func TestFormatValue(t *testing.T) {
 	tests := []struct {
+		name     string
 		input    any
 		expected string
 	}{
-		{true, "true"},
-		{false, "false"},
-		{42, "42"},
-		{int64(100), "100"},
-		{float64(3.14), "3.14"},
-		{float64(100), "100"},
-		{"hello", "hello"},
+		{"bool true", true, "true"},
+		{"bool false", false, "false"},
+		{"int", 42, "42"},
+		{"int32", int32(256), "256"},
+		{"int64", int64(100), "100"},
+		{"float64 fractional", float64(3.14), "3.14"},
+		{"float64 whole", float64(100), "100"},
+		{"float32 fractional", float32(2.5), "2.5"},
+		{"float32 whole", float32(42), "42"},
+		{"string", "hello", "hello"},
+		{"nil", nil, ""},
+		{"negative int", -1, "-1"},
+		{"zero", 0, "0"},
 	}
 	for _, tc := range tests {
-		got := formatValue(tc.input)
-		if got != tc.expected {
-			t.Errorf("formatValue(%v) = %q, want %q", tc.input, got, tc.expected)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			got := formatValue(tc.input)
+			if got != tc.expected {
+				t.Errorf("formatValue(%v) = %q, want %q", tc.input, got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestSortedKeys(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    map[string]any
+		expected []string
+	}{
+		{"nil map", nil, nil},
+		{"empty map", map[string]any{}, []string{}},
+		{"single key", map[string]any{"a": 1}, []string{"a"}},
+		{"multiple keys sorted", map[string]any{
+			"zebra":  1,
+			"alpha":  2,
+			"middle": 3,
+		}, []string{"alpha", "middle", "zebra"}},
+		{"keys with hyphens", map[string]any{
+			"mesh-seed-address-port": 1,
+			"cluster-name":           2,
+			"address":                3,
+		}, []string{"address", "cluster-name", "mesh-seed-address-port"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := sortedKeys(tc.input)
+			if tc.expected == nil {
+				if len(got) != 0 {
+					t.Errorf("sortedKeys(%v) = %v, want empty", tc.input, got)
+				}
+				return
+			}
+			if len(got) != len(tc.expected) {
+				t.Fatalf("sortedKeys(%v) = %v, want %v", tc.input, got, tc.expected)
+			}
+			for i := range got {
+				if got[i] != tc.expected[i] {
+					t.Errorf("sortedKeys(%v)[%d] = %q, want %q", tc.input, i, got[i], tc.expected[i])
+				}
+			}
+		})
 	}
 }
 

@@ -87,11 +87,15 @@ type LoadBalancerSpec struct {
 	ExternalTrafficPolicy string `json:"externalTrafficPolicy,omitempty"`
 
 	// Port is the external port number for the LoadBalancer.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
 	// +kubebuilder:default=3000
 	// +optional
 	Port int32 `json:"port,omitempty"`
 
 	// TargetPort is the container port to forward to.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
 	// +kubebuilder:default=3000
 	// +optional
 	TargetPort int32 `json:"targetPort,omitempty"`

@@ -158,6 +158,8 @@ type AerospikeUserSpec struct {
 // AerospikeClientAdminPolicy defines timeout settings for admin client operations.
 type AerospikeClientAdminPolicy struct {
 	// Timeout is the admin operation timeout in milliseconds.
+	// +kubebuilder:validation:Minimum=100
+	// +kubebuilder:validation:Maximum=30000
 	// +kubebuilder:default=2000
 	// +optional
 	Timeout int `json:"timeout,omitempty"`

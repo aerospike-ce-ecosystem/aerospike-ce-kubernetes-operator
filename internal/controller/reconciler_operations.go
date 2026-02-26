@@ -153,7 +153,7 @@ func filterPodsByNames(allPods []corev1.Pod, names []string) []*corev1.Pod {
 		podMap[allPods[i].Name] = &allPods[i]
 	}
 
-	var result []*corev1.Pod
+	result := make([]*corev1.Pod, 0, len(names))
 	for _, name := range names {
 		if pod, ok := podMap[name]; ok {
 			result = append(result, pod)

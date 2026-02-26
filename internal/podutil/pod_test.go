@@ -543,6 +543,212 @@ func TestBuildPodTemplateSpec_NoAntiAffinityWhenMultiPodPerHostTrue(t *testing.T
 	}
 }
 
+// --- applyRackAffinity tests ---
+
+func TestApplyRackAffinity_Zone(t *testing.T) {
+	podSpec := &corev1.PodSpec{}
+	rack := &v1alpha1.Rack{ID: 1, Zone: "us-east-1a"}
+
+	applyRackAffinity(podSpec, rack)
+
+	if podSpec.Affinity == nil || podSpec.Affinity.NodeAffinity == nil {
+		t.Fatal("expected node affinity to be set")
+	}
+	terms := podSpec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
+	if len(terms) != 1 {
+		t.Fatalf("expected 1 NodeSelectorTerm, got %d", len(terms))
+	}
+	exprs := terms[0].MatchExpressions
+	if len(exprs) != 1 {
+		t.Fatalf("expected 1 MatchExpression, got %d", len(exprs))
+	}
+	if exprs[0].Key != "topology.kubernetes.io/zone" {
+		t.Errorf("key = %q, want %q", exprs[0].Key, "topology.kubernetes.io/zone")
+	}
+	if exprs[0].Operator != corev1.NodeSelectorOpIn {
+		t.Errorf("operator = %q, want %q", exprs[0].Operator, corev1.NodeSelectorOpIn)
+	}
+	if len(exprs[0].Values) != 1 || exprs[0].Values[0] != "us-east-1a" {
+		t.Errorf("values = %v, want [us-east-1a]", exprs[0].Values)
+	}
+}
+
+func TestApplyRackAffinity_RegionAndNodeName(t *testing.T) {
+	podSpec := &corev1.PodSpec{}
+	rack := &v1alpha1.Rack{ID: 1, Region: "us-east-1", NodeName: "node-1"}
+
+	applyRackAffinity(podSpec, rack)
+
+	terms := podSpec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
+	exprs := terms[0].MatchExpressions
+	if len(exprs) != 2 {
+		t.Fatalf("expected 2 MatchExpressions, got %d", len(exprs))
+	}
+	keys := make(map[string]bool)
+	for _, e := range exprs {
+		keys[e.Key] = true
+	}
+	if !keys["topology.kubernetes.io/region"] {
+		t.Error("expected region affinity")
+	}
+	if !keys["kubernetes.io/hostname"] {
+		t.Error("expected hostname affinity")
+	}
+}
+
+func TestApplyRackAffinity_RackLabel(t *testing.T) {
+	podSpec := &corev1.PodSpec{}
+	rack := &v1alpha1.Rack{ID: 1, RackLabel: "rack-a"}
+
+	applyRackAffinity(podSpec, rack)
+
+	exprs := podSpec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms[0].MatchExpressions
+	if len(exprs) != 1 || exprs[0].Key != "acko.io/rack" {
+		t.Errorf("expected acko.io/rack affinity, got key=%q", exprs[0].Key)
+	}
+	if exprs[0].Values[0] != "rack-a" {
+		t.Errorf("values = %v, want [rack-a]", exprs[0].Values)
+	}
+}
+
+func TestApplyRackAffinity_NoFieldsSet(t *testing.T) {
+	podSpec := &corev1.PodSpec{}
+	rack := &v1alpha1.Rack{ID: 1}
+
+	applyRackAffinity(podSpec, rack)
+
+	if podSpec.Affinity != nil {
+		t.Error("expected affinity to remain nil when no rack fields are set")
+	}
+}
+
+func TestApplyRackAffinity_AllFields(t *testing.T) {
+	podSpec := &corev1.PodSpec{}
+	rack := &v1alpha1.Rack{
+		ID:        1,
+		Zone:      "us-east-1a",
+		Region:    "us-east-1",
+		NodeName:  "node-1",
+		RackLabel: "rack-a",
+	}
+
+	applyRackAffinity(podSpec, rack)
+
+	exprs := podSpec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms[0].MatchExpressions
+	if len(exprs) != 4 {
+		t.Fatalf("expected 4 MatchExpressions, got %d", len(exprs))
+	}
+}
+
+func TestApplyRackAffinity_PreservesExistingPodAntiAffinity(t *testing.T) {
+	podSpec := &corev1.PodSpec{
+		Affinity: &corev1.Affinity{
+			PodAntiAffinity: &corev1.PodAntiAffinity{},
+		},
+	}
+	rack := &v1alpha1.Rack{ID: 1, Zone: "us-west-2a"}
+
+	applyRackAffinity(podSpec, rack)
+
+	if podSpec.Affinity.PodAntiAffinity == nil {
+		t.Error("existing PodAntiAffinity was overwritten")
+	}
+	if podSpec.Affinity.NodeAffinity == nil {
+		t.Fatal("expected NodeAffinity to be set")
+	}
+}
+
+// --- applyRackPodSpecOverrides tests ---
+
+func TestApplyRackPodSpecOverrides_Affinity(t *testing.T) {
+	podSpec := &corev1.PodSpec{
+		Affinity: &corev1.Affinity{
+			NodeAffinity: &corev1.NodeAffinity{},
+		},
+	}
+	rackAffinity := &corev1.Affinity{
+		PodAntiAffinity: &corev1.PodAntiAffinity{},
+	}
+	rackPod := &v1alpha1.RackPodSpec{Affinity: rackAffinity}
+
+	applyRackPodSpecOverrides(podSpec, rackPod)
+
+	if podSpec.Affinity != rackAffinity {
+		t.Error("expected affinity to be overridden by rack")
+	}
+}
+
+func TestApplyRackPodSpecOverrides_Tolerations(t *testing.T) {
+	podSpec := &corev1.PodSpec{
+		Tolerations: []corev1.Toleration{{Key: "original"}},
+	}
+	rackPod := &v1alpha1.RackPodSpec{
+		Tolerations: []corev1.Toleration{{Key: "rack-taint", Operator: corev1.TolerationOpExists}},
+	}
+
+	applyRackPodSpecOverrides(podSpec, rackPod)
+
+	if len(podSpec.Tolerations) != 1 || podSpec.Tolerations[0].Key != "rack-taint" {
+		t.Error("expected tolerations to be replaced by rack tolerations")
+	}
+}
+
+func TestApplyRackPodSpecOverrides_NodeSelector(t *testing.T) {
+	podSpec := &corev1.PodSpec{
+		NodeSelector: map[string]string{"cluster": "default"},
+	}
+	rackPod := &v1alpha1.RackPodSpec{
+		NodeSelector: map[string]string{"zone": "us-east-1a"},
+	}
+
+	applyRackPodSpecOverrides(podSpec, rackPod)
+
+	if len(podSpec.NodeSelector) != 1 || podSpec.NodeSelector["zone"] != "us-east-1a" {
+		t.Error("expected nodeSelector to be replaced by rack nodeSelector")
+	}
+}
+
+func TestApplyRackPodSpecOverrides_NilFields(t *testing.T) {
+	origAffinity := &corev1.Affinity{NodeAffinity: &corev1.NodeAffinity{}}
+	podSpec := &corev1.PodSpec{
+		Affinity:     origAffinity,
+		Tolerations:  []corev1.Toleration{{Key: "keep"}},
+		NodeSelector: map[string]string{"keep": "true"},
+	}
+	rackPod := &v1alpha1.RackPodSpec{} // all nil/empty
+
+	applyRackPodSpecOverrides(podSpec, rackPod)
+
+	if podSpec.Affinity != origAffinity {
+		t.Error("affinity should not change when rack affinity is nil")
+	}
+	if len(podSpec.Tolerations) != 1 || podSpec.Tolerations[0].Key != "keep" {
+		t.Error("tolerations should not change when rack tolerations is empty")
+	}
+	if podSpec.NodeSelector["keep"] != "true" {
+		t.Error("nodeSelector should not change when rack nodeSelector is empty")
+	}
+}
+
+// --- PodNameForIndex tests ---
+
+func TestPodNameForIndex(t *testing.T) {
+	tests := []struct {
+		stsName  string
+		index    int
+		expected string
+	}{
+		{"my-cluster-1", 0, "my-cluster-1-0"},
+		{"my-cluster-1", 3, "my-cluster-1-3"},
+		{"aero-2", 99, "aero-2-99"},
+	}
+	for _, tc := range tests {
+		if got := PodNameForIndex(tc.stsName, tc.index); got != tc.expected {
+			t.Errorf("PodNameForIndex(%q, %d) = %q, want %q", tc.stsName, tc.index, got, tc.expected)
+		}
+	}
+}
+
 func TestBuildPodTemplateSpec_InitContainerUsesClusterImage(t *testing.T) {
 	cluster := &v1alpha1.AerospikeCECluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-cluster"},

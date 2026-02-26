@@ -69,3 +69,9 @@ func TestNetworkPolicyName(t *testing.T) {
 		t.Errorf("NetworkPolicyName = %q, want %q", got, "my-cluster-netpol")
 	}
 }
+
+func TestPrometheusRuleName(t *testing.T) {
+	if got := PrometheusRuleName("my-cluster"); got != "my-cluster-alerts" {
+		t.Errorf("PrometheusRuleName = %q, want %q", got, "my-cluster-alerts")
+	}
+}

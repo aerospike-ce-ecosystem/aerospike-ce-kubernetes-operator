@@ -21,6 +21,9 @@ spec:
     - jsonPath: .spec.size
       name: Size
       type: integer
+    - jsonPath: .status.size
+      name: Ready
+      type: integer
     - jsonPath: .status.phase
       name: Phase
       type: string
@@ -31,6 +34,10 @@ spec:
       name: Image
       priority: 1
       type: string
+    - jsonPath: .status.observedGeneration
+      name: ObservedGen
+      priority: 1
+      type: integer
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -69,6 +76,8 @@ spec:
                       timeout:
                         default: 2000
                         description: Timeout is the admin operation timeout in milliseconds.
+                        maximum: 30000
+                        minimum: 100
                         type: integer
                     type: object
                   roles:
@@ -436,6 +445,8 @@ spec:
                     description: Port is the metrics port for the exporter. Defaults
                       to 9145.
                     format: int32
+                    maximum: 65535
+                    minimum: 1
                     type: integer
                   prometheusRule:
                     description: PrometheusRule configures automatic PrometheusRule
@@ -6833,11 +6844,15 @@ spec:
                         default: 3000
                         description: Port is the external port number for the LoadBalancer.
                         format: int32
+                        maximum: 65535
+                        minimum: 1
                         type: integer
                       targetPort:
                         default: 3000
                         description: TargetPort is the container port to forward to.
                         format: int32
+                        maximum: 65535
+                        minimum: 1
                         type: integer
                     type: object
                 type: object

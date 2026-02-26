@@ -77,3 +77,29 @@ func TestGetDirtyVolumes_GlobalPolicy(t *testing.T) {
 		t.Errorf("expected [data], got %v", result)
 	}
 }
+
+func TestPodOrdinal(t *testing.T) {
+	tests := []struct {
+		name     string
+		podName  string
+		expected int
+	}{
+		{"first pod", "sts-0", 0},
+		{"second pod", "sts-1", 1},
+		{"tenth pod", "sts-9", 9},
+		{"double digit", "sts-12", 12},
+		{"with rack id", "cluster-1-5", 5},
+		{"no dash", "nodash", 0},
+		{"non-numeric suffix", "sts-abc", 0},
+		{"empty string", "", 0},
+		{"trailing dash", "sts-", 0},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := podOrdinal(tc.podName); got != tc.expected {
+				t.Errorf("podOrdinal(%q) = %d, want %d", tc.podName, got, tc.expected)
+			}
+		})
+	}
+}

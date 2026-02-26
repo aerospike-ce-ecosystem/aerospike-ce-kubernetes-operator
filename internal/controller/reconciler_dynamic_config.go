@@ -119,7 +119,8 @@ func findNodeForPod(client *aero.Client, pod *corev1.Pod) *aero.Node {
 }
 
 // updateDynamicConfigStatus updates the DynamicConfigStatus field in the pod's
-// status within the cluster CR.
+// status within the cluster CR. Failures are non-fatal: they are logged and
+// reported as warning Events since the caller cannot meaningfully retry.
 func (r *AerospikeCEClusterReconciler) updateDynamicConfigStatus(
 	ctx context.Context,
 	cluster *asdbcev1alpha1.AerospikeCECluster,
@@ -131,6 +132,8 @@ func (r *AerospikeCEClusterReconciler) updateDynamicConfigStatus(
 	latest := &asdbcev1alpha1.AerospikeCECluster{}
 	if err := r.Get(ctx, types.NamespacedName{Name: cluster.Name, Namespace: cluster.Namespace}, latest); err != nil {
 		log.Error(err, "Failed to re-fetch cluster for dynamic config status update", "pod", podName)
+		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "DynamicConfigStatusFailed",
+			"Failed to update dynamic config status for pod %s: %v", podName, err)
 		return
 	}
 
@@ -143,6 +146,8 @@ func (r *AerospikeCEClusterReconciler) updateDynamicConfigStatus(
 		latest.Status.Pods[podName] = podStatus
 		if err := r.Status().Update(ctx, latest); err != nil {
 			log.Error(err, "Failed to update dynamic config status", "pod", podName)
+			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "DynamicConfigStatusFailed",
+				"Failed to update dynamic config status for pod %s: %v", podName, err)
 		}
 	}
 }

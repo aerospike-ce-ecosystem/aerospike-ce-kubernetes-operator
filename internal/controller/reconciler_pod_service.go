@@ -93,7 +93,7 @@ func (r *AerospikeCEClusterReconciler) reconcilePodServices(
 
 			log.Info("Creating per-pod service", "name", svcName, "pod", pod.Name)
 			if err := r.Create(ctx, svc); err != nil {
-				return err
+				return fmt.Errorf("creating pod service %s: %w", svcName, err)
 			}
 
 			continue

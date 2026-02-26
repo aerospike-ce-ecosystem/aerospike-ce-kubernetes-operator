@@ -3,12 +3,16 @@ package controller
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strconv"
+	"strings"
 
 	aero "github.com/aerospike/aerospike-client-go/v8"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
@@ -68,24 +72,22 @@ func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
 	batchSize := r.getRollingUpdateBatchSize(cluster, replicas)
 	maxIgnorablePods := r.getMaxIgnorablePods(cluster, replicas)
 
+	// Fetch all pods for this rack in a single List call instead of N individual Get calls.
+	rackPods, err := r.listRackPods(ctx, cluster, rack.ID)
+	if err != nil {
+		return false, fmt.Errorf("listing rack pods for rolling restart: %w", err)
+	}
+
 	var podsToRestart []*corev1.Pod
 	ignoredCount := int32(0)
-	for i := int(replicas) - 1; i >= 0; i-- {
-		podName := fmt.Sprintf("%s-%d", stsName, i)
-
-		pod := &corev1.Pod{}
-		if err := r.Get(ctx, types.NamespacedName{Name: podName, Namespace: cluster.Namespace}, pod); err != nil {
-			if errors.IsNotFound(err) {
-				continue
-			}
-			return false, err
-		}
+	for i := range rackPods {
+		pod := &rackPods[i]
 
 		// Skip pending/failed pods if within ignorable limit
 		if pod.Status.Phase == corev1.PodPending || pod.Status.Phase == corev1.PodFailed {
 			if ignoredCount < maxIgnorablePods {
 				ignoredCount++
-				log.V(1).Info("Ignoring pending/failed pod", "pod", podName)
+				log.V(1).Info("Ignoring pending/failed pod", "pod", pod.Name)
 				continue
 			}
 		}
@@ -289,4 +291,41 @@ func (r *AerospikeCEClusterReconciler) getMaxIgnorablePods(cluster *asdbcev1alph
 		return resolveIntOrPercent(cluster.Spec.RackConfig.MaxIgnorablePods, totalPods)
 	}
 	return 0
+}
+
+// listRackPods fetches all pods for a specific rack in a single API call,
+// sorted by ordinal descending (highest ordinal first) to preserve the
+// rolling restart ordering semantics.
+func (r *AerospikeCEClusterReconciler) listRackPods(
+	ctx context.Context,
+	cluster *asdbcev1alpha1.AerospikeCECluster,
+	rackID int,
+) ([]corev1.Pod, error) {
+	podList := &corev1.PodList{}
+	if err := r.List(ctx, podList,
+		client.InNamespace(cluster.Namespace),
+		client.MatchingLabels(utils.LabelsForRack(cluster.Name, rackID)),
+	); err != nil {
+		return nil, err
+	}
+
+	// Sort by ordinal descending (highest first) for rolling restart ordering.
+	sort.Slice(podList.Items, func(i, j int) bool {
+		return podOrdinal(podList.Items[i].Name) > podOrdinal(podList.Items[j].Name)
+	})
+
+	return podList.Items, nil
+}
+
+// podOrdinal extracts the ordinal index from a StatefulSet pod name (e.g., "sts-0" → 0).
+func podOrdinal(podName string) int {
+	idx := strings.LastIndex(podName, "-")
+	if idx < 0 {
+		return 0
+	}
+	ordinal, err := strconv.Atoi(podName[idx+1:])
+	if err != nil {
+		return 0
+	}
+	return ordinal
 }

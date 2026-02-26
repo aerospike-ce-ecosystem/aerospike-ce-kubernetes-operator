@@ -5239,8 +5239,9 @@ spec:
                           type: object
                           x-kubernetes-preserve-unknown-fields: true
                         id:
-                          description: ID is a unique rack identifier (integer).
-                          minimum: 0
+                          description: ID is a unique rack identifier (integer). Must
+                            be >= 1; rack ID 0 is reserved.
+                          minimum: 1
                           type: integer
                         nodeName:
                           description: NodeName constrains this rack to a specific

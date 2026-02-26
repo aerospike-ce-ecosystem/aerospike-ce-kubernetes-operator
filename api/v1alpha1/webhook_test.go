@@ -2820,3 +2820,226 @@ func TestValidateUpdate_RackAddRemoveOK(t *testing.T) {
 		t.Errorf("unexpected error for rack addition: %v", err)
 	}
 }
+
+// --- MaxUnavailable validation tests ---
+
+func TestValidate_MaxUnavailableExceedsClusterSize(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	mu := intstr.FromInt32(4)
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:           3,
+			Image:          "aerospike:ce-8.1.1.1",
+			MaxUnavailable: &mu,
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "maxUnavailable") && strings.Contains(w, "cluster size") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning about maxUnavailable >= clusterSize, got warnings: %v", warnings)
+	}
+}
+
+func TestValidate_MaxUnavailableEqualsClusterSize(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	mu := intstr.FromInt32(3)
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:           3,
+			Image:          "aerospike:ce-8.1.1.1",
+			MaxUnavailable: &mu,
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "maxUnavailable") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning about maxUnavailable >= clusterSize, got warnings: %v", warnings)
+	}
+}
+
+func TestValidate_MaxUnavailableLessThanClusterSize(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	mu := intstr.FromInt32(1)
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:           3,
+			Image:          "aerospike:ce-8.1.1.1",
+			MaxUnavailable: &mu,
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for _, w := range warnings {
+		if strings.Contains(w, "maxUnavailable") {
+			t.Errorf("unexpected maxUnavailable warning: %v", w)
+		}
+	}
+}
+
+func TestValidate_MaxUnavailablePercentage100(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	mu := intstr.FromString("100%")
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:           3,
+			Image:          "aerospike:ce-8.1.1.1",
+			MaxUnavailable: &mu,
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "maxUnavailable") && strings.Contains(w, "100%") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning about maxUnavailable 100%%, got warnings: %v", warnings)
+	}
+}
+
+func TestValidate_MaxUnavailableNil(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for _, w := range warnings {
+		if strings.Contains(w, "maxUnavailable") {
+			t.Errorf("unexpected maxUnavailable warning: %v", w)
+		}
+	}
+}
+
+// --- ServiceMonitor / Monitoring consistency tests ---
+
+func TestValidate_ServiceMonitorEnabledWithoutMonitoring(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled: false,
+				ServiceMonitor: &ServiceMonitorSpec{
+					Enabled: true,
+				},
+			},
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "serviceMonitor") && strings.Contains(w, "monitoring.enabled is false") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning about serviceMonitor with monitoring disabled, got warnings: %v", warnings)
+	}
+}
+
+func TestValidate_PrometheusRuleEnabledWithoutMonitoring(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled: false,
+				PrometheusRule: &PrometheusRuleSpec{
+					Enabled: true,
+				},
+			},
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "prometheusRule") && strings.Contains(w, "monitoring.enabled is false") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning about prometheusRule with monitoring disabled, got warnings: %v", warnings)
+	}
+}
+
+func TestValidate_MonitoringDisabledSubfeaturesDisabled(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled: false,
+				ServiceMonitor: &ServiceMonitorSpec{
+					Enabled: false,
+				},
+			},
+		},
+	}
+
+	warnings, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for _, w := range warnings {
+		if strings.Contains(w, "serviceMonitor") || strings.Contains(w, "prometheusRule") {
+			t.Errorf("unexpected monitoring warning: %v", w)
+		}
+	}
+}

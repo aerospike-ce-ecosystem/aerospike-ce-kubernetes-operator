@@ -212,7 +212,9 @@ func (r *AerospikeCEClusterReconciler) coldRestartPod(
 		cluster.Spec.Storage.DeleteLocalStorageOnRestart != nil &&
 		*cluster.Spec.Storage.DeleteLocalStorageOnRestart {
 		stsName, ordinal, ok := storage.ParsePodName(pod.Name)
-		if ok {
+		if !ok {
+			log.V(1).Info("Failed to parse pod name for PVC cleanup, skipping local PVC deletion", "pod", pod.Name)
+		} else {
 			if err := storage.DeleteLocalPVCsForPod(ctx, r.Client, cluster.Namespace, stsName, ordinal, cluster.Spec.Storage); err != nil {
 				log.Error(err, "Failed to delete local PVCs before restart", "pod", pod.Name)
 				r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "LocalPVCDeleteFailed",

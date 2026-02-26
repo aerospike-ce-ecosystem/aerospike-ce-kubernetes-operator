@@ -294,10 +294,20 @@ func (v *AerospikeCEClusterValidator) validate(cluster *AerospikeCECluster) (adm
 	}
 
 	// Validate monitoring
-	if cluster.Spec.Monitoring != nil && cluster.Spec.Monitoring.Enabled {
-		mErrors, mWarnings := v.validateMonitoring(cluster.Spec.Monitoring)
-		allErrors = append(allErrors, mErrors...)
-		warnings = append(warnings, mWarnings...)
+	if cluster.Spec.Monitoring != nil {
+		if cluster.Spec.Monitoring.Enabled {
+			mErrors, mWarnings := v.validateMonitoring(cluster.Spec.Monitoring)
+			allErrors = append(allErrors, mErrors...)
+			warnings = append(warnings, mWarnings...)
+		} else {
+			// Warn if sub-features are enabled but monitoring itself is disabled
+			if cluster.Spec.Monitoring.ServiceMonitor != nil && cluster.Spec.Monitoring.ServiceMonitor.Enabled {
+				warnings = append(warnings, "monitoring.serviceMonitor.enabled is true but monitoring.enabled is false; ServiceMonitor will not be created")
+			}
+			if cluster.Spec.Monitoring.PrometheusRule != nil && cluster.Spec.Monitoring.PrometheusRule.Enabled {
+				warnings = append(warnings, "monitoring.prometheusRule.enabled is true but monitoring.enabled is false; PrometheusRule will not be created")
+			}
+		}
 	}
 
 	// Validate storage
@@ -307,11 +317,12 @@ func (v *AerospikeCEClusterValidator) validate(cluster *AerospikeCECluster) (adm
 		warnings = append(warnings, storageWarnings...)
 	}
 
-	// Validate replication-factor, work directory, batch size, and operations
+	// Validate replication-factor, work directory, batch size, max unavailable, and operations
 	rfErrors := v.validateReplicationFactor(cluster)
 	allErrors = append(allErrors, rfErrors...)
 	warnings = append(warnings, v.validateWorkDirectory(cluster)...)
 	warnings = append(warnings, v.validateBatchSize(cluster)...)
+	warnings = append(warnings, v.validateMaxUnavailable(cluster)...)
 	if len(cluster.Spec.Operations) > 0 {
 		allErrors = append(allErrors, v.validateOperations(cluster.Spec.Operations)...)
 	}
@@ -612,6 +623,31 @@ func (v *AerospikeCEClusterValidator) validateBatchSize(cluster *AerospikeCEClus
 	bs := *cluster.Spec.RollingUpdateBatchSize
 	if bs > cluster.Spec.Size {
 		return admission.Warnings{fmt.Sprintf("rollingUpdateBatchSize (%d) is greater than cluster size (%d); all pods may restart simultaneously", bs, cluster.Spec.Size)}
+	}
+	return nil
+}
+
+// validateMaxUnavailable warns if maxUnavailable is >= cluster size.
+func (v *AerospikeCEClusterValidator) validateMaxUnavailable(cluster *AerospikeCECluster) admission.Warnings {
+	if cluster.Spec.MaxUnavailable == nil {
+		return nil
+	}
+	mu := *cluster.Spec.MaxUnavailable
+	if mu.Type == intstr.Int {
+		if mu.IntVal >= cluster.Spec.Size {
+			return admission.Warnings{fmt.Sprintf(
+				"maxUnavailable (%d) is >= cluster size (%d); PodDisruptionBudget will not prevent full disruption",
+				mu.IntVal, cluster.Spec.Size)}
+		}
+	} else {
+		s := mu.StrVal
+		if numStr, ok := strings.CutSuffix(s, "%"); ok {
+			num, err := strconv.Atoi(numStr)
+			if err == nil && num >= 100 {
+				return admission.Warnings{fmt.Sprintf(
+					"maxUnavailable (%s) allows 100%% disruption; PodDisruptionBudget will not protect availability", s)}
+			}
+		}
 	}
 	return nil
 }

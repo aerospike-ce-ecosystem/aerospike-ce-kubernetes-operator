@@ -103,8 +103,7 @@ func (r *AerospikeCEClusterReconciler) reconcileRoles(
 ) error {
 	log := logf.FromContext(ctx)
 
-	adminPolicy := aero.NewAdminPolicy()
-	adminPolicy.Timeout = aeroInfoTimeout
+	adminPolicy := newAdminPolicy()
 
 	// Query existing roles
 	existingRoles, err := aeroClient.QueryRoles(adminPolicy)
@@ -161,8 +160,7 @@ func (r *AerospikeCEClusterReconciler) reconcileUsers(
 ) error {
 	log := logf.FromContext(ctx)
 
-	adminPolicy := aero.NewAdminPolicy()
-	adminPolicy.Timeout = aeroInfoTimeout
+	adminPolicy := newAdminPolicy()
 
 	// Query existing users
 	existingUsers, err := aeroClient.QueryUsers(adminPolicy)
@@ -384,6 +382,13 @@ func privilegeSet(privs []aero.Privilege) map[string]aero.Privilege {
 		set[privilegeKey(p)] = p
 	}
 	return set
+}
+
+// newAdminPolicy returns an AdminPolicy with the standard operator timeout.
+func newAdminPolicy() *aero.AdminPolicy {
+	p := aero.NewAdminPolicy()
+	p.Timeout = aeroInfoTimeout
+	return p
 }
 
 // sliceToSet converts a string slice to a set.

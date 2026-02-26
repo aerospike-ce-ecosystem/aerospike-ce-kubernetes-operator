@@ -22,7 +22,7 @@ func generateNetworkSection(
 	for _, key := range keys {
 		val := networkConfig[key]
 
-		if key == "heartbeat" {
+		if key == SectionHeartbeat {
 			hbMap, ok := val.(map[string]any)
 			if !ok {
 				hbMap = make(map[string]any)
@@ -60,7 +60,7 @@ func generateHeartbeatSubsection(
 	// Write existing heartbeat config entries (excluding mesh-seed-address-port).
 	keys := sortedKeys(hbConfig)
 	for _, key := range keys {
-		if key == "mesh-seed-address-port" {
+		if key == KeyMeshSeedAddressPort {
 			continue
 		}
 		val := hbConfig[key]
@@ -104,12 +104,12 @@ func InjectAccessAddressPlaceholders(config map[string]any, policy *v1alpha1.Aer
 		return
 	}
 
-	networkSection, ok := config["network"].(map[string]any)
+	networkSection, ok := config[SectionNetwork].(map[string]any)
 	if !ok {
 		return
 	}
 
-	svcSection, ok := networkSection["service"].(map[string]any)
+	svcSection, ok := networkSection[SectionService].(map[string]any)
 	if !ok {
 		return
 	}
@@ -128,8 +128,8 @@ func InjectAccessAddressPlaceholders(config map[string]any, policy *v1alpha1.Aer
 		}
 	}
 
-	networkSection["service"] = svcSection
-	config["network"] = networkSection
+	networkSection[SectionService] = svcSection
+	config[SectionNetwork] = networkSection
 }
 
 // placeholderForNetworkType returns the placeholder string for the given network type.

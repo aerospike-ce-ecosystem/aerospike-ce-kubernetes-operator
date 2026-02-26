@@ -6,6 +6,17 @@ import (
 	"strings"
 )
 
+// Aerospike configuration section keys used throughout config generation.
+const (
+	SectionNamespaces      = "namespaces"
+	SectionLogging         = "logging"
+	SectionSecurity        = "security"
+	SectionService         = "service"
+	SectionNetwork         = "network"
+	SectionHeartbeat       = "heartbeat"
+	KeyMeshSeedAddressPort = "mesh-seed-address-port"
+)
+
 type networkWriter func(netMap map[string]any) string
 
 func generateConfigCore(config map[string]any, writeNetwork networkWriter) (string, error) {
@@ -23,7 +34,7 @@ func generateConfigCore(config map[string]any, writeNetwork networkWriter) (stri
 		}
 
 		switch key {
-		case "namespaces":
+		case SectionNamespaces:
 			namespaces, ok := val.([]any)
 			if !ok {
 				return "", fmt.Errorf("namespaces must be a list")
@@ -34,24 +45,24 @@ func generateConfigCore(config map[string]any, writeNetwork networkWriter) (stri
 			}
 			b.WriteString(s)
 
-		case "logging":
+		case SectionLogging:
 			logs, ok := val.([]any)
 			if !ok {
 				return "", fmt.Errorf("logging must be a list")
 			}
 			b.WriteString(generateLoggingSection(logs))
 
-		case "security":
+		case SectionSecurity:
 			continue
 
-		case "service":
+		case SectionService:
 			svcMap, ok := val.(map[string]any)
 			if !ok {
 				return "", fmt.Errorf("service must be a map")
 			}
 			b.WriteString(generateServiceSection(svcMap))
 
-		case "network":
+		case SectionNetwork:
 			netMap, ok := val.(map[string]any)
 			if !ok {
 				return "", fmt.Errorf("network must be a map")
@@ -74,7 +85,7 @@ func generateConfigCore(config map[string]any, writeNetwork networkWriter) (stri
 // GenerateConfig converts an unstructured config map into aerospike.conf text format.
 func GenerateConfig(config map[string]any) (string, error) {
 	return generateConfigCore(config, func(netMap map[string]any) string {
-		return generateStanza("network", netMap)
+		return generateStanza(SectionNetwork, netMap)
 	})
 }
 

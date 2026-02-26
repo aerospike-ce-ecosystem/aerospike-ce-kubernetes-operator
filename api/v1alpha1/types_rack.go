@@ -52,8 +52,8 @@ type RackConfig struct {
 
 // Rack defines a single rack in the cluster topology.
 type Rack struct {
-	// ID is a unique rack identifier (integer).
-	// +kubebuilder:validation:Minimum=0
+	// ID is a unique rack identifier (integer). Must be >= 1; rack ID 0 is reserved.
+	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Required
 	ID int `json:"id"`
 

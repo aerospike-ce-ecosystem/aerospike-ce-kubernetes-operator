@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -78,7 +79,7 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 		return 0, err
 	}
 
-	podStatuses := make(map[string]asdbcev1alpha1.AerospikePodStatus)
+	podStatuses := make(map[string]asdbcev1alpha1.AerospikePodStatus, len(podList.Items))
 	readyCount := int32(0)
 
 	for i := range podList.Items {
@@ -86,8 +87,10 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 
 		rackID := 0
 		if rackStr, ok := pod.Labels[utils.RackLabel]; ok {
-			if _, err := fmt.Sscanf(rackStr, "%d", &rackID); err != nil {
+			if id, err := strconv.Atoi(rackStr); err != nil {
 				log.V(1).Info("Failed to parse rack ID label", "pod", pod.Name, "label", rackStr, "error", err)
+			} else {
+				rackID = id
 			}
 		}
 

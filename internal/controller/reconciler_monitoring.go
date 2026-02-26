@@ -137,7 +137,7 @@ func (r *AerospikeCEClusterReconciler) reconcileMetricsService(
 		existing.Spec.Ports = desired.Spec.Ports
 		needsUpdate = true
 	}
-	if !reflect.DeepEqual(existing.Spec.Selector, desired.Spec.Selector) {
+	if !maps.Equal(existing.Spec.Selector, desired.Spec.Selector) {
 		existing.Spec.Selector = desired.Spec.Selector
 		needsUpdate = true
 	}

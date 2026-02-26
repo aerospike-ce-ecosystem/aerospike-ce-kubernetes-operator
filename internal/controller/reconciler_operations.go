@@ -134,27 +134,30 @@ func (r *AerospikeCEClusterReconciler) getOperationTargetPods(
 	if err != nil {
 		return nil, err
 	}
+	return filterPodsByNames(allPods.Items, podList), nil
+}
 
-	if len(podList) == 0 {
-		// Target all pods
-		result := make([]*corev1.Pod, len(allPods.Items))
-		for i := range allPods.Items {
-			result[i] = &allPods.Items[i]
+// filterPodsByNames returns pointers to the pods matching the given names.
+// If names is empty, all pods are returned.
+func filterPodsByNames(allPods []corev1.Pod, names []string) []*corev1.Pod {
+	if len(names) == 0 {
+		result := make([]*corev1.Pod, len(allPods))
+		for i := range allPods {
+			result[i] = &allPods[i]
 		}
-		return result, nil
+		return result
 	}
 
-	// Filter to specified pods
-	podMap := make(map[string]*corev1.Pod)
-	for i := range allPods.Items {
-		podMap[allPods.Items[i].Name] = &allPods.Items[i]
+	podMap := make(map[string]*corev1.Pod, len(allPods))
+	for i := range allPods {
+		podMap[allPods[i].Name] = &allPods[i]
 	}
 
 	var result []*corev1.Pod
-	for _, name := range podList {
+	for _, name := range names {
 		if pod, ok := podMap[name]; ok {
 			result = append(result, pod)
 		}
 	}
-	return result, nil
+	return result
 }

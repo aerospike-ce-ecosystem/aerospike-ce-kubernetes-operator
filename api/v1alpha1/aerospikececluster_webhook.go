@@ -539,6 +539,11 @@ func (v *AerospikeCEClusterValidator) validateReplicationFactor(cluster *Aerospi
 		case int64:
 			rfInt = int(val)
 		case float64:
+			if val != float64(int(val)) || val < 0 {
+				errors = append(errors, fmt.Sprintf(
+					"namespace %q: replication-factor must be a positive integer, got %v", nsName, val))
+				continue
+			}
 			rfInt = int(val)
 		}
 		if rfInt > int(cluster.Spec.Size) {
@@ -592,6 +597,9 @@ func (v *AerospikeCEClusterValidator) validateRackConfig(rackConfig *RackConfig)
 	rackIDs := make(map[int]bool)
 	rackLabels := make(map[string]bool)
 	for _, rack := range rackConfig.Racks {
+		if rack.ID <= 0 {
+			errors = append(errors, fmt.Sprintf("rack ID must be > 0, got %d (rack ID 0 is reserved for the default rack)", rack.ID))
+		}
 		if rackIDs[rack.ID] {
 			errors = append(errors, fmt.Sprintf("duplicate rack ID %d in rackConfig", rack.ID))
 		}

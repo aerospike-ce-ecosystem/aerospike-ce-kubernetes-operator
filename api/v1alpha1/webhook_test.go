@@ -2468,3 +2468,155 @@ func TestValidateUpdate_RejectsRemovingOperationWhileInProgress(t *testing.T) {
 		t.Errorf("error should mention 'cannot change operations', got: %v", err)
 	}
 }
+
+// --- Replication factor float64 bounds check tests ---
+
+func TestValidate_ReplicationFactorNonIntegerFloat(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"namespaces": []any{
+						map[string]any{
+							"name":               "test",
+							"replication-factor": float64(2.5),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error when replication-factor is non-integer float")
+	}
+	if !strings.Contains(err.Error(), "must be a positive integer") {
+		t.Errorf("error should mention 'must be a positive integer', got: %v", err)
+	}
+}
+
+func TestValidate_ReplicationFactorNegativeFloat(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"namespaces": []any{
+						map[string]any{
+							"name":               "test",
+							"replication-factor": float64(-1),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error when replication-factor is negative")
+	}
+	if !strings.Contains(err.Error(), "must be a positive integer") {
+		t.Errorf("error should mention 'must be a positive integer', got: %v", err)
+	}
+}
+
+func TestValidate_ReplicationFactorValidFloat(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"namespaces": []any{
+						map[string]any{
+							"name":               "test",
+							"replication-factor": float64(2),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error for valid float64 replication-factor: %v", err)
+	}
+}
+
+// --- Rack ID validation tests ---
+
+func TestValidate_RackIDZero(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks: []Rack{
+					{ID: 0},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error when rack ID is 0")
+	}
+	if !strings.Contains(err.Error(), "rack ID must be > 0") {
+		t.Errorf("error should mention 'rack ID must be > 0', got: %v", err)
+	}
+}
+
+func TestValidate_RackIDNegative(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks: []Rack{
+					{ID: -1},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error when rack ID is negative")
+	}
+	if !strings.Contains(err.Error(), "rack ID must be > 0") {
+		t.Errorf("error should mention 'rack ID must be > 0', got: %v", err)
+	}
+}
+
+func TestValidate_RackIDPositive(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  6,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks: []Rack{
+					{ID: 1},
+					{ID: 2},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error for valid rack IDs: %v", err)
+	}
+}

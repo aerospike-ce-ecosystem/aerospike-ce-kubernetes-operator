@@ -124,12 +124,14 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if err := r.reconcileHeadlessService(ctx, cluster); err != nil {
 		log.Error(err, "Failed to reconcile headless service")
 		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "ReconcileError", "Headless service: %v", err)
+		metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, metrics.ReasonService).Inc()
 		return ctrl.Result{}, err
 	}
 
 	// 6b. Reconcile per-pod services
 	if err := r.reconcilePodServices(ctx, cluster); err != nil {
 		log.Error(err, "Failed to reconcile per-pod services")
+		metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, metrics.ReasonService).Inc()
 		return ctrl.Result{}, err
 	}
 
@@ -166,31 +168,37 @@ func (r *AerospikeCEClusterReconciler) reconcileCluster(
 	for i, rack := range racks {
 		ri := rackInfos[i]
 		if err := r.reconcileConfigMap(ctx, cluster, &rack, ri.effectiveConfig); err != nil {
+			metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, metrics.ReasonConfigMap).Inc()
 			return ctrl.Result{}, err
 		}
 		if err := r.reconcileStatefulSet(ctx, cluster, &rack, ri.effectiveConfig, ri.hash, ri.rackSize); err != nil {
+			metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, metrics.ReasonStatefulSet).Inc()
 			return ctrl.Result{}, err
 		}
 	}
 
 	// Clean up removed racks
 	if err := r.cleanupRemovedRacks(ctx, cluster, racks); err != nil {
+		metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, metrics.ReasonStatefulSet).Inc()
 		return ctrl.Result{}, err
 	}
 
 	// Reconcile auxiliary resources: PDB, Monitoring, NetworkPolicy
-	for _, fn := range []func(context.Context, *asdbcev1alpha1.AerospikeCECluster) error{
+	auxReasons := []string{metrics.ReasonPDB, metrics.ReasonMonitoring, metrics.ReasonNetPolicy}
+	for idx, fn := range []func(context.Context, *asdbcev1alpha1.AerospikeCECluster) error{
 		r.reconcilePDB,
 		r.reconcileMonitoring,
 		r.reconcileNetworkPolicy,
 	} {
 		if err := fn(ctx, cluster); err != nil {
+			metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, auxReasons[idx]).Inc()
 			return ctrl.Result{}, err
 		}
 	}
 
 	// Handle on-demand operations
 	if inProgress, err := r.reconcileOperations(ctx, cluster); err != nil {
+		metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, metrics.ReasonOperations).Inc()
 		return ctrl.Result{}, err
 	} else if inProgress {
 		return ctrl.Result{RequeueAfter: defaultReconcileRetryInterval}, nil
@@ -201,6 +209,7 @@ func (r *AerospikeCEClusterReconciler) reconcileCluster(
 		restarted, err := r.reconcileRollingRestart(ctx, cluster, &rack)
 		if err != nil {
 			log.Error(err, "Failed rolling restart", "rack", rack.ID)
+			metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, metrics.ReasonRestart).Inc()
 			return ctrl.Result{}, err
 		}
 		if restarted {
@@ -212,6 +221,7 @@ func (r *AerospikeCEClusterReconciler) reconcileCluster(
 	if err := r.reconcileACL(ctx, cluster); err != nil {
 		log.Error(err, "Failed to reconcile ACL")
 		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "ACLSyncError", "ACL sync failed: %v", err)
+		metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, metrics.ReasonACL).Inc()
 	}
 
 	// Update status and set phase to Completed.
@@ -219,6 +229,7 @@ func (r *AerospikeCEClusterReconciler) reconcileCluster(
 		if errors.IsConflict(err) {
 			return ctrl.Result{Requeue: true}, nil
 		}
+		metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, metrics.ReasonStatus).Inc()
 		return ctrl.Result{}, err
 	}
 

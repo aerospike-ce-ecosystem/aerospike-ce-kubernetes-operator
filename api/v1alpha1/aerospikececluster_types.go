@@ -135,6 +135,10 @@ type OperationStatus struct {
 	// FailedPods lists pods where the operation failed.
 	// +optional
 	FailedPods []string `json:"failedPods,omitempty"`
+
+	// FailedPodErrors maps pod names to their error messages for debugging.
+	// +optional
+	FailedPodErrors map[string]string `json:"failedPodErrors,omitempty"`
 }
 
 // ValidationPolicySpec controls validation behavior.

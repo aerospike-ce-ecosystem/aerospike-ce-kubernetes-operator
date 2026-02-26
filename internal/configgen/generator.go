@@ -37,7 +37,7 @@ func generateConfigCore(config map[string]any, writeNetwork networkWriter) (stri
 		case SectionNamespaces:
 			namespaces, ok := val.([]any)
 			if !ok {
-				return "", fmt.Errorf("namespaces must be a list")
+				return "", fmt.Errorf("aerospike.conf: namespaces must be a list, got %T", val)
 			}
 			s, err := generateNamespaceSections(namespaces)
 			if err != nil {
@@ -48,7 +48,7 @@ func generateConfigCore(config map[string]any, writeNetwork networkWriter) (stri
 		case SectionLogging:
 			logs, ok := val.([]any)
 			if !ok {
-				return "", fmt.Errorf("logging must be a list")
+				return "", fmt.Errorf("aerospike.conf: logging must be a list, got %T", val)
 			}
 			b.WriteString(generateLoggingSection(logs))
 
@@ -58,14 +58,14 @@ func generateConfigCore(config map[string]any, writeNetwork networkWriter) (stri
 		case SectionService:
 			svcMap, ok := val.(map[string]any)
 			if !ok {
-				return "", fmt.Errorf("service must be a map")
+				return "", fmt.Errorf("aerospike.conf: service section must be a map, got %T", val)
 			}
 			b.WriteString(generateServiceSection(svcMap))
 
 		case SectionNetwork:
 			netMap, ok := val.(map[string]any)
 			if !ok {
-				return "", fmt.Errorf("network must be a map")
+				return "", fmt.Errorf("aerospike.conf: network section must be a map, got %T", val)
 			}
 			b.WriteString(writeNetwork(netMap))
 

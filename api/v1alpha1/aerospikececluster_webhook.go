@@ -904,6 +904,11 @@ func (v *AerospikeCEClusterValidator) validateMonitoring(m *AerospikeMonitoringS
 	var errors []string
 	var warnings admission.Warnings
 
+	// Port range validation.
+	if m.Port < 1 || m.Port > 65535 {
+		errors = append(errors, fmt.Sprintf("monitoring.port %d is outside valid range (1-65535)", m.Port))
+	}
+
 	// Port conflict check with Aerospike reserved ports.
 	if portName, ok := aerospikeReservedPorts[m.Port]; ok {
 		errors = append(errors, fmt.Sprintf("monitoring.port %d conflicts with Aerospike %s port", m.Port, portName))

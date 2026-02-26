@@ -93,6 +93,10 @@ func (r *AerospikeCEClusterReconciler) reconcileOperations(
 		if opErr != nil {
 			log.Error(opErr, "Operation failed on pod", "pod", pod.Name, "kind", op.Kind)
 			opStatus.FailedPods = append(opStatus.FailedPods, pod.Name)
+			if opStatus.FailedPodErrors == nil {
+				opStatus.FailedPodErrors = make(map[string]string)
+			}
+			opStatus.FailedPodErrors[pod.Name] = opErr.Error()
 		} else {
 			opStatus.CompletedPods = append(opStatus.CompletedPods, pod.Name)
 			completedSet[pod.Name] = true

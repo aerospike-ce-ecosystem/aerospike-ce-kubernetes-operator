@@ -7,6 +7,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/ptr"
 
 	v1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/storage"
@@ -75,6 +76,23 @@ func BuildAerospikeContainer(cluster *v1alpha1.AerospikeCECluster, volumeMounts 
 		}
 		if spec.SecurityContext != nil {
 			c.SecurityContext = spec.SecurityContext
+		} else {
+			c.SecurityContext = &corev1.SecurityContext{
+				AllowPrivilegeEscalation: ptr.To(false),
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+				},
+				// Note: readOnlyRootFilesystem must be false — Aerospike needs writable paths
+			}
+		}
+	} else {
+		// No user-provided container spec; apply a sensible default.
+		c.SecurityContext = &corev1.SecurityContext{
+			AllowPrivilegeEscalation: ptr.To(false),
+			Capabilities: &corev1.Capabilities{
+				Drop: []corev1.Capability{"ALL"},
+			},
+			// Note: readOnlyRootFilesystem must be false — Aerospike needs writable paths
 		}
 	}
 
@@ -129,6 +147,11 @@ func BuildInitContainer(
 		},
 		Env:          env,
 		VolumeMounts: initMounts,
+		SecurityContext: &corev1.SecurityContext{
+			AllowPrivilegeEscalation: ptr.To(false),
+			// Note: readOnlyRootFilesystem must be false — init container needs writable fs
+			// for config processing and volume initialization.
+		},
 	}
 }
 

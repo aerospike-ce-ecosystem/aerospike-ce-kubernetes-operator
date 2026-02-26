@@ -216,7 +216,24 @@ func lastSegment(path string) string {
 }
 
 func valuesEqual(a, b any) bool {
-	return reflect.DeepEqual(a, b)
+	switch aTyped := a.(type) {
+	case string:
+		bTyped, ok := b.(string)
+		return ok && aTyped == bTyped
+	case float64:
+		bTyped, ok := b.(float64)
+		return ok && aTyped == bTyped
+	case bool:
+		bTyped, ok := b.(bool)
+		return ok && aTyped == bTyped
+	case int:
+		bTyped, ok := b.(int)
+		return ok && aTyped == bTyped
+	case nil:
+		return b == nil
+	default:
+		return reflect.DeepEqual(a, b)
+	}
 }
 
 func asSlice(v any) []any {
@@ -230,7 +247,7 @@ func asSlice(v any) []any {
 }
 
 func namespacesByName(namespaces []any) map[string]map[string]any {
-	result := make(map[string]map[string]any)
+	result := make(map[string]map[string]any, len(namespaces))
 	for _, ns := range namespaces {
 		if nsMap, ok := ns.(map[string]any); ok {
 			if name, ok := nsMap["name"].(string); ok {

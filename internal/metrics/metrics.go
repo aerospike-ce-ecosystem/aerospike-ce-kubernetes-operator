@@ -70,6 +70,31 @@ var (
 		},
 		[]string{"namespace", "name", "result"},
 	)
+
+	// ReconcileErrorsTotal counts reconciliation errors by reason.
+	// Reason labels are a bounded set of constants (see ReconcileErrorReason* consts).
+	ReconcileErrorsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "aerospike_ce_reconcile_errors_total",
+			Help: "Total number of reconciliation errors by reason",
+		},
+		[]string{"namespace", "name", "reason"},
+	)
+)
+
+// ReconcileErrorReason constants define bounded labels for ReconcileErrorsTotal.
+const (
+	ReasonService     = "Service"
+	ReasonConfigMap   = "ConfigMap"
+	ReasonStatefulSet = "StatefulSet"
+	ReasonPDB         = "PDB"
+	ReasonRestart     = "Restart"
+	ReasonACL         = "ACL"
+	ReasonMonitoring  = "Monitoring"
+	ReasonNetPolicy   = "NetworkPolicy"
+	ReasonStatus      = "Status"
+	ReasonOperations  = "Operations"
+	ReasonOther       = "Other"
 )
 
 // PhaseToFloat converts a phase string to a float64 for the gauge.
@@ -99,6 +124,14 @@ func CleanupClusterMetrics(namespace, name string) {
 	for _, result := range []string{"success", "error"} {
 		ACLSyncTotal.Delete(prometheus.Labels{"namespace": namespace, "name": name, "result": result})
 	}
+
+	for _, reason := range []string{
+		ReasonService, ReasonConfigMap, ReasonStatefulSet, ReasonPDB,
+		ReasonRestart, ReasonACL, ReasonMonitoring, ReasonNetPolicy,
+		ReasonStatus, ReasonOperations, ReasonOther,
+	} {
+		ReconcileErrorsTotal.Delete(prometheus.Labels{"namespace": namespace, "name": name, "reason": reason})
+	}
 }
 
 func init() {
@@ -110,5 +143,6 @@ func init() {
 		ColdRestartsTotal,
 		DynamicConfigUpdatesTotal,
 		ACLSyncTotal,
+		ReconcileErrorsTotal,
 	)
 }

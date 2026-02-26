@@ -6,82 +6,9 @@ import (
 	"strings"
 )
 
-// GenerateConfig converts an unstructured config map into aerospike.conf text format.
-func GenerateConfig(config map[string]any) (string, error) {
-	if config == nil {
-		return "", fmt.Errorf("config map is nil")
-	}
+type networkWriter func(netMap map[string]any) string
 
-	var b strings.Builder
-
-	// Process top-level keys in a deterministic order.
-	keys := sortedKeys(config)
-
-	for _, key := range keys {
-		val := config[key]
-		if val == nil {
-			continue
-		}
-
-		switch key {
-		case "namespaces":
-			namespaces, ok := val.([]any)
-			if !ok {
-				return "", fmt.Errorf("namespaces must be a list")
-			}
-			s, err := generateNamespaceSections(namespaces)
-			if err != nil {
-				return "", err
-			}
-			b.WriteString(s)
-
-		case "logging":
-			logs, ok := val.([]any)
-			if !ok {
-				return "", fmt.Errorf("logging must be a list")
-			}
-			s := generateLoggingSection(logs)
-			b.WriteString(s)
-
-		case "security":
-			// CE does not support the security stanza; skip it to avoid
-			// "enterprise-only" startup errors.
-			continue
-
-		case "service":
-			svcMap, ok := val.(map[string]any)
-			if !ok {
-				return "", fmt.Errorf("service must be a map")
-			}
-			b.WriteString(generateServiceSection(svcMap))
-
-		case "network":
-			netMap, ok := val.(map[string]any)
-			if !ok {
-				return "", fmt.Errorf("network must be a map")
-			}
-			b.WriteString(generateStanza("network", netMap))
-
-		default:
-			switch v := val.(type) {
-			case map[string]any:
-				b.WriteString(generateStanza(key, v))
-			default:
-				b.WriteString(fmt.Sprintf("%s %s\n", key, formatValue(val)))
-			}
-		}
-	}
-
-	return b.String(), nil
-}
-
-// GenerateConfForPod generates an aerospike.conf with mesh seeds injected for the given pod.
-func GenerateConfForPod(
-	config map[string]any,
-	podName, serviceName, namespace string,
-	podNames []string,
-	heartbeatPort int,
-) (string, error) {
+func generateConfigCore(config map[string]any, writeNetwork networkWriter) (string, error) {
 	if config == nil {
 		return "", fmt.Errorf("config map is nil")
 	}
@@ -115,7 +42,6 @@ func GenerateConfForPod(
 			b.WriteString(generateLoggingSection(logs))
 
 		case "security":
-			// CE does not support the security stanza; skip it.
 			continue
 
 		case "service":
@@ -130,7 +56,7 @@ func GenerateConfForPod(
 			if !ok {
 				return "", fmt.Errorf("network must be a map")
 			}
-			b.WriteString(generateNetworkSection(netMap, podName, serviceName, namespace, podNames, heartbeatPort))
+			b.WriteString(writeNetwork(netMap))
 
 		default:
 			switch v := val.(type) {
@@ -143,6 +69,25 @@ func GenerateConfForPod(
 	}
 
 	return b.String(), nil
+}
+
+// GenerateConfig converts an unstructured config map into aerospike.conf text format.
+func GenerateConfig(config map[string]any) (string, error) {
+	return generateConfigCore(config, func(netMap map[string]any) string {
+		return generateStanza("network", netMap)
+	})
+}
+
+// GenerateConfForPod generates an aerospike.conf with mesh seeds injected for the given pod.
+func GenerateConfForPod(
+	config map[string]any,
+	podName, serviceName, namespace string,
+	podNames []string,
+	heartbeatPort int,
+) (string, error) {
+	return generateConfigCore(config, func(netMap map[string]any) string {
+		return generateNetworkSection(netMap, podName, serviceName, namespace, podNames, heartbeatPort)
+	})
 }
 
 // generateStanza outputs a named stanza block with its key-value pairs.

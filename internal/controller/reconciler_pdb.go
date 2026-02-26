@@ -30,6 +30,8 @@ func (r *AerospikeCEClusterReconciler) reconcilePDB(
 			if err := r.Delete(ctx, existing); err != nil && !errors.IsNotFound(err) {
 				return fmt.Errorf("deleting PDB %s: %w", pdbName, err)
 			}
+		} else if !errors.IsNotFound(err) {
+			return fmt.Errorf("getting PDB %s for deletion: %w", pdbName, err)
 		}
 		return nil
 	}
@@ -73,7 +75,7 @@ func (r *AerospikeCEClusterReconciler) reconcilePDB(
 	}
 
 	// Update only if MaxUnavailable changed
-	if existing.Spec.MaxUnavailable != nil && existing.Spec.MaxUnavailable.String() == maxUnavailable.String() {
+	if existing.Spec.MaxUnavailable != nil && intOrStringEqual(*existing.Spec.MaxUnavailable, maxUnavailable) {
 		return nil
 	}
 	existing.Spec.MaxUnavailable = &maxUnavailable
@@ -82,4 +84,11 @@ func (r *AerospikeCEClusterReconciler) reconcilePDB(
 		return fmt.Errorf("updating PDB %s: %w", pdbName, err)
 	}
 	return nil
+}
+
+// intOrStringEqual compares two IntOrString values by type and value,
+// avoiding the ambiguity of String()-based comparison where int(1) and
+// string("1") would appear equal.
+func intOrStringEqual(a, b intstr.IntOrString) bool {
+	return a.Type == b.Type && a.IntVal == b.IntVal && a.StrVal == b.StrVal
 }

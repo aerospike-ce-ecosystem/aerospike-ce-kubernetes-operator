@@ -178,6 +178,7 @@ func setCondition(cluster *asdbcev1alpha1.AerospikeCECluster, condType string, s
 	newCond := metav1.Condition{
 		Type:               condType,
 		Status:             condStatus,
+		ObservedGeneration: cluster.Generation,
 		Reason:             reason,
 		Message:            message,
 		LastTransitionTime: metav1.Now(),
@@ -185,7 +186,7 @@ func setCondition(cluster *asdbcev1alpha1.AerospikeCECluster, condType string, s
 
 	for i, existing := range cluster.Status.Conditions {
 		if existing.Type == condType {
-			if existing.Status != condStatus {
+			if existing.Status != condStatus || existing.ObservedGeneration != cluster.Generation {
 				cluster.Status.Conditions[i] = newCond
 			}
 			return

@@ -1,7 +1,7 @@
 package configgen
 
 import (
-	"fmt"
+	"strconv"
 	"strings"
 
 	v1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
@@ -80,9 +80,15 @@ func generateHeartbeatSubsection(
 	}
 
 	// Inject mesh-seed-address-port for all pods.
+	dnsSuffix := "." + serviceName + "." + namespace + ".svc.cluster.local"
+	portStr := strconv.Itoa(heartbeatPort)
 	for _, pName := range podNames {
-		fqdn := fmt.Sprintf("%s.%s.%s.svc.cluster.local", pName, serviceName, namespace)
-		b.WriteString(fmt.Sprintf("\t\tmesh-seed-address-port %s %d\n", fqdn, heartbeatPort))
+		b.WriteString("\t\tmesh-seed-address-port ")
+		b.WriteString(pName)
+		b.WriteString(dnsSuffix)
+		b.WriteString(" ")
+		b.WriteString(portStr)
+		b.WriteString("\n")
 	}
 
 	b.WriteString("\t}\n")

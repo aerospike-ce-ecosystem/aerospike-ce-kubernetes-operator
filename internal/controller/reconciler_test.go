@@ -10,10 +10,10 @@ func TestGetRacks(t *testing.T) {
 	r := &AerospikeCEClusterReconciler{}
 
 	tests := []struct {
-		name      string
-		cluster   *asdbcev1alpha1.AerospikeCECluster
-		wantLen   int
-		wantIDs   []int
+		name    string
+		cluster *asdbcev1alpha1.AerospikeCECluster
+		wantLen int
+		wantIDs []int
 	}{
 		{
 			name: "nil RackConfig returns default rack with ID 0",

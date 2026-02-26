@@ -64,7 +64,7 @@ func (r *AerospikeCEClusterReconciler) reconcileACL(
 			}
 		}
 	} else {
-		log.V(0).Info("Failed to list cluster pods for ACL sync, will retry", "error", err)
+		log.Info("Failed to list cluster pods for ACL sync, will retry", "error", err)
 	}
 	if !podReady {
 		log.Info("No ready pods, skipping ACL sync")
@@ -367,7 +367,7 @@ func privilegeFromCodeString(s string) aero.Privilege {
 	default:
 		// Log warning for unknown privilege code — webhook should have caught this,
 		// but log it to surface configuration drift.
-		logf.Log.V(0).Info("Unknown privilege code, defaulting to Read", "code", s)
+		logf.Log.Info("Unknown privilege code, defaulting to Read", "code", s)
 		return aero.Privilege{Code: aero.Read}
 	}
 }

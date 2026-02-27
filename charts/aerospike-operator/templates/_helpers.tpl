@@ -177,5 +177,5 @@ UI service account name.
 UI container image with tag.
 */}}
 {{- define "aerospike-operator.ui.image" -}}
-{{- printf "%s:%s" .Values.ui.image.repository (default "latest" .Values.ui.image.tag) }}
+{{- printf "%s:%s" .Values.ui.image.repository (default .Chart.AppVersion .Values.ui.image.tag) }}
 {{- end }}

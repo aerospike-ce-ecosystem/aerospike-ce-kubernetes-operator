@@ -1,10 +1,10 @@
-{{- if and .Values.rbac.create .Values.k8s.enabled }}
+{{- if and .Values.ui.enabled .Values.ui.rbac.create .Values.ui.k8s.enabled }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "aerospike-cluster-manager.fullname" . }}
+  name: {{ include "aerospike-operator.ui.fullname" . }}
   labels:
-    {{- include "aerospike-cluster-manager.labels" . | nindent 4 }}
+    {{- include "aerospike-operator.ui.labels" . | nindent 4 }}
 rules:
   - apiGroups: ["acko.io"]
     resources: ["aerospikececlusters"]

@@ -91,7 +91,7 @@ helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
 
 Access the UI:
 ```bash
-kubectl port-forward svc/<release-name>-ui 3000:3000 -n aerospike-operator
+kubectl port-forward svc/<release-name>-aerospike-operator-ui 3000:3000 -n aerospike-operator
 # Open http://localhost:3000
 ```
 
@@ -158,7 +158,7 @@ See [values.yaml](values.yaml) for all available configuration options with desc
 | `cilium` | CiliumNetworkPolicy (alternative to networkPolicy) |
 | `podDisruptionBudget` | PDB for operator pods |
 | `autoscaling` | HPA for operator pods |
-| `ui` | Aerospike Cluster Manager web UI (subchart) |
+| `ui` | Aerospike Cluster Manager web UI |
 
 ## Uninstall
 

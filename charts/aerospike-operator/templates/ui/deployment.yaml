@@ -1,110 +1,111 @@
+{{- if .Values.ui.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "aerospike-cluster-manager.fullname" . }}
+  name: {{ include "aerospike-operator.ui.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "aerospike-cluster-manager.labels" . | nindent 4 }}
+    {{- include "aerospike-operator.ui.labels" . | nindent 4 }}
 spec:
-  {{- if not .Values.autoscaling.enabled }}
-  replicas: {{ .Values.replicaCount }}
+  {{- if not .Values.ui.autoscaling.enabled }}
+  replicas: {{ .Values.ui.replicaCount }}
   {{- end }}
-  {{- if .Values.postgresql.enabled }}
+  {{- if .Values.ui.postgresql.enabled }}
   strategy:
     type: Recreate
   {{- end }}
   selector:
     matchLabels:
-      {{- include "aerospike-cluster-manager.selectorLabels" . | nindent 6 }}
+      {{- include "aerospike-operator.ui.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "aerospike-cluster-manager.selectorLabels" . | nindent 8 }}
-      {{- with .Values.podLabels }}
+        {{- include "aerospike-operator.ui.selectorLabels" . | nindent 8 }}
+      {{- with .Values.ui.podLabels }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
-        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
-      {{- with .Values.podAnnotations }}
+        checksum/config: {{ include (print $.Template.BasePath "/ui/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/ui/secret.yaml") . | sha256sum }}
+      {{- with .Values.ui.podAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
-      serviceAccountName: {{ include "aerospike-cluster-manager.serviceAccountName" . }}
-      {{- with .Values.imagePullSecrets }}
+      serviceAccountName: {{ include "aerospike-operator.ui.serviceAccountName" . }}
+      {{- with .Values.ui.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.postgresql.enabled }}
+      {{- if .Values.ui.postgresql.enabled }}
       securityContext:
-        {{- with .Values.podSecurityContext.seccompProfile }}
+        {{- with .Values.ui.podSecurityContext.seccompProfile }}
         seccompProfile:
           {{- toYaml . | nindent 10 }}
         {{- end }}
       {{- else }}
-      {{- with .Values.podSecurityContext }}
+      {{- with .Values.ui.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- end }}
-      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds | default 45 }}
+      terminationGracePeriodSeconds: {{ .Values.ui.terminationGracePeriodSeconds | default 45 }}
       containers:
-        - name: {{ .Chart.Name }}
-          image: {{ include "aerospike-cluster-manager.image" . }}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+        - name: aerospike-cluster-manager
+          image: {{ include "aerospike-operator.ui.image" . }}
+          imagePullPolicy: {{ .Values.ui.image.pullPolicy }}
           ports:
             - name: frontend
-              containerPort: {{ .Values.service.frontendPort }}
+              containerPort: {{ .Values.ui.service.frontendPort }}
               protocol: TCP
             - name: backend
-              containerPort: {{ .Values.service.backendPort }}
+              containerPort: {{ .Values.ui.service.backendPort }}
               protocol: TCP
           envFrom:
             - configMapRef:
-                name: {{ include "aerospike-cluster-manager.fullname" . }}-config
+                name: {{ include "aerospike-operator.ui.fullname" . }}-config
             - secretRef:
-                name: {{ include "aerospike-cluster-manager.fullname" . }}-db
-          {{- with .Values.extraEnv }}
+                name: {{ include "aerospike-operator.ui.fullname" . }}-db
+          {{- with .Values.ui.extraEnv }}
           env:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.securityContext }}
+          {{- with .Values.ui.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.livenessProbe }}
+          {{- with .Values.ui.livenessProbe }}
           livenessProbe:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.readinessProbe }}
+          {{- with .Values.ui.readinessProbe }}
           readinessProbe:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.startupProbe }}
+          {{- with .Values.ui.startupProbe }}
           startupProbe:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.resources }}
+          {{- with .Values.ui.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-        {{- if .Values.postgresql.enabled }}
+        {{- if .Values.ui.postgresql.enabled }}
         - name: postgres
-          image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
-          imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
+          image: "{{ .Values.ui.postgresql.image.repository }}:{{ .Values.ui.postgresql.image.tag }}"
+          imagePullPolicy: {{ .Values.ui.postgresql.image.pullPolicy }}
           ports:
             - name: postgres
               containerPort: 5432
               protocol: TCP
           env:
             - name: POSTGRES_DB
-              value: {{ .Values.postgresql.database | quote }}
+              value: {{ .Values.ui.postgresql.database | quote }}
             - name: POSTGRES_USER
-              value: {{ .Values.postgresql.username | quote }}
+              value: {{ .Values.ui.postgresql.username | quote }}
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "aerospike-cluster-manager.fullname" . }}-db
+                  name: {{ include "aerospike-operator.ui.fullname" . }}-db
                   key: POSTGRES_PASSWORD
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
@@ -113,9 +114,9 @@ spec:
               command:
                 - pg_isready
                 - -U
-                - {{ .Values.postgresql.username }}
+                - {{ .Values.ui.postgresql.username }}
                 - -d
-                - {{ .Values.postgresql.database }}
+                - {{ .Values.ui.postgresql.database }}
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 5
@@ -124,9 +125,9 @@ spec:
               command:
                 - pg_isready
                 - -U
-                - {{ .Values.postgresql.username }}
+                - {{ .Values.ui.postgresql.username }}
                 - -d
-                - {{ .Values.postgresql.database }}
+                - {{ .Values.ui.postgresql.database }}
             initialDelaySeconds: 15
             periodSeconds: 20
             timeoutSeconds: 5
@@ -135,7 +136,7 @@ spec:
             capabilities:
               drop:
                 - ALL
-          {{- with .Values.postgresql.resources }}
+          {{- with .Values.ui.postgresql.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -144,26 +145,27 @@ spec:
               mountPath: /var/lib/postgresql/data
       volumes:
         - name: data
-          {{- if .Values.persistence.enabled }}
+          {{- if .Values.ui.persistence.enabled }}
           persistentVolumeClaim:
-            claimName: {{ include "aerospike-cluster-manager.fullname" . }}-data
+            claimName: {{ include "aerospike-operator.ui.fullname" . }}-data
           {{- else }}
           emptyDir: {}
           {{- end }}
         {{- end }}
-      {{- with .Values.nodeSelector }}
+      {{- with .Values.ui.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.tolerations }}
+      {{- with .Values.ui.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.affinity }}
+      {{- with .Values.ui.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.topologySpreadConstraints }}
+      {{- with .Values.ui.topologySpreadConstraints }}
       topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+{{- end }}

@@ -1,11 +1,11 @@
-{{- if .Values.tests.enabled }}
+{{- if and .Values.ui.enabled .Values.ui.tests.enabled }}
 apiVersion: v1
 kind: Pod
 metadata:
-  name: {{ include "aerospike-cluster-manager.fullname" . }}-test-backend
+  name: {{ include "aerospike-operator.ui.fullname" . }}-test-backend
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "aerospike-cluster-manager.labels" . | nindent 4 }}
+    {{- include "aerospike-operator.ui.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": test
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
@@ -25,7 +25,7 @@ spec:
           echo "Testing backend health endpoint..."
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
             --max-time 10 \
-            http://{{ include "aerospike-cluster-manager.fullname" . }}:{{ .Values.service.backendPort }}/api/health)
+            http://{{ include "aerospike-operator.ui.fullname" . }}:{{ .Values.ui.service.backendPort }}/api/health)
           echo "HTTP status code: $HTTP_CODE"
           if [ "$HTTP_CODE" = "200" ]; then
             echo "Backend health check passed!"

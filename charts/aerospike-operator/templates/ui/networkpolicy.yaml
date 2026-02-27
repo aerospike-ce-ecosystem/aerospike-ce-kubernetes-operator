@@ -1,25 +1,25 @@
-{{- if .Values.networkPolicy.enabled }}
+{{- if and .Values.ui.enabled .Values.ui.networkPolicy.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "aerospike-cluster-manager.fullname" . }}
+  name: {{ include "aerospike-operator.ui.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "aerospike-cluster-manager.labels" . | nindent 4 }}
+    {{- include "aerospike-operator.ui.labels" . | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
-      {{- include "aerospike-cluster-manager.selectorLabels" . | nindent 6 }}
+      {{- include "aerospike-operator.ui.selectorLabels" . | nindent 6 }}
   policyTypes:
     - Ingress
     - Egress
   ingress:
     - ports:
-        - port: {{ .Values.service.frontendPort }}
+        - port: {{ .Values.ui.service.frontendPort }}
           protocol: TCP
-        - port: {{ .Values.service.backendPort }}
+        - port: {{ .Values.ui.service.backendPort }}
           protocol: TCP
-      {{- with .Values.networkPolicy.ingressFrom }}
+      {{- with .Values.ui.networkPolicy.ingressFrom }}
       from:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -42,13 +42,13 @@ spec:
           protocol: TCP
     # Aerospike clusters (within cluster network)
     - ports:
-        - port: {{ .Values.aerospikePorts.service }}
+        - port: {{ .Values.ui.aerospikePorts.service }}
           protocol: TCP
-        - port: {{ .Values.aerospikePorts.fabric }}
+        - port: {{ .Values.ui.aerospikePorts.fabric }}
           protocol: TCP
-        - port: {{ .Values.aerospikePorts.heartbeat }}
+        - port: {{ .Values.ui.aerospikePorts.heartbeat }}
           protocol: TCP
-    {{- if not .Values.postgresql.enabled }}
+    {{- if not .Values.ui.postgresql.enabled }}
     # External PostgreSQL
     - ports:
         - port: 5432

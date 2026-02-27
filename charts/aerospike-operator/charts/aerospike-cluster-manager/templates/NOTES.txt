@@ -1,0 +1,97 @@
+========================================================================
+  Aerospike Cluster Manager has been deployed!
+========================================================================
+
+{{- if .Values.ingress.enabled }}
+
+Access the UI via Ingress:
+{{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+
+{{- else }}
+
+Access the UI via port-forward:
+
+  kubectl port-forward svc/{{ include "aerospike-cluster-manager.fullname" . }} {{ .Values.service.frontendPort }}:{{ .Values.service.frontendPort }} -n {{ .Release.Namespace }}
+
+Then open http://localhost:{{ .Values.service.frontendPort }} in your browser.
+
+{{- end }}
+
+------------------------------------------------------------------------
+  Backend Health Check
+------------------------------------------------------------------------
+
+Verify the backend is running:
+
+  kubectl port-forward svc/{{ include "aerospike-cluster-manager.fullname" . }} {{ .Values.service.backendPort }}:{{ .Values.service.backendPort }} -n {{ .Release.Namespace }}
+  curl http://localhost:{{ .Values.service.backendPort }}/api/health
+
+------------------------------------------------------------------------
+  K8s Cluster Management
+------------------------------------------------------------------------
+
+{{- if .Values.k8s.enabled }}
+
+K8s Cluster Management is ENABLED.
+You can create and manage Aerospike clusters directly from the UI.
+
+PREREQUISITE: The Aerospike CE Kubernetes Operator (acko.io CRD) must be
+installed in the cluster for K8s management features to work.
+  Verify: kubectl get crd aerospikececlusters.acko.io
+
+{{- if .Values.rbac.create }}
+RBAC resources (ClusterRole/ClusterRoleBinding) have been created to allow
+the service account to manage Aerospike Kubernetes Operator resources.
+
+NOTE: The ClusterRole grants create/delete/patch permissions for
+AerospikeCECluster CRDs across all namespaces. For production environments,
+consider restricting to specific namespaces using a Role + RoleBinding instead.
+{{- else }}
+
+WARNING: RBAC resource creation is disabled (rbac.create=false).
+  Ensure the service account "{{ include "aerospike-cluster-manager.serviceAccountName" . }}"
+  has the required permissions to manage Aerospike Kubernetes Operator CRDs,
+  or K8s cluster management features will not work.
+
+  Required permissions:
+    - apiGroups: ["acko.io"]
+      resources: ["aerospikececlusters", "aerospikececlusters/status"]
+      verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+    - apiGroups: [""]
+      resources: ["namespaces", "pods"]
+      verbs: ["get", "list"]
+    - apiGroups: ["storage.k8s.io"]
+      resources: ["storageclasses"]
+      verbs: ["list"]
+{{- end }}
+
+{{- else }}
+
+K8s Cluster Management is DISABLED.
+To enable it, set k8s.enabled=true in your values.
+
+{{- end }}
+
+{{- if not .Values.networkPolicy.enabled }}
+
+SECURITY NOTE: NetworkPolicy is disabled. For production deployments, consider
+enabling it to restrict ingress/egress traffic (networkPolicy.enabled=true).
+{{- end }}
+
+------------------------------------------------------------------------
+  Useful Commands
+------------------------------------------------------------------------
+
+Check pod status:
+  kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+View logs:
+  kubectl logs -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }} -f
+
+{{- if .Values.persistence.enabled }}
+
+Persistent storage is enabled ({{ .Values.persistence.size }}).
+SQLite data will persist across pod restarts.
+{{- end }}

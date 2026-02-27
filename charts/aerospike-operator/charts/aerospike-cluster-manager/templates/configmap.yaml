@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "aerospike-cluster-manager.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "aerospike-cluster-manager.labels" . | nindent 4 }}
+data:
+  CORS_ORIGINS: {{ .Values.env.corsOrigins | quote }}
+  LOG_LEVEL: {{ .Values.env.logLevel | quote }}
+  DATABASE_PATH: "/app/data/connections.db"
+  K8S_MANAGEMENT_ENABLED: {{ .Values.k8s.enabled | quote }}

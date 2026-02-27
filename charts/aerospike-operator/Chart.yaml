@@ -17,3 +17,8 @@ keywords:
 maintainers:
   - name: kimsoungryoul
     url: https://github.com/kimsoungryoul
+dependencies:
+  - name: aerospike-cluster-manager
+    version: 0.1.0
+    condition: ui.enabled
+    alias: ui

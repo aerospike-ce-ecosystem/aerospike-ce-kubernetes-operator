@@ -1,0 +1,24 @@
+{{- if and .Values.rbac.create .Values.k8s.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "aerospike-cluster-manager.fullname" . }}
+  labels:
+    {{- include "aerospike-cluster-manager.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["acko.io"]
+    resources: ["aerospikececlusters"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["acko.io"]
+    resources: ["aerospikececlusters/status"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["pods", "services"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["list"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["list"]
+{{- end }}

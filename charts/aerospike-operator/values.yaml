@@ -224,3 +224,46 @@ podAnnotations: {}
 
 # -- Additional labels to add to the operator pods
 podLabels: {}
+
+# =============================================================================
+# UI - Aerospike Cluster Manager (subchart)
+# =============================================================================
+ui:
+  # -- Enable the Aerospike Cluster Manager web UI.
+  # Deploys a full-stack management dashboard alongside the operator.
+  # Access via: kubectl port-forward svc/<release>-ui 3000:3000
+  enabled: false
+
+  # -- Container image settings for the Cluster Manager
+  image:
+    repository: ghcr.io/kimsoungryoul/aerospike-cluster-manager
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  # -- Service configuration
+  service:
+    type: ClusterIP
+    frontendPort: 3000
+    backendPort: 8000
+
+  # -- Enable Kubernetes cluster management features in the UI
+  k8s:
+    enabled: true
+
+  # -- Enable persistent storage for SQLite database
+  persistence:
+    enabled: true
+    size: 1Gi
+
+  # -- Resource requests and limits
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  # -- Ingress configuration for external access
+  ingress:
+    enabled: false

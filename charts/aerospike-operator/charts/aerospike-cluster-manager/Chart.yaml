@@ -1,0 +1,20 @@
+apiVersion: v2
+name: aerospike-cluster-manager
+description: Full-stack GUI management tool for Aerospike Community Edition
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.26.0-0"
+home: https://github.com/kimsoungryoul/aerospike-ui
+sources:
+  - https://github.com/kimsoungryoul/aerospike-ui
+keywords:
+  - aerospike
+  - admin
+  - ui
+  - dashboard
+  - database
+  - nosql
+maintainers:
+  - name: kimsoungryoul
+    url: https://github.com/kimsoungryoul

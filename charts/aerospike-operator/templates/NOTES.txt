@@ -71,5 +71,24 @@ Namespace: {{ .Release.Namespace }}
    Kubernetes NetworkPolicy is enabled for the operator.
 {{- end }}
 
+{{- if .Values.ui.enabled }}
+
+------------------------------------------------------------------------
+  Aerospike Cluster Manager (Web UI)
+------------------------------------------------------------------------
+
+The Aerospike Cluster Manager UI is ENABLED.
+
+Access the UI via port-forward:
+
+  kubectl port-forward svc/{{ .Release.Name }}-ui {{ .Values.ui.service.frontendPort }}:{{ .Values.ui.service.frontendPort }} -n {{ .Release.Namespace }}
+
+Then open http://localhost:{{ .Values.ui.service.frontendPort }} in your browser.
+
+{{- if .Values.ui.ingress.enabled }}
+Or access via Ingress (if configured).
+{{- end }}
+{{- end }}
+
 For more examples, visit:
   https://github.com/kimsoungryoul/aerospike-ce-kubernetes-operator/tree/main/config/samples

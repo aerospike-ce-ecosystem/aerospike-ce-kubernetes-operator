@@ -36,17 +36,9 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.ui.postgresql.enabled }}
-      securityContext:
-        {{- with .Values.ui.podSecurityContext.seccompProfile }}
-        seccompProfile:
-          {{- toYaml . | nindent 10 }}
-        {{- end }}
-      {{- else }}
       {{- with .Values.ui.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
-      {{- end }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.ui.terminationGracePeriodSeconds | default 45 }}
       containers:

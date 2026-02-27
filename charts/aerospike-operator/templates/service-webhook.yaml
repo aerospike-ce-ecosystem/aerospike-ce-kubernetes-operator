@@ -8,7 +8,8 @@ metadata:
     {{- include "aerospike-operator.labels" . | nindent 4 }}
 spec:
   ports:
-    - port: 443
+    - name: webhook
+      port: 443
       protocol: TCP
       targetPort: {{ .Values.webhook.port }}
   selector:

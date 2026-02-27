@@ -169,32 +169,7 @@ var _ = Describe("Manager", Ordered, func() {
 			cmd = exec.Command("kubectl", "run", "curl-metrics", "--restart=Never",
 				"--namespace", namespace,
 				"--image=curlimages/curl:latest",
-				"--overrides",
-				fmt.Sprintf(`{
-					"spec": {
-						"containers": [{
-							"name": "curl",
-							"image": "curlimages/curl:latest",
-							"command": ["/bin/sh", "-c"],
-							"args": [
-								"for i in $(seq 1 30); do curl -v -k -H 'Authorization: Bearer %s' https://%s.%s.svc.cluster.local:8443/metrics && exit 0 || sleep 2; done; exit 1"
-							],
-							"securityContext": {
-								"readOnlyRootFilesystem": true,
-								"allowPrivilegeEscalation": false,
-								"capabilities": {
-									"drop": ["ALL"]
-								},
-								"runAsNonRoot": true,
-								"runAsUser": 1000,
-								"seccompProfile": {
-									"type": "RuntimeDefault"
-								}
-							}
-						}],
-						"serviceAccountName": "%s"
-					}
-				}`, token, metricsServiceName, namespace, serviceAccountName))
+				"--overrides", curlMetricsPodOverrides(token))
 			_, err = utils.Run(cmd)
 			Expect(err).NotTo(HaveOccurred(), "Failed to create curl-metrics pod")
 
@@ -258,6 +233,35 @@ func getMetricsOutput() (string, error) {
 	return utils.Run(cmd)
 }
 
+// curlMetricsPodOverrides returns the JSON overrides for a curl-metrics pod.
+func curlMetricsPodOverrides(token string) string {
+	return fmt.Sprintf(`{
+		"spec": {
+			"containers": [{
+				"name": "curl",
+				"image": "curlimages/curl:latest",
+				"command": ["/bin/sh", "-c"],
+				"args": [
+					"for i in $(seq 1 30); do curl -v -k -H 'Authorization: Bearer %s' https://%s.%s.svc.cluster.local:8443/metrics && exit 0 || sleep 2; done; exit 1"
+				],
+				"securityContext": {
+					"readOnlyRootFilesystem": true,
+					"allowPrivilegeEscalation": false,
+					"capabilities": {
+						"drop": ["ALL"]
+					},
+					"runAsNonRoot": true,
+					"runAsUser": 1000,
+					"seccompProfile": {
+						"type": "RuntimeDefault"
+					}
+				}
+			}],
+			"serviceAccountName": "%s"
+		}
+	}`, token, metricsServiceName, namespace, serviceAccountName)
+}
+
 // refreshCurlMetricsPod deletes the existing curl-metrics pod and creates a new
 // one to fetch fresh metrics from the metrics endpoint.
 func refreshCurlMetricsPod() {
@@ -272,32 +276,7 @@ func refreshCurlMetricsPod() {
 	cmd = exec.Command("kubectl", "run", "curl-metrics", "--restart=Never",
 		"--namespace", namespace,
 		"--image=curlimages/curl:latest",
-		"--overrides",
-		fmt.Sprintf(`{
-			"spec": {
-				"containers": [{
-					"name": "curl",
-					"image": "curlimages/curl:latest",
-					"command": ["/bin/sh", "-c"],
-					"args": [
-						"for i in $(seq 1 30); do curl -v -k -H 'Authorization: Bearer %s' https://%s.%s.svc.cluster.local:8443/metrics && exit 0 || sleep 2; done; exit 1"
-					],
-					"securityContext": {
-						"readOnlyRootFilesystem": true,
-						"allowPrivilegeEscalation": false,
-						"capabilities": {
-							"drop": ["ALL"]
-						},
-						"runAsNonRoot": true,
-						"runAsUser": 1000,
-						"seccompProfile": {
-							"type": "RuntimeDefault"
-						}
-					}
-				}],
-				"serviceAccountName": "%s"
-			}
-		}`, token, metricsServiceName, namespace, serviceAccountName))
+		"--overrides", curlMetricsPodOverrides(token))
 	_, err = utils.Run(cmd)
 	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to create curl-metrics pod")
 

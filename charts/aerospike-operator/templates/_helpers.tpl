@@ -120,3 +120,62 @@ Namespace for the release.
 {{- define "aerospike-operator.namespace" -}}
 {{- .Release.Namespace }}
 {{- end }}
+
+{{/*
+=============================================================================
+UI (Aerospike Cluster Manager) helpers
+=============================================================================
+*/}}
+
+{{/*
+UI component name (constant).
+*/}}
+{{- define "aerospike-operator.ui.name" -}}
+aerospike-cluster-manager
+{{- end }}
+
+{{/*
+UI fully qualified name.
+*/}}
+{{- define "aerospike-operator.ui.fullname" -}}
+{{- include "aerospike-operator.fullname" . }}-ui
+{{- end }}
+
+{{/*
+UI common labels.
+*/}}
+{{- define "aerospike-operator.ui.labels" -}}
+helm.sh/chart: {{ include "aerospike-operator.chart" . }}
+{{ include "aerospike-operator.ui.selectorLabels" . }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+app.kubernetes.io/component: ui
+{{- end }}
+
+{{/*
+UI selector labels.
+*/}}
+{{- define "aerospike-operator.ui.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "aerospike-operator.ui.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+UI service account name.
+*/}}
+{{- define "aerospike-operator.ui.serviceAccountName" -}}
+{{- if .Values.ui.serviceAccount.create }}
+{{- include "aerospike-operator.ui.fullname" . }}
+{{- else }}
+{{- "default" }}
+{{- end }}
+{{- end }}
+
+{{/*
+UI container image with tag.
+*/}}
+{{- define "aerospike-operator.ui.image" -}}
+{{- printf "%s:%s" .Values.ui.image.repository (default "latest" .Values.ui.image.tag) }}
+{{- end }}

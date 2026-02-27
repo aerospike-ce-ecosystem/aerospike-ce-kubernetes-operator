@@ -80,6 +80,21 @@ helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
   --set cilium.enabled=true
 ```
 
+### With Cluster Manager UI
+
+```bash
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
+  --namespace aerospike-operator --create-namespace \
+  --set ui.enabled=true
+```
+
+Access the UI:
+```bash
+kubectl port-forward svc/<release-name>-aerospike-operator-ui 3000:3000 -n aerospike-operator
+# Open http://localhost:3000
+```
+
 ### Full example
 
 ```bash
@@ -90,7 +105,8 @@ helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
   --set prometheusRule.enabled=true \
   --set grafanaDashboard.enabled=true \
   --set podDisruptionBudget.enabled=true \
-  --set cilium.enabled=true
+  --set cilium.enabled=true \
+  --set ui.enabled=true
 ```
 
 ## Deploy an Aerospike cluster
@@ -142,6 +158,7 @@ See [values.yaml](values.yaml) for all available configuration options with desc
 | `cilium` | CiliumNetworkPolicy (alternative to networkPolicy) |
 | `podDisruptionBudget` | PDB for operator pods |
 | `autoscaling` | HPA for operator pods |
+| `ui` | Aerospike Cluster Manager web UI |
 
 ## Uninstall
 

@@ -1,0 +1,18 @@
+{{- if and .Values.ui.enabled .Values.ui.persistence.enabled .Values.ui.postgresql.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "aerospike-operator.ui.fullname" . }}-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "aerospike-operator.ui.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.ui.persistence.accessMode }}
+  {{- if .Values.ui.persistence.storageClassName }}
+  storageClassName: {{ .Values.ui.persistence.storageClassName | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.ui.persistence.size }}
+{{- end }}

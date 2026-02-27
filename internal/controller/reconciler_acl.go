@@ -25,14 +25,6 @@ var builtinRoles = map[string]bool{
 	"truncate":       true,
 }
 
-// aclSpecHash returns a deterministic hash of the ACL spec for change detection.
-func aclSpecHash(acl *asdbcev1alpha1.AerospikeAccessControlSpec) string {
-	if acl == nil {
-		return ""
-	}
-	return utils.ShortSHA256(acl)
-}
-
 // reconcileACL synchronizes ACL roles and users with the Aerospike cluster.
 func (r *AerospikeCEClusterReconciler) reconcileACL(
 	ctx context.Context,
@@ -45,14 +37,11 @@ func (r *AerospikeCEClusterReconciler) reconcileACL(
 	}
 
 	// Skip if ACL spec hasn't changed since the last successful reconcile.
-	currentHash := aclSpecHash(cluster.Spec.AerospikeAccessControl)
 	if cluster.Status.Phase == asdbcev1alpha1.AerospikePhaseCompleted &&
 		cluster.Status.ObservedGeneration == cluster.Generation {
-		// Generation hasn't changed, ACL spec is the same.
 		log.V(1).Info("ACL spec unchanged, skipping sync")
 		return nil
 	}
-	_ = currentHash // Used for logging/debugging if needed
 
 	// Check if any pod is ready before attempting ACL sync
 	podReady := false
@@ -207,7 +196,7 @@ func (r *AerospikeCEClusterReconciler) reconcileUsers(
 	}
 
 	// Drop orphaned users (protect the admin user the operator connects as)
-	adminUser := findAdminUser(cluster.Spec.AerospikeAccessControl)
+	adminUser := utils.FindAdminUser(cluster.Spec.AerospikeAccessControl)
 	for _, user := range existingUsers {
 		if !desiredUsers[user.User] {
 			// Protect the connected admin user

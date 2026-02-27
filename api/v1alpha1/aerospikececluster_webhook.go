@@ -463,14 +463,6 @@ var aerospikeCEBuiltinRoles = map[string]bool{
 	"truncate":       true,
 }
 
-// builtinRoleNames are Aerospike predefined roles that do not need to be
-// defined in the ACL Roles list. Backed by aerospikeCEBuiltinRoles.
-var builtinRoleNames = aerospikeCEBuiltinRoles
-
-// validPrivilegeCodes lists accepted privilege code strings.
-// In CE, privilege codes and builtin role names are identical.
-var validPrivilegeCodes = aerospikeCEBuiltinRoles
-
 // validateAccessControl validates the ACL configuration.
 func (v *AerospikeCEClusterValidator) validateAccessControl(acl *AerospikeAccessControlSpec) []string {
 	var errors []string
@@ -506,7 +498,7 @@ func (v *AerospikeCEClusterValidator) validateAccessControl(acl *AerospikeAccess
 	}
 	for _, user := range acl.Users {
 		for _, roleName := range user.Roles {
-			if !builtinRoleNames[roleName] && !definedRoles[roleName] {
+			if !aerospikeCEBuiltinRoles[roleName] && !definedRoles[roleName] {
 				errors = append(errors, fmt.Sprintf("user %q references undefined role %q", user.Name, roleName))
 			}
 		}
@@ -517,7 +509,7 @@ func (v *AerospikeCEClusterValidator) validateAccessControl(acl *AerospikeAccess
 		for _, privStr := range role.Privileges {
 			// Format: "<code>" or "<code>.<namespace>" or "<code>.<namespace>.<set>"
 			code := strings.SplitN(privStr, ".", 2)[0]
-			if !validPrivilegeCodes[code] {
+			if !aerospikeCEBuiltinRoles[code] {
 				errors = append(errors, fmt.Sprintf("role %q has invalid privilege code %q; valid codes: read, write, read-write, read-write-udf, sys-admin, user-admin, data-admin, truncate", role.Name, code))
 			}
 		}
@@ -689,21 +681,21 @@ func (v *AerospikeCEClusterValidator) validateRackConfig(rackConfig *RackConfig)
 
 	// Validate ScaleDownBatchSize is positive if set
 	if rackConfig.ScaleDownBatchSize != nil {
-		if err := validatePositiveIntOrString(rackConfig.ScaleDownBatchSize, "rackConfig.scaleDownBatchSize"); err != "" {
+		if err := validateIntOrString(rackConfig.ScaleDownBatchSize, "rackConfig.scaleDownBatchSize", 1); err != "" {
 			errors = append(errors, err)
 		}
 	}
 
 	// Validate MaxIgnorablePods is non-negative if set
 	if rackConfig.MaxIgnorablePods != nil {
-		if err := validateNonNegativeIntOrString(rackConfig.MaxIgnorablePods, "rackConfig.maxIgnorablePods"); err != "" {
+		if err := validateIntOrString(rackConfig.MaxIgnorablePods, "rackConfig.maxIgnorablePods", 0); err != "" {
 			errors = append(errors, err)
 		}
 	}
 
 	// Validate RollingUpdateBatchSize is positive if set
 	if rackConfig.RollingUpdateBatchSize != nil {
-		if err := validatePositiveIntOrString(rackConfig.RollingUpdateBatchSize, "rackConfig.rollingUpdateBatchSize"); err != "" {
+		if err := validateIntOrString(rackConfig.RollingUpdateBatchSize, "rackConfig.rollingUpdateBatchSize", 1); err != "" {
 			errors = append(errors, err)
 		}
 	}
@@ -733,47 +725,29 @@ func (v *AerospikeCEClusterValidator) validateOperations(ops []OperationSpec) []
 	return errors
 }
 
-// validatePositiveIntOrString returns an error string if the value is not positive.
-func validatePositiveIntOrString(val *intstr.IntOrString, fieldName string) string {
-	if val.Type == intstr.Int {
-		if val.IntVal < 1 {
-			return fmt.Sprintf("%s must be a positive integer (got %d)", fieldName, val.IntVal)
-		}
-	} else {
-		s := val.StrVal
-		if !strings.HasSuffix(s, "%") {
-			return fmt.Sprintf("%s must be a positive integer or a percentage string (e.g., \"25%%\"); got %q", fieldName, s)
-		}
-		numStr := strings.TrimSuffix(s, "%")
-		num, err := strconv.Atoi(numStr)
-		if err != nil {
-			return fmt.Sprintf("%s percentage %q is not a valid integer", fieldName, s)
-		}
-		if num < 1 || num > 100 {
-			return fmt.Sprintf("%s percentage must be between 1 and 100 (got %d)", fieldName, num)
-		}
+// validateIntOrString validates that an IntOrString value meets a minimum bound.
+// Use minValue=1 for positive validation, minValue=0 for non-negative validation.
+func validateIntOrString(val *intstr.IntOrString, fieldName string, minValue int) string {
+	label := "positive"
+	if minValue == 0 {
+		label = "non-negative"
 	}
-	return ""
-}
-
-// validateNonNegativeIntOrString returns an error string if the value is negative.
-func validateNonNegativeIntOrString(val *intstr.IntOrString, fieldName string) string {
 	if val.Type == intstr.Int {
-		if val.IntVal < 0 {
-			return fmt.Sprintf("%s must be a non-negative integer (got %d)", fieldName, val.IntVal)
+		if int(val.IntVal) < minValue {
+			return fmt.Sprintf("%s must be a %s integer (got %d)", fieldName, label, val.IntVal)
 		}
 	} else {
 		s := val.StrVal
 		if !strings.HasSuffix(s, "%") {
-			return fmt.Sprintf("%s must be a non-negative integer or a percentage string (e.g., \"25%%\"); got %q", fieldName, s)
+			return fmt.Sprintf("%s must be a %s integer or a percentage string (e.g., \"25%%\"); got %q", fieldName, label, s)
 		}
 		numStr := strings.TrimSuffix(s, "%")
 		num, err := strconv.Atoi(numStr)
 		if err != nil {
 			return fmt.Sprintf("%s percentage %q is not a valid integer", fieldName, s)
 		}
-		if num < 0 || num > 100 {
-			return fmt.Sprintf("%s percentage must be between 0 and 100 (got %d)", fieldName, num)
+		if num < minValue || num > 100 {
+			return fmt.Sprintf("%s percentage must be between %d and 100 (got %d)", fieldName, minValue, num)
 		}
 	}
 	return ""

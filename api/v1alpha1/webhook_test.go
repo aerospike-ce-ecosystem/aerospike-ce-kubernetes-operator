@@ -1382,7 +1382,7 @@ func TestValidatePositiveIntOrString_PercentageEdgeCases(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			val := tc.val
-			result := validatePositiveIntOrString(&val, "testField")
+			result := validateIntOrString(&val, "testField", 1)
 			if tc.wantError && result == "" {
 				t.Errorf("expected error for %v, got none", tc.val)
 			}
@@ -1414,7 +1414,7 @@ func TestValidateNonNegativeIntOrString_PercentageEdgeCases(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			val := tc.val
-			result := validateNonNegativeIntOrString(&val, "testField")
+			result := validateIntOrString(&val, "testField", 0)
 			if tc.wantError && result == "" {
 				t.Errorf("expected error for %v, got none", tc.val)
 			}

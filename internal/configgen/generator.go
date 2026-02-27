@@ -92,12 +92,12 @@ func GenerateConfig(config map[string]any) (string, error) {
 // GenerateConfForPod generates an aerospike.conf with mesh seeds injected for the given pod.
 func GenerateConfForPod(
 	config map[string]any,
-	podName, serviceName, namespace string,
+	serviceName, namespace string,
 	podNames []string,
 	heartbeatPort int,
 ) (string, error) {
 	return generateConfigCore(config, func(netMap map[string]any) string {
-		return generateNetworkSection(netMap, podName, serviceName, namespace, podNames, heartbeatPort)
+		return generateNetworkSection(netMap, serviceName, namespace, podNames, heartbeatPort)
 	})
 }
 

@@ -154,10 +154,9 @@ func ListClusterPVCs(ctx context.Context, c client.Client, clusterName, ns strin
 
 // --- Resource existence helpers ---
 
-// ServiceExists checks if a Service exists.
-func ServiceExists(ctx context.Context, c client.Client, name, ns string) (bool, error) {
-	svc := &corev1.Service{}
-	err := c.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, svc)
+// resourceExists checks if an arbitrary Kubernetes resource exists.
+func resourceExists(ctx context.Context, c client.Client, obj client.Object, name, ns string) (bool, error) {
+	err := c.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, obj)
 	if errors.IsNotFound(err) {
 		return false, nil
 	}
@@ -165,30 +164,19 @@ func ServiceExists(ctx context.Context, c client.Client, name, ns string) (bool,
 		return false, err
 	}
 	return true, nil
+}
+
+// ServiceExists checks if a Service exists.
+func ServiceExists(ctx context.Context, c client.Client, name, ns string) (bool, error) {
+	return resourceExists(ctx, c, &corev1.Service{}, name, ns)
 }
 
 // ConfigMapExists checks if a ConfigMap exists.
 func ConfigMapExists(ctx context.Context, c client.Client, name, ns string) (bool, error) {
-	cm := &corev1.ConfigMap{}
-	err := c.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, cm)
-	if errors.IsNotFound(err) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return true, nil
+	return resourceExists(ctx, c, &corev1.ConfigMap{}, name, ns)
 }
 
 // PDBExists checks if a PodDisruptionBudget exists.
 func PDBExists(ctx context.Context, c client.Client, name, ns string) (bool, error) {
-	pdb := &policyv1.PodDisruptionBudget{}
-	err := c.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, pdb)
-	if errors.IsNotFound(err) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return true, nil
+	return resourceExists(ctx, c, &policyv1.PodDisruptionBudget{}, name, ns)
 }

@@ -250,12 +250,17 @@ ui:
   k8s:
     enabled: true
 
-  # -- Enable persistent storage for SQLite database
+  # -- Embedded PostgreSQL sidecar (required for backend persistence).
+  # Disable and set env.databaseUrl to use an external PostgreSQL instance.
+  postgresql:
+    enabled: true
+
+  # -- Enable persistent storage for PostgreSQL data
   persistence:
     enabled: true
     size: 1Gi
 
-  # -- Resource requests and limits
+  # -- Resource requests and limits for the Cluster Manager container
   resources:
     requests:
       cpu: 100m
@@ -267,3 +272,10 @@ ui:
   # -- Ingress configuration for external access
   ingress:
     enabled: false
+
+  # -- Node selector for UI pod scheduling
+  nodeSelector: {}
+  # -- Tolerations for UI pod scheduling
+  tolerations: []
+  # -- Affinity rules for UI pod scheduling
+  affinity: {}

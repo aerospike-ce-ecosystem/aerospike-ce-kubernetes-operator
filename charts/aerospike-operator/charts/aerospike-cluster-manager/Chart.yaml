@@ -5,9 +5,9 @@ type: application
 version: 0.1.0
 appVersion: "0.1.0"
 kubeVersion: ">=1.26.0-0"
-home: https://github.com/kimsoungryoul/aerospike-ui
+home: https://github.com/kimsoungryoul/aerospike-cluster-manager
 sources:
-  - https://github.com/kimsoungryoul/aerospike-ui
+  - https://github.com/kimsoungryoul/aerospike-cluster-manager
 keywords:
   - aerospike
   - admin

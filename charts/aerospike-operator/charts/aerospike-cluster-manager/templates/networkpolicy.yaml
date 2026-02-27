@@ -48,4 +48,10 @@ spec:
           protocol: TCP
         - port: {{ .Values.aerospikePorts.heartbeat }}
           protocol: TCP
+    {{- if not .Values.postgresql.enabled }}
+    # External PostgreSQL
+    - ports:
+        - port: 5432
+          protocol: TCP
+    {{- end }}
 {{- end }}

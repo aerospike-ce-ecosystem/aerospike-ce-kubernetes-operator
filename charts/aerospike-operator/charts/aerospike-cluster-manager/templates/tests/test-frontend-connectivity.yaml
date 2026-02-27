@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: {{ include "aerospike-cluster-manager.fullname" . }}-test-backend
+  name: {{ include "aerospike-cluster-manager.fullname" . }}-test-frontend
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "aerospike-cluster-manager.labels" . | nindent 4 }}
@@ -22,16 +22,16 @@ spec:
         - sh
         - -c
         - |
-          echo "Testing backend health endpoint..."
+          echo "Testing frontend endpoint..."
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
             --max-time 10 \
-            http://{{ include "aerospike-cluster-manager.fullname" . }}:{{ .Values.service.backendPort }}/api/health)
+            http://{{ include "aerospike-cluster-manager.fullname" . }}:{{ .Values.service.frontendPort }}/)
           echo "HTTP status code: $HTTP_CODE"
           if [ "$HTTP_CODE" = "200" ]; then
-            echo "Backend health check passed!"
+            echo "Frontend connectivity check passed!"
             exit 0
           else
-            echo "Backend health check failed with HTTP $HTTP_CODE"
+            echo "Frontend connectivity check failed with HTTP $HTTP_CODE"
             exit 1
           fi
       securityContext:

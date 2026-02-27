@@ -136,6 +136,11 @@ spec:
             capabilities:
               drop:
                 - ALL
+              add:
+                - CHOWN
+                - FOWNER
+                - SETGID
+                - SETUID
           {{- with .Values.ui.postgresql.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

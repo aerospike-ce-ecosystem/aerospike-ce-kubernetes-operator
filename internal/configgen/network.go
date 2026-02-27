@@ -11,7 +11,7 @@ import (
 // for all pods in the StatefulSet.
 func generateNetworkSection(
 	networkConfig map[string]any,
-	_, serviceName, namespace string,
+	serviceName, namespace string,
 	podNames []string,
 	heartbeatPort int,
 ) string {

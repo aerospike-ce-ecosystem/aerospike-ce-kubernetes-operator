@@ -87,7 +87,6 @@ func (r *AerospikeCEClusterReconciler) reconcileConfigMap(
 	// Generate aerospike.conf with mesh seeds injected
 	confText, err := configgen.GenerateConfForPod(
 		effectiveConfig.Value,
-		"", // podName not used for shared ConfigMap
 		serviceName,
 		cluster.Namespace,
 		allPodNames,

@@ -74,7 +74,7 @@ func TestGenerateConfForPod_MeshSeeds(t *testing.T) {
 
 	podNames := []string{"asc-0", "asc-1", "asc-2"}
 
-	result, err := GenerateConfForPod(config, "asc-0", "asc-headless", "default", podNames, 3002)
+	result, err := GenerateConfForPod(config, "asc-headless", "default", podNames, 3002)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -401,7 +401,7 @@ func TestGenerateConfForPod_SecuritySectionSkipped(t *testing.T) {
 		},
 	}
 
-	result, err := GenerateConfForPod(config, "pod-0", "svc", "ns", []string{"pod-0"}, 3002)
+	result, err := GenerateConfForPod(config, "svc", "ns", []string{"pod-0"}, 3002)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -422,7 +422,7 @@ func TestGenerateConfForPod_CustomHeartbeatPort(t *testing.T) {
 	}
 
 	podNames := []string{"pod-0", "pod-1"}
-	result, err := GenerateConfForPod(config, "pod-0", "svc", "default", podNames, 4002)
+	result, err := GenerateConfForPod(config, "svc", "default", podNames, 4002)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

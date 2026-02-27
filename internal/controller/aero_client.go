@@ -22,11 +22,6 @@ const (
 	defaultAeroPort   = 3000
 )
 
-// findAdminUser delegates to utils.FindAdminUser for backward compatibility.
-func findAdminUser(acl *asdbcev1alpha1.AerospikeAccessControlSpec) *asdbcev1alpha1.AerospikeUserSpec {
-	return utils.FindAdminUser(acl)
-}
-
 // getServicePort returns the configured Aerospike service port from the cluster
 // config, falling back to the default port.
 func getServicePort(cluster *asdbcev1alpha1.AerospikeCECluster) int {
@@ -58,7 +53,7 @@ func (r *AerospikeCEClusterReconciler) getAerospikeClient(
 	policy.LoginTimeout = aeroLoginTimeout
 
 	// If ACL is enabled, find the admin user dynamically by roles.
-	if adminUser := findAdminUser(cluster.Spec.AerospikeAccessControl); adminUser != nil {
+	if adminUser := utils.FindAdminUser(cluster.Spec.AerospikeAccessControl); adminUser != nil {
 		password, err := r.getPasswordFromSecret(ctx, cluster.Namespace, adminUser.SecretName)
 		if err != nil {
 			return nil, fmt.Errorf("getting admin password: %w", err)

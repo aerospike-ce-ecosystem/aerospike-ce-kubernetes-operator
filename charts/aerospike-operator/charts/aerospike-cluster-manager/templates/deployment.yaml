@@ -25,9 +25,7 @@ spec:
       {{- end }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
-        {{- if .Values.postgresql.enabled }}
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
-        {{- end }}
       {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -64,10 +62,8 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "aerospike-cluster-manager.fullname" . }}-config
-            {{- if .Values.postgresql.enabled }}
             - secretRef:
                 name: {{ include "aerospike-cluster-manager.fullname" . }}-db
-            {{- end }}
           {{- with .Values.extraEnv }}
           env:
             {{- toYaml . | nindent 12 }}

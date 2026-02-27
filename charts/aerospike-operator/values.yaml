@@ -284,6 +284,9 @@ ui:
   ingress:
     enabled: false
 
+  # -- Additional labels to add to the UI pods
+  podLabels: {}
+
   # -- Node selector for UI pod scheduling
   nodeSelector: {}
   # -- Tolerations for UI pod scheduling

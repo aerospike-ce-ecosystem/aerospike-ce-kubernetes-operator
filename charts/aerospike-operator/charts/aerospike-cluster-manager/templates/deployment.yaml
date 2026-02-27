@@ -25,6 +25,9 @@ spec:
       {{- end }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.postgresql.enabled }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
       {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -34,7 +37,13 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if not .Values.postgresql.enabled }}
+      {{- if .Values.postgresql.enabled }}
+      securityContext:
+        {{- with .Values.podSecurityContext.seccompProfile }}
+        seccompProfile:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      {{- else }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -55,6 +64,10 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "aerospike-cluster-manager.fullname" . }}-config
+            {{- if .Values.postgresql.enabled }}
+            - secretRef:
+                name: {{ include "aerospike-cluster-manager.fullname" . }}-db
+            {{- end }}
           {{- with .Values.extraEnv }}
           env:
             {{- toYaml . | nindent 12 }}
@@ -93,7 +106,10 @@ spec:
             - name: POSTGRES_USER
               value: {{ .Values.postgresql.username | quote }}
             - name: POSTGRES_PASSWORD
-              value: {{ .Values.postgresql.password | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "aerospike-cluster-manager.fullname" . }}-db
+                  key: POSTGRES_PASSWORD
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
           readinessProbe:
@@ -118,6 +134,11 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 20
             timeoutSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           {{- with .Values.postgresql.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -125,7 +146,6 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
-        {{- end }}
       volumes:
         - name: data
           {{- if .Values.persistence.enabled }}
@@ -134,6 +154,7 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

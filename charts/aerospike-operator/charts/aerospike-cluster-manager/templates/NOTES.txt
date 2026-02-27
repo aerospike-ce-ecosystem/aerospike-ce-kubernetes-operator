@@ -90,8 +90,8 @@ Check pod status:
 View logs:
   kubectl logs -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }} -f
 
-{{- if .Values.persistence.enabled }}
+{{- if and .Values.persistence.enabled .Values.postgresql.enabled }}
 
 Persistent storage is enabled ({{ .Values.persistence.size }}).
-SQLite data will persist across pod restarts.
+PostgreSQL data will persist across pod restarts.
 {{- end }}

@@ -250,6 +250,17 @@ ui:
   k8s:
     enabled: true
 
+  # -- Environment configuration for the Cluster Manager backend
+  env:
+    # -- Backend CORS origins (empty = no CORS; frontend proxies via Next.js rewrites)
+    corsOrigins: ""
+    # -- Log level (DEBUG, INFO, WARNING, ERROR)
+    logLevel: "INFO"
+    # -- External PostgreSQL connection URL.
+    # Only used when postgresql.enabled is false.
+    # Example: "postgresql://user:pass@db-host:5432/aerospike_manager"
+    databaseUrl: ""
+
   # -- Embedded PostgreSQL sidecar (required for backend persistence).
   # Disable and set env.databaseUrl to use an external PostgreSQL instance.
   postgresql:

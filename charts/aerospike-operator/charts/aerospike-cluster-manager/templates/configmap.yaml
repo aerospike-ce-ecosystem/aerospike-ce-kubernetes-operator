@@ -9,8 +9,10 @@ data:
   CORS_ORIGINS: {{ .Values.env.corsOrigins | quote }}
   LOG_LEVEL: {{ .Values.env.logLevel | quote }}
   K8S_MANAGEMENT_ENABLED: {{ .Values.k8s.enabled | quote }}
-  {{- if .Values.postgresql.enabled }}
-  DATABASE_URL: {{ printf "postgresql://%s:%s@localhost:5432/%s" .Values.postgresql.username .Values.postgresql.password .Values.postgresql.database | quote }}
-  {{- else if .Values.env.databaseUrl }}
+  {{- if not .Values.postgresql.enabled }}
+  {{- if .Values.env.databaseUrl }}
   DATABASE_URL: {{ .Values.env.databaseUrl | quote }}
+  {{- else }}
+  {{- fail "postgresql.enabled is false but env.databaseUrl is not set. Provide an external database URL via env.databaseUrl." }}
+  {{- end }}
   {{- end }}

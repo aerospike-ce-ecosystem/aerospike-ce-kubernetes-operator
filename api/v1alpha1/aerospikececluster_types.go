@@ -389,6 +389,20 @@ type AerospikePodStatus struct {
 	DynamicConfigStatus string `json:"dynamicConfigStatus,omitempty"`
 	// DirtyVolumes lists volumes that need initialization or cleanup.
 	DirtyVolumes []string `json:"dirtyVolumes,omitempty"`
+
+	// NodeID is the Aerospike-assigned node identifier (e.g. "BB9020012AC4202").
+	// Populated by querying the node via asinfo; empty if the node is unreachable.
+	// +optional
+	NodeID string `json:"nodeID,omitempty"`
+
+	// ClusterName is the Aerospike cluster name as reported by the node.
+	// +optional
+	ClusterName string `json:"clusterName,omitempty"`
+
+	// AccessEndpoints are the network endpoints (host:port) for direct client access.
+	// Populated via the asinfo "service" command.
+	// +optional
+	AccessEndpoints []string `json:"accessEndpoints,omitempty"`
 }
 
 // +kubebuilder:object:root=true

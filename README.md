@@ -43,7 +43,7 @@ brew install kind kubectl helm
 Skip this step if you already have a Kubernetes cluster.
 
 ```sh
-kind create cluster
+kind create cluster --config kind-config.yaml
 ```
 
 ### Step 2: Install cert-manager

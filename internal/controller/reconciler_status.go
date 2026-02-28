@@ -17,6 +17,17 @@ import (
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
+// StatusUpdateOpts carries optional annotations for updateStatusAndPhase.
+type StatusUpdateOpts struct {
+	// ACLErr, if non-nil, sets the ACLSynced condition to False.
+	// If nil and ACL spec is present, ACLSynced is set to True.
+	ACLErr error
+	// RestartInProgress indicates a rolling restart is active (MigrationComplete=False).
+	RestartInProgress bool
+	// Paused indicates reconciliation is paused (ReconciliationPaused=True).
+	Paused bool
+}
+
 // updateStatusAndPhase re-fetches the latest cluster object from the API server,
 // populates status fields, sets the desired phase and reason, and performs a status update.
 // This pattern avoids "object has been modified" conflict errors that occur when
@@ -28,6 +39,7 @@ func (r *AerospikeCEClusterReconciler) updateStatusAndPhase(
 	namespacedName types.NamespacedName,
 	phase asdbcev1alpha1.AerospikePhase,
 	phaseReason string,
+	opts ...StatusUpdateOpts,
 ) error {
 	log := logf.FromContext(ctx)
 
@@ -49,6 +61,13 @@ func (r *AerospikeCEClusterReconciler) updateStatusAndPhase(
 	}
 	latest.Status.Phase = phase
 	latest.Status.PhaseReason = phaseReason
+
+	// Apply fine-grained conditions from opts.
+	var o StatusUpdateOpts
+	if len(opts) > 0 {
+		o = opts[0]
+	}
+	setFineGrainedConditions(latest, o)
 
 	// Skip the update if nothing meaningful changed to avoid
 	// triggering a reconciliation feedback loop via the watch.
@@ -158,8 +177,26 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 	cluster.Status.Selector = strings.Join(selectorParts, ",")
 
 	// Update conditions
-	setCondition(cluster, "Available", readyCount > 0, "ClusterAvailable", "At least one pod is ready")
-	setCondition(cluster, "Ready", readyCount == cluster.Spec.Size, "AllPodsReady", fmt.Sprintf("%d/%d pods ready", readyCount, cluster.Spec.Size))
+	setCondition(cluster, asdbcev1alpha1.ConditionAvailable, readyCount > 0, "ClusterAvailable", "At least one pod is ready")
+	setCondition(cluster, asdbcev1alpha1.ConditionReady, readyCount == cluster.Spec.Size, "AllPodsReady", fmt.Sprintf("%d/%d pods ready", readyCount, cluster.Spec.Size))
+
+	// ConfigApplied: true when all pods carry the same config hash as the desired config.
+	desiredConfigHash := configHash(cluster.Spec.AerospikeConfig)
+	allConfigApplied := len(podStatuses) > 0
+	for _, ps := range podStatuses {
+		if ps.ConfigHash != desiredConfigHash {
+			allConfigApplied = false
+			break
+		}
+	}
+	if len(podStatuses) == 0 {
+		allConfigApplied = false
+	}
+	if allConfigApplied {
+		setCondition(cluster, asdbcev1alpha1.ConditionConfigApplied, true, "ConfigApplied", "All pods have the desired Aerospike configuration")
+	} else {
+		setCondition(cluster, asdbcev1alpha1.ConditionConfigApplied, false, "ConfigPending", "One or more pods do not yet have the desired configuration")
+	}
 
 	return readyCount, nil
 }
@@ -201,4 +238,27 @@ func setCondition(cluster *asdbcev1alpha1.AerospikeCECluster, condType string, s
 	}
 
 	cluster.Status.Conditions = append(cluster.Status.Conditions, newCond)
+}
+
+// setFineGrainedConditions sets additional status conditions based on StatusUpdateOpts.
+// Called from updateStatusAndPhase after populateStatus.
+func setFineGrainedConditions(cluster *asdbcev1alpha1.AerospikeCECluster, o StatusUpdateOpts) {
+	// ReconciliationPaused
+	setCondition(cluster, asdbcev1alpha1.ConditionReconciliationPaused, o.Paused,
+		"ReconciliationPaused", "Reconciliation is paused by user (spec.paused=true)")
+
+	// ACLSynced — only set if ACL is configured
+	if cluster.Spec.AerospikeAccessControl != nil {
+		if o.ACLErr != nil {
+			setCondition(cluster, asdbcev1alpha1.ConditionACLSynced, false,
+				"ACLSyncFailed", o.ACLErr.Error())
+		} else {
+			setCondition(cluster, asdbcev1alpha1.ConditionACLSynced, true,
+				"ACLSyncSucceeded", "ACL roles and users are synchronized")
+		}
+	}
+
+	// MigrationComplete — False while rolling restart is in progress
+	setCondition(cluster, asdbcev1alpha1.ConditionMigrationComplete, !o.RestartInProgress,
+		"MigrationComplete", "No pending data migrations")
 }

@@ -271,6 +271,22 @@ type AerospikeCEClusterSpec struct {
 	EnableRackIDOverride *bool `json:"enableRackIDOverride,omitempty"`
 }
 
+// Condition type constants for AerospikeCECluster status conditions.
+const (
+	// ConditionAvailable indicates at least one pod is ready to serve requests.
+	ConditionAvailable = "Available"
+	// ConditionReady indicates all desired pods are running and ready.
+	ConditionReady = "Ready"
+	// ConditionConfigApplied indicates all pods have the desired Aerospike configuration.
+	ConditionConfigApplied = "ConfigApplied"
+	// ConditionACLSynced indicates ACL roles and users are synchronized with the cluster.
+	ConditionACLSynced = "ACLSynced"
+	// ConditionMigrationComplete indicates no data migrations are pending.
+	ConditionMigrationComplete = "MigrationComplete"
+	// ConditionReconciliationPaused indicates reconciliation is paused by the user.
+	ConditionReconciliationPaused = "ReconciliationPaused"
+)
+
 // AerospikePhase represents the current phase of the cluster.
 // +kubebuilder:validation:Enum=InProgress;Completed;Error;ScalingUp;ScalingDown;RollingRestart;ConfigUpdate;ACLSync;Paused;Deleting
 type AerospikePhase string

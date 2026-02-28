@@ -26,6 +26,14 @@ func (r *AerospikeCEClusterReconciler) handleDeletion(
 
 	log.Info("Handling cluster deletion")
 
+	// Set Deleting phase so observers know the cluster is being removed.
+	if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseDeleting, "Cluster is being deleted"); err != nil {
+		if !errors.IsConflict(err) {
+			return ctrl.Result{}, err
+		}
+		// Conflict is non-fatal here; the deletion will proceed regardless.
+	}
+
 	// Selectively delete PVCs for volumes that have cascadeDelete enabled
 	if cluster.Spec.Storage != nil {
 		stsList, err := r.listClusterStatefulSets(ctx, cluster)

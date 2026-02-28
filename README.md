@@ -43,7 +43,7 @@ brew install kind kubectl helm
 Skip this step if you already have a Kubernetes cluster.
 
 ```sh
-kind create cluster --name aerospike
+kind create cluster
 ```
 
 ### Step 2: Install cert-manager

@@ -272,16 +272,30 @@ type AerospikeCEClusterSpec struct {
 }
 
 // AerospikePhase represents the current phase of the cluster.
-// +kubebuilder:validation:Enum=InProgress;Completed;Error
+// +kubebuilder:validation:Enum=InProgress;Completed;Error;ScalingUp;ScalingDown;RollingRestart;ConfigUpdate;ACLSync;Paused;Deleting
 type AerospikePhase string
 
 const (
-	// AerospikePhaseInProgress indicates reconciliation is actively in progress.
+	// AerospikePhaseInProgress indicates reconciliation is actively in progress (generic).
 	AerospikePhaseInProgress AerospikePhase = "InProgress"
 	// AerospikePhaseCompleted indicates the cluster has reached the desired state.
 	AerospikePhaseCompleted AerospikePhase = "Completed"
 	// AerospikePhaseError indicates an unrecoverable error during reconciliation.
 	AerospikePhaseError AerospikePhase = "Error"
+	// AerospikePhaseScalingUp indicates the cluster is scaling up (adding pods).
+	AerospikePhaseScalingUp AerospikePhase = "ScalingUp"
+	// AerospikePhaseScalingDown indicates the cluster is scaling down (removing pods).
+	AerospikePhaseScalingDown AerospikePhase = "ScalingDown"
+	// AerospikePhaseRollingRestart indicates a rolling restart is in progress.
+	AerospikePhaseRollingRestart AerospikePhase = "RollingRestart"
+	// AerospikePhaseConfigUpdate indicates a dynamic configuration update is in progress.
+	AerospikePhaseConfigUpdate AerospikePhase = "ConfigUpdate"
+	// AerospikePhaseACLSync indicates ACL roles and users are being synchronized.
+	AerospikePhaseACLSync AerospikePhase = "ACLSync"
+	// AerospikePhasePaused indicates reconciliation is paused by the user.
+	AerospikePhasePaused AerospikePhase = "Paused"
+	// AerospikePhaseDeleting indicates the cluster is being deleted.
+	AerospikePhaseDeleting AerospikePhase = "Deleting"
 )
 
 // AerospikeCEClusterStatus defines the observed state of the Aerospike CE cluster.

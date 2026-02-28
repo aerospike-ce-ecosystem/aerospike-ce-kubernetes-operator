@@ -221,6 +221,40 @@ func resolveIntOrPercent(val *intstr.IntOrString, total int32) int32 {
 	return int32(pct)
 }
 
+// detectScaling checks each rack's current StatefulSet replicas against the
+// desired rack size and returns whether a scale-up or scale-down is needed.
+// Returns (scalingUp, scalingDown, error). Both can be false if no scaling is needed.
+func (r *AerospikeCEClusterReconciler) detectScaling(
+	ctx context.Context,
+	cluster *asdbcev1alpha1.AerospikeCECluster,
+	racks []asdbcev1alpha1.Rack,
+	rackSizes []int32,
+) (scalingUp bool, scalingDown bool, err error) {
+	for i, rack := range racks {
+		stsName := cluster.Name + "-" + fmt.Sprintf("%d", rack.ID)
+		existing := &appsv1.StatefulSet{}
+		if err := r.Get(ctx, types.NamespacedName{Name: stsName, Namespace: cluster.Namespace}, existing); err != nil {
+			if errors.IsNotFound(err) {
+				// New rack — treated as scale-up (StatefulSet will be created).
+				scalingUp = true
+				continue
+			}
+			return false, false, err
+		}
+		oldReplicas := int32(0)
+		if existing.Spec.Replicas != nil {
+			oldReplicas = *existing.Spec.Replicas
+		}
+		desired := rackSizes[i]
+		if desired > oldReplicas {
+			scalingUp = true
+		} else if desired < oldReplicas {
+			scalingDown = true
+		}
+	}
+	return scalingUp, scalingDown, nil
+}
+
 // computePodSpecHash returns a short SHA256 hash derived from the cluster image
 // and pod-level spec settings so that changes to the pod template (aside from
 // config) are captured.

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -103,6 +104,12 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// 4. Check if paused
 	if cluster.Spec.Paused != nil && *cluster.Spec.Paused {
 		log.Info("Reconciliation paused")
+		if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhasePaused, "Reconciliation paused by user"); err != nil {
+			if errors.IsConflict(err) {
+				return ctrl.Result{Requeue: true}, nil
+			}
+			return ctrl.Result{}, err
+		}
 		return ctrl.Result{}, nil
 	}
 
@@ -155,12 +162,29 @@ func (r *AerospikeCEClusterReconciler) reconcileCluster(
 		rackSize        int32
 	}
 	rackInfos := make([]rackInfo, len(racks))
+	rackSizes := make([]int32, len(racks))
 	for i, rack := range racks {
 		ec := r.getEffectiveConfig(cluster, &rack)
+		rackSizes[i] = r.getRackSize(cluster, racks, i)
 		rackInfos[i] = rackInfo{
 			effectiveConfig: ec,
 			hash:            configHash(ec),
-			rackSize:        r.getRackSize(cluster, racks, i),
+			rackSize:        rackSizes[i],
+		}
+	}
+
+	// Detect scaling and update phase accordingly.
+	scalingUp, scalingDown, err := r.detectScaling(ctx, cluster, racks, rackSizes)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if scalingUp {
+		if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseScalingUp, "Scaling up cluster"); err != nil && !errors.IsConflict(err) {
+			return ctrl.Result{}, err
+		}
+	} else if scalingDown {
+		if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseScalingDown, "Scaling down cluster"); err != nil && !errors.IsConflict(err) {
+			return ctrl.Result{}, err
 		}
 	}
 
@@ -213,11 +237,20 @@ func (r *AerospikeCEClusterReconciler) reconcileCluster(
 			return ctrl.Result{}, err
 		}
 		if restarted {
+			if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseRollingRestart,
+				fmt.Sprintf("Rolling restart in progress for rack %d", rack.ID)); err != nil && !errors.IsConflict(err) {
+				return ctrl.Result{}, err
+			}
 			return ctrl.Result{RequeueAfter: defaultReconcileRetryInterval}, nil
 		}
 	}
 
 	// Reconcile ACL (non-fatal)
+	if cluster.Spec.AerospikeAccessControl != nil {
+		if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseACLSync, "Synchronizing ACL roles and users"); err != nil && !errors.IsConflict(err) {
+			return ctrl.Result{}, err
+		}
+	}
 	if err := r.reconcileACL(ctx, cluster); err != nil {
 		log.Error(err, "Failed to reconcile ACL")
 		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "ACLSyncError", "ACL sync failed: %v", err)

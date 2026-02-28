@@ -258,6 +258,85 @@ helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
   --set grafanaDashboard.folder=Aerospike
 ```
 
+## Cluster Manager UI (선택사항)
+
+[Aerospike Cluster Manager](https://github.com/KimSoungRyoul/aerospike-cluster-manager)는 Aerospike CE 클러스터의 레코드 탐색, 인덱스 관리, AQL 쿼리 실행, 모니터링을 위한 웹 기반 GUI 도구입니다.
+
+**주요 기능:** 클러스터 대시보드, 네임스페이스/셋 탐색, 레코드 CRUD, 쿼리 빌더, 보조 인덱스 관리, 사용자/역할 관리, UDF 관리, AQL 터미널.
+
+UI는 Helm 차트에 내장되어 오퍼레이터와 함께 배포됩니다. 클러스터 연결 프로필을 저장하기 위한 임베디드 PostgreSQL 사이드카(PVC 포함)가 함께 실행됩니다.
+
+### UI 활성화
+
+Helm 설치 명령에 `--set ui.enabled=true`를 추가합니다:
+
+```bash
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
+  -n aerospike-operator --create-namespace \
+  --set ui.enabled=true
+```
+
+### Port-Forward로 접근
+
+```bash
+kubectl -n aerospike-operator port-forward svc/aerospike-operator-ui 3000:3000
+```
+
+브라우저에서 [http://localhost:3000](http://localhost:3000)을 열면 UI에 접근할 수 있습니다.
+
+:::tip
+서비스 이름은 `<release>-aerospike-operator-ui` 형식입니다. 릴리스 이름을 커스텀으로 지정한 경우 아래와 같이 조정하세요:
+```bash
+kubectl -n aerospike-operator port-forward svc/<release>-aerospike-operator-ui 3000:3000
+```
+:::
+
+### Ingress로 접근
+
+외부에서 지속적으로 접근하려면 Ingress를 활성화합니다:
+
+```bash
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
+  -n aerospike-operator --create-namespace \
+  --set ui.enabled=true \
+  --set ui.ingress.enabled=true \
+  --set ui.ingress.className=nginx \
+  --set "ui.ingress.hosts[0].host=aerospike-admin.example.com" \
+  --set "ui.ingress.hosts[0].paths[0].path=/" \
+  --set "ui.ingress.hosts[0].paths[0].pathType=Prefix"
+```
+
+### 주요 파라미터
+
+| 파라미터 | 기본값 | 설명 |
+|---------|--------|------|
+| `ui.enabled` | `false` | Cluster Manager UI 활성화 |
+| `ui.replicaCount` | `1` | UI 레플리카 수 |
+| `ui.service.type` | `ClusterIP` | 서비스 타입 (`ClusterIP`, `NodePort`, `LoadBalancer`) |
+| `ui.service.frontendPort` | `3000` | Frontend(Next.js) 포트 |
+| `ui.service.backendPort` | `8000` | Backend(FastAPI) 포트 |
+| `ui.ingress.enabled` | `false` | 외부 접근을 위한 Ingress 생성 |
+| `ui.postgresql.enabled` | `true` | 임베디드 PostgreSQL 사이드카 배포 |
+| `ui.persistence.enabled` | `true` | PostgreSQL 데이터용 PVC 활성화 |
+| `ui.persistence.size` | `1Gi` | PVC 스토리지 크기 |
+| `ui.k8s.enabled` | `true` | K8s 클러스터 관리 기능 활성화 (UI에서 클러스터 생성) |
+| `ui.env.databaseUrl` | `""` | 외부 PostgreSQL URL (`postgresql.enabled=false`일 때 사용) |
+
+### 외부 PostgreSQL 사용
+
+임베디드 사이드카 대신 기존 PostgreSQL 인스턴스를 사용하려면:
+
+```bash
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
+  -n aerospike-operator --create-namespace \
+  --set ui.enabled=true \
+  --set ui.postgresql.enabled=false \
+  --set ui.env.databaseUrl="postgresql://user:pass@db-host:5432/aerospike_manager"
+```
+
 ## 설치 확인
 
 오퍼레이터 파드가 실행 중인지 확인:

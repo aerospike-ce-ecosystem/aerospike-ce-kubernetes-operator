@@ -355,6 +355,11 @@ type AerospikeCEClusterStatus struct {
 	// Examples: "Rolling restart in progress for rack 1", "Scaling up rack 2 from 2 to 3 pods".
 	// +optional
 	PhaseReason string `json:"phaseReason,omitempty"`
+
+	// AppliedSpec is a copy of the last successfully reconciled spec.
+	// Use this to detect configuration drift or compare against the current spec.
+	// +optional
+	AppliedSpec *AerospikeCEClusterSpec `json:"appliedSpec,omitempty"`
 }
 
 // AerospikePodStatus holds per-pod status information.

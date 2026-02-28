@@ -167,6 +167,7 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 	cluster.Status.Size = readyCount
 	cluster.Status.ObservedGeneration = cluster.Generation
 	cluster.Status.AerospikeConfig = cluster.Spec.AerospikeConfig
+	cluster.Status.AppliedSpec = cluster.Spec.DeepCopy()
 
 	// Build selector string for HPA
 	selectorLabels := utils.SelectorLabelsForCluster(cluster.Name)

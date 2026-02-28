@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - "v*"
     paths:
       - "charts/**"
   workflow_dispatch:
@@ -20,6 +22,13 @@ jobs:
 
       - name: Install Helm
         uses: azure/setup-helm@v4
+
+      - name: Set chart version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          sed -i "s/^version:.*/version: ${TAG}/" charts/aerospike-operator/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${TAG}\"/" charts/aerospike-operator/Chart.yaml
 
       - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin

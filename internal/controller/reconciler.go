@@ -112,7 +112,7 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// where each status update triggers a new reconcile.
 	if cluster.Status.ObservedGeneration != cluster.Generation ||
 		cluster.Status.Phase == "" {
-		if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseInProgress); err != nil {
+		if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseInProgress, "Reconciliation started"); err != nil {
 			if errors.IsConflict(err) {
 				return ctrl.Result{Requeue: true}, nil
 			}
@@ -225,7 +225,7 @@ func (r *AerospikeCEClusterReconciler) reconcileCluster(
 	}
 
 	// Update status and set phase to Completed.
-	if err := r.updateStatusAndPhase(ctx, namespacedName, asdbcev1alpha1.AerospikePhaseCompleted); err != nil {
+	if err := r.updateStatusAndPhase(ctx, namespacedName, asdbcev1alpha1.AerospikePhaseCompleted, "Cluster is healthy and stable"); err != nil {
 		if errors.IsConflict(err) {
 			return ctrl.Result{Requeue: true}, nil
 		}
@@ -258,10 +258,10 @@ func (r *AerospikeCEClusterReconciler) getRackSize(cluster *asdbcev1alpha1.Aeros
 	return baseSize
 }
 
-// setPhase re-fetches the latest cluster object and updates its phase.
+// setPhase re-fetches the latest cluster object and updates its phase and reason.
 // It handles conflict errors by returning a requeue result (nil error)
 // so the caller can decide to requeue without logging a spurious error.
-func (r *AerospikeCEClusterReconciler) setPhase(ctx context.Context, cluster *asdbcev1alpha1.AerospikeCECluster, phase asdbcev1alpha1.AerospikePhase) error {
+func (r *AerospikeCEClusterReconciler) setPhase(ctx context.Context, cluster *asdbcev1alpha1.AerospikeCECluster, phase asdbcev1alpha1.AerospikePhase, reason string) error {
 	log := logf.FromContext(ctx)
 
 	// Re-fetch the latest version to avoid "object has been modified" conflicts.
@@ -270,11 +270,12 @@ func (r *AerospikeCEClusterReconciler) setPhase(ctx context.Context, cluster *as
 		return err
 	}
 
-	if latest.Status.Phase == phase {
+	if latest.Status.Phase == phase && latest.Status.PhaseReason == reason {
 		return nil
 	}
 
 	latest.Status.Phase = phase
+	latest.Status.PhaseReason = reason
 	if err := r.Status().Update(ctx, latest); err != nil {
 		if errors.IsConflict(err) {
 			log.V(1).Info("Conflict updating phase, will requeue", "phase", phase)
@@ -287,6 +288,7 @@ func (r *AerospikeCEClusterReconciler) setPhase(ctx context.Context, cluster *as
 	// so subsequent operations in the same reconcile loop use fresh data.
 	cluster.ResourceVersion = latest.ResourceVersion
 	cluster.Status.Phase = phase
+	cluster.Status.PhaseReason = reason
 	return nil
 }
 

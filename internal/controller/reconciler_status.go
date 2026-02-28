@@ -18,7 +18,7 @@ import (
 )
 
 // updateStatusAndPhase re-fetches the latest cluster object from the API server,
-// populates status fields, sets the desired phase, and performs a status update.
+// populates status fields, sets the desired phase and reason, and performs a status update.
 // This pattern avoids "object has been modified" conflict errors that occur when
 // updating status on a stale object.
 // If the status already matches the desired state, the update is skipped to avoid
@@ -27,6 +27,7 @@ func (r *AerospikeCEClusterReconciler) updateStatusAndPhase(
 	ctx context.Context,
 	namespacedName types.NamespacedName,
 	phase asdbcev1alpha1.AerospikePhase,
+	phaseReason string,
 ) error {
 	log := logf.FromContext(ctx)
 
@@ -38,6 +39,7 @@ func (r *AerospikeCEClusterReconciler) updateStatusAndPhase(
 
 	// Capture the previous state for comparison.
 	prevPhase := latest.Status.Phase
+	prevPhaseReason := latest.Status.PhaseReason
 	prevSize := latest.Status.Size
 	prevGeneration := latest.Status.ObservedGeneration
 
@@ -46,10 +48,12 @@ func (r *AerospikeCEClusterReconciler) updateStatusAndPhase(
 		return err
 	}
 	latest.Status.Phase = phase
+	latest.Status.PhaseReason = phaseReason
 
 	// Skip the update if nothing meaningful changed to avoid
 	// triggering a reconciliation feedback loop via the watch.
 	if prevPhase == phase &&
+		prevPhaseReason == phaseReason &&
 		prevSize == readyCount &&
 		prevGeneration == latest.Generation {
 		log.V(1).Info("Status unchanged, skipping update",
@@ -57,7 +61,7 @@ func (r *AerospikeCEClusterReconciler) updateStatusAndPhase(
 		return nil
 	}
 
-	log.Info("Updating status", "readyPods", readyCount, "desiredSize", latest.Spec.Size, "phase", phase)
+	log.Info("Updating status", "readyPods", readyCount, "desiredSize", latest.Spec.Size, "phase", phase, "phaseReason", phaseReason)
 
 	// Update Prometheus metrics
 	metrics.ClusterPhase.WithLabelValues(latest.Namespace, latest.Name).Set(metrics.PhaseToFloat(string(phase)))

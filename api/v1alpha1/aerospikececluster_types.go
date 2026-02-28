@@ -320,6 +320,11 @@ type AerospikeCEClusterStatus struct {
 	// OperationStatus tracks the current on-demand operation status.
 	// +optional
 	OperationStatus *OperationStatus `json:"operationStatus,omitempty"`
+
+	// PhaseReason provides a human-readable explanation of the current phase.
+	// Examples: "Rolling restart in progress for rack 1", "Scaling up rack 2 from 2 to 3 pods".
+	// +optional
+	PhaseReason string `json:"phaseReason,omitempty"`
 }
 
 // AerospikePodStatus holds per-pod status information.
@@ -361,6 +366,7 @@ type AerospikePodStatus struct {
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 // +kubebuilder:printcolumn:name="Image",type=string,JSONPath=`.spec.image`,priority=1
 // +kubebuilder:printcolumn:name="ObservedGen",type=integer,JSONPath=`.status.observedGeneration`,priority=1
+// +kubebuilder:printcolumn:name="PhaseReason",type=string,JSONPath=`.status.phaseReason`,priority=1
 
 // AerospikeCECluster is the Schema for the aerospikececlusters API.
 // It manages the lifecycle of an Aerospike Community Edition cluster.

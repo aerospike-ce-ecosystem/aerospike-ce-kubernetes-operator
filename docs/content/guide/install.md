@@ -258,6 +258,85 @@ helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
   --set grafanaDashboard.folder=Aerospike
 ```
 
+## Cluster Manager UI (Optional)
+
+[Aerospike Cluster Manager](https://github.com/KimSoungRyoul/aerospike-cluster-manager) is a web-based GUI tool for browsing records, managing indexes, executing AQL queries, and monitoring your Aerospike CE cluster.
+
+**Features:** Cluster dashboard, namespace/set browsing, record CRUD, query builder, secondary index management, user/role admin, UDF management, AQL terminal.
+
+The UI is bundled with the Helm chart and deployed alongside the operator. It includes an embedded PostgreSQL sidecar (with PVC) for storing cluster connection profiles.
+
+### Enable the UI
+
+Add `--set ui.enabled=true` to your Helm install command:
+
+```bash
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
+  -n aerospike-operator --create-namespace \
+  --set ui.enabled=true
+```
+
+### Access via Port-Forward
+
+```bash
+kubectl -n aerospike-operator port-forward svc/aerospike-operator-ui 3000:3000
+```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+:::tip
+The service name is `<release>-aerospike-operator-ui`. If you used a custom release name, adjust accordingly:
+```bash
+kubectl -n aerospike-operator port-forward svc/<release>-aerospike-operator-ui 3000:3000
+```
+:::
+
+### Access via Ingress
+
+For persistent external access, enable Ingress:
+
+```bash
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
+  -n aerospike-operator --create-namespace \
+  --set ui.enabled=true \
+  --set ui.ingress.enabled=true \
+  --set ui.ingress.className=nginx \
+  --set "ui.ingress.hosts[0].host=aerospike-admin.example.com" \
+  --set "ui.ingress.hosts[0].paths[0].path=/" \
+  --set "ui.ingress.hosts[0].paths[0].pathType=Prefix"
+```
+
+### Key Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `ui.enabled` | `false` | Enable the Cluster Manager UI |
+| `ui.replicaCount` | `1` | Number of UI replicas |
+| `ui.service.type` | `ClusterIP` | Service type (`ClusterIP`, `NodePort`, `LoadBalancer`) |
+| `ui.service.frontendPort` | `3000` | Frontend (Next.js) port |
+| `ui.service.backendPort` | `8000` | Backend (FastAPI) port |
+| `ui.ingress.enabled` | `false` | Create an Ingress for external access |
+| `ui.postgresql.enabled` | `true` | Deploy embedded PostgreSQL sidecar |
+| `ui.persistence.enabled` | `true` | Enable PVC for PostgreSQL data |
+| `ui.persistence.size` | `1Gi` | PVC storage size |
+| `ui.k8s.enabled` | `true` | Enable K8s cluster management (Create Cluster from UI) |
+| `ui.env.databaseUrl` | `""` | External PostgreSQL URL (when `postgresql.enabled=false`) |
+
+### Using an External PostgreSQL
+
+To use an existing PostgreSQL instance instead of the embedded sidecar:
+
+```bash
+helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+  --version 0.1.0 \
+  -n aerospike-operator --create-namespace \
+  --set ui.enabled=true \
+  --set ui.postgresql.enabled=false \
+  --set ui.env.databaseUrl="postgresql://user:pass@db-host:5432/aerospike_manager"
+```
+
 ## Verify Installation
 
 Check the operator pod is running:

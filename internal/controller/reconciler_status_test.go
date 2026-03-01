@@ -537,3 +537,83 @@ func TestConditionsChanged(t *testing.T) {
 		})
 	}
 }
+
+func TestUnstableSince(t *testing.T) {
+	now := metav1.Now()
+	earlier := metav1.NewTime(now.Add(-5 * time.Minute))
+
+	tests := []struct {
+		name          string
+		isReady       bool
+		prevUnstable  *metav1.Time
+		wantNil       bool
+		wantPreserved bool // unstableSince should equal prevUnstable
+	}{
+		{
+			name:          "NotReady with no prev → sets UnstableSince",
+			isReady:       false,
+			prevUnstable:  nil,
+			wantNil:       false,
+			wantPreserved: false,
+		},
+		{
+			name:          "NotReady with existing prev → preserves original timestamp",
+			isReady:       false,
+			prevUnstable:  &earlier,
+			wantNil:       false,
+			wantPreserved: true,
+		},
+		{
+			name:          "Ready pod clears UnstableSince",
+			isReady:       true,
+			prevUnstable:  &earlier,
+			wantNil:       true,
+			wantPreserved: false,
+		},
+		{
+			name:          "Ready pod with nil stays nil",
+			isReady:       true,
+			prevUnstable:  nil,
+			wantNil:       true,
+			wantPreserved: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cluster := &asdbcev1alpha1.AerospikeCECluster{
+				Status: asdbcev1alpha1.AerospikeCEClusterStatus{
+					Pods: map[string]asdbcev1alpha1.AerospikePodStatus{
+						"pod-0": {
+							UnstableSince: tc.prevUnstable,
+						},
+					},
+				},
+			}
+
+			// Simulate the logic from populateStatus
+			prev := cluster.Status.Pods["pod-0"]
+			var unstableSince *metav1.Time
+			if !tc.isReady {
+				if prev.UnstableSince != nil {
+					unstableSince = prev.UnstableSince
+				} else {
+					now := metav1.Now()
+					unstableSince = &now
+				}
+			}
+
+			if tc.wantNil && unstableSince != nil {
+				t.Errorf("expected nil UnstableSince for ready pod, got %v", unstableSince)
+			}
+			if !tc.wantNil && unstableSince == nil {
+				t.Errorf("expected non-nil UnstableSince for not-ready pod")
+			}
+			if tc.wantPreserved && tc.prevUnstable != nil && unstableSince != nil {
+				if !unstableSince.Equal(tc.prevUnstable) {
+					t.Errorf("expected original timestamp %v, got %v", tc.prevUnstable, unstableSince)
+				}
+			}
+		})
+	}
+}

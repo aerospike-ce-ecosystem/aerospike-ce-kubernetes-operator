@@ -356,6 +356,23 @@ const (
 	AerospikePhaseDeleting AerospikePhase = "Deleting"
 )
 
+// RestartReason describes why a pod was restarted by the operator.
+// +kubebuilder:validation:Enum=ConfigChanged;ImageChanged;PodSpecChanged;ManualRestart;WarmRestart
+type RestartReason string
+
+const (
+	// RestartReasonConfigChanged indicates a cold restart triggered by an Aerospike config change.
+	RestartReasonConfigChanged RestartReason = "ConfigChanged"
+	// RestartReasonImageChanged indicates the pod image was updated.
+	RestartReasonImageChanged RestartReason = "ImageChanged"
+	// RestartReasonPodSpecChanged indicates the pod spec (resources, env, etc.) changed.
+	RestartReasonPodSpecChanged RestartReason = "PodSpecChanged"
+	// RestartReasonManualRestart indicates an on-demand pod restart (OperationPodRestart).
+	RestartReasonManualRestart RestartReason = "ManualRestart"
+	// RestartReasonWarmRestart indicates an on-demand or rolling warm restart (SIGUSR1).
+	RestartReasonWarmRestart RestartReason = "WarmRestart"
+)
+
 // AerospikeCEClusterStatus defines the observed state of the Aerospike CE cluster.
 type AerospikeCEClusterStatus struct {
 	// Phase indicates the overall cluster phase.
@@ -402,6 +419,25 @@ type AerospikeCEClusterStatus struct {
 	// Use this to detect configuration drift or compare against the current spec.
 	// +optional
 	AppliedSpec *AerospikeCEClusterSpec `json:"appliedSpec,omitempty"`
+
+	// AerospikeClusterSize is the Aerospike cluster-size as reported by asinfo.
+	// This may differ from the number of ready K8s pods during split-brain or rolling restarts.
+	// +optional
+	AerospikeClusterSize int32 `json:"aerospikeClusterSize,omitempty"`
+
+	// OperatorVersion is the version of the operator that last reconciled this cluster.
+	// Injected via ldflags at build time.
+	// +optional
+	OperatorVersion string `json:"operatorVersion,omitempty"`
+
+	// PendingRestartPods lists pods that are queued for restart in the current rolling restart.
+	// Cleared when the rolling restart completes.
+	// +optional
+	PendingRestartPods []string `json:"pendingRestartPods,omitempty"`
+
+	// LastReconcileTime is the timestamp of the last successful reconciliation.
+	// +optional
+	LastReconcileTime *metav1.Time `json:"lastReconcileTime,omitempty"`
 
 	// TemplateSnapshot holds the resolved template spec at the time of last sync.
 	// This is the basis for template-derived configuration; changes to the template
@@ -451,6 +487,18 @@ type AerospikePodStatus struct {
 	// Populated via the asinfo "service" command.
 	// +optional
 	AccessEndpoints []string `json:"accessEndpoints,omitempty"`
+	// LastRestartReason is the reason the pod was last restarted by the operator.
+	// +optional
+	LastRestartReason *RestartReason `json:"lastRestartReason,omitempty"`
+
+	// LastRestartTime is the timestamp when the pod was last restarted by the operator.
+	// +optional
+	LastRestartTime *metav1.Time `json:"lastRestartTime,omitempty"`
+
+	// UnstableSince records the first time this pod became NotReady.
+	// Reset to nil when the pod returns to Ready. Useful for alerting on long-running instability.
+	// +optional
+	UnstableSince *metav1.Time `json:"unstableSince,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -461,9 +509,11 @@ type AerospikePodStatus struct {
 // +kubebuilder:printcolumn:name="Ready",type=integer,JSONPath=`.status.size`
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
+// +kubebuilder:printcolumn:name="Available",type=string,JSONPath=`.status.conditions[?(@.type=='Available')].status`
 // +kubebuilder:printcolumn:name="Image",type=string,JSONPath=`.spec.image`,priority=1
 // +kubebuilder:printcolumn:name="ObservedGen",type=integer,JSONPath=`.status.observedGeneration`,priority=1
 // +kubebuilder:printcolumn:name="PhaseReason",type=string,JSONPath=`.status.phaseReason`,priority=1
+// +kubebuilder:printcolumn:name="AS-Size",type=integer,JSONPath=`.status.aerospikeClusterSize`,priority=1
 
 // AerospikeCECluster is the Schema for the aerospikececlusters API.
 // It manages the lifecycle of an Aerospike Community Edition cluster.

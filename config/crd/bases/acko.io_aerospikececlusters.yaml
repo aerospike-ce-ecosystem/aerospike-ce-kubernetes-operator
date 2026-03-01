@@ -30,6 +30,9 @@ spec:
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
+    - jsonPath: .status.conditions[?(@.type=='Available')].status
+      name: Available
+      type: string
     - jsonPath: .spec.image
       name: Image
       priority: 1
@@ -42,6 +45,10 @@ spec:
       name: PhaseReason
       priority: 1
       type: string
+    - jsonPath: .status.aerospikeClusterSize
+      name: AS-Size
+      priority: 1
+      type: integer
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -8565,6 +8572,12 @@ spec:
             description: AerospikeCEClusterStatus defines the observed state of the
               Aerospike CE cluster.
             properties:
+              aerospikeClusterSize:
+                description: |-
+                  AerospikeClusterSize is the Aerospike cluster-size as reported by asinfo.
+                  This may differ from the number of ready K8s pods during split-brain or rolling restarts.
+                format: int32
+                type: integer
               aerospikeConfig:
                 description: AerospikeConfig is the last applied Aerospike configuration.
                 type: object
@@ -17181,6 +17194,11 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              lastReconcileTime:
+                description: LastReconcileTime is the timestamp of the last successful
+                  reconciliation.
+                format: date-time
+                type: string
               observedGeneration:
                 description: ObservedGeneration is the most recent generation observed
                   by the controller.
@@ -17225,6 +17243,18 @@ spec:
                     - Deleting
                     type: string
                 type: object
+              operatorVersion:
+                description: |-
+                  OperatorVersion is the version of the operator that last reconciled this cluster.
+                  Injected via ldflags at build time.
+                type: string
+              pendingRestartPods:
+                description: |-
+                  PendingRestartPods lists pods that are queued for restart in the current rolling restart.
+                  Cleared when the rolling restart completes.
+                items:
+                  type: string
+                type: array
               phase:
                 description: Phase indicates the overall cluster phase.
                 enum:
@@ -17289,6 +17319,21 @@ spec:
                       description: IsRunningAndReady indicates whether the pod is
                         running and ready.
                       type: boolean
+                    lastRestartReason:
+                      description: LastRestartReason is the reason the pod was last
+                        restarted by the operator.
+                      enum:
+                      - ConfigChanged
+                      - ImageChanged
+                      - PodSpecChanged
+                      - ManualRestart
+                      - WarmRestart
+                      type: string
+                    lastRestartTime:
+                      description: LastRestartTime is the timestamp when the pod was
+                        last restarted by the operator.
+                      format: date-time
+                      type: string
                     nodeID:
                       description: |-
                         NodeID is the Aerospike-assigned node identifier (e.g. "BB9020012AC4202").
@@ -17313,6 +17358,12 @@ spec:
                         via node/LB.
                       format: int32
                       type: integer
+                    unstableSince:
+                      description: |-
+                        UnstableSince records the first time this pod became NotReady.
+                        Reset to nil when the pod returns to Ready. Useful for alerting on long-running instability.
+                      format: date-time
+                      type: string
                   type: object
                 description: Pods contains status information for each pod in the
                   cluster.

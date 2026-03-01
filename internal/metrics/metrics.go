@@ -80,6 +80,26 @@ var (
 		},
 		[]string{"namespace", "name", "reason"},
 	)
+
+	// LastReconcileTimestamp reports the Unix timestamp of the last successful reconciliation.
+	// Use with time() to detect staleness: time() - aerospike_ce_last_reconcile_timestamp_seconds > 300
+	LastReconcileTimestamp = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "aerospike_ce_last_reconcile_timestamp_seconds",
+			Help: "Unix timestamp of the last successful reconciliation for each AerospikeCECluster",
+		},
+		[]string{"namespace", "name"},
+	)
+
+	// ClusterASSize reports the Aerospike cluster-size as reported by asinfo.
+	// This may differ from aerospike_ce_cluster_ready_pods during split-brain or rolling restarts.
+	ClusterASSize = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "aerospike_ce_cluster_as_size",
+			Help: "Aerospike cluster-size reported by asinfo (may differ from K8s pod count)",
+		},
+		[]string{"namespace", "name"},
+	)
 )
 
 // ReconcileErrorReason constants define bounded labels for ReconcileErrorsTotal.
@@ -132,6 +152,8 @@ func CleanupClusterMetrics(namespace, name string) {
 	WarmRestartsTotal.Delete(labels)
 	ColdRestartsTotal.Delete(labels)
 	DynamicConfigUpdatesTotal.Delete(labels)
+	LastReconcileTimestamp.Delete(labels)
+	ClusterASSize.Delete(labels)
 
 	for _, result := range []string{"success", "error"} {
 		ACLSyncTotal.Delete(prometheus.Labels{"namespace": namespace, "name": name, "result": result})
@@ -156,5 +178,7 @@ func init() {
 		DynamicConfigUpdatesTotal,
 		ACLSyncTotal,
 		ReconcileErrorsTotal,
+		LastReconcileTimestamp,
+		ClusterASSize,
 	)
 }

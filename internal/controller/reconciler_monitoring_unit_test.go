@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -60,5 +61,90 @@ func TestToStringMap(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestDefaultAlertRules(t *testing.T) {
+	rules := defaultAlertRules("my-cluster", "aerospike")
+	if len(rules) != 1 {
+		t.Fatalf("expected 1 rule group, got %d", len(rules))
+	}
+
+	group, ok := rules[0].(map[string]any)
+	if !ok {
+		t.Fatal("rule group is not map[string]any")
+	}
+
+	groupName, ok := group["name"].(string)
+	if !ok || groupName != "my-cluster.rules" {
+		t.Errorf("group name = %q, want %q", groupName, "my-cluster.rules")
+	}
+
+	ruleList, ok := group["rules"].([]any)
+	if !ok {
+		t.Fatal("rules is not []any")
+	}
+
+	expectedAlerts := []string{
+		"AerospikeNodeDown",
+		"AerospikeNamespaceStopWrites",
+		"AerospikeHighDiskUsage",
+		"AerospikeHighMemoryUsage",
+		"AerospikeReconcileStale",
+		"AerospikeClusterSizeMismatch",
+	}
+
+	if len(ruleList) != len(expectedAlerts) {
+		t.Fatalf("expected %d alert rules, got %d", len(expectedAlerts), len(ruleList))
+	}
+
+	for i, expected := range expectedAlerts {
+		rule, ok := ruleList[i].(map[string]any)
+		if !ok {
+			t.Fatalf("rule[%d] is not map[string]any", i)
+		}
+		alertName, ok := rule["alert"].(string)
+		if !ok || alertName != expected {
+			t.Errorf("rule[%d].alert = %q, want %q", i, alertName, expected)
+		}
+
+		// Verify expressions reference the cluster/namespace context
+		expr, ok := rule["expr"].(string)
+		if !ok {
+			t.Errorf("rule[%d].expr is not string", i)
+			continue
+		}
+		if !strings.Contains(expr, "aerospike") {
+			t.Errorf("rule[%d].expr = %q, expected to contain namespace reference", i, expr)
+		}
+		if !strings.Contains(expr, "my-cluster") {
+			t.Errorf("rule[%d].expr = %q, expected to contain cluster name reference", i, expr)
+		}
+	}
+}
+
+func TestDefaultAlertRules_LabelSeverity(t *testing.T) {
+	rules := defaultAlertRules("test", "ns")
+	group := rules[0].(map[string]any)
+	ruleList := group["rules"].([]any)
+
+	criticalCount := 0
+	warningCount := 0
+	for _, r := range ruleList {
+		rule := r.(map[string]any)
+		labels := rule["labels"].(map[string]any)
+		switch labels["severity"].(string) {
+		case "critical":
+			criticalCount++
+		case "warning":
+			warningCount++
+		}
+	}
+
+	if criticalCount != 2 {
+		t.Errorf("expected 2 critical alerts, got %d", criticalCount)
+	}
+	if warningCount != 4 {
+		t.Errorf("expected 4 warning alerts, got %d", warningCount)
 	}
 }

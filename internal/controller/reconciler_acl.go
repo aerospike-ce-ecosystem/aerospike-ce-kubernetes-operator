@@ -207,7 +207,7 @@ func (r *AerospikeCEClusterReconciler) reconcileUsers(
 		// has changed (guarded by the generation check above), so it won't
 		// run every reconcile cycle. The server is idempotent for same-value changes.
 		if err := aeroClient.ChangePassword(adminPolicy, userSpec.Name, password); err != nil {
-			log.V(1).Info("Password change failed (non-fatal)", "user", userSpec.Name, "error", err)
+			log.Error(err, "Password change failed (non-fatal, continuing)", "user", userSpec.Name)
 		}
 	}
 

@@ -242,6 +242,12 @@ objects=3;sub_objects=0;...;memory_used_bytes=384;...
 | [`aerospike-ce-cluster-3node.yaml`](config/samples/aerospike-ce-cluster-3node.yaml) | 3-node with persistent volume storage |
 | [`aerospike-ce-cluster-multirack.yaml`](config/samples/aerospike-ce-cluster-multirack.yaml) | 6-node multi-rack with zone affinity |
 | [`aerospike-ce-cluster-acl.yaml`](config/samples/aerospike-ce-cluster-acl.yaml) | 3-node with ACL (roles, users, K8s secrets) |
+| [`aerospike-ce-cluster-monitoring.yaml`](config/samples/aerospike-ce-cluster-monitoring.yaml) | Prometheus monitoring with exporter sidecar |
+| [`aerospike-ce-cluster-storage-advanced.yaml`](config/samples/aerospike-ce-cluster-storage-advanced.yaml) | Advanced storage policies and multiple volume types |
+| [`aerospike-ce-cluster-with-template.yaml`](config/samples/aerospike-ce-cluster-with-template.yaml) | Using AerospikeCEClusterTemplate for config profiles |
+| [`acko_v1alpha1_template_dev.yaml`](config/samples/acko_v1alpha1_template_dev.yaml) | Dev template (minimal resources, no anti-affinity) |
+| [`acko_v1alpha1_template_stage.yaml`](config/samples/acko_v1alpha1_template_stage.yaml) | Stage template (moderate resources, soft anti-affinity) |
+| [`acko_v1alpha1_template_prod.yaml`](config/samples/acko_v1alpha1_template_prod.yaml) | Prod template (full resources, hard anti-affinity, local PV) |
 
 ## Uninstall
 

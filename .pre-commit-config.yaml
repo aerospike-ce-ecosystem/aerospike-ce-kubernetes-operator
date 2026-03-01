@@ -11,3 +11,11 @@ repos:
         args: ['--maxkb=1000']
       - id: check-merge-conflict
       - id: detect-private-key
+  - repo: local
+    hooks:
+      - id: golangci-lint
+        name: golangci-lint
+        entry: make lint-fix
+        language: system
+        types: [go]
+        pass_filenames: false

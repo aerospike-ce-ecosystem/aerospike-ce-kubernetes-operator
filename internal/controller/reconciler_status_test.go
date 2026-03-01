@@ -252,6 +252,21 @@ func TestParseServiceEndpoints(t *testing.T) {
 			input: "1.2.3.4:3000;",
 			want:  []string{"1.2.3.4:3000"},
 		},
+		{
+			name:  "consecutive semicolons produce no empty entries",
+			input: "1.2.3.4:3000;;5.6.7.8:3000",
+			want:  []string{"1.2.3.4:3000", "5.6.7.8:3000"},
+		},
+		{
+			name:  "leading semicolon is ignored",
+			input: ";1.2.3.4:3000",
+			want:  []string{"1.2.3.4:3000"},
+		},
+		{
+			name:  "only semicolons returns nil",
+			input: ";;;",
+			want:  nil,
+		},
 	}
 
 	for _, tc := range tests {
@@ -267,102 +282,6 @@ func TestParseServiceEndpoints(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestConditionsChanged(t *testing.T) {
-	tests := []struct {
-		name string
-		prev map[string]metav1.ConditionStatus
-		cur  []metav1.Condition
-		want bool
-	}{
-		{
-			name: "both empty",
-			prev: map[string]metav1.ConditionStatus{},
-			cur:  nil,
-			want: false,
-		},
-		{
-			name: "same single condition",
-			prev: map[string]metav1.ConditionStatus{"Available": metav1.ConditionTrue},
-			cur:  []metav1.Condition{{Type: "Available", Status: metav1.ConditionTrue}},
-			want: false,
-		},
-		{
-			name: "status changed",
-			prev: map[string]metav1.ConditionStatus{"Available": metav1.ConditionTrue},
-			cur:  []metav1.Condition{{Type: "Available", Status: metav1.ConditionFalse}},
-			want: true,
-		},
-		{
-			name: "condition added",
-			prev: map[string]metav1.ConditionStatus{"Available": metav1.ConditionTrue},
-			cur: []metav1.Condition{
-				{Type: "Available", Status: metav1.ConditionTrue},
-				{Type: "Ready", Status: metav1.ConditionFalse},
-			},
-			want: true,
-		},
-		{
-			name: "condition removed",
-			prev: map[string]metav1.ConditionStatus{
-				"Available": metav1.ConditionTrue,
-				"Ready":     metav1.ConditionFalse,
-			},
-			cur:  []metav1.Condition{{Type: "Available", Status: metav1.ConditionTrue}},
-			want: true,
-		},
-		{
-			name: "different condition type",
-			prev: map[string]metav1.ConditionStatus{"Available": metav1.ConditionTrue},
-			cur:  []metav1.Condition{{Type: "Ready", Status: metav1.ConditionTrue}},
-			want: true,
-		},
-		{
-			name: "multiple conditions same",
-			prev: map[string]metav1.ConditionStatus{
-				"Available": metav1.ConditionTrue,
-				"Ready":     metav1.ConditionTrue,
-			},
-			cur: []metav1.Condition{
-				{Type: "Available", Status: metav1.ConditionTrue},
-				{Type: "Ready", Status: metav1.ConditionTrue},
-			},
-			want: false,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := conditionsChanged(tc.prev, tc.cur)
-			if got != tc.want {
-				t.Errorf("conditionsChanged() = %v, want %v", got, tc.want)
-			}
-		})
-	}
-}
-
-func TestConditionsSnapshot(t *testing.T) {
-	conds := []metav1.Condition{
-		{Type: "Available", Status: metav1.ConditionTrue},
-		{Type: "Ready", Status: metav1.ConditionFalse},
-	}
-	snap := conditionsSnapshot(conds)
-	if len(snap) != 2 {
-		t.Fatalf("expected 2 entries, got %d", len(snap))
-	}
-	if snap["Available"] != metav1.ConditionTrue {
-		t.Errorf("Available = %q, want True", snap["Available"])
-	}
-	if snap["Ready"] != metav1.ConditionFalse {
-		t.Errorf("Ready = %q, want False", snap["Ready"])
-	}
-
-	// nil input
-	snap2 := conditionsSnapshot(nil)
-	if len(snap2) != 0 {
-		t.Errorf("expected empty map for nil input, got %d entries", len(snap2))
 	}
 }
 
@@ -413,10 +332,10 @@ func TestSetFineGrainedConditions(t *testing.T) {
 		}
 	})
 
-	t.Run("ACL spec set and ACLErr nil: ACLSynced=True", func(t *testing.T) {
+	t.Run("ACL spec set and ACLSynced true: ACLSynced=True", func(t *testing.T) {
 		cluster := &asdbcev1alpha1.AerospikeCECluster{}
 		cluster.Spec.AerospikeAccessControl = &asdbcev1alpha1.AerospikeAccessControlSpec{}
-		setFineGrainedConditions(cluster, StatusUpdateOpts{ACLErr: nil})
+		setFineGrainedConditions(cluster, StatusUpdateOpts{ACLErr: nil, ACLSynced: true})
 
 		cond := findCondition(cluster, asdbcev1alpha1.ConditionACLSynced)
 		if cond == nil {
@@ -424,6 +343,23 @@ func TestSetFineGrainedConditions(t *testing.T) {
 		}
 		if cond.Status != metav1.ConditionTrue {
 			t.Errorf("ACLSynced = %q, want True", cond.Status)
+		}
+	})
+
+	t.Run("ACL spec set and ACL skipped (no ready pods): ACLSynced=False with pending reason", func(t *testing.T) {
+		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+		cluster.Spec.AerospikeAccessControl = &asdbcev1alpha1.AerospikeAccessControlSpec{}
+		setFineGrainedConditions(cluster, StatusUpdateOpts{ACLErr: nil, ACLSynced: false})
+
+		cond := findCondition(cluster, asdbcev1alpha1.ConditionACLSynced)
+		if cond == nil {
+			t.Fatal("ACLSynced condition not found")
+		}
+		if cond.Status != metav1.ConditionFalse {
+			t.Errorf("ACLSynced = %q, want False", cond.Status)
+		}
+		if cond.Reason != "ACLSyncPending" {
+			t.Errorf("ACLSynced reason = %q, want ACLSyncPending", cond.Reason)
 		}
 	})
 
@@ -466,4 +402,138 @@ func TestSetFineGrainedConditions(t *testing.T) {
 			t.Errorf("MigrationComplete = %q, want True", cond.Status)
 		}
 	})
+}
+
+func TestConditionsSnapshot(t *testing.T) {
+	tests := []struct {
+		name string
+		in   []metav1.Condition
+		want map[string]metav1.ConditionStatus
+	}{
+		{
+			name: "nil conditions returns empty map",
+			in:   nil,
+			want: map[string]metav1.ConditionStatus{},
+		},
+		{
+			name: "empty slice returns empty map",
+			in:   []metav1.Condition{},
+			want: map[string]metav1.ConditionStatus{},
+		},
+		{
+			name: "single condition",
+			in: []metav1.Condition{
+				{Type: "Ready", Status: metav1.ConditionTrue},
+			},
+			want: map[string]metav1.ConditionStatus{"Ready": metav1.ConditionTrue},
+		},
+		{
+			name: "multiple conditions",
+			in: []metav1.Condition{
+				{Type: "Ready", Status: metav1.ConditionTrue},
+				{Type: "ACLSynced", Status: metav1.ConditionFalse},
+				{Type: "MigrationComplete", Status: metav1.ConditionTrue},
+			},
+			want: map[string]metav1.ConditionStatus{
+				"Ready":             metav1.ConditionTrue,
+				"ACLSynced":         metav1.ConditionFalse,
+				"MigrationComplete": metav1.ConditionTrue,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := conditionsSnapshot(tc.in)
+			if len(got) != len(tc.want) {
+				t.Fatalf("conditionsSnapshot() returned %d entries, want %d", len(got), len(tc.want))
+			}
+			for k, v := range tc.want {
+				if got[k] != v {
+					t.Errorf("conditionsSnapshot()[%q] = %q, want %q", k, got[k], v)
+				}
+			}
+		})
+	}
+}
+
+func TestConditionsChanged(t *testing.T) {
+	tests := []struct {
+		name string
+		prev map[string]metav1.ConditionStatus
+		cur  []metav1.Condition
+		want bool
+	}{
+		{
+			name: "both empty — no change",
+			prev: map[string]metav1.ConditionStatus{},
+			cur:  []metav1.Condition{},
+			want: false,
+		},
+		{
+			name: "identical single condition — no change",
+			prev: map[string]metav1.ConditionStatus{"Ready": metav1.ConditionTrue},
+			cur:  []metav1.Condition{{Type: "Ready", Status: metav1.ConditionTrue}},
+			want: false,
+		},
+		{
+			name: "status changed True→False",
+			prev: map[string]metav1.ConditionStatus{"Ready": metav1.ConditionTrue},
+			cur:  []metav1.Condition{{Type: "Ready", Status: metav1.ConditionFalse}},
+			want: true,
+		},
+		{
+			name: "condition added",
+			prev: map[string]metav1.ConditionStatus{"Ready": metav1.ConditionTrue},
+			cur: []metav1.Condition{
+				{Type: "Ready", Status: metav1.ConditionTrue},
+				{Type: "ACLSynced", Status: metav1.ConditionTrue},
+			},
+			want: true,
+		},
+		{
+			name: "condition removed",
+			prev: map[string]metav1.ConditionStatus{
+				"Ready":     metav1.ConditionTrue,
+				"ACLSynced": metav1.ConditionTrue,
+			},
+			cur:  []metav1.Condition{{Type: "Ready", Status: metav1.ConditionTrue}},
+			want: true,
+		},
+		{
+			name: "new condition type replaces old",
+			prev: map[string]metav1.ConditionStatus{"OldType": metav1.ConditionTrue},
+			cur:  []metav1.Condition{{Type: "NewType", Status: metav1.ConditionTrue}},
+			want: true,
+		},
+		{
+			name: "multiple conditions identical — no change",
+			prev: map[string]metav1.ConditionStatus{
+				"Ready":             metav1.ConditionTrue,
+				"ACLSynced":         metav1.ConditionFalse,
+				"MigrationComplete": metav1.ConditionTrue,
+			},
+			cur: []metav1.Condition{
+				{Type: "Ready", Status: metav1.ConditionTrue},
+				{Type: "ACLSynced", Status: metav1.ConditionFalse},
+				{Type: "MigrationComplete", Status: metav1.ConditionTrue},
+			},
+			want: false,
+		},
+		{
+			name: "prev empty, cur has condition — changed",
+			prev: map[string]metav1.ConditionStatus{},
+			cur:  []metav1.Condition{{Type: "Ready", Status: metav1.ConditionTrue}},
+			want: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := conditionsChanged(tc.prev, tc.cur)
+			if got != tc.want {
+				t.Errorf("conditionsChanged() = %v, want %v", got, tc.want)
+			}
+		})
+	}
 }

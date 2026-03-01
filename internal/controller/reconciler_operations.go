@@ -4,8 +4,8 @@ import (
 	"context"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
@@ -108,18 +108,14 @@ func (r *AerospikeCEClusterReconciler) reconcileOperations(
 		}
 	}
 
-	// Update operation status
-	// Re-fetch cluster to avoid conflicts
+	// Update operation status using Patch to avoid overwriting concurrent status changes.
 	latest, err := r.refetchCluster(ctx, types.NamespacedName{Name: cluster.Name, Namespace: cluster.Namespace})
 	if err != nil {
 		return !allDone, err
 	}
+	base := latest.DeepCopy()
 	latest.Status.OperationStatus = opStatus
-	if err := r.Status().Update(ctx, latest); err != nil {
-		if errors.IsConflict(err) {
-			log.V(1).Info("Conflict updating operation status, will requeue", "operation", op.ID)
-			return true, nil
-		}
+	if err := r.Status().Patch(ctx, latest, client.MergeFrom(base)); err != nil {
 		return !allDone, err
 	}
 

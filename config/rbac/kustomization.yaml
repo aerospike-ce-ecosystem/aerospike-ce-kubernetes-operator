@@ -25,4 +25,3 @@ resources:
 - aerospikececluster_admin_role.yaml
 - aerospikececluster_editor_role.yaml
 - aerospikececluster_viewer_role.yaml
-

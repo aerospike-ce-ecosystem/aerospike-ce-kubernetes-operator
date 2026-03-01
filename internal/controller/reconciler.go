@@ -159,6 +159,12 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 				return ctrl.Result{}, err
 			}
 		}
+		if resolveResult.SnapshotUpdated && cluster.Status.TemplateSnapshot != nil {
+			r.Recorder.Eventf(cluster, corev1.EventTypeNormal, "TemplateApplied",
+				"Applied template %q (rv: %s)",
+				cluster.Spec.TemplateRef.Name,
+				cluster.Status.TemplateSnapshot.ResourceVersion)
+		}
 		for _, w := range resolveResult.Warnings {
 			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "ValidationWarning", "%s", w)
 		}
@@ -296,22 +302,25 @@ func (r *AerospikeCEClusterReconciler) reconcileCluster(
 		}
 	}
 
-	// Reconcile ACL (non-fatal); capture error for ACLSynced condition.
+	// Reconcile ACL (non-fatal); capture error and skip flag for ACLSynced condition.
 	var aclErr error
+	aclSynced := false
 	if cluster.Spec.AerospikeAccessControl != nil {
 		if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseACLSync, "Synchronizing ACL roles and users"); err != nil && !errors.IsConflict(err) {
 			return ctrl.Result{}, err
 		}
 	}
-	if err := r.reconcileACL(ctx, cluster); err != nil {
+	if synced, err := r.reconcileACL(ctx, cluster); err != nil {
 		log.Error(err, "Failed to reconcile ACL")
 		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "ACLSyncError", "ACL sync failed: %v", err)
 		metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, metrics.ReasonACL).Inc()
 		aclErr = err
+	} else {
+		aclSynced = synced
 	}
 
 	// Update status and set phase to Completed.
-	statusOpts := StatusUpdateOpts{ACLErr: aclErr}
+	statusOpts := StatusUpdateOpts{ACLErr: aclErr, ACLSynced: aclSynced}
 	if err := r.updateStatusAndPhase(ctx, namespacedName, asdbcev1alpha1.AerospikePhaseCompleted, "Cluster is healthy and stable", statusOpts); err != nil {
 		if errors.IsConflict(err) {
 			return ctrl.Result{Requeue: true}, nil
@@ -444,7 +453,11 @@ func (r *AerospikeCEClusterReconciler) mapTemplateToCluster(ctx context.Context,
 			latest := cl.DeepCopy()
 			latest.Status.TemplateSnapshot.Synced = false
 			if err := r.Status().Update(ctx, latest); err != nil {
-				log.Error(err, "Failed to mark cluster template as drifted", "cluster", cl.Name)
+				// Conflict errors are expected when multiple reconciles run concurrently;
+				// the enqueued reconcile request below will handle the drift on next loop.
+				if !errors.IsConflict(err) {
+					log.Error(err, "Failed to mark cluster template as drifted", "cluster", cl.Name)
+				}
 			} else {
 				r.Recorder.Eventf(cl, corev1.EventTypeWarning, "TemplateDrifted",
 					"Template %q changed (rv: %s → %s); cluster using snapshot. Set annotation acko.io/resync-template=true to resync.",

@@ -145,7 +145,13 @@ func (r *AerospikeCEClusterReconciler) cleanupStalePodServices(
 
 	for i := range svcList.Items {
 		svc := &svcList.Items[i]
+		if svc.Labels == nil {
+			continue
+		}
 		podName := svc.Labels[podServiceLabel]
+		if podName == "" {
+			continue
+		}
 		if _, active := activePodNames[podName]; !active {
 			log.Info("Deleting stale pod service", "name", svc.Name, "pod", podName)
 			if err := r.Delete(ctx, svc); err != nil && !errors.IsNotFound(err) {

@@ -128,6 +128,7 @@ type AerospikeAccessControlSpec struct {
 type AerospikeRoleSpec struct {
 	// Name is the role name.
 	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 
 	// Privileges is a list of privilege strings (e.g., "read-write", "sys-admin").
@@ -143,11 +144,13 @@ type AerospikeRoleSpec struct {
 type AerospikeUserSpec struct {
 	// Name is the username.
 	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 
 	// SecretName is the Kubernetes Secret containing the user's password.
 	// The secret must have a "password" key.
 	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
 	SecretName string `json:"secretName"`
 
 	// Roles is a list of role names assigned to this user.

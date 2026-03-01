@@ -82,11 +82,14 @@ func (r *AerospikeCEClusterReconciler) reconcileStatefulSet(
 		oldReplicas = *existing.Spec.Replicas
 	}
 	needsUpdate := oldReplicas != rackSize
-	existingHash := existing.Spec.Template.Annotations[utils.ConfigHashAnnotation]
+	var existingHash, existingPodSpecHash string
+	if existing.Spec.Template.Annotations != nil {
+		existingHash = existing.Spec.Template.Annotations[utils.ConfigHashAnnotation]
+		existingPodSpecHash = existing.Spec.Template.Annotations[utils.PodSpecHashAnnotation]
+	}
 	if existingHash != hash {
 		needsUpdate = true
 	}
-	existingPodSpecHash := existing.Spec.Template.Annotations[utils.PodSpecHashAnnotation]
 	if existingPodSpecHash != podSpecHash {
 		needsUpdate = true
 	}
@@ -239,7 +242,7 @@ func (r *AerospikeCEClusterReconciler) detectScaling(
 	rackSizes []int32,
 ) (scalingUp bool, scalingDown bool, err error) {
 	for i, rack := range racks {
-		stsName := cluster.Name + "-" + fmt.Sprintf("%d", rack.ID)
+		stsName := utils.StatefulSetName(cluster.Name, rack.ID)
 		existing := &appsv1.StatefulSet{}
 		if err := r.Get(ctx, types.NamespacedName{Name: stsName, Namespace: cluster.Namespace}, existing); err != nil {
 			if errors.IsNotFound(err) {

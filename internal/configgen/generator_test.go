@@ -506,6 +506,154 @@ func TestGenerateConfig_TopLevelNilValue(t *testing.T) {
 	}
 }
 
+func TestGenerateConfForPod_SinglePodMeshSeed(t *testing.T) {
+	config := map[string]any{
+		"service": map[string]any{
+			"cluster-name": "single-node",
+		},
+		"network": map[string]any{
+			"heartbeat": map[string]any{
+				"mode": "mesh",
+				"port": 3002,
+			},
+		},
+	}
+
+	// Single pod should still get its own mesh seed address
+	podNames := []string{"asc-0"}
+	result, err := GenerateConfForPod(config, "headless", "default", podNames, 3002)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	assertContains(t, result, "mesh-seed-address-port asc-0.headless.default.svc.cluster.local 3002")
+}
+
+func TestGenerateConfig_MultipleNamespaces(t *testing.T) {
+	config := map[string]any{
+		"namespaces": []any{
+			map[string]any{
+				"name":               "ns1",
+				"replication-factor": 2,
+				"storage-engine": map[string]any{
+					"type": "memory",
+				},
+			},
+			map[string]any{
+				"name":               "ns2",
+				"replication-factor": 1,
+				"storage-engine": map[string]any{
+					"type":     "device",
+					"file":     "/opt/aerospike/data/ns2.dat",
+					"filesize": "4G",
+				},
+			},
+		},
+	}
+
+	result, err := GenerateConfig(config)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Both namespaces should be present
+	assertContains(t, result, "namespace ns1 {")
+	assertContains(t, result, "namespace ns2 {")
+	assertContains(t, result, "storage-engine memory")
+	assertContains(t, result, "storage-engine device {")
+}
+
+func TestGenerateConfig_NamespaceWithSets(t *testing.T) {
+	config := map[string]any{
+		"namespaces": []any{
+			map[string]any{
+				"name":               "test",
+				"replication-factor": 2,
+				"storage-engine": map[string]any{
+					"type": "memory",
+				},
+				"sets": []any{
+					map[string]any{
+						"name":              "users",
+						"default-ttl":       3600,
+						"stop-writes-count": 10000,
+						"disable-eviction":  true,
+					},
+				},
+			},
+		},
+	}
+
+	result, err := GenerateConfig(config)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	assertContains(t, result, "namespace test {")
+	// sets is rendered as a generic sub-block with items inside
+	assertContains(t, result, "sets {")
+	assertContains(t, result, "name users")
+	assertContains(t, result, "default-ttl 3600")
+	assertContains(t, result, "stop-writes-count 10000")
+	assertContains(t, result, "disable-eviction true")
+}
+
+func TestGenerateConfig_NestedSubSection(t *testing.T) {
+	config := map[string]any{
+		"service": map[string]any{
+			"cluster-name": "test",
+		},
+		"network": map[string]any{
+			"service": map[string]any{
+				"address":        "any",
+				"port":           3000,
+				"access-address": "10.0.0.1",
+			},
+			"heartbeat": map[string]any{
+				"mode":     "mesh",
+				"port":     3002,
+				"interval": 150,
+				"timeout":  10,
+			},
+			"fabric": map[string]any{
+				"port": 3001,
+			},
+		},
+	}
+
+	result, err := GenerateConfig(config)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	assertContains(t, result, "network {")
+	assertContains(t, result, "heartbeat {")
+	assertContains(t, result, "interval 150")
+	assertContains(t, result, "timeout 10")
+	assertContains(t, result, "access-address 10.0.0.1")
+}
+
+func TestGenerateConfForPod_EmptyPodList(t *testing.T) {
+	config := map[string]any{
+		"network": map[string]any{
+			"heartbeat": map[string]any{
+				"mode": "mesh",
+				"port": 3002,
+			},
+		},
+	}
+
+	// Empty pod list should not inject any mesh seeds
+	result, err := GenerateConfForPod(config, "svc", "default", []string{}, 3002)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if strings.Contains(result, "mesh-seed-address-port") {
+		t.Errorf("expected no mesh seeds for empty pod list, got:\n%s", result)
+	}
+}
+
 func assertContains(t *testing.T, s, substr string) {
 	t.Helper()
 	if !strings.Contains(s, substr) {

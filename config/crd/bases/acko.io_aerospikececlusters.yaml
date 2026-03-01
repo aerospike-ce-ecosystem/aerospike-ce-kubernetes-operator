@@ -91,6 +91,7 @@ spec:
                       properties:
                         name:
                           description: Name is the role name.
+                          minLength: 1
                           type: string
                         privileges:
                           description: Privileges is a list of privilege strings (e.g.,
@@ -117,6 +118,7 @@ spec:
                       properties:
                         name:
                           description: Name is the username.
+                          minLength: 1
                           type: string
                         roles:
                           description: Roles is a list of role names assigned to this
@@ -129,6 +131,7 @@ spec:
                           description: |-
                             SecretName is the Kubernetes Secret containing the user's password.
                             The secret must have a "password" key.
+                          minLength: 1
                           type: string
                       required:
                       - name
@@ -6011,8 +6014,10 @@ spec:
                     description: |-
                       Namespaces lists Aerospike namespace names that are rack-aware.
                       If empty, all namespaces use the default replication factor.
+                      CE supports a maximum of 2 namespaces.
                     items:
                       type: string
+                    maxItems: 2
                     type: array
                   racks:
                     description: Racks is the list of rack definitions.
@@ -8231,6 +8236,7 @@ spec:
                           properties:
                             name:
                               description: Name is the role name.
+                              minLength: 1
                               type: string
                             privileges:
                               description: Privileges is a list of privilege strings
@@ -8257,6 +8263,7 @@ spec:
                           properties:
                             name:
                               description: Name is the username.
+                              minLength: 1
                               type: string
                             roles:
                               description: Roles is a list of role names assigned
@@ -8269,6 +8276,7 @@ spec:
                               description: |-
                                 SecretName is the Kubernetes Secret containing the user's password.
                                 The secret must have a "password" key.
+                              minLength: 1
                               type: string
                           required:
                           - name
@@ -14177,8 +14185,10 @@ spec:
                         description: |-
                           Namespaces lists Aerospike namespace names that are rack-aware.
                           If empty, all namespaces use the default replication factor.
+                          CE supports a maximum of 2 namespaces.
                         items:
                           type: string
+                        maxItems: 2
                         type: array
                       racks:
                         description: Racks is the list of rack definitions.

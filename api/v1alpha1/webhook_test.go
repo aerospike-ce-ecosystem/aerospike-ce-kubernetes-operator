@@ -3043,3 +3043,298 @@ func TestValidate_MonitoringDisabledSubfeaturesDisabled(t *testing.T) {
 		}
 	}
 }
+
+// --- Empty privilege string validation tests ---
+
+func TestValidate_ACLEmptyPrivilegeStringRejected(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeAccessControl: &AerospikeAccessControlSpec{
+				Roles: []AerospikeRoleSpec{
+					{Name: "custom-role", Privileges: []string{"read", "", "write"}},
+				},
+				Users: []AerospikeUserSpec{
+					{Name: "admin", SecretName: "admin-secret", Roles: []string{"sys-admin", "user-admin"}},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error for empty privilege string")
+	}
+	if !strings.Contains(err.Error(), "privilege string must not be empty") {
+		t.Errorf("expected 'privilege string must not be empty' error, got: %v", err)
+	}
+}
+
+func TestValidate_ACLWhitespacePrivilegeStringRejected(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeAccessControl: &AerospikeAccessControlSpec{
+				Roles: []AerospikeRoleSpec{
+					{Name: "custom-role", Privileges: []string{"  "}},
+				},
+				Users: []AerospikeUserSpec{
+					{Name: "admin", SecretName: "admin-secret", Roles: []string{"sys-admin", "user-admin"}},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error for whitespace-only privilege string")
+	}
+	if !strings.Contains(err.Error(), "privilege string must not be empty") {
+		t.Errorf("expected 'privilege string must not be empty' error, got: %v", err)
+	}
+}
+
+// --- Overrides without TemplateRef validation tests ---
+
+func TestValidate_OverridesWithoutTemplateRefRejected(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:      3,
+			Image:     "aerospike:ce-8.1.1.1",
+			Overrides: &AerospikeCEClusterTemplateSpec{},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error when overrides is set without templateRef")
+	}
+	if !strings.Contains(err.Error(), "spec.overrides can only be set when spec.templateRef is specified") {
+		t.Errorf("expected overrides/templateRef error, got: %v", err)
+	}
+}
+
+func TestValidate_OverridesWithTemplateRefOK(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:        3,
+			Image:       "aerospike:ce-8.1.1.1",
+			TemplateRef: &TemplateRef{Name: "my-template"},
+			Overrides:   &AerospikeCEClusterTemplateSpec{},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// --- Operation phase update edge case tests ---
+
+func TestValidateUpdate_RejectsAddingOperationWhileInProgress(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	oldCluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			// Old operations already cleared from spec
+			Operations: []OperationSpec{},
+		},
+		Status: AerospikeCEClusterStatus{
+			OperationStatus: &OperationStatus{
+				ID:    "op-1",
+				Kind:  OperationPodRestart,
+				Phase: AerospikePhaseInProgress,
+			},
+		},
+	}
+	newCluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			// Attempt to add new operation while another is in progress
+			Operations: []OperationSpec{
+				{Kind: OperationWarmRestart, ID: "op-2"},
+			},
+		},
+		Status: AerospikeCEClusterStatus{
+			OperationStatus: &OperationStatus{
+				ID:    "op-1",
+				Kind:  OperationPodRestart,
+				Phase: AerospikePhaseInProgress,
+			},
+		},
+	}
+
+	_, err := v.ValidateUpdate(context.Background(), oldCluster, newCluster)
+	if err == nil {
+		t.Fatal("expected error when adding operation while another is InProgress")
+	}
+	if !strings.Contains(err.Error(), "cannot change operations") {
+		t.Errorf("expected 'cannot change operations' error, got: %v", err)
+	}
+}
+
+func TestValidateUpdate_RejectsOperationKindChangeWhileInProgress(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	oldCluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Operations: []OperationSpec{
+				{Kind: OperationPodRestart, ID: "op-1"},
+			},
+		},
+		Status: AerospikeCEClusterStatus{
+			OperationStatus: &OperationStatus{
+				ID:    "op-1",
+				Kind:  OperationPodRestart,
+				Phase: AerospikePhaseInProgress,
+			},
+		},
+	}
+	newCluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Operations: []OperationSpec{
+				// Same ID but different Kind
+				{Kind: OperationWarmRestart, ID: "op-1"},
+			},
+		},
+		Status: AerospikeCEClusterStatus{
+			OperationStatus: &OperationStatus{
+				ID:    "op-1",
+				Kind:  OperationPodRestart,
+				Phase: AerospikePhaseInProgress,
+			},
+		},
+	}
+
+	_, err := v.ValidateUpdate(context.Background(), oldCluster, newCluster)
+	if err == nil {
+		t.Fatal("expected error when changing operation kind while InProgress")
+	}
+	if !strings.Contains(err.Error(), "cannot change operations") {
+		t.Errorf("expected 'cannot change operations' error, got: %v", err)
+	}
+}
+
+// --- Scoped privilege validation tests ---
+
+func TestValidate_ACLScopedPrivilegeAccepted(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeAccessControl: &AerospikeAccessControlSpec{
+				Roles: []AerospikeRoleSpec{
+					{Name: "ns-reader", Privileges: []string{"read.myns", "write.myns.myset"}},
+				},
+				Users: []AerospikeUserSpec{
+					{Name: "admin", SecretName: "admin-secret", Roles: []string{"sys-admin", "user-admin"}},
+					{Name: "reader", SecretName: "reader-secret", Roles: []string{"ns-reader"}},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("expected scoped privileges to be accepted, got: %v", err)
+	}
+}
+
+// --- Defaulting idempotency test ---
+
+func TestDefault_IsIdempotent(t *testing.T) {
+	d := &AerospikeCEClusterDefaulter{}
+	cluster := &AerospikeCECluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			PodSpec: &AerospikeCEPodSpec{
+				HostNetwork: true,
+			},
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled: true,
+				ServiceMonitor: &ServiceMonitorSpec{
+					Enabled: true,
+				},
+			},
+		},
+	}
+
+	// Apply defaults twice
+	if err := d.Default(context.Background(), cluster); err != nil {
+		t.Fatalf("first default: %v", err)
+	}
+
+	// Capture state after first default
+	firstImage := cluster.Spec.Monitoring.ExporterImage
+	firstPort := cluster.Spec.Monitoring.Port
+	firstInterval := cluster.Spec.Monitoring.ServiceMonitor.Interval
+	firstDNS := cluster.Spec.PodSpec.DNSPolicy
+
+	if err := d.Default(context.Background(), cluster); err != nil {
+		t.Fatalf("second default: %v", err)
+	}
+
+	// Verify nothing changed
+	if cluster.Spec.Monitoring.ExporterImage != firstImage {
+		t.Errorf("ExporterImage changed after second default: %q vs %q", firstImage, cluster.Spec.Monitoring.ExporterImage)
+	}
+	if cluster.Spec.Monitoring.Port != firstPort {
+		t.Errorf("Port changed after second default: %d vs %d", firstPort, cluster.Spec.Monitoring.Port)
+	}
+	if cluster.Spec.Monitoring.ServiceMonitor.Interval != firstInterval {
+		t.Errorf("Interval changed after second default: %q vs %q", firstInterval, cluster.Spec.Monitoring.ServiceMonitor.Interval)
+	}
+	if cluster.Spec.PodSpec.DNSPolicy != firstDNS {
+		t.Errorf("DNSPolicy changed after second default: %q vs %q", firstDNS, cluster.Spec.PodSpec.DNSPolicy)
+	}
+}
+
+// --- Image tag validation edge cases ---
+
+func TestValidate_ImageWithDigestAccepted(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  1,
+			Image: "aerospike:ce-8.1.1.1@sha256:abc123",
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Fatalf("unexpected error for image with digest: %v", err)
+	}
+}
+
+func TestValidate_ImageEnterpriseEETag(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  1,
+			Image: "aerospike:ee-8.0.0.1",
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error for enterprise ee- tag image")
+	}
+	if !strings.Contains(err.Error(), "Enterprise Edition") {
+		t.Errorf("expected enterprise image error, got: %v", err)
+	}
+}

@@ -1,0 +1,41 @@
+apiVersion: acko.io/v1alpha1
+kind: AerospikeCEClusterTemplate
+metadata:
+  name: stage
+  namespace: default
+  labels:
+    environment: stage
+spec:
+  # Stage template: moderate resources, preferred anti-affinity
+  scheduling:
+    podAntiAffinityLevel: preferred   # Soft anti-affinity for better spread
+    tolerations:
+      - key: "aerospike"
+        operator: "Exists"
+        effect: "NoSchedule"
+
+  storage:
+    storageClassName: standard
+    resources:
+      requests:
+        storage: 10Gi
+
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+
+  aerospikeConfig:
+    service:
+      proto-fd-max: 4096
+    namespaceDefaults:
+      memory-size: 536870912   # 512Mi default per namespace
+      replication-factor: 2
+    network:
+      heartbeat:
+        mode: mesh
+        interval: 150
+        timeout: 10

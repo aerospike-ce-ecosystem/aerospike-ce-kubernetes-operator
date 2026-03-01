@@ -1,0 +1,32 @@
+apiVersion: acko.io/v1alpha1
+kind: AerospikeCEClusterTemplate
+metadata:
+  name: dev
+  namespace: default
+  labels:
+    environment: dev
+spec:
+  # Dev template: minimal resource usage, no strict anti-affinity
+  scheduling:
+    podAntiAffinityLevel: none   # Allow multiple pods per node in dev
+
+  storage:
+    storageClassName: standard
+    resources:
+      requests:
+        storage: 1Gi
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+  aerospikeConfig:
+    service:
+      proto-fd-max: 1024
+    namespaceDefaults:
+      memory-size: 134217728   # 128Mi default per namespace
+      replication-factor: 1

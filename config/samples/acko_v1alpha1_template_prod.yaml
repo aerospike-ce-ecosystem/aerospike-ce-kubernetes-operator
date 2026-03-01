@@ -1,0 +1,53 @@
+apiVersion: acko.io/v1alpha1
+kind: AerospikeCEClusterTemplate
+metadata:
+  name: prod
+  namespace: default
+  labels:
+    environment: prod
+spec:
+  # Prod template: full resources, required anti-affinity, local PV
+  scheduling:
+    podAntiAffinityLevel: required   # Hard anti-affinity: one pod per node
+    tolerations:
+      - key: "aerospike"
+        operator: "Exists"
+        effect: "NoSchedule"
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: "aerospike"
+                operator: In
+                values:
+                  - "true"
+
+  storage:
+    storageClassName: local-path     # Local storage for performance
+    localPVRequired: true            # Enforce WaitForFirstConsumer binding
+    resources:
+      requests:
+        storage: 100Gi
+
+  resources:
+    requests:
+      cpu: "2"
+      memory: "4Gi"
+    limits:
+      cpu: "2"              # Guaranteed QoS: requests == limits
+      memory: "4Gi"
+
+  rackConfig:
+    maxRacksPerNode: 1   # One rack per node (enforced with required anti-affinity)
+
+  aerospikeConfig:
+    service:
+      proto-fd-max: 15000
+    namespaceDefaults:
+      memory-size: 2147483648   # 2GiB default per namespace
+      replication-factor: 2
+    network:
+      heartbeat:
+        mode: mesh
+        interval: 150
+        timeout: 10

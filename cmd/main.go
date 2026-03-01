@@ -174,6 +174,10 @@ func main() {
 		setupLog.Error(err, "unable to create webhook", "webhook", "AerospikeCECluster")
 		os.Exit(1)
 	}
+	if err := (&asdbcev1alpha1.AerospikeCEClusterTemplate{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "AerospikeCEClusterTemplate")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

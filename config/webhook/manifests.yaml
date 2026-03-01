@@ -24,6 +24,26 @@ webhooks:
     resources:
     - aerospikececlusters
   sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-acko-io-v1alpha1-aerospikececlustertemplate
+  failurePolicy: Fail
+  name: maerospikececlustertemplate.kb.io
+  rules:
+  - apiGroups:
+    - acko.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - aerospikececlustertemplates
+  sideEffects: None
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
@@ -49,4 +69,24 @@ webhooks:
     - UPDATE
     resources:
     - aerospikececlusters
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-acko-io-v1alpha1-aerospikececlustertemplate
+  failurePolicy: Fail
+  name: vaerospikececlustertemplate.kb.io
+  rules:
+  - apiGroups:
+    - acko.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - aerospikececlustertemplates
   sideEffects: None

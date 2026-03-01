@@ -20,11 +20,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/metrics"
+	aerotmpl "github.com/ksr/aerospike-ce-kubernetes-operator/internal/template"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
@@ -45,6 +48,8 @@ type AerospikeCEClusterReconciler struct {
 // +kubebuilder:rbac:groups=acko.io,resources=aerospikececlusters,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=acko.io,resources=aerospikececlusters/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=acko.io,resources=aerospikececlusters/finalizers,verbs=update
+// +kubebuilder:rbac:groups=acko.io,resources=aerospikececlustertemplates,verbs=get;list;watch
+// +kubebuilder:rbac:groups=acko.io,resources=aerospikececlustertemplates/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete
 // +kubebuilder:rbac:groups="",resources=pods/exec,verbs=create
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
@@ -111,6 +116,26 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
+	}
+
+	// 4.5 Template resolution: fetch/snapshot template and apply to in-memory spec.
+	if cluster.Spec.TemplateRef != nil {
+		resolveResult, err := aerotmpl.Resolve(ctx, r.Client, cluster)
+		if err != nil {
+			log.Error(err, "Failed to resolve template", "template", cluster.Spec.TemplateRef.Name)
+			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "TemplateResolutionError",
+				"Failed to resolve template %q: %v", cluster.Spec.TemplateRef.Name, err)
+			return ctrl.Result{}, err
+		}
+		if resolveResult.SnapshotUpdated {
+			r.Recorder.Eventf(cluster, corev1.EventTypeNormal, "TemplateApplied",
+				"Applied template %q (rv: %s)",
+				cluster.Spec.TemplateRef.Name,
+				cluster.Status.TemplateSnapshot.ResourceVersion)
+		}
+		for _, w := range resolveResult.Warnings {
+			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "ValidationWarning", "%s", w)
+		}
 	}
 
 	// 5. Set phase to InProgress only when the spec has actually changed
@@ -352,7 +377,58 @@ func (r *AerospikeCEClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Owns(&corev1.Service{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Owns(&corev1.ConfigMap{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Owns(&policyv1.PodDisruptionBudget{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		// Watch AerospikeCEClusterTemplate changes and mark referencing clusters as out-of-sync.
+		Watches(
+			&asdbcev1alpha1.AerospikeCEClusterTemplate{},
+			handler.EnqueueRequestsFromMapFunc(r.mapTemplateToCluster),
+			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
+		).
 		Named("aerospikececluster").
 		WithOptions(controller.Options{MaxConcurrentReconciles: 2}).
 		Complete(r)
+}
+
+// mapTemplateToCluster maps an AerospikeCEClusterTemplate change to all clusters
+// that reference it, so the controller can mark them as out-of-sync.
+func (r *AerospikeCEClusterReconciler) mapTemplateToCluster(ctx context.Context, obj client.Object) []reconcile.Request {
+	log := logf.FromContext(ctx)
+
+	// List all AerospikeCEClusters in the template's namespace.
+	clusterList := &asdbcev1alpha1.AerospikeCEClusterList{}
+	if err := r.List(ctx, clusterList, client.InNamespace(obj.GetNamespace())); err != nil {
+		log.Error(err, "Failed to list clusters for template watch", "template", obj.GetName())
+		return nil
+	}
+
+	var requests []reconcile.Request
+	for i := range clusterList.Items {
+		cl := &clusterList.Items[i]
+		if cl.Spec.TemplateRef == nil || cl.Spec.TemplateRef.Name != obj.GetName() {
+			continue
+		}
+
+		// Mark the cluster as out-of-sync by updating its snapshot status.
+		if cl.Status.TemplateSnapshot != nil && cl.Status.TemplateSnapshot.Synced {
+			latest := cl.DeepCopy()
+			latest.Status.TemplateSnapshot.Synced = false
+			if err := r.Status().Update(ctx, latest); err != nil {
+				log.V(1).Info("Failed to mark cluster template as drifted", "cluster", cl.Name, "error", err)
+			} else {
+				r.Recorder.Eventf(cl, corev1.EventTypeWarning, "TemplateDrifted",
+					"Template %q changed (rv: %s → %s); cluster using snapshot. Set annotation acko.io/resync-template=true to resync.",
+					obj.GetName(),
+					cl.Status.TemplateSnapshot.ResourceVersion,
+					obj.GetResourceVersion(),
+				)
+			}
+		}
+
+		requests = append(requests, reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Namespace: cl.Namespace,
+				Name:      cl.Name,
+			},
+		})
+	}
+	return requests
 }

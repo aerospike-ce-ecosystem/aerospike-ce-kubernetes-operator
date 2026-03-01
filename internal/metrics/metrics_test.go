@@ -15,6 +15,12 @@ func TestPhaseToFloat(t *testing.T) {
 		{"InProgress", 1},
 		{"Completed", 2},
 		{"Error", 3},
+		{"ScalingUp", 4},
+		{"ScalingDown", 5},
+		{"RollingRestart", 6},
+		{"ACLSync", 7},
+		{"Paused", 8},
+		{"Deleting", 9},
 		{"", 0},
 		{"Unknown", 0},
 	}

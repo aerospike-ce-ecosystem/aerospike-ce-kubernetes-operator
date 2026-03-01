@@ -106,6 +106,18 @@ func PhaseToFloat(phase string) float64 {
 		return 2
 	case "Error":
 		return 3
+	case "ScalingUp":
+		return 4
+	case "ScalingDown":
+		return 5
+	case "RollingRestart":
+		return 6
+	case "ACLSync":
+		return 7
+	case "Paused":
+		return 8
+	case "Deleting":
+		return 9
 	default:
 		return 0
 	}

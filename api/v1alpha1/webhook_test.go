@@ -3067,8 +3067,8 @@ func TestValidate_ACLEmptyPrivilegeStringRejected(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for empty privilege string")
 	}
-	if !strings.Contains(err.Error(), "privilege string must not be empty") {
-		t.Errorf("expected 'privilege string must not be empty' error, got: %v", err)
+	if !strings.Contains(err.Error(), "must not be empty or whitespace-only") {
+		t.Errorf("expected 'must not be empty or whitespace-only' error, got: %v", err)
 	}
 }
 
@@ -3093,8 +3093,47 @@ func TestValidate_ACLWhitespacePrivilegeStringRejected(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for whitespace-only privilege string")
 	}
-	if !strings.Contains(err.Error(), "privilege string must not be empty") {
-		t.Errorf("expected 'privilege string must not be empty' error, got: %v", err)
+	if !strings.Contains(err.Error(), "must not be empty or whitespace-only") {
+		t.Errorf("expected 'must not be empty or whitespace-only' error, got: %v", err)
+	}
+}
+
+func TestValidate_ACLLeadingTrailingWhitespacePrivilegeRejected(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	tests := []struct {
+		name    string
+		privStr string
+	}{
+		{"leading space", " read-write"},
+		{"trailing space", "read-write "},
+		{"both sides", " read-write "},
+		{"tab prefix", "\twrite"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cluster := &AerospikeCECluster{
+				Spec: AerospikeCEClusterSpec{
+					Size:  3,
+					Image: "aerospike:ce-8.1.1.1",
+					AerospikeAccessControl: &AerospikeAccessControlSpec{
+						Roles: []AerospikeRoleSpec{
+							{Name: "custom-role", Privileges: []string{tc.privStr}},
+						},
+						Users: []AerospikeUserSpec{
+							{Name: "admin", SecretName: "admin-secret", Roles: []string{"sys-admin", "user-admin"}},
+						},
+					},
+				},
+			}
+			_, err := v.validate(cluster)
+			if err == nil {
+				t.Fatalf("expected error for privilege %q with surrounding whitespace", tc.privStr)
+			}
+			if !strings.Contains(err.Error(), "must not have leading or trailing whitespace") {
+				t.Errorf("expected 'must not have leading or trailing whitespace' error, got: %v", err)
+			}
+		})
 	}
 }
 

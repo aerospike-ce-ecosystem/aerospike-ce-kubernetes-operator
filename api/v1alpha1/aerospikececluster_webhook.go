@@ -512,9 +512,16 @@ func (v *AerospikeCEClusterValidator) validateAccessControl(acl *AerospikeAccess
 	// Validate privilege codes in role definitions
 	for _, role := range acl.Roles {
 		for i, privStr := range role.Privileges {
-			privStr = strings.TrimSpace(privStr)
-			if privStr == "" {
-				errors = append(errors, fmt.Sprintf("role %q privileges[%d]: privilege string must not be empty", role.Name, i))
+			trimmed := strings.TrimSpace(privStr)
+			if trimmed == "" {
+				errors = append(errors, fmt.Sprintf("role %q privileges[%d]: privilege string must not be empty or whitespace-only", role.Name, i))
+				continue
+			}
+			// Reject strings with leading/trailing whitespace: the original value is
+			// stored as-is, so " read-write" would be sent to Aerospike verbatim and
+			// rejected at runtime even though it looks valid after trimming.
+			if privStr != trimmed {
+				errors = append(errors, fmt.Sprintf("role %q privileges[%d]: privilege string %q must not have leading or trailing whitespace", role.Name, i, privStr))
 				continue
 			}
 			// Format: "<code>" or "<code>.<namespace>" or "<code>.<namespace>.<set>"

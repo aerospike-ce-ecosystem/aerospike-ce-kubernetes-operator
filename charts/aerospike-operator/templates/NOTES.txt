@@ -79,14 +79,68 @@ Namespace: {{ .Release.Namespace }}
 
 The Aerospike Cluster Manager UI is ENABLED.
 
+{{- if .Values.ui.ingress.enabled }}
+
+Access the UI via Ingress:
+{{- range .Values.ui.ingress.hosts }}
+  http{{ if $.Values.ui.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+
+{{- else }}
+
 Access the UI via port-forward:
 
   kubectl port-forward svc/{{ include "aerospike-operator.ui.fullname" . }} {{ .Values.ui.service.frontendPort }}:{{ .Values.ui.service.frontendPort }} -n {{ .Release.Namespace }}
 
 Then open http://localhost:{{ .Values.ui.service.frontendPort }} in your browser.
 
-{{- if .Values.ui.ingress.enabled }}
-Or access via Ingress (if configured).
+{{- end }}
+
+Verify the backend is running:
+
+  kubectl port-forward svc/{{ include "aerospike-operator.ui.fullname" . }} {{ .Values.ui.service.backendPort }}:{{ .Values.ui.service.backendPort }} -n {{ .Release.Namespace }}
+  curl http://localhost:{{ .Values.ui.service.backendPort }}/api/health
+
+{{- if .Values.ui.k8s.enabled }}
+
+K8s Cluster Management is ENABLED.
+You can create and manage Aerospike clusters directly from the UI.
+
+{{- if .Values.ui.rbac.create }}
+RBAC resources (ClusterRole/ClusterRoleBinding) have been created.
+NOTE: The ClusterRole grants create/delete/patch permissions for
+AerospikeCECluster CRDs across all namespaces. For production environments,
+consider restricting to specific namespaces using a Role + RoleBinding instead.
+{{- else }}
+
+WARNING: RBAC resource creation is disabled (ui.rbac.create=false).
+  Ensure the service account "{{ include "aerospike-operator.ui.serviceAccountName" . }}"
+  has the required permissions to manage AerospikeCECluster CRDs.
+{{- end }}
+
+{{- else }}
+
+K8s Cluster Management is DISABLED.
+To enable it, set ui.k8s.enabled=true in your values.
+
+{{- end }}
+
+{{- if not .Values.ui.networkPolicy.enabled }}
+
+SECURITY NOTE: NetworkPolicy is disabled for the UI. For production deployments,
+consider enabling it (ui.networkPolicy.enabled=true).
+{{- end }}
+
+Check UI pod status:
+  kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=ui -n {{ .Release.Namespace }}
+
+View UI logs:
+  kubectl logs -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=ui -n {{ .Release.Namespace }} -f
+
+{{- if and .Values.ui.persistence.enabled .Values.ui.postgresql.enabled }}
+
+Persistent storage is enabled ({{ .Values.ui.persistence.size }}).
+PostgreSQL data will persist across pod restarts.
 {{- end }}
 {{- end }}
 

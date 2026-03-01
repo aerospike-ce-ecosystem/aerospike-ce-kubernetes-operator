@@ -28,15 +28,13 @@ func MergeTemplateSpec(base, override *asdbcev1alpha1.AerospikeCEClusterTemplate
 		return nil
 	}
 	if base == nil {
-		result := *override
-		return &result
+		return override.DeepCopy()
 	}
 	if override == nil {
-		result := *base
-		return &result
+		return base.DeepCopy()
 	}
 
-	result := *base
+	result := base.DeepCopy()
 
 	// Merge AerospikeConfig.
 	result.AerospikeConfig = mergeTemplateAerospikeConfig(base.AerospikeConfig, override.AerospikeConfig)
@@ -46,23 +44,20 @@ func MergeTemplateSpec(base, override *asdbcev1alpha1.AerospikeCEClusterTemplate
 
 	// Merge Storage: override replaces entirely if set.
 	if override.Storage != nil {
-		storageCopy := *override.Storage
-		result.Storage = &storageCopy
+		result.Storage = override.Storage.DeepCopy()
 	}
 
 	// Merge Resources: override replaces entirely if set.
 	if override.Resources != nil {
-		resourcesCopy := *override.Resources
-		result.Resources = &resourcesCopy
+		result.Resources = override.Resources.DeepCopy()
 	}
 
 	// Merge RackConfig: override replaces entirely if set.
 	if override.RackConfig != nil {
-		rackCopy := *override.RackConfig
-		result.RackConfig = &rackCopy
+		result.RackConfig = override.RackConfig.DeepCopy()
 	}
 
-	return &result
+	return result
 }
 
 // mergeTemplateAerospikeConfig merges two TemplateAerospikeConfig values.
@@ -71,12 +66,10 @@ func mergeTemplateAerospikeConfig(base, override *asdbcev1alpha1.TemplateAerospi
 		return nil
 	}
 	if base == nil {
-		result := *override
-		return &result
+		return override.DeepCopy()
 	}
 	if override == nil {
-		result := *base
-		return &result
+		return base.DeepCopy()
 	}
 
 	result := *base
@@ -115,12 +108,10 @@ func mergeTemplateNetworkConfig(base, override *asdbcev1alpha1.TemplateNetworkCo
 		return nil
 	}
 	if base == nil {
-		result := *override
-		return &result
+		return override.DeepCopy()
 	}
 	if override == nil {
-		result := *base
-		return &result
+		return base.DeepCopy()
 	}
 
 	result := *base
@@ -137,12 +128,10 @@ func mergeTemplateHeartbeatConfig(base, override *asdbcev1alpha1.TemplateHeartbe
 		return nil
 	}
 	if base == nil {
-		result := *override
-		return &result
+		return override.DeepCopy()
 	}
 	if override == nil {
-		result := *base
-		return &result
+		return base.DeepCopy()
 	}
 
 	result := *base
@@ -164,12 +153,10 @@ func mergeTemplateScheduling(base, override *asdbcev1alpha1.TemplateScheduling) 
 		return nil
 	}
 	if base == nil {
-		result := *override
-		return &result
+		return override.DeepCopy()
 	}
 	if override == nil {
-		result := *base
-		return &result
+		return base.DeepCopy()
 	}
 
 	result := *base

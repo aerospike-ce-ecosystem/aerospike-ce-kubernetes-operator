@@ -144,10 +144,14 @@ func ValidateTemplateSpec(spec *asdbcev1alpha1.AerospikeCEClusterTemplateSpec) (
 	}
 
 	// V-T06: Image should be a CE image (warning only).
+	// Note: this check looks for the 'ce-' substring. Custom registries or retagged images
+	// (e.g. myregistry.io/aerospike:8.1.1.1) will trigger this warning even if they are
+	// valid CE images. In those cases the warning can be safely ignored.
 	if spec.Image != "" {
 		if !strings.Contains(spec.Image, "ce-") {
 			warnings = append(warnings, fmt.Sprintf(
-				"template image %q may not be a CE image; CE images should contain 'ce-' (e.g., aerospike:ce-8.1.1.1)",
+				"template image %q may not be a CE image; CE images typically contain 'ce-' (e.g., aerospike:ce-8.1.1.1). "+
+					"Retagged or custom-registry CE images that omit 'ce-' will also trigger this warning.",
 				spec.Image,
 			))
 		}

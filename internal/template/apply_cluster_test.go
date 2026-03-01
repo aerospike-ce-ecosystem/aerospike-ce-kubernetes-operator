@@ -30,6 +30,8 @@ const (
 )
 
 // newCluster returns a minimal AerospikeCECluster for testing.
+// This helper is shared across apply_cluster_test.go and resolver_test.go
+// (both in package template), so it is defined once here.
 func newCluster() *asdbcev1alpha1.AerospikeCECluster {
 	return &asdbcev1alpha1.AerospikeCECluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},

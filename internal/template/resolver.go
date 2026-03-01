@@ -187,5 +187,21 @@ func Resolve(
 	// Apply the effective template spec to the in-memory cluster spec.
 	ApplyTemplate(effectiveSpec, cluster)
 
+	// Post-template required field check: image and size must be resolvable after
+	// applying both the cluster spec and the template. If either is still unset,
+	// the template does not provide a sufficient default and reconciliation cannot proceed.
+	if cluster.Spec.Image == "" {
+		return result, fmt.Errorf(
+			"spec.image is required: neither the cluster spec nor template %q provides an image",
+			cluster.Spec.TemplateRef.Name,
+		)
+	}
+	if cluster.Spec.Size == 0 {
+		return result, fmt.Errorf(
+			"spec.size is required: neither the cluster spec nor template %q provides a size",
+			cluster.Spec.TemplateRef.Name,
+		)
+	}
+
 	return result, nil
 }

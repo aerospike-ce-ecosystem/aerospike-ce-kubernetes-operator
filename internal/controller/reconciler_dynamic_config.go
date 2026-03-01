@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	aero "github.com/aerospike/aerospike-client-go/v8"
 	corev1 "k8s.io/api/core/v1"
@@ -53,7 +54,11 @@ func (r *AerospikeCEClusterReconciler) tryDynamicConfigUpdate(
 
 	// Apply each dynamic change
 	for _, change := range diff.Dynamic {
-		cmd := buildSetConfigCommand(change)
+		cmd, err := buildSetConfigCommand(change)
+		if err != nil {
+			log.Error(err, "Invalid dynamic config change", "pod", pod.Name, "change", change)
+			return false
+		}
 		log.Info("Applying dynamic config", "pod", pod.Name, "command", cmd)
 
 		result, err := asinfoCommandOnNode(node, cmd)
@@ -88,15 +93,29 @@ func (r *AerospikeCEClusterReconciler) tryDynamicConfigUpdate(
 }
 
 // buildSetConfigCommand builds the asinfo set-config command for a change.
-func buildSetConfigCommand(change configdiff.Change) string {
+// Returns an error if any field contains characters that could break the
+// asinfo protocol (semicolons or colons used as delimiters).
+func buildSetConfigCommand(change configdiff.Change) (string, error) {
+	valueStr := fmt.Sprintf("%v", change.NewValue)
+	for _, field := range []struct{ name, val string }{
+		{"key", change.Key},
+		{"context", change.Context},
+		{"namespace", change.Namespace},
+		{"value", valueStr},
+	} {
+		if strings.ContainsAny(field.val, ";:") {
+			return "", fmt.Errorf("invalid character in %s %q: must not contain ';' or ':'", field.name, field.val)
+		}
+	}
+
 	if change.Namespace != "" {
 		// Namespace-scoped parameter
 		return fmt.Sprintf("set-config:context=namespace;id=%s;%s=%v",
-			change.Namespace, change.Key, change.NewValue)
+			change.Namespace, change.Key, change.NewValue), nil
 	}
 
 	return fmt.Sprintf("set-config:context=%s;%s=%v",
-		change.Context, change.Key, change.NewValue)
+		change.Context, change.Key, change.NewValue), nil
 }
 
 // findNodeForPod finds the Aerospike node that corresponds to a given pod by

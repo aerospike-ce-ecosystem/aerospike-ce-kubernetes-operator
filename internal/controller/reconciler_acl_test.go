@@ -69,24 +69,34 @@ func TestPrivilegeFromCodeString_AllKnownCodes(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		priv := privilegeFromCodeString(tc.code)
+		priv, err := privilegeFromCodeString(tc.code)
+		if err != nil {
+			t.Errorf("privilegeFromCodeString(%q) unexpected error: %v", tc.code, err)
+			continue
+		}
 		if priv.Code != tc.expectedPriv.Code {
 			t.Errorf("privilegeFromCodeString(%q).Code = %v, want %v", tc.code, priv.Code, tc.expectedPriv.Code)
 		}
 	}
 }
 
-func TestPrivilegeFromCodeString_UnknownDefaultsToRead(t *testing.T) {
-	priv := privilegeFromCodeString("unknown-code")
-	if priv.Code != aero.Read {
-		t.Errorf("unknown code should default to Read, got %v", priv.Code)
+func TestPrivilegeFromCodeString_UnknownReturnsError(t *testing.T) {
+	_, err := privilegeFromCodeString("unknown-code")
+	if err == nil {
+		t.Error("expected error for unknown privilege code")
+	}
+	if !strings.Contains(err.Error(), "unknown privilege code") {
+		t.Errorf("error should mention 'unknown privilege code', got: %v", err)
 	}
 }
 
 // --- parsePrivilege tests ---
 
 func TestParsePrivilege_CodeOnly(t *testing.T) {
-	priv := parsePrivilege("read")
+	priv, err := parsePrivilege("read")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if priv.Code != aero.Read {
 		t.Errorf("Code = %v, want Read", priv.Code)
 	}
@@ -99,7 +109,10 @@ func TestParsePrivilege_CodeOnly(t *testing.T) {
 }
 
 func TestParsePrivilege_WithNamespace(t *testing.T) {
-	priv := parsePrivilege("read-write." + testNamespace)
+	priv, err := parsePrivilege("read-write." + testNamespace)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if priv.Code != aero.ReadWrite {
 		t.Errorf("Code = %v, want ReadWrite", priv.Code)
 	}
@@ -112,7 +125,10 @@ func TestParsePrivilege_WithNamespace(t *testing.T) {
 }
 
 func TestParsePrivilege_WithNamespaceAndSet(t *testing.T) {
-	priv := parsePrivilege("write." + testNamespace + "." + testSetName)
+	priv, err := parsePrivilege("write." + testNamespace + "." + testSetName)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if priv.Code != aero.Write {
 		t.Errorf("Code = %v, want Write", priv.Code)
 	}
@@ -121,6 +137,13 @@ func TestParsePrivilege_WithNamespaceAndSet(t *testing.T) {
 	}
 	if priv.SetName != testSetName {
 		t.Errorf("SetName = %q, want %q", priv.SetName, testSetName)
+	}
+}
+
+func TestParsePrivilege_UnknownCode(t *testing.T) {
+	_, err := parsePrivilege("invalid-code.ns1")
+	if err == nil {
+		t.Error("expected error for unknown privilege code")
 	}
 }
 
@@ -243,7 +266,10 @@ func TestRoleParsedPrivileges_MultiplePrivileges(t *testing.T) {
 	roleSpec := asdbcev1alpha1AerospikeRoleSpec("test-role",
 		"read", "write.ns1", "read-write.ns1.set1")
 
-	privs := roleParsedPrivileges(roleSpec)
+	privs, err := roleParsedPrivileges(roleSpec)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if len(privs) != 3 {
 		t.Fatalf("expected 3 privileges, got %d", len(privs))
 	}
@@ -262,9 +288,23 @@ func TestRoleParsedPrivileges_MultiplePrivileges(t *testing.T) {
 
 func TestRoleParsedPrivileges_EmptyPrivileges(t *testing.T) {
 	roleSpec := asdbcev1alpha1AerospikeRoleSpec("empty-role")
-	privs := roleParsedPrivileges(roleSpec)
+	privs, err := roleParsedPrivileges(roleSpec)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if len(privs) != 0 {
 		t.Errorf("expected 0 privileges, got %d", len(privs))
+	}
+}
+
+func TestRoleParsedPrivileges_UnknownCodeReturnsError(t *testing.T) {
+	roleSpec := asdbcev1alpha1AerospikeRoleSpec("bad-role", "read", "unknown-priv")
+	_, err := roleParsedPrivileges(roleSpec)
+	if err == nil {
+		t.Error("expected error for role with unknown privilege code")
+	}
+	if !strings.Contains(err.Error(), "bad-role") {
+		t.Errorf("error should mention role name, got: %v", err)
 	}
 }
 

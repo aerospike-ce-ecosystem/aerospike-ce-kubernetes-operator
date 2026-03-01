@@ -117,7 +117,10 @@ func (r *AerospikeCEClusterReconciler) reconcileRoles(
 		existing, exists := existingRoleMap[roleSpec.Name]
 		if !exists {
 			// Create the role
-			privileges := roleParsedPrivileges(roleSpec)
+			privileges, err := roleParsedPrivileges(roleSpec)
+			if err != nil {
+				return fmt.Errorf("parsing privileges for role %s: %w", roleSpec.Name, err)
+			}
 			log.Info("Creating role", "role", roleSpec.Name)
 			if err := aeroClient.CreateRole(adminPolicy, roleSpec.Name, privileges, nil, 0, 0); err != nil {
 				return fmt.Errorf("creating role %s: %w", roleSpec.Name, err)
@@ -126,7 +129,10 @@ func (r *AerospikeCEClusterReconciler) reconcileRoles(
 		}
 
 		// Sync privileges: grant missing, revoke extra
-		desiredPrivs := roleParsedPrivileges(roleSpec)
+		desiredPrivs, err := roleParsedPrivileges(roleSpec)
+		if err != nil {
+			return fmt.Errorf("parsing privileges for role %s: %w", roleSpec.Name, err)
+		}
 		if err := syncRolePrivileges(aeroClient, adminPolicy, roleSpec.Name, existing.Privileges, desiredPrivs, log); err != nil {
 			return err
 		}
@@ -306,24 +312,30 @@ func syncUserRoles(
 }
 
 // roleParsedPrivileges converts the spec's privilege strings to aero.Privilege objects.
-func roleParsedPrivileges(roleSpec asdbcev1alpha1.AerospikeRoleSpec) []aero.Privilege {
+func roleParsedPrivileges(roleSpec asdbcev1alpha1.AerospikeRoleSpec) ([]aero.Privilege, error) {
 	privileges := make([]aero.Privilege, 0, len(roleSpec.Privileges))
 	for _, privStr := range roleSpec.Privileges {
-		priv := parsePrivilege(privStr)
+		priv, err := parsePrivilege(privStr)
+		if err != nil {
+			return nil, fmt.Errorf("role %q: %w", roleSpec.Name, err)
+		}
 		privileges = append(privileges, priv)
 	}
-	return privileges
+	return privileges, nil
 }
 
 // parsePrivilege converts a privilege string like "read-write.testNamespace" to an aero.Privilege.
 // Since the Code field type (privilegeCode) is unexported in aerospike-client-go,
 // we construct a Privilege using exported constants (aero.Read, aero.Write, etc.).
-func parsePrivilege(s string) aero.Privilege {
+func parsePrivilege(s string) (aero.Privilege, error) {
 	// Format: "<code>" or "<code>.<namespace>" or "<code>.<namespace>.<set>"
 	parts := strings.SplitN(s, ".", 3)
 
 	// Start with a base privilege from the code string
-	priv := privilegeFromCodeString(parts[0])
+	priv, err := privilegeFromCodeString(parts[0])
+	if err != nil {
+		return aero.Privilege{}, err
+	}
 
 	if len(parts) >= 2 {
 		priv.Namespace = parts[1]
@@ -332,34 +344,32 @@ func parsePrivilege(s string) aero.Privilege {
 		priv.SetName = parts[2]
 	}
 
-	return priv
+	return priv, nil
 }
 
 // privilegeFromCodeString returns an aero.Privilege with the Code matching the string.
 // This works around the unexported privilegeCode type by using exported constants.
-func privilegeFromCodeString(s string) aero.Privilege {
+// Returns an error for unknown privilege codes instead of silently degrading.
+func privilegeFromCodeString(s string) (aero.Privilege, error) {
 	switch s {
 	case "read":
-		return aero.Privilege{Code: aero.Read}
+		return aero.Privilege{Code: aero.Read}, nil
 	case "write":
-		return aero.Privilege{Code: aero.Write}
+		return aero.Privilege{Code: aero.Write}, nil
 	case "read-write":
-		return aero.Privilege{Code: aero.ReadWrite}
+		return aero.Privilege{Code: aero.ReadWrite}, nil
 	case "read-write-udf":
-		return aero.Privilege{Code: aero.ReadWriteUDF}
+		return aero.Privilege{Code: aero.ReadWriteUDF}, nil
 	case "sys-admin":
-		return aero.Privilege{Code: aero.SysAdmin}
+		return aero.Privilege{Code: aero.SysAdmin}, nil
 	case "user-admin":
-		return aero.Privilege{Code: aero.UserAdmin}
+		return aero.Privilege{Code: aero.UserAdmin}, nil
 	case "data-admin":
-		return aero.Privilege{Code: aero.DataAdmin}
+		return aero.Privilege{Code: aero.DataAdmin}, nil
 	case "truncate":
-		return aero.Privilege{Code: aero.Truncate}
+		return aero.Privilege{Code: aero.Truncate}, nil
 	default:
-		// Log warning for unknown privilege code — webhook should have caught this,
-		// but log it to surface configuration drift.
-		logf.Log.Info("Unknown privilege code, defaulting to Read", "code", s)
-		return aero.Privilege{Code: aero.Read}
+		return aero.Privilege{}, fmt.Errorf("unknown privilege code %q; valid codes: read, write, read-write, read-write-udf, sys-admin, user-admin, data-admin, truncate", s)
 	}
 }
 

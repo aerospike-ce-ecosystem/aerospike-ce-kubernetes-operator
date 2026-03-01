@@ -424,7 +424,11 @@ func (r *AerospikeCEClusterReconciler) mapTemplateToCluster(ctx context.Context,
 			latest := cl.DeepCopy()
 			latest.Status.TemplateSnapshot.Synced = false
 			if err := r.Status().Update(ctx, latest); err != nil {
-				log.Error(err, "Failed to mark cluster template as drifted", "cluster", cl.Name)
+				// Conflict errors are expected when multiple reconciles run concurrently;
+				// the enqueued reconcile request below will handle the drift on next loop.
+				if !errors.IsConflict(err) {
+					log.Error(err, "Failed to mark cluster template as drifted", "cluster", cl.Name)
+				}
 			} else {
 				r.Recorder.Eventf(cl, corev1.EventTypeWarning, "TemplateDrifted",
 					"Template %q changed (rv: %s → %s); cluster using snapshot. Set annotation acko.io/resync-template=true to resync.",

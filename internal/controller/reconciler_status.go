@@ -351,6 +351,10 @@ func (r *AerospikeCEClusterReconciler) collectAerospikeInfo(
 
 	for _, node := range aeroClient.GetNodes() {
 		nodeHost := node.GetHost()
+		if nodeHost == nil {
+			log.V(1).Info("Skipping Aerospike node with nil host info")
+			continue
+		}
 		podName, ok := podIPToPodName[nodeHost.Name]
 		if !ok {
 			log.V(1).Info("Aerospike node IP not matched to any pod", "nodeIP", nodeHost.Name)

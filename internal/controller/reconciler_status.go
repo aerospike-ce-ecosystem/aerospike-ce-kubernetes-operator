@@ -183,7 +183,7 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 			PodIP:             pod.Status.PodIP,
 			HostIP:            pod.Status.HostIP,
 			Image:             podImage,
-			PodPort:           podutil.ServicePort,
+			PodPort:           int32(getServicePort(cluster)),
 			ServicePort:       int32(getServicePort(cluster)),
 			Rack:              rackID,
 			IsRunningAndReady: isReady,

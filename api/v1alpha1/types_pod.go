@@ -92,6 +92,15 @@ type AerospikeCEPodSpec struct {
 	// Metadata defines additional labels and annotations for the pods.
 	// +optional
 	Metadata *AerospikePodMetadata `json:"metadata,omitempty"`
+
+	// ReadinessGateEnabled enables the custom Pod Readiness Gate "acko.io/aerospike-ready".
+	// When true, the operator injects the gate into each pod's spec and patches
+	// pod.Status.Conditions to True only after Aerospike has joined the cluster mesh
+	// and finished all data migrations. Pods are excluded from Service endpoints
+	// until the gate is satisfied.
+	// Defaults to false for backward compatibility.
+	// +optional
+	ReadinessGateEnabled *bool `json:"readinessGateEnabled,omitempty"`
 }
 
 // AerospikeContainerSpec customizes the Aerospike server container.

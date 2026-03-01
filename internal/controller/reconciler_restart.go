@@ -114,6 +114,18 @@ func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
 		}
 	}()
 
+	// If readiness gates are enabled, hold the next batch until all previously
+	// restarted pods in this rack have their "acko.io/aerospike-ready" gate satisfied.
+	// This ensures data migrations finish before the next pod is taken offline.
+	if isReadinessGateEnabled(cluster) {
+		if blocked, blockedPod := anyPodGateUnsatisfied(cluster, rackPods); blocked {
+			log.Info("Readiness gate not yet satisfied, delaying next restart", "pod", blockedPod, "rack", rack.ID)
+			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventReadinessGateBlocking,
+				"Rolling restart paused: pod %s readiness gate not yet satisfied (rack %d)", blockedPod, rack.ID)
+			return true, nil
+		}
+	}
+
 	// Restart up to batchSize pods
 	restarted := int32(0)
 	for _, pod := range podsToRestart {

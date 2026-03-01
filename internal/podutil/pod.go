@@ -19,6 +19,11 @@ const (
 	configMapVolumeName        = "aerospike-config-map"
 	aerospikeConfigVolumeName  = "aerospike-config"
 	defaultTerminationGraceSec = int64(30)
+
+	// AerospikeReadinessGateConditionType is the custom pod condition type injected
+	// when spec.podSpec.readinessGateEnabled=true. The operator patches this condition
+	// to True once Aerospike has joined the cluster mesh and all data migrations are complete.
+	AerospikeReadinessGateConditionType corev1.PodConditionType = "acko.io/aerospike-ready"
 )
 
 // BuildPodTemplateSpec builds the complete PodTemplateSpec for a StatefulSet
@@ -201,6 +206,12 @@ func applyPodSpecSettings(podSpec *corev1.PodSpec, spec *v1alpha1.AerospikeCEPod
 
 	if len(spec.ImagePullSecrets) > 0 {
 		podSpec.ImagePullSecrets = spec.ImagePullSecrets
+	}
+
+	if spec.ReadinessGateEnabled != nil && *spec.ReadinessGateEnabled {
+		podSpec.ReadinessGates = append(podSpec.ReadinessGates, corev1.PodReadinessGate{
+			ConditionType: AerospikeReadinessGateConditionType,
+		})
 	}
 }
 

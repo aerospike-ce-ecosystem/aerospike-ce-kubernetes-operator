@@ -141,6 +141,72 @@ kubectl -n aerospike get asce aerospike-ce-3node -o jsonpath='{.status.pods}' | 
 | `Pending` | Waiting for the operator to apply the change |
 | (empty) | No dynamic config change was attempted |
 
+## Pod Readiness Gates
+
+By default, a pod is considered "ready" when Kubernetes reports `PodReady=True`. This means the pod
+may be added to Service endpoints before Aerospike has fully joined the cluster mesh and completed
+data migrations — potentially routing client requests to a node with incomplete replicas.
+
+Enable the custom readiness gate `acko.io/aerospike-ready` to ensure each pod is excluded from
+Service endpoints until Aerospike is truly ready:
+
+```yaml
+spec:
+  podSpec:
+    readinessGateEnabled: true
+```
+
+When enabled, the operator:
+1. Injects `acko.io/aerospike-ready` into every pod's `spec.readinessGates`
+2. Patches the pod's `status.conditions` to `True` only after:
+   - The pod's Aerospike process has joined the cluster mesh, **and**
+   - All data migrations are complete (`cluster-stable: true`)
+3. Holds rolling restarts — the next pod is not deleted until the previous pod's gate is satisfied
+
+:::info
+Changing `readinessGateEnabled` triggers a rolling restart because `ReadinessGates` is immutable
+after pod creation. The operator handles this automatically.
+:::
+
+:::note
+This is an **opt-in** feature. Existing clusters with `readinessGateEnabled` unset (or `false`)
+behave exactly as before.
+:::
+
+### Observing Gate Status
+
+Check the per-pod gate condition:
+
+```bash
+kubectl -n aerospike get pod aerospike-ce-3node-0 \
+  -o jsonpath='{.status.conditions}' | jq '.[] | select(.type=="acko.io/aerospike-ready")'
+```
+
+The operator also reflects the gate status in the cluster's pod status:
+
+```bash
+kubectl -n aerospike get asce aerospike-ce-3node \
+  -o jsonpath='{.status.pods}' | jq 'to_entries[] | {pod: .key, gateOk: .value.readinessGateSatisfied}'
+```
+
+### Rolling Restart Behavior with Readiness Gates
+
+Without readiness gates:
+```
+Pod-2 deleted → Pod-2 Running → Pod-1 deleted → ...   (K8s Ready = enough)
+```
+
+With `readinessGateEnabled: true`:
+```
+Pod-2 deleted → Pod-2 Running → Gate=False (migrating) → Gate=True → Pod-1 deleted → ...
+```
+
+If a restart is blocked waiting for the gate, a `ReadinessGateBlocking` warning event is emitted:
+
+```bash
+kubectl -n aerospike get events --field-selector reason=ReadinessGateBlocking
+```
+
 ## Pausing Reconciliation
 
 Temporarily stop the operator from reconciling:
@@ -627,6 +693,7 @@ Each pod status includes:
 | `isRunningAndReady` | Whether the pod is healthy |
 | `configHash` | SHA256 of applied config |
 | `dynamicConfigStatus` | `Applied`, `Failed`, `Pending`, or empty |
+| `readinessGateSatisfied` | `true` when `acko.io/aerospike-ready` gate is satisfied (requires `readinessGateEnabled: true`) |
 
 ### Check Operator Logs
 

@@ -179,20 +179,23 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 			accessEndpoints = prev.AccessEndpoints
 		}
 
+		gateSatisfied, _ := findPodReadinessCondition(pod)
+
 		podStatuses[pod.Name] = asdbcev1alpha1.AerospikePodStatus{
-			PodIP:             pod.Status.PodIP,
-			HostIP:            pod.Status.HostIP,
-			Image:             podImage,
-			PodPort:           int32(getServicePort(cluster)),
-			ServicePort:       int32(getServicePort(cluster)),
-			Rack:              rackID,
-			IsRunningAndReady: isReady,
-			ConfigHash:        configHash,
-			PodSpecHash:       podSpecHash,
-			DirtyVolumes:      dirtyVolumes,
-			NodeID:            nodeID,
-			ClusterName:       clusterName,
-			AccessEndpoints:   accessEndpoints,
+			PodIP:                  pod.Status.PodIP,
+			HostIP:                 pod.Status.HostIP,
+			Image:                  podImage,
+			PodPort:                int32(getServicePort(cluster)),
+			ServicePort:            int32(getServicePort(cluster)),
+			Rack:                   rackID,
+			IsRunningAndReady:      isReady,
+			ConfigHash:             configHash,
+			PodSpecHash:            podSpecHash,
+			DirtyVolumes:           dirtyVolumes,
+			NodeID:                 nodeID,
+			ClusterName:            clusterName,
+			AccessEndpoints:        accessEndpoints,
+			ReadinessGateSatisfied: gateSatisfied,
 		}
 	}
 

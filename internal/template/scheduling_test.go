@@ -19,6 +19,8 @@ package template
 import (
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
+
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
@@ -93,5 +95,63 @@ func TestTranslatePodAntiAffinity(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestApplyScheduling_NodeAffinityDeepCopied(t *testing.T) {
+	nodeAffinity := &corev1.NodeAffinity{
+		RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+			NodeSelectorTerms: []corev1.NodeSelectorTerm{
+				{MatchExpressions: []corev1.NodeSelectorRequirement{
+					{Key: "zone", Operator: corev1.NodeSelectorOpIn, Values: []string{"us-east-1a"}},
+				}},
+			},
+		},
+	}
+	scheduling := &asdbcev1alpha1.TemplateScheduling{NodeAffinity: nodeAffinity}
+	cluster := &asdbcev1alpha1.AerospikeCECluster{}
+
+	applyScheduling(scheduling, cluster)
+
+	// Mutating the cluster's NodeAffinity must not affect the template's original.
+	cluster.Spec.PodSpec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.
+		NodeSelectorTerms[0].MatchExpressions[0].Values[0] = testMutatedValue
+	if nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.
+		NodeSelectorTerms[0].MatchExpressions[0].Values[0] != "us-east-1a" {
+		t.Error("applyScheduling must deep copy NodeAffinity to avoid shared pointers")
+	}
+}
+
+func TestApplyScheduling_TolerationsDeepCopied(t *testing.T) {
+	scheduling := &asdbcev1alpha1.TemplateScheduling{
+		Tolerations: []corev1.Toleration{
+			{Key: "original", Operator: corev1.TolerationOpExists},
+		},
+	}
+	cluster := &asdbcev1alpha1.AerospikeCECluster{}
+
+	applyScheduling(scheduling, cluster)
+
+	// Mutating the cluster's Tolerations slice must not affect the template.
+	cluster.Spec.PodSpec.Tolerations[0].Key = testMutatedValue
+	if scheduling.Tolerations[0].Key != "original" {
+		t.Error("applyScheduling must deep copy Tolerations to avoid shared backing array")
+	}
+}
+
+func TestApplyScheduling_TopologySpreadConstraintsDeepCopied(t *testing.T) {
+	scheduling := &asdbcev1alpha1.TemplateScheduling{
+		TopologySpreadConstraints: []corev1.TopologySpreadConstraint{
+			{MaxSkew: 1, TopologyKey: testTopologyZone, WhenUnsatisfiable: corev1.DoNotSchedule},
+		},
+	}
+	cluster := &asdbcev1alpha1.AerospikeCECluster{}
+
+	applyScheduling(scheduling, cluster)
+
+	// Mutating the cluster's TopologySpreadConstraints must not affect the template.
+	cluster.Spec.PodSpec.TopologySpreadConstraints[0].TopologyKey = testMutatedValue
+	if scheduling.TopologySpreadConstraints[0].TopologyKey != testTopologyZone {
+		t.Error("applyScheduling must deep copy TopologySpreadConstraints to avoid shared backing array")
 	}
 }

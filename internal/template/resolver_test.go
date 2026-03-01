@@ -354,7 +354,7 @@ func TestApplyScheduling_TopologySpreadConstraints(t *testing.T) {
 	cluster := &asdbcev1alpha1.AerospikeCECluster{}
 	scheduling := &asdbcev1alpha1.TemplateScheduling{
 		TopologySpreadConstraints: []corev1.TopologySpreadConstraint{
-			{MaxSkew: 1, TopologyKey: "zone", WhenUnsatisfiable: corev1.DoNotSchedule},
+			{MaxSkew: 1, TopologyKey: testTopologyZone, WhenUnsatisfiable: corev1.DoNotSchedule},
 		},
 	}
 
@@ -363,7 +363,7 @@ func TestApplyScheduling_TopologySpreadConstraints(t *testing.T) {
 	if cluster.Spec.PodSpec == nil || len(cluster.Spec.PodSpec.TopologySpreadConstraints) == 0 {
 		t.Fatal("expected TopologySpreadConstraints to be applied")
 	}
-	if cluster.Spec.PodSpec.TopologySpreadConstraints[0].TopologyKey != "zone" {
+	if cluster.Spec.PodSpec.TopologySpreadConstraints[0].TopologyKey != testTopologyZone {
 		t.Errorf("expected topologyKey=zone, got %q", cluster.Spec.PodSpec.TopologySpreadConstraints[0].TopologyKey)
 	}
 }
@@ -503,9 +503,72 @@ func TestMergeTemplateSpec_SchedulingIsolatedFromBase(t *testing.T) {
 	result := MergeTemplateSpec(base, override)
 
 	// Mutating result's Tolerations must NOT affect base.
-	result.Scheduling.Tolerations[0].Key = "mutated"
+	result.Scheduling.Tolerations[0].Key = testMutatedValue
 	if base.Scheduling.Tolerations[0].Key != "base-key" {
 		t.Error("mutating merge result must not affect the original base (shallow copy bug)")
+	}
+}
+
+func TestMergeTemplateSpec_NodeAffinityIsolatedFromOverride(t *testing.T) {
+	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
+		Scheduling: &asdbcev1alpha1.TemplateScheduling{
+			PodAntiAffinityLevel: asdbcev1alpha1.PodAntiAffinityPreferred,
+		},
+	}
+	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
+		Scheduling: &asdbcev1alpha1.TemplateScheduling{
+			NodeAffinity: &corev1.NodeAffinity{
+				RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+					NodeSelectorTerms: []corev1.NodeSelectorTerm{
+						{MatchExpressions: []corev1.NodeSelectorRequirement{
+							{Key: "zone", Operator: corev1.NodeSelectorOpIn, Values: []string{"us-east-1a"}},
+						}},
+					},
+				},
+			},
+		},
+	}
+	result := MergeTemplateSpec(base, override)
+
+	result.Scheduling.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.
+		NodeSelectorTerms[0].MatchExpressions[0].Values[0] = testMutatedValue
+	if override.Scheduling.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.
+		NodeSelectorTerms[0].MatchExpressions[0].Values[0] != "us-east-1a" {
+		t.Error("mutating merge result must not affect the override (shallow copy bug in NodeAffinity)")
+	}
+}
+
+func TestMergeTemplateSpec_TolerationsIsolatedFromOverride(t *testing.T) {
+	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{}
+	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
+		Scheduling: &asdbcev1alpha1.TemplateScheduling{
+			Tolerations: []corev1.Toleration{
+				{Key: "original", Operator: corev1.TolerationOpExists},
+			},
+		},
+	}
+	result := MergeTemplateSpec(base, override)
+
+	result.Scheduling.Tolerations[0].Key = testMutatedValue
+	if override.Scheduling.Tolerations[0].Key != "original" {
+		t.Error("mutating merge result must not affect the override (shallow copy bug in Tolerations)")
+	}
+}
+
+func TestMergeTemplateSpec_TopologySpreadConstraintsIsolatedFromOverride(t *testing.T) {
+	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{}
+	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
+		Scheduling: &asdbcev1alpha1.TemplateScheduling{
+			TopologySpreadConstraints: []corev1.TopologySpreadConstraint{
+				{MaxSkew: 1, TopologyKey: testTopologyZone, WhenUnsatisfiable: corev1.DoNotSchedule},
+			},
+		},
+	}
+	result := MergeTemplateSpec(base, override)
+
+	result.Scheduling.TopologySpreadConstraints[0].TopologyKey = testMutatedValue
+	if override.Scheduling.TopologySpreadConstraints[0].TopologyKey != testTopologyZone {
+		t.Error("mutating merge result must not affect the override (shallow copy bug in TopologySpreadConstraints)")
 	}
 }
 

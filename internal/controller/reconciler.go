@@ -139,7 +139,7 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 				return ctrl.Result{}, err
 			}
 		}
-		if resolveResult.SnapshotUpdated {
+		if resolveResult.SnapshotUpdated && cluster.Status.TemplateSnapshot != nil {
 			r.Recorder.Eventf(cluster, corev1.EventTypeNormal, "TemplateApplied",
 				"Applied template %q (rv: %s)",
 				cluster.Spec.TemplateRef.Name,
@@ -282,22 +282,25 @@ func (r *AerospikeCEClusterReconciler) reconcileCluster(
 		}
 	}
 
-	// Reconcile ACL (non-fatal); capture error for ACLSynced condition.
+	// Reconcile ACL (non-fatal); capture error and skip flag for ACLSynced condition.
 	var aclErr error
+	aclSynced := false
 	if cluster.Spec.AerospikeAccessControl != nil {
 		if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseACLSync, "Synchronizing ACL roles and users"); err != nil && !errors.IsConflict(err) {
 			return ctrl.Result{}, err
 		}
 	}
-	if err := r.reconcileACL(ctx, cluster); err != nil {
+	if synced, err := r.reconcileACL(ctx, cluster); err != nil {
 		log.Error(err, "Failed to reconcile ACL")
 		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "ACLSyncError", "ACL sync failed: %v", err)
 		metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, metrics.ReasonACL).Inc()
 		aclErr = err
+	} else {
+		aclSynced = synced
 	}
 
 	// Update status and set phase to Completed.
-	statusOpts := StatusUpdateOpts{ACLErr: aclErr}
+	statusOpts := StatusUpdateOpts{ACLErr: aclErr, ACLSynced: aclSynced}
 	if err := r.updateStatusAndPhase(ctx, namespacedName, asdbcev1alpha1.AerospikePhaseCompleted, "Cluster is healthy and stable", statusOpts); err != nil {
 		if errors.IsConflict(err) {
 			return ctrl.Result{Requeue: true}, nil

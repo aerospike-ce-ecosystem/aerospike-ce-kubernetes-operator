@@ -332,10 +332,10 @@ func TestSetFineGrainedConditions(t *testing.T) {
 		}
 	})
 
-	t.Run("ACL spec set and ACLErr nil: ACLSynced=True", func(t *testing.T) {
+	t.Run("ACL spec set and ACLSynced true: ACLSynced=True", func(t *testing.T) {
 		cluster := &asdbcev1alpha1.AerospikeCECluster{}
 		cluster.Spec.AerospikeAccessControl = &asdbcev1alpha1.AerospikeAccessControlSpec{}
-		setFineGrainedConditions(cluster, StatusUpdateOpts{ACLErr: nil})
+		setFineGrainedConditions(cluster, StatusUpdateOpts{ACLErr: nil, ACLSynced: true})
 
 		cond := findCondition(cluster, asdbcev1alpha1.ConditionACLSynced)
 		if cond == nil {
@@ -343,6 +343,23 @@ func TestSetFineGrainedConditions(t *testing.T) {
 		}
 		if cond.Status != metav1.ConditionTrue {
 			t.Errorf("ACLSynced = %q, want True", cond.Status)
+		}
+	})
+
+	t.Run("ACL spec set and ACL skipped (no ready pods): ACLSynced=False with pending reason", func(t *testing.T) {
+		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+		cluster.Spec.AerospikeAccessControl = &asdbcev1alpha1.AerospikeAccessControlSpec{}
+		setFineGrainedConditions(cluster, StatusUpdateOpts{ACLErr: nil, ACLSynced: false})
+
+		cond := findCondition(cluster, asdbcev1alpha1.ConditionACLSynced)
+		if cond == nil {
+			t.Fatal("ACLSynced condition not found")
+		}
+		if cond.Status != metav1.ConditionFalse {
+			t.Errorf("ACLSynced = %q, want False", cond.Status)
+		}
+		if cond.Reason != "ACLSyncPending" {
+			t.Errorf("ACLSynced reason = %q, want ACLSyncPending", cond.Reason)
 		}
 	})
 

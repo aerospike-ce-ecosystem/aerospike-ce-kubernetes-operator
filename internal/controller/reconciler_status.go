@@ -22,6 +22,9 @@ type StatusUpdateOpts struct {
 	// ACLErr, if non-nil, sets the ACLSynced condition to False.
 	// If nil and ACL spec is present, ACLSynced is set to True.
 	ACLErr error
+	// ACLSynced indicates whether ACL was actually applied (not skipped).
+	// When false and ACLErr is nil, ACL sync was skipped (e.g., no ready pods).
+	ACLSynced bool
 	// RestartInProgress indicates a rolling restart is active (MigrationComplete=False).
 	RestartInProgress bool
 	// Paused indicates reconciliation is paused (ReconciliationPaused=True).
@@ -281,9 +284,12 @@ func setFineGrainedConditions(cluster *asdbcev1alpha1.AerospikeCECluster, o Stat
 		if o.ACLErr != nil {
 			setCondition(cluster, asdbcev1alpha1.ConditionACLSynced, false,
 				"ACLSyncFailed", o.ACLErr.Error())
-		} else {
+		} else if o.ACLSynced {
 			setCondition(cluster, asdbcev1alpha1.ConditionACLSynced, true,
 				"ACLSyncSucceeded", "ACL roles and users are synchronized")
+		} else {
+			setCondition(cluster, asdbcev1alpha1.ConditionACLSynced, false,
+				"ACLSyncPending", "ACL sync skipped: no ready pods available")
 		}
 	}
 

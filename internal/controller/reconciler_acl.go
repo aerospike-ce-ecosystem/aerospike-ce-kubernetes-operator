@@ -26,27 +26,29 @@ var builtinRoles = map[string]bool{
 }
 
 // reconcileACL synchronizes ACL roles and users with the Aerospike cluster.
+// Returns (synced bool, err error) where synced indicates whether ACL was
+// actually applied (false when skipped due to no ready pods or unchanged spec).
 func (r *AerospikeCEClusterReconciler) reconcileACL(
 	ctx context.Context,
 	cluster *asdbcev1alpha1.AerospikeCECluster,
-) error {
+) (bool, error) {
 	log := logf.FromContext(ctx)
 
 	if cluster.Spec.AerospikeAccessControl == nil {
-		return nil
+		return false, nil
 	}
 
 	// Skip if ACL spec hasn't changed since the last successful reconcile.
 	if cluster.Status.Phase == asdbcev1alpha1.AerospikePhaseCompleted &&
 		cluster.Status.ObservedGeneration == cluster.Generation {
 		log.V(1).Info("ACL spec unchanged, skipping sync")
-		return nil
+		return false, nil
 	}
 
 	// Check if any pod is ready before attempting ACL sync.
 	podList, err := r.listClusterPods(ctx, cluster)
 	if err != nil {
-		return fmt.Errorf("listing pods for ACL sync: %w", err)
+		return false, fmt.Errorf("listing pods for ACL sync: %w", err)
 	}
 
 	podReady := false
@@ -58,31 +60,31 @@ func (r *AerospikeCEClusterReconciler) reconcileACL(
 	}
 	if !podReady {
 		log.Info("No ready pods, skipping ACL sync")
-		return nil
+		return false, nil
 	}
 
 	aeroClient, err := r.getAerospikeClient(ctx, cluster)
 	if err != nil {
 		metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "error").Inc()
-		return fmt.Errorf("ACL sync: connecting to cluster: %w", err)
+		return false, fmt.Errorf("ACL sync: connecting to cluster: %w", err)
 	}
 	defer closeAerospikeClient(aeroClient)
 
 	// Sync roles first (users may depend on roles)
 	if err := r.reconcileRoles(ctx, aeroClient, cluster); err != nil {
 		metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "error").Inc()
-		return fmt.Errorf("ACL sync roles: %w", err)
+		return false, fmt.Errorf("ACL sync roles: %w", err)
 	}
 
 	// Sync users
 	if err := r.reconcileUsers(ctx, aeroClient, cluster); err != nil {
 		metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "error").Inc()
-		return fmt.Errorf("ACL sync users: %w", err)
+		return false, fmt.Errorf("ACL sync users: %w", err)
 	}
 
 	metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "success").Inc()
 	log.Info("ACL reconciliation completed")
-	return nil
+	return true, nil
 }
 
 // reconcileRoles synchronizes roles: create missing, grant/revoke privileges, drop orphaned.
@@ -192,7 +194,7 @@ func (r *AerospikeCEClusterReconciler) reconcileUsers(
 		// has changed (guarded by the generation check above), so it won't
 		// run every reconcile cycle. The server is idempotent for same-value changes.
 		if err := aeroClient.ChangePassword(adminPolicy, userSpec.Name, password); err != nil {
-			log.V(1).Info("Password change attempt", "user", userSpec.Name, "result", err)
+			log.V(1).Info("Password change failed (non-fatal)", "user", userSpec.Name, "error", err)
 		}
 	}
 

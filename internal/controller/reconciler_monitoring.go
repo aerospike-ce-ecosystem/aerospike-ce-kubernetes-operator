@@ -374,6 +374,32 @@ func defaultAlertRules(clusterName, namespace string) []any {
 						"description": "Namespace {{ $labels.ns }} on {{ $labels.pod }} memory usage is above 80%%.",
 					},
 				},
+				map[string]any{
+					"alert": "AerospikeReconcileStale",
+					"expr":  fmt.Sprintf(`time() - aerospike_ce_last_reconcile_timestamp_seconds{namespace="%s",name="%s"} > 300`, namespace, clusterName),
+					"for":   "5m",
+					"labels": map[string]any{
+						"severity": "warning",
+						"cluster":  clusterName,
+					},
+					"annotations": map[string]any{
+						"summary":     fmt.Sprintf("Aerospike operator reconciliation stale for cluster %s", clusterName),
+						"description": fmt.Sprintf("The operator has not reconciled cluster %s in the last 5+ minutes.", clusterName),
+					},
+				},
+				map[string]any{
+					"alert": "AerospikeClusterSizeMismatch",
+					"expr":  fmt.Sprintf(`aerospike_ce_cluster_ready_pods{namespace="%s",name="%s"} != aerospike_ce_cluster_as_size{namespace="%s",name="%s"}`, namespace, clusterName, namespace, clusterName),
+					"for":   "2m",
+					"labels": map[string]any{
+						"severity": "warning",
+						"cluster":  clusterName,
+					},
+					"annotations": map[string]any{
+						"summary":     fmt.Sprintf("K8s pod count differs from Aerospike cluster-size for cluster %s", clusterName),
+						"description": fmt.Sprintf("The number of ready K8s pods does not match the Aerospike cluster-size reported by asinfo for cluster %s.", clusterName),
+					},
+				},
 			},
 		},
 	}

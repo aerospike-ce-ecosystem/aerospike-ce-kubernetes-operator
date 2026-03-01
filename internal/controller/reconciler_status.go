@@ -15,6 +15,7 @@ import (
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/metrics"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/podutil"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
+	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/version"
 )
 
 // StatusUpdateOpts carries optional annotations for updateStatusAndPhase.
@@ -88,6 +89,14 @@ func (r *AerospikeCEClusterReconciler) updateStatusAndPhase(
 		// AppliedSpec records the last successfully reconciled spec for drift detection.
 		latest.Status.AppliedSpec = latest.Spec.DeepCopy()
 
+		// Record operator version and reconcile timestamp.
+		latest.Status.OperatorVersion = version.Version
+		now := metav1.Now()
+		latest.Status.LastReconcileTime = &now
+
+		// Clear pending restart pods on successful completion.
+		latest.Status.PendingRestartPods = nil
+
 		// Enrich pod status with per-node Aerospike info (NodeID, ClusterName, endpoints).
 		if aeroInfoMap := r.collectAerospikeInfo(ctx, latest); aeroInfoMap != nil {
 			for podName, info := range aeroInfoMap {
@@ -99,13 +108,42 @@ func (r *AerospikeCEClusterReconciler) updateStatusAndPhase(
 				}
 			}
 		}
+
+		// Update AerospikeClusterSize (best-effort).
+		r.updateAerospikeClusterSize(ctx, latest)
 	}
 
 	// Update Prometheus metrics
 	metrics.ClusterPhase.WithLabelValues(latest.Namespace, latest.Name).Set(metrics.PhaseToFloat(string(phase)))
 	metrics.ClusterReadyPods.WithLabelValues(latest.Namespace, latest.Name).Set(float64(readyCount))
+	if latest.Status.LastReconcileTime != nil {
+		metrics.LastReconcileTimestamp.WithLabelValues(latest.Namespace, latest.Name).Set(float64(latest.Status.LastReconcileTime.Unix()))
+	}
+	metrics.ClusterASSize.WithLabelValues(latest.Namespace, latest.Name).Set(float64(latest.Status.AerospikeClusterSize))
 
 	return r.Status().Update(ctx, latest)
+}
+
+// updateAerospikeClusterSize queries asinfo for the Aerospike cluster-size and updates status.
+// Failure is non-fatal: the previous value is preserved.
+func (r *AerospikeCEClusterReconciler) updateAerospikeClusterSize(
+	ctx context.Context,
+	cluster *asdbcev1alpha1.AerospikeCECluster,
+) {
+	log := logf.FromContext(ctx)
+	aeroClient, err := r.getAerospikeClient(ctx, cluster)
+	if err != nil {
+		log.V(1).Info("Could not connect to Aerospike for cluster-size query (non-fatal)", "err", err)
+		return
+	}
+	defer closeAerospikeClient(aeroClient)
+
+	size, err := ClusterSize(aeroClient)
+	if err != nil {
+		log.V(1).Info("cluster-size query failed (non-fatal)", "err", err)
+		return
+	}
+	cluster.Status.AerospikeClusterSize = int32(size)
 }
 
 // populateStatus fills in the cluster's status fields and returns the ready pod count.
@@ -173,10 +211,27 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 		// These fields are refreshed via collectAerospikeInfo only when phase == Completed.
 		var nodeID, clusterName string
 		var accessEndpoints []string
+		var lastRestartReason *asdbcev1alpha1.RestartReason
+		var lastRestartTime *metav1.Time
+		var unstableSince *metav1.Time
 		if prev, exists := cluster.Status.Pods[pod.Name]; exists {
 			nodeID = prev.NodeID
 			clusterName = prev.ClusterName
 			accessEndpoints = prev.AccessEndpoints
+			lastRestartReason = prev.LastRestartReason
+			lastRestartTime = prev.LastRestartTime
+			if !isReady {
+				if prev.UnstableSince != nil {
+					unstableSince = prev.UnstableSince // preserve original timestamp
+				} else {
+					now := metav1.Now()
+					unstableSince = &now // first time NotReady
+				}
+			}
+			// else: pod is ready → clear UnstableSince (nil stays nil)
+		} else if !isReady {
+			now := metav1.Now()
+			unstableSince = &now // new pod, already NotReady
 		}
 
 		gateSatisfied, _ := findPodReadinessCondition(pod)
@@ -196,6 +251,9 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 			ClusterName:            clusterName,
 			AccessEndpoints:        accessEndpoints,
 			ReadinessGateSatisfied: gateSatisfied,
+			LastRestartReason:      lastRestartReason,
+			LastRestartTime:        lastRestartTime,
+			UnstableSince:          unstableSince,
 		}
 	}
 

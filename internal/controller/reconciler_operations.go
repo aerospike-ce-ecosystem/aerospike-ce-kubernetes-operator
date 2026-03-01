@@ -85,11 +85,18 @@ func (r *AerospikeCEClusterReconciler) reconcileOperations(
 		}
 
 		var opErr error
+		var restartReason asdbcev1alpha1.RestartReason
 		switch op.Kind {
 		case asdbcev1alpha1.OperationWarmRestart:
 			opErr = r.warmRestartPod(ctx, pod)
+			restartReason = asdbcev1alpha1.RestartReasonWarmRestart
 		case asdbcev1alpha1.OperationPodRestart:
 			opErr = r.coldRestartPod(ctx, cluster, pod)
+			restartReason = asdbcev1alpha1.RestartReasonManualRestart
+		}
+
+		if opErr == nil && restartReason != "" {
+			r.recordPodRestartStatus(ctx, cluster, pod.Name, restartReason)
 		}
 
 		if opErr != nil {
@@ -124,7 +131,7 @@ func (r *AerospikeCEClusterReconciler) reconcileOperations(
 		return !allDone, err
 	}
 
-	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, "Operation",
+	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventOperation,
 		"Operation %s (%s): %d/%d pods processed", op.ID, op.Kind, len(opStatus.CompletedPods), len(pods))
 
 	return !allDone, nil

@@ -224,7 +224,7 @@ func TestApplyTemplate_Resources(t *testing.T) {
 	cluster := &asdbcev1alpha1.AerospikeCECluster{
 		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
 			Size:  1,
-			Image: "aerospike:ce-8.1.1.1",
+			Image: testImageCE8,
 		},
 	}
 
@@ -423,5 +423,172 @@ func TestDeepMergeMapBaseFirst(t *testing.T) {
 	}
 	if nested["c"] != "override" {
 		t.Errorf("nested.c should be present from override")
+	}
+}
+
+// --- MergeTemplateSpec: Image ---
+
+func TestMergeTemplateSpec_ImageOverrideTakesPrecedence(t *testing.T) {
+	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{Image: testImageCE7}
+	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{Image: testImageCE8}
+	result := MergeTemplateSpec(base, override)
+	if result.Image != testImageCE8 {
+		t.Errorf("expected override image, got %q", result.Image)
+	}
+}
+
+func TestMergeTemplateSpec_ImageBasePreservedWhenOverrideEmpty(t *testing.T) {
+	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{Image: testImageCE8}
+	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{}
+	result := MergeTemplateSpec(base, override)
+	if result.Image != testImageCE8 {
+		t.Errorf("expected base image to be preserved, got %q", result.Image)
+	}
+}
+
+// --- MergeTemplateSpec: Size ---
+
+func TestMergeTemplateSpec_SizeOverrideTakesPrecedence(t *testing.T) {
+	baseSize := int32(1)
+	overrideSize := int32(6)
+	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{Size: &baseSize}
+	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{Size: &overrideSize}
+	result := MergeTemplateSpec(base, override)
+	if result.Size == nil || *result.Size != 6 {
+		t.Errorf("expected override size=6")
+	}
+}
+
+func TestMergeTemplateSpec_SizeBasePreservedWhenOverrideNil(t *testing.T) {
+	baseSize := int32(6)
+	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{Size: &baseSize}
+	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{}
+	result := MergeTemplateSpec(base, override)
+	if result.Size == nil || *result.Size != 6 {
+		t.Errorf("expected base size=6 to be preserved")
+	}
+}
+
+func TestMergeTemplateSpec_SizeDeepCopied(t *testing.T) {
+	baseSize := int32(3)
+	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{Size: &baseSize}
+	result := MergeTemplateSpec(base, nil)
+	// Mutating baseSize should not affect the result.
+	baseSize = 99
+	if result.Size == nil || *result.Size != 3 {
+		t.Errorf("expected deep copy: result size should remain 3")
+	}
+}
+
+// --- MergeTemplateSpec: Monitoring ---
+
+func TestMergeTemplateSpec_MonitoringOverrideReplaces(t *testing.T) {
+	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
+		Monitoring: &asdbcev1alpha1.AerospikeMonitoringSpec{Port: 9145},
+	}
+	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
+		Monitoring: &asdbcev1alpha1.AerospikeMonitoringSpec{Port: 9200},
+	}
+	result := MergeTemplateSpec(base, override)
+	if result.Monitoring == nil || result.Monitoring.Port != 9200 {
+		t.Errorf("expected override monitoring port=9200")
+	}
+}
+
+func TestMergeTemplateSpec_MonitoringBasePreservedWhenOverrideNil(t *testing.T) {
+	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
+		Monitoring: &asdbcev1alpha1.AerospikeMonitoringSpec{Enabled: true, Port: 9145},
+	}
+	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{}
+	result := MergeTemplateSpec(base, override)
+	if result.Monitoring == nil || !result.Monitoring.Enabled || result.Monitoring.Port != 9145 {
+		t.Errorf("expected base monitoring to be preserved")
+	}
+}
+
+// --- MergeTemplateSpec: AerospikeNetworkPolicy ---
+
+func TestMergeTemplateSpec_NetworkPolicyOverrideReplaces(t *testing.T) {
+	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
+		AerospikeNetworkPolicy: &asdbcev1alpha1.AerospikeNetworkPolicy{
+			AccessType: asdbcev1alpha1.AerospikeNetworkTypePod,
+		},
+	}
+	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
+		AerospikeNetworkPolicy: &asdbcev1alpha1.AerospikeNetworkPolicy{
+			AccessType: asdbcev1alpha1.AerospikeNetworkTypeHostExternal,
+		},
+	}
+	result := MergeTemplateSpec(base, override)
+	if result.AerospikeNetworkPolicy == nil || result.AerospikeNetworkPolicy.AccessType != asdbcev1alpha1.AerospikeNetworkTypeHostExternal {
+		t.Errorf("expected override network policy access type=hostExternal")
+	}
+}
+
+func TestMergeTemplateSpec_NetworkPolicyBasePreservedWhenOverrideNil(t *testing.T) {
+	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
+		AerospikeNetworkPolicy: &asdbcev1alpha1.AerospikeNetworkPolicy{
+			AccessType: asdbcev1alpha1.AerospikeNetworkTypePod,
+		},
+	}
+	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{}
+	result := MergeTemplateSpec(base, override)
+	if result.AerospikeNetworkPolicy == nil || result.AerospikeNetworkPolicy.AccessType != asdbcev1alpha1.AerospikeNetworkTypePod {
+		t.Errorf("expected base network policy to be preserved")
+	}
+}
+
+// --- ApplyTemplate integration: image and size ---
+
+func TestApplyTemplate_ImageAndSizeApplied(t *testing.T) {
+	size := int32(3)
+	tmplSpec := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
+		Image: testImageCE8,
+		Size:  &size,
+	}
+	cluster := newCluster()
+	ApplyTemplate(tmplSpec, cluster)
+
+	if cluster.Spec.Image != testImageCE8 {
+		t.Errorf("expected image to be applied, got %q", cluster.Spec.Image)
+	}
+	if cluster.Spec.Size != 3 {
+		t.Errorf("expected size=3, got %d", cluster.Spec.Size)
+	}
+}
+
+func TestApplyTemplate_ClusterValuesTakePrecedenceOverTemplate(t *testing.T) {
+	size := int32(6)
+	tmplSpec := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
+		Image: testImageCE8,
+		Size:  &size,
+		Monitoring: &asdbcev1alpha1.AerospikeMonitoringSpec{
+			Port: 9145,
+		},
+		AerospikeNetworkPolicy: &asdbcev1alpha1.AerospikeNetworkPolicy{
+			AccessType: asdbcev1alpha1.AerospikeNetworkTypePod,
+		},
+	}
+	cluster := newCluster()
+	cluster.Spec.Image = testImageCE7
+	cluster.Spec.Size = 1
+	cluster.Spec.Monitoring = &asdbcev1alpha1.AerospikeMonitoringSpec{Port: 9200}
+	cluster.Spec.AerospikeNetworkPolicy = &asdbcev1alpha1.AerospikeNetworkPolicy{
+		AccessType: asdbcev1alpha1.AerospikeNetworkTypeHostInternal,
+	}
+
+	ApplyTemplate(tmplSpec, cluster)
+
+	if cluster.Spec.Image != testImageCE7 {
+		t.Errorf("expected cluster image to be preserved, got %q", cluster.Spec.Image)
+	}
+	if cluster.Spec.Size != 1 {
+		t.Errorf("expected cluster size to be preserved (1), got %d", cluster.Spec.Size)
+	}
+	if cluster.Spec.Monitoring.Port != 9200 {
+		t.Errorf("expected cluster monitoring port to be preserved (9200), got %d", cluster.Spec.Monitoring.Port)
+	}
+	if cluster.Spec.AerospikeNetworkPolicy.AccessType != asdbcev1alpha1.AerospikeNetworkTypeHostInternal {
+		t.Errorf("expected cluster network policy to be preserved")
 	}
 }

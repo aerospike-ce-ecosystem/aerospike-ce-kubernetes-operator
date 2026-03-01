@@ -3,7 +3,12 @@ package controller
 import (
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/podutil"
+	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
 func TestGetDirtyVolumes_NilStorage(t *testing.T) {
@@ -99,6 +104,107 @@ func TestPodOrdinal(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := podOrdinal(tc.podName); got != tc.expected {
 				t.Errorf("podOrdinal(%q) = %d, want %d", tc.podName, got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestDetermineRestartReason(t *testing.T) {
+	tests := []struct {
+		name               string
+		podImage           string
+		desiredImage       string
+		podConfigHash      string
+		desiredConfigHash  string
+		podSpecHash        string
+		desiredPodSpecHash string
+		isWarm             bool
+		expected           asdbcev1alpha1.RestartReason
+	}{
+		{
+			name:         "image changed → ImageChanged",
+			podImage:     "aerospike:ce-7.2.0.6",
+			desiredImage: "aerospike:ce-8.1.1.1",
+			expected:     asdbcev1alpha1.RestartReasonImageChanged,
+		},
+		{
+			name:               "config hash changed, warm restart → WarmRestart",
+			podImage:           "aerospike:ce-8.1.1.1",
+			desiredImage:       "aerospike:ce-8.1.1.1",
+			podConfigHash:      "old",
+			desiredConfigHash:  "new",
+			podSpecHash:        "same",
+			desiredPodSpecHash: "same",
+			isWarm:             true,
+			expected:           asdbcev1alpha1.RestartReasonWarmRestart,
+		},
+		{
+			name:               "config hash changed, cold restart → ConfigChanged",
+			podImage:           "aerospike:ce-8.1.1.1",
+			desiredImage:       "aerospike:ce-8.1.1.1",
+			podConfigHash:      "old",
+			desiredConfigHash:  "new",
+			podSpecHash:        "same",
+			desiredPodSpecHash: "same",
+			isWarm:             false,
+			expected:           asdbcev1alpha1.RestartReasonConfigChanged,
+		},
+		{
+			name:               "pod spec hash changed (not image/config) → PodSpecChanged",
+			podImage:           "aerospike:ce-8.1.1.1",
+			desiredImage:       "aerospike:ce-8.1.1.1",
+			podConfigHash:      "same",
+			desiredConfigHash:  "same",
+			podSpecHash:        "old-spec",
+			desiredPodSpecHash: "new-spec",
+			isWarm:             false,
+			expected:           asdbcev1alpha1.RestartReasonPodSpecChanged,
+		},
+		{
+			name:               "nothing differs → defaults to ConfigChanged",
+			podImage:           "aerospike:ce-8.1.1.1",
+			desiredImage:       "aerospike:ce-8.1.1.1",
+			podConfigHash:      "same",
+			desiredConfigHash:  "same",
+			podSpecHash:        "same",
+			desiredPodSpecHash: "same",
+			isWarm:             false,
+			expected:           asdbcev1alpha1.RestartReasonConfigChanged,
+		},
+		{
+			name:               "image change takes priority over config change",
+			podImage:           "aerospike:ce-7.2.0.6",
+			desiredImage:       "aerospike:ce-8.1.1.1",
+			podConfigHash:      "old",
+			desiredConfigHash:  "new",
+			podSpecHash:        "old-spec",
+			desiredPodSpecHash: "new-spec",
+			isWarm:             true,
+			expected:           asdbcev1alpha1.RestartReasonImageChanged,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			pod := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						utils.ConfigHashAnnotation:  tc.podConfigHash,
+						utils.PodSpecHashAnnotation: tc.podSpecHash,
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  podutil.AerospikeContainerName,
+							Image: tc.podImage,
+						},
+					},
+				},
+			}
+			got := determineRestartReason(pod, tc.desiredImage, tc.desiredConfigHash, tc.desiredPodSpecHash, tc.isWarm)
+			if got != tc.expected {
+				t.Errorf("determineRestartReason() = %q, want %q", got, tc.expected)
 			}
 		})
 	}

@@ -19,6 +19,8 @@ title: Cluster Templates
 
 ## Create a template
 
+Templates can now supply the container **image**, cluster **size**, **monitoring** sidecar, and **network policy** as defaults — in addition to the existing scheduling, storage, and Aerospike configuration fields.
+
 ```yaml
 apiVersion: acko.io/v1alpha1
 kind: AerospikeCEClusterTemplate
@@ -26,6 +28,31 @@ metadata:
   name: prod
   namespace: default
 spec:
+  # Standardize the Aerospike image and default cluster size across all prod clusters
+  image: aerospike:ce-8.1.1.1
+  size: 6
+
+  # Enable Prometheus monitoring sidecar by default
+  monitoring:
+    enabled: true
+    port: 9145
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+
+  # Default network access policy
+  aerospikeNetworkPolicy:
+    accessType: pod
+    alternateAccessType: pod
+    fabricType: pod
+
   scheduling:
     podAntiAffinityLevel: required   # one Aerospike pod per node
     tolerations:
@@ -64,23 +91,33 @@ kubectl apply -f prod-template.yaml
 
 ## Reference a template from a cluster
 
+When a template supplies `image` and `size`, the cluster can omit those fields entirely:
+
 ```yaml
 apiVersion: acko.io/v1alpha1
 kind: AerospikeCECluster
 metadata:
   name: prod-cluster
 spec:
-  size: 3
-  image: aerospike:ce-8.1.1.1
-
+  # image and size are supplied by the "prod" template (image: aerospike:ce-8.1.1.1, size: 6)
   templateRef:
-    name: prod    # references the "prod" AerospikeCEClusterTemplate
+    name: prod
 
   aerospikeConfig:
     namespaces:
       - name: data
         storage-engine:
           type: memory
+```
+
+You can still set `spec.image` or `spec.size` explicitly on the cluster to override the template:
+
+```yaml
+spec:
+  image: aerospike:ce-8.1.1.1   # override: pin a specific image
+  size: 3                         # override: use 3 nodes instead of the template's 6
+  templateRef:
+    name: prod
 ```
 
 The operator resolves the template at creation time and stores the spec in `status.templateSnapshot`. From that point the cluster operates independently — changes to the template do not automatically affect this cluster.

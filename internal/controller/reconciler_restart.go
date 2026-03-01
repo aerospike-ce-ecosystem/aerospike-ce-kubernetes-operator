@@ -11,12 +11,14 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/metrics"
+	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/podutil"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/storage"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
@@ -103,8 +105,19 @@ func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
 	}
 
 	if len(podsToRestart) == 0 {
+		cluster.Status.PendingRestartPods = nil
 		return false, nil
 	}
+
+	// Track pods pending restart
+	pendingNames := make([]string, 0, len(podsToRestart))
+	for _, pod := range podsToRestart {
+		pendingNames = append(pendingNames, pod.Name)
+	}
+	cluster.Status.PendingRestartPods = pendingNames
+
+	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventRollingRestartStarted,
+		"Rolling restart started for rack %d: %d pods to restart", rack.ID, len(podsToRestart))
 
 	// Create Aerospike client once for all pods (lazy, only if dynamic config is attempted).
 	var aeroClient *aero.Client
@@ -151,12 +164,17 @@ func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
 
 		// 2. Restart pod (warm or cold)
 		if err := r.restartPod(ctx, cluster, pod, sts, desiredHash); err != nil {
-			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "RestartFailed",
+			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventRestartFailed,
 				"Failed to restart pod %s: %v", pod.Name, err)
 			return false, err
 		}
 
 		restarted++
+	}
+
+	if restarted > 0 {
+		r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventRollingRestartCompleted,
+			"Rolling restart completed for rack %d", rack.ID)
 	}
 
 	return restarted > 0, nil
@@ -172,7 +190,18 @@ func (r *AerospikeCEClusterReconciler) restartPod(
 ) error {
 	log := logf.FromContext(ctx)
 
-	if !r.shouldWarmRestart(cluster, pod, sts) {
+	isWarm := r.shouldWarmRestart(cluster, pod, sts)
+
+	// Determine desired image and hashes for restart reason
+	desiredImage := cluster.Spec.Image
+	desiredPodSpecHash := ""
+	if sts.Spec.Template.Annotations != nil {
+		desiredPodSpecHash = sts.Spec.Template.Annotations[utils.PodSpecHashAnnotation]
+	}
+	reason := determineRestartReason(pod, desiredImage, desiredHash, desiredPodSpecHash, isWarm)
+	r.recordPodRestartStatus(ctx, cluster, pod.Name, reason)
+
+	if !isWarm {
 		log.Info("Pod config/spec hash mismatch, deleting for restart", "pod", pod.Name)
 		return r.coldRestartPod(ctx, cluster, pod)
 	}
@@ -180,6 +209,7 @@ func (r *AerospikeCEClusterReconciler) restartPod(
 	log.Info("Attempting warm restart (SIGUSR1)", "pod", pod.Name)
 	if err := r.warmRestartPod(ctx, pod); err != nil {
 		log.Info("Warm restart failed, falling back to cold restart", "pod", pod.Name, "error", err)
+		r.recordPodRestartStatus(ctx, cluster, pod.Name, asdbcev1alpha1.RestartReasonConfigChanged)
 		return r.coldRestartPod(ctx, cluster, pod)
 	}
 
@@ -188,9 +218,73 @@ func (r *AerospikeCEClusterReconciler) restartPod(
 		log.Error(err, "Failed to update pod config hash after warm restart", "pod", pod.Name)
 	}
 	metrics.WarmRestartsTotal.WithLabelValues(cluster.Namespace, cluster.Name).Inc()
-	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, "PodWarmRestarted",
+	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventPodWarmRestarted,
 		"Pod %s warm-restarted (SIGUSR1)", pod.Name)
 	return nil
+}
+
+// determineRestartReason returns the reason a pod needs to be restarted.
+// Priority: image change > config change > pod spec change.
+func determineRestartReason(
+	pod *corev1.Pod,
+	desiredImage string,
+	desiredConfigHash string,
+	desiredPodSpecHash string,
+	isWarm bool,
+) asdbcev1alpha1.RestartReason {
+	// Check image
+	for _, c := range pod.Spec.Containers {
+		if c.Name == podutil.AerospikeContainerName {
+			if c.Image != desiredImage {
+				return asdbcev1alpha1.RestartReasonImageChanged
+			}
+			break
+		}
+	}
+	// Check config hash
+	currentConfigHash := ""
+	if pod.Annotations != nil {
+		currentConfigHash = pod.Annotations[utils.ConfigHashAnnotation]
+	}
+	if currentConfigHash != desiredConfigHash {
+		if isWarm {
+			return asdbcev1alpha1.RestartReasonWarmRestart
+		}
+		return asdbcev1alpha1.RestartReasonConfigChanged
+	}
+	// Check pod spec hash
+	currentPodSpecHash := ""
+	if pod.Annotations != nil {
+		currentPodSpecHash = pod.Annotations[utils.PodSpecHashAnnotation]
+	}
+	if desiredPodSpecHash != "" && currentPodSpecHash != desiredPodSpecHash {
+		return asdbcev1alpha1.RestartReasonPodSpecChanged
+	}
+	return asdbcev1alpha1.RestartReasonConfigChanged
+}
+
+// recordPodRestartStatus fetches the latest CR, records the restart reason/time for the pod, and patches status.
+func (r *AerospikeCEClusterReconciler) recordPodRestartStatus(
+	ctx context.Context,
+	cluster *asdbcev1alpha1.AerospikeCECluster,
+	podName string,
+	reason asdbcev1alpha1.RestartReason,
+) {
+	log := logf.FromContext(ctx)
+	now := metav1.Now()
+
+	latest := cluster.DeepCopy()
+	if latest.Status.Pods == nil {
+		latest.Status.Pods = make(map[string]asdbcev1alpha1.AerospikePodStatus)
+	}
+	podStatus := latest.Status.Pods[podName]
+	podStatus.LastRestartReason = &reason
+	podStatus.LastRestartTime = &now
+	latest.Status.Pods[podName] = podStatus
+
+	if err := r.Status().Update(ctx, latest); err != nil {
+		log.V(1).Info("Failed to record pod restart status (non-fatal)", "pod", podName, "err", err)
+	}
 }
 
 // updatePodConfigHash updates the config hash annotation on a pod after a warm restart.
@@ -233,7 +327,7 @@ func (r *AerospikeCEClusterReconciler) coldRestartPod(
 		} else {
 			if err := storage.DeleteLocalPVCsForPod(ctx, r.Client, cluster.Namespace, stsName, ordinal, cluster.Spec.Storage); err != nil {
 				log.Error(err, "Failed to delete local PVCs before restart", "pod", pod.Name)
-				r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "LocalPVCDeleteFailed",
+				r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventLocalPVCDeleteFailed,
 					"Failed to delete local PVCs for pod %s before restart: %v", pod.Name, err)
 				// Non-fatal: continue with pod deletion
 			}
@@ -244,7 +338,7 @@ func (r *AerospikeCEClusterReconciler) coldRestartPod(
 		return err
 	}
 	metrics.ColdRestartsTotal.WithLabelValues(cluster.Namespace, cluster.Name).Inc()
-	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, "PodColdRestarted",
+	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventPodColdRestarted,
 		"Pod %s deleted for cold restart", pod.Name)
 	return nil
 }

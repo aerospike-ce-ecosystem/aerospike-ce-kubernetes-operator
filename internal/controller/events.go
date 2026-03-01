@@ -1,12 +1,55 @@
 package controller
 
-// Readiness gate event reason constants.
+// Event reason constants for Kubernetes Events recorded by the AerospikeCECluster controller.
+// Use these constants instead of hardcoded strings to avoid typos and enable consistent monitoring.
 const (
-	// EventReadinessGateSatisfied is emitted when a pod's readiness gate
-	// transitions from False to True (Aerospike joined mesh, migrations done).
-	EventReadinessGateSatisfied = "ReadinessGateSatisfied"
+	// Rolling restart lifecycle
+	EventRollingRestartStarted   = "RollingRestartStarted"
+	EventRollingRestartCompleted = "RollingRestartCompleted"
+	EventRestartFailed           = "RestartFailed"
+	EventPodWarmRestarted        = "PodWarmRestarted"
+	EventPodColdRestarted        = "PodColdRestarted"
+	EventLocalPVCDeleteFailed    = "LocalPVCDeleteFailed"
 
-	// EventReadinessGateBlocking is emitted (Warning) when the rolling restart
-	// is paused because a pod's readiness gate is not yet satisfied.
-	EventReadinessGateBlocking = "ReadinessGateBlocking"
+	// Config management
+	EventConfigMapCreated     = "ConfigMapCreated"
+	EventConfigMapUpdated     = "ConfigMapUpdated"
+	EventDynamicConfigApplied = "DynamicConfigApplied"
+	EventDynamicConfigFailed  = "DynamicConfigStatusFailed"
+
+	// StatefulSet / Rack management
+	EventStatefulSetCreated = "StatefulSetCreated"
+	EventStatefulSetUpdated = "StatefulSetUpdated"
+	EventRackScaled         = "RackScaled"
+
+	// ACL synchronization
+	EventACLSyncStarted   = "ACLSyncStarted"
+	EventACLSyncCompleted = "ACLSyncCompleted"
+	EventACLSyncError     = "ACLSyncError"
+
+	// PodDisruptionBudget
+	EventPDBCreated = "PDBCreated"
+	EventPDBUpdated = "PDBUpdated"
+
+	// Service management
+	EventServiceCreated = "ServiceCreated"
+	EventServiceUpdated = "ServiceUpdated"
+
+	// Cluster lifecycle
+	EventClusterDeletionStarted = "ClusterDeletionStarted"
+	EventFinalizerRemoved       = "FinalizerRemoved"
+
+	// Template
+	EventTemplateApplied         = "TemplateApplied"
+	EventTemplateResolutionError = "TemplateResolutionError"
+	EventTemplateDrifted         = "TemplateDrifted"
+
+	// Readiness gate
+	EventReadinessGateSatisfied = "ReadinessGateSatisfied"
+	EventReadinessGateBlocking  = "ReadinessGateBlocking"
+
+	// Miscellaneous
+	EventValidationWarning = "ValidationWarning"
+	EventReconcileError    = "ReconcileError"
+	EventOperation         = "Operation"
 )

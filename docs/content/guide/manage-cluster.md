@@ -715,3 +715,48 @@ kubectl -n aerospike-operator logs -l control-plane=controller-manager -f
 **Webhook rejection:**
 - Read the error message — the webhook validates CE constraints
 - Check [CE Validation Rules](./create-cluster#ce-validation-rules)
+
+## Kubernetes Events
+
+The operator emits Kubernetes Events for every significant lifecycle transition.
+Use `kubectl get events` to observe cluster activity in real time:
+
+```bash
+# Watch events for a specific cluster
+kubectl get events --field-selector involvedObject.name=my-cluster -w
+
+# Show all AerospikeCECluster events in a namespace
+kubectl get events --field-selector involvedObject.kind=AerospikeCECluster -n aerospike
+```
+
+### Event Reference
+
+| Reason | Type | Description |
+|--------|------|-------------|
+| `RollingRestartStarted` | Normal | Rolling restart loop began; shows rack ID and pod count |
+| `PodWarmRestarted` | Normal | Pod received SIGUSR1 (no downtime config reload) |
+| `PodColdRestarted` | Normal | Pod deleted and recreated for a full restart |
+| `RestartFailed` | Warning | Failed to restart a pod during rolling restart |
+| `LocalPVCDeleteFailed` | Warning | Local PVC deletion failed before cold restart |
+| `ConfigMapCreated` | Normal | Rack ConfigMap created for the first time |
+| `ConfigMapUpdated` | Normal | Rack ConfigMap updated with new configuration |
+| `DynamicConfigApplied` | Normal | Config changes applied to a pod without restart |
+| `DynamicConfigStatusFailed` | Warning | Dynamic config status update failed |
+| `StatefulSetCreated` | Normal | Rack StatefulSet created for the first time |
+| `StatefulSetUpdated` | Normal | Rack StatefulSet spec updated |
+| `RackScaled` | Normal | Rack replica count changed; shows old and new counts |
+| `ACLSyncStarted` | Normal | ACL role/user synchronization began |
+| `ACLSyncCompleted` | Normal | ACL roles and users synchronized successfully |
+| `ACLSyncError` | Warning | ACL synchronization encountered an error |
+| `PDBCreated` | Normal | PodDisruptionBudget created |
+| `PDBUpdated` | Normal | PodDisruptionBudget updated |
+| `ServiceCreated` | Normal | Headless service created |
+| `ServiceUpdated` | Normal | Headless service updated |
+| `ClusterDeletionStarted` | Normal | Cluster teardown began (finalizer active) |
+| `FinalizerRemoved` | Normal | Storage finalizer removed; object will be deleted |
+| `TemplateApplied` | Normal | ClusterTemplate spec applied to this cluster |
+| `TemplateDrifted` | Warning | Cluster spec drifted from its template |
+| `TemplateResolutionError` | Warning | Failed to resolve or apply a ClusterTemplate |
+| `ValidationWarning` | Warning | Non-blocking validation warning detected |
+| `ReconcileError` | Warning | Reconciliation loop encountered an unrecoverable error |
+| `Operation` | Normal | On-demand operation event |

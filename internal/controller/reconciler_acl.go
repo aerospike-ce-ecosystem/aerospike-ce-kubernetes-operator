@@ -43,17 +43,18 @@ func (r *AerospikeCEClusterReconciler) reconcileACL(
 		return nil
 	}
 
-	// Check if any pod is ready before attempting ACL sync
+	// Check if any pod is ready before attempting ACL sync.
+	podList, err := r.listClusterPods(ctx, cluster)
+	if err != nil {
+		return fmt.Errorf("listing pods for ACL sync: %w", err)
+	}
+
 	podReady := false
-	if podList, err := r.listClusterPods(ctx, cluster); err == nil {
-		for i := range podList.Items {
-			if isPodReady(&podList.Items[i]) {
-				podReady = true
-				break
-			}
+	for i := range podList.Items {
+		if isPodReady(&podList.Items[i]) {
+			podReady = true
+			break
 		}
-	} else {
-		log.Info("Failed to list cluster pods for ACL sync, will retry", "error", err)
 	}
 	if !podReady {
 		log.Info("No ready pods, skipping ACL sync")

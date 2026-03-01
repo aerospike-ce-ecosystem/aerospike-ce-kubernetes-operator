@@ -123,7 +123,7 @@ spec:
         replication-factor: 1
         storage-engine:
           type: memory
-          data-size: 1073741824
+          memory-size: 1073741824
 ```
 
 ### Step 5: Verify

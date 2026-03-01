@@ -135,17 +135,12 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 			// response refreshes the full cluster object (incl. Status) from the
 			// server, which would nil-out the in-memory snapshot if Status has
 			// not been saved yet.
-			snapshotRV := cluster.Status.TemplateSnapshot.ResourceVersion
 			if err := r.Status().Update(ctx, cluster); err != nil {
 				if errors.IsConflict(err) {
 					return ctrl.Result{Requeue: true}, nil
 				}
 				return ctrl.Result{}, err
 			}
-			r.Recorder.Eventf(cluster, corev1.EventTypeNormal, "TemplateApplied",
-				"Applied template %q (rv: %s)",
-				cluster.Spec.TemplateRef.Name,
-				snapshotRV)
 		}
 		// Remove the resync annotation from the API server now that the snapshot is persisted.
 		// This Patch runs after Status.Update so it does not overwrite the snapshot.

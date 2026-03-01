@@ -127,8 +127,28 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 				"Failed to resolve template %q: %v", cluster.Spec.TemplateRef.Name, err)
 			return ctrl.Result{}, err
 		}
-		// Remove the resync annotation from the API server now that the snapshot is updated.
-		// Resolve() signals this via AnnotationNeedsCleanup to avoid a stale resourceVersion issue.
+		if resolveResult.SnapshotUpdated {
+			// Persist the new snapshot to the API server immediately so that
+			// subsequent setPhase/updateStatusAndPhase calls (which re-fetch
+			// the object) do not overwrite it with the stale version.
+			// Status must be persisted BEFORE the Annotation Patch: the Patch
+			// response refreshes the full cluster object (incl. Status) from the
+			// server, which would nil-out the in-memory snapshot if Status has
+			// not been saved yet.
+			snapshotRV := cluster.Status.TemplateSnapshot.ResourceVersion
+			if err := r.Status().Update(ctx, cluster); err != nil {
+				if errors.IsConflict(err) {
+					return ctrl.Result{Requeue: true}, nil
+				}
+				return ctrl.Result{}, err
+			}
+			r.Recorder.Eventf(cluster, corev1.EventTypeNormal, "TemplateApplied",
+				"Applied template %q (rv: %s)",
+				cluster.Spec.TemplateRef.Name,
+				snapshotRV)
+		}
+		// Remove the resync annotation from the API server now that the snapshot is persisted.
+		// This Patch runs after Status.Update so it does not overwrite the snapshot.
 		if resolveResult.AnnotationNeedsCleanup {
 			patch := client.MergeFrom(cluster.DeepCopy())
 			delete(cluster.Annotations, aerotmpl.AnnotationResyncTemplate)
@@ -138,12 +158,6 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 				}
 				return ctrl.Result{}, err
 			}
-		}
-		if resolveResult.SnapshotUpdated {
-			r.Recorder.Eventf(cluster, corev1.EventTypeNormal, "TemplateApplied",
-				"Applied template %q (rv: %s)",
-				cluster.Spec.TemplateRef.Name,
-				cluster.Status.TemplateSnapshot.ResourceVersion)
 		}
 		for _, w := range resolveResult.Warnings {
 			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "ValidationWarning", "%s", w)
@@ -379,7 +393,13 @@ func configHash(config *asdbcev1alpha1.AerospikeConfigSpec) string {
 func (r *AerospikeCEClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&asdbcev1alpha1.AerospikeCECluster{},
-			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
+			// AnnotationChangedPredicate allows the resync annotation
+			// (acko.io/resync-template=true) to trigger reconciliation,
+			// since annotation-only changes do not increment generation.
+			builder.WithPredicates(predicate.Or(
+				predicate.GenerationChangedPredicate{},
+				predicate.AnnotationChangedPredicate{},
+			)),
 		).
 		// GenerationChangedPredicate on Owns() suppresses reconcile triggers from
 		// status-only updates on owned resources (e.g., StatefulSet ready replicas).

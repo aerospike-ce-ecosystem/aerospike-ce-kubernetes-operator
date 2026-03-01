@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -37,18 +38,24 @@ func (r *AerospikeCEClusterReconciler) handleDeletion(
 		// Conflict is non-fatal here; the deletion will proceed regardless.
 	}
 
-	// Selectively delete PVCs for volumes that have cascadeDelete enabled
+	// Selectively delete PVCs for volumes that have cascadeDelete enabled.
+	// Continue through all StatefulSets even if some fail, to clean up as much as possible.
 	if cluster.Spec.Storage != nil {
 		stsList, err := r.listClusterStatefulSets(ctx, cluster)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
+		var pvcErrors []error
 		for _, sts := range stsList.Items {
 			if err := storage.DeleteCascadeDeletePVCs(ctx, r.Client, cluster.Namespace, sts.Name, cluster.Spec.Storage); err != nil {
 				if !errors.IsNotFound(err) {
-					return ctrl.Result{}, err
+					log.Error(err, "Failed to delete cascade PVCs for StatefulSet", "statefulset", sts.Name)
+					pvcErrors = append(pvcErrors, fmt.Errorf("statefulset %s: %w", sts.Name, err))
 				}
 			}
+		}
+		if len(pvcErrors) > 0 {
+			return ctrl.Result{}, fmt.Errorf("failed to delete cascade PVCs for %d StatefulSet(s): %w", len(pvcErrors), pvcErrors[0])
 		}
 	}
 

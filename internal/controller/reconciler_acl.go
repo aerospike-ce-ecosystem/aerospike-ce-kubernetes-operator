@@ -140,7 +140,7 @@ func (r *AerospikeCEClusterReconciler) reconcileRoles(
 			return fmt.Errorf("parsing privileges for role %s: %w", roleSpec.Name, err)
 		}
 		if err := syncRolePrivileges(aeroClient, adminPolicy, roleSpec.Name, existing.Privileges, desiredPrivs, log); err != nil {
-			return err
+			return fmt.Errorf("syncing privileges for role %s: %w", roleSpec.Name, err)
 		}
 	}
 
@@ -200,7 +200,7 @@ func (r *AerospikeCEClusterReconciler) reconcileUsers(
 
 		// Sync roles
 		if err := syncUserRoles(aeroClient, adminPolicy, userSpec.Name, existing.Roles, userSpec.Roles, log); err != nil {
-			return err
+			return fmt.Errorf("syncing roles for user %s: %w", userSpec.Name, err)
 		}
 
 		// Attempt password change. This only runs when spec generation

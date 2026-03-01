@@ -84,6 +84,8 @@ func (r *AerospikeCEClusterReconciler) tryDynamicConfigUpdate(
 	}
 
 	metrics.DynamicConfigUpdatesTotal.WithLabelValues(cluster.Namespace, cluster.Name).Inc()
+	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventDynamicConfigApplied,
+		"Dynamic config applied to pod %s (%d changes)", pod.Name, len(diff.Dynamic))
 	log.Info("Dynamic config update successful", "pod", pod.Name, "changes", len(diff.Dynamic))
 
 	// Update pod status with dynamic config status
@@ -151,7 +153,7 @@ func (r *AerospikeCEClusterReconciler) updateDynamicConfigStatus(
 	latest := &asdbcev1alpha1.AerospikeCECluster{}
 	if err := r.Get(ctx, types.NamespacedName{Name: cluster.Name, Namespace: cluster.Namespace}, latest); err != nil {
 		log.Error(err, "Failed to re-fetch cluster for dynamic config status update", "pod", podName)
-		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "DynamicConfigStatusFailed",
+		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventDynamicConfigFailed,
 			"Failed to update dynamic config status for pod %s: %v", podName, err)
 		return
 	}
@@ -165,7 +167,7 @@ func (r *AerospikeCEClusterReconciler) updateDynamicConfigStatus(
 		latest.Status.Pods[podName] = podStatus
 		if err := r.Status().Update(ctx, latest); err != nil {
 			log.Error(err, "Failed to update dynamic config status", "pod", podName)
-			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "DynamicConfigStatusFailed",
+			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventDynamicConfigFailed,
 				"Failed to update dynamic config status for pod %s: %v", podName, err)
 		}
 	}

@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -25,6 +26,8 @@ func (r *AerospikeCEClusterReconciler) handleDeletion(
 	}
 
 	log.Info("Handling cluster deletion")
+	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventClusterDeletionStarted,
+		"Cluster deletion started, cleaning up resources")
 
 	// Set Deleting phase so observers know the cluster is being removed.
 	if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseDeleting, "Cluster is being deleted"); err != nil {
@@ -56,6 +59,8 @@ func (r *AerospikeCEClusterReconciler) handleDeletion(
 	}
 
 	controllerutil.RemoveFinalizer(latest, utils.StorageFinalizer)
+	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventFinalizerRemoved,
+		"Storage finalizer removed, cluster deletion proceeding")
 	if err := r.Update(ctx, latest); err != nil {
 		if errors.IsConflict(err) {
 			log.V(1).Info("Conflict removing finalizer, will requeue")

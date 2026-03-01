@@ -72,7 +72,7 @@ func (r *AerospikeCEClusterReconciler) reconcileHeadlessService(
 		if err := r.Create(ctx, svc); err != nil {
 			return fmt.Errorf("creating headless service %s: %w", svcName, err)
 		}
-		r.Recorder.Eventf(cluster, corev1.EventTypeNormal, "ServiceCreated", "Created headless service %s", svcName)
+		r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventServiceCreated, "Created headless service %s", svcName)
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("getting headless service %s: %w", svcName, err)
@@ -92,7 +92,7 @@ func (r *AerospikeCEClusterReconciler) reconcileHeadlessService(
 		if err := r.Update(ctx, existing); err != nil {
 			return fmt.Errorf("updating headless service %s: %w", svcName, err)
 		}
-		r.Recorder.Eventf(cluster, corev1.EventTypeNormal, "ServiceUpdated", "Updated headless service %s", svcName)
+		r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventServiceUpdated, "Updated headless service %s", svcName)
 	}
 
 	return nil

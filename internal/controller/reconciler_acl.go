@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	aero "github.com/aerospike/aerospike-client-go/v8"
+	corev1 "k8s.io/api/core/v1"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
@@ -64,6 +65,9 @@ func (r *AerospikeCEClusterReconciler) reconcileACL(
 		return false, nil
 	}
 
+	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventACLSyncStarted,
+		"ACL synchronization started")
+
 	aeroClient, err := r.getAerospikeClient(ctx, cluster)
 	if err != nil {
 		metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "error").Inc()
@@ -84,6 +88,8 @@ func (r *AerospikeCEClusterReconciler) reconcileACL(
 	}
 
 	metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "success").Inc()
+	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventACLSyncCompleted,
+		"ACL synchronized successfully")
 	log.Info("ACL reconciliation completed")
 	return true, nil
 }

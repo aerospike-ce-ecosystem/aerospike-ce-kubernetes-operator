@@ -70,7 +70,7 @@ func (r *AerospikeCEClusterReconciler) reconcilePDB(
 		if err := r.Create(ctx, pdb); err != nil {
 			return fmt.Errorf("creating PDB %s: %w", pdbName, err)
 		}
-		r.Recorder.Eventf(cluster, corev1.EventTypeNormal, "PDBCreated", "Created PodDisruptionBudget %s", pdbName)
+		r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventPDBCreated, "Created PodDisruptionBudget %s", pdbName)
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("getting PDB %s: %w", pdbName, err)
@@ -85,7 +85,7 @@ func (r *AerospikeCEClusterReconciler) reconcilePDB(
 	if err := r.Update(ctx, existing); err != nil {
 		return fmt.Errorf("updating PDB %s: %w", pdbName, err)
 	}
-	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, "PDBUpdated", "Updated PodDisruptionBudget %s", pdbName)
+	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventPDBUpdated, "Updated PodDisruptionBudget %s", pdbName)
 	return nil
 }
 

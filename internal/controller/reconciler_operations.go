@@ -124,7 +124,7 @@ func (r *AerospikeCEClusterReconciler) reconcileOperations(
 		return !allDone, err
 	}
 
-	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, "Operation",
+	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventOperation,
 		"Operation %s (%s): %d/%d pods processed", op.ID, op.Kind, len(opStatus.CompletedPods), len(pods))
 
 	return !allDone, nil

@@ -119,8 +119,7 @@ func ApplyTemplate(resolvedTemplateSpec *asdbcev1alpha1.AerospikeCEClusterTempla
 			cluster.Spec.PodSpec.AerospikeContainerSpec = &asdbcev1alpha1.AerospikeContainerSpec{}
 		}
 		if cluster.Spec.PodSpec.AerospikeContainerSpec.Resources == nil {
-			resourcesCopy := *resolvedTemplateSpec.Resources
-			cluster.Spec.PodSpec.AerospikeContainerSpec.Resources = &resourcesCopy
+			cluster.Spec.PodSpec.AerospikeContainerSpec.Resources = resolvedTemplateSpec.Resources.DeepCopy()
 		}
 	}
 

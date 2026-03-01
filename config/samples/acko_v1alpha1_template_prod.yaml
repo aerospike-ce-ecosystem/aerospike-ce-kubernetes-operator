@@ -6,6 +6,31 @@ metadata:
   labels:
     environment: prod
 spec:
+  # Prod template: standard Aerospike image and cluster size
+  image: aerospike:ce-8.1.1.1   # Default image; clusters can override with spec.image
+  size: 6                         # Default cluster size (prod); clusters can override with spec.size
+
+  # Default monitoring: Prometheus exporter sidecar with ServiceMonitor
+  monitoring:
+    enabled: true
+    port: 9145
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+
+  # Default network access policy
+  aerospikeNetworkPolicy:
+    accessType: pod
+    alternateAccessType: pod
+    fabricType: pod
+
   # Prod template: full resources, required anti-affinity, local PV
   scheduling:
     podAntiAffinityLevel: required   # Hard anti-affinity: one pod per node

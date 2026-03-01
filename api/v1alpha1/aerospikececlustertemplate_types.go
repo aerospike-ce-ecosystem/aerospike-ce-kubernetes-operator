@@ -161,6 +161,30 @@ type AerospikeCEClusterTemplateSpec struct {
 	// RackConfig defines rack-level configuration defaults.
 	// +optional
 	RackConfig *TemplateRackConfig `json:"rackConfig,omitempty"`
+
+	// Image is the default Aerospike CE container image for clusters using this template.
+	// Must be a community edition image (e.g., aerospike:ce-8.1.1.1).
+	// Clusters can override this by explicitly setting spec.image.
+	// +optional
+	Image string `json:"image,omitempty"`
+
+	// Size is the default number of Aerospike nodes for clusters using this template.
+	// CE limits this to a maximum of 8.
+	// Clusters that explicitly set spec.size (non-zero) will override this value.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=8
+	// +optional
+	Size *int32 `json:"size,omitempty"`
+
+	// Monitoring configures default Prometheus monitoring via an exporter sidecar.
+	// Clusters that explicitly set spec.monitoring will override this entirely.
+	// +optional
+	Monitoring *AerospikeMonitoringSpec `json:"monitoring,omitempty"`
+
+	// AerospikeNetworkPolicy defines the default network access configuration.
+	// Clusters that explicitly set spec.aerospikeNetworkPolicy will override this entirely.
+	// +optional
+	AerospikeNetworkPolicy *AerospikeNetworkPolicy `json:"aerospikeNetworkPolicy,omitempty"`
 }
 
 // AerospikeCEClusterTemplateStatus defines the observed state of AerospikeCEClusterTemplate.

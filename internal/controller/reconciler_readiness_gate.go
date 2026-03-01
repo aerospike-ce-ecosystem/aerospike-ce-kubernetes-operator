@@ -57,7 +57,11 @@ func (r *AerospikeCEClusterReconciler) syncAllPodsReadinessGates(
 		log.V(1).Info("Could not connect to Aerospike for readiness gate sync; skipping", "err", err)
 		return nil
 	}
-	defer aeroClient.Close()
+	defer closeAerospikeClient(aeroClient)
+
+	// IsMigrating is a cluster-wide check — call it once before the loop
+	// rather than repeating it for every pod.
+	migrating, migratingErr := IsMigrating(aeroClient)
 
 	for i := range podList.Items {
 		pod := &podList.Items[i]
@@ -67,7 +71,7 @@ func (r *AerospikeCEClusterReconciler) syncAllPodsReadinessGates(
 		if pod.DeletionTimestamp != nil {
 			continue
 		}
-		if err := r.syncPodReadinessGate(ctx, cluster, pod, aeroClient); err != nil {
+		if err := r.syncPodReadinessGate(ctx, cluster, pod, aeroClient, migrating, migratingErr); err != nil {
 			log.Error(err, "Failed to sync readiness gate", "pod", pod.Name)
 			// Continue to next pod; gate patch errors are per-pod non-fatal.
 		}
@@ -77,11 +81,15 @@ func (r *AerospikeCEClusterReconciler) syncAllPodsReadinessGates(
 
 // syncPodReadinessGate checks Aerospike cluster health for a single pod and
 // patches pod.Status.Conditions to reflect the "acko.io/aerospike-ready" gate.
+// The migrating/migratingErr parameters are the pre-computed cluster-wide
+// migration state, hoisted out of the per-pod loop by the caller.
 func (r *AerospikeCEClusterReconciler) syncPodReadinessGate(
 	ctx context.Context,
 	cluster *asdbcev1alpha1.AerospikeCECluster,
 	pod *corev1.Pod,
 	aeroClient *aero.Client,
+	migrating bool,
+	migratingErr error,
 ) error {
 	log := logf.FromContext(ctx)
 
@@ -98,9 +106,8 @@ func (r *AerospikeCEClusterReconciler) syncPodReadinessGate(
 	node := findNodeForPod(aeroClient, pod)
 	if node != nil {
 		// 2. Check that the cluster has no pending migrations.
-		migrating, err := IsMigrating(aeroClient)
-		if err != nil {
-			log.V(1).Info("IsMigrating check failed; treating as migrating", "pod", pod.Name, "err", err)
+		if migratingErr != nil {
+			log.V(1).Info("IsMigrating check failed; treating as migrating", "pod", pod.Name, "err", migratingErr)
 		} else {
 			satisfied = !migrating
 		}

@@ -29,4 +29,4 @@ spec:
       proto-fd-max: 1024
     namespaceDefaults:
       replication-factor: 1
-      # memory-size is obsolete in CE 8.x; omit for in-memory namespaces
+      # memory-size: optional; CE 8.x auto-sizes in-memory namespaces when omitted

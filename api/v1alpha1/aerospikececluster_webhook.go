@@ -376,10 +376,9 @@ func (v *AerospikeCEClusterValidator) validateAerospikeConfig(config map[string]
 		}
 	}
 
-	// CE does not support security stanza (Enterprise-only in Aerospike 8.x)
-	if _, exists := config["security"]; exists {
-		errors = append(errors, "aerospikeConfig must not contain 'security' section (security/ACL is Enterprise-only in Aerospike CE 8.x)")
-	}
+	// The security stanza is allowed in aerospikeConfig but intentionally
+	// skipped during config generation (configgen). ACL is managed via the
+	// Aerospike client API when aerospikeAccessControl is configured.
 
 	// Validate heartbeat mode is mesh (CE only supports mesh)
 	if netCfg, ok := config["network"].(map[string]any); ok {

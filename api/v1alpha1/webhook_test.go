@@ -616,7 +616,11 @@ func TestValidate_ValidNamespaceConfigAccepted(t *testing.T) {
 
 // --- Security section validation tests ---
 
-func TestValidate_SecuritySectionRejected(t *testing.T) {
+// TestValidate_SecuritySectionAllowed verifies that the security stanza is allowed
+// in aerospikeConfig. ACL is managed via the Aerospike client API when
+// aerospikeAccessControl is configured; the security section is intentionally
+// skipped during config generation (configgen).
+func TestValidate_SecuritySectionAllowed(t *testing.T) {
 	v := &AerospikeCEClusterValidator{}
 	cluster := &AerospikeCECluster{
 		Spec: AerospikeCEClusterSpec{
@@ -631,11 +635,8 @@ func TestValidate_SecuritySectionRejected(t *testing.T) {
 	}
 
 	_, err := v.validate(cluster)
-	if err == nil {
-		t.Error("expected error for security section in CE")
-	}
-	if !strings.Contains(err.Error(), "security") {
-		t.Errorf("error should mention 'security', got: %v", err)
+	if err != nil {
+		t.Errorf("expected security section to be allowed in CE, got: %v", err)
 	}
 }
 
@@ -3542,5 +3543,176 @@ func TestValidate_MonitoringPortOutOfRange_TooHigh(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "must be in range 1-65535") {
 		t.Errorf("error should mention port range, got: %v", err)
+	}
+}
+
+// --- Rack config IntOrString validation tests ---
+
+func TestValidate_RackConfig_ScaleDownBatchSize_Valid(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	bs := intstr.FromInt32(2)
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks:              []Rack{{ID: 1}},
+				ScaleDownBatchSize: &bs,
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("expected no error for valid ScaleDownBatchSize, got: %v", err)
+	}
+}
+
+func TestValidate_RackConfig_ScaleDownBatchSize_Zero(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	bs := intstr.FromInt32(0)
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks:              []Rack{{ID: 1}},
+				ScaleDownBatchSize: &bs,
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error for zero ScaleDownBatchSize")
+	}
+	if !strings.Contains(err.Error(), "scaleDownBatchSize") {
+		t.Errorf("error should mention scaleDownBatchSize, got: %v", err)
+	}
+}
+
+func TestValidate_RackConfig_ScaleDownBatchSize_ValidPercentage(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	bs := intstr.FromString("50%")
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks:              []Rack{{ID: 1}},
+				ScaleDownBatchSize: &bs,
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("expected no error for valid percentage ScaleDownBatchSize, got: %v", err)
+	}
+}
+
+func TestValidate_RackConfig_MaxIgnorablePods_Zero(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	mp := intstr.FromInt32(0)
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks:            []Rack{{ID: 1}},
+				MaxIgnorablePods: &mp,
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("expected no error for zero MaxIgnorablePods (min=0), got: %v", err)
+	}
+}
+
+func TestValidate_RackConfig_MaxIgnorablePods_Negative(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	mp := intstr.FromInt32(-1)
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks:            []Rack{{ID: 1}},
+				MaxIgnorablePods: &mp,
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error for negative MaxIgnorablePods")
+	}
+	if !strings.Contains(err.Error(), "maxIgnorablePods") {
+		t.Errorf("error should mention maxIgnorablePods, got: %v", err)
+	}
+}
+
+func TestValidate_RackConfig_RollingUpdateBatchSize_Valid(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	bs := intstr.FromInt32(3)
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks:                  []Rack{{ID: 1}},
+				RollingUpdateBatchSize: &bs,
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("expected no error for valid RollingUpdateBatchSize, got: %v", err)
+	}
+}
+
+func TestValidate_RackConfig_RollingUpdateBatchSize_Zero(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	bs := intstr.FromInt32(0)
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks:                  []Rack{{ID: 1}},
+				RollingUpdateBatchSize: &bs,
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error for zero RollingUpdateBatchSize")
+	}
+	if !strings.Contains(err.Error(), "rollingUpdateBatchSize") {
+		t.Errorf("error should mention rollingUpdateBatchSize, got: %v", err)
+	}
+}
+
+func TestValidate_RackConfig_RollingUpdateBatchSize_ValidPercentage(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	bs := intstr.FromString("25%")
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks:                  []Rack{{ID: 1}},
+				RollingUpdateBatchSize: &bs,
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("expected no error for valid percentage RollingUpdateBatchSize, got: %v", err)
 	}
 }

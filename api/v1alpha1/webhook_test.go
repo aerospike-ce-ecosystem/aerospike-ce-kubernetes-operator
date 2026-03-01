@@ -1344,10 +1344,13 @@ func TestIsEnterpriseTag(t *testing.T) {
 		{"aerospike:ce-8.1.1.1", false},
 		{"aerospike:ee-8.0.0.1_1", true},
 		{"aerospike:EE-8.0.0.1", true},
+		{"aerospike:ent-8.0.0", true},
+		{"aerospike:ENT-8.1.0", true},
 		{"aerospike:latest", false},
 		{"aerospike", false},
 		{"myrepo/aerospike:ce-8.1.1.1", false},
 		{"myrepo/aerospike:ee-8.1.1.1", true},
+		{"myrepo/aerospike:ent-8.1.1.1", true},
 	}
 
 	for _, tc := range tests {

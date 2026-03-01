@@ -263,7 +263,8 @@ func determineRestartReason(
 	return asdbcev1alpha1.RestartReasonConfigChanged
 }
 
-// recordPodRestartStatus fetches the latest CR, records the restart reason/time for the pod, and patches status.
+// recordPodRestartStatus records the restart reason/time for the pod via a status patch.
+// Uses MergePatch instead of full Update to reduce conflict risk during concurrent operations.
 func (r *AerospikeCEClusterReconciler) recordPodRestartStatus(
 	ctx context.Context,
 	cluster *asdbcev1alpha1.AerospikeCECluster,
@@ -273,16 +274,16 @@ func (r *AerospikeCEClusterReconciler) recordPodRestartStatus(
 	log := logf.FromContext(ctx)
 	now := metav1.Now()
 
-	latest := cluster.DeepCopy()
-	if latest.Status.Pods == nil {
-		latest.Status.Pods = make(map[string]asdbcev1alpha1.AerospikePodStatus)
+	patch := client.MergeFrom(cluster.DeepCopy())
+	if cluster.Status.Pods == nil {
+		cluster.Status.Pods = make(map[string]asdbcev1alpha1.AerospikePodStatus)
 	}
-	podStatus := latest.Status.Pods[podName]
+	podStatus := cluster.Status.Pods[podName]
 	podStatus.LastRestartReason = &reason
 	podStatus.LastRestartTime = &now
-	latest.Status.Pods[podName] = podStatus
+	cluster.Status.Pods[podName] = podStatus
 
-	if err := r.Status().Update(ctx, latest); err != nil {
+	if err := r.Status().Patch(ctx, cluster, patch); err != nil {
 		log.V(1).Info("Failed to record pod restart status (non-fatal)", "pod", podName, "err", err)
 	}
 }

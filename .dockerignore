@@ -25,3 +25,6 @@ test/
 
 # Ignore Kubernetes manifests (not needed for binary build)
 config/
+
+# Ignore unrelated sub-projects
+aerospike-cluster-manager/

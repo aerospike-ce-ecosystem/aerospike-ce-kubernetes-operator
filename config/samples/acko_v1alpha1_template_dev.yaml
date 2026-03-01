@@ -28,5 +28,5 @@ spec:
     service:
       proto-fd-max: 1024
     namespaceDefaults:
-      memory-size: 134217728   # 128Mi default per namespace
       replication-factor: 1
+      # memory-size is obsolete in CE 8.x; omit for in-memory namespaces

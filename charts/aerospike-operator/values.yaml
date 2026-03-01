@@ -241,8 +241,8 @@ ui:
   image:
     # -- Container image repository
     repository: ghcr.io/kimsoungryoul/aerospike-cluster-manager
-    # -- Container image tag; defaults to Chart.appVersion when empty
-    tag: ""
+    # -- Container image tag; set explicitly since the UI has its own release cycle
+    tag: "latest"
     # -- Image pull policy
     pullPolicy: IfNotPresent
 
@@ -310,6 +310,9 @@ ui:
     username: aerospike
     # -- Database password (used for embedded sidecar only)
     password: aerospike
+    # -- Use an existing Secret instead of creating one.
+    # The Secret must contain POSTGRES_PASSWORD and DATABASE_URL keys.
+    existingSecret: ""
     # -- Resource requests and limits for the PostgreSQL sidecar
     resources:
       requests:

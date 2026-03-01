@@ -55,6 +55,27 @@ spec:
           type: memory
 
 ---
+# Example: Cluster that relies entirely on the 'dev' template for image and size.
+# spec.image and spec.size are omitted — the template's image and size defaults apply.
+apiVersion: acko.io/v1alpha1
+kind: AerospikeCECluster
+metadata:
+  name: dev-cluster-minimal
+  namespace: default
+spec:
+  # No image or size specified — the dev template provides:
+  #   image: aerospike:ce-8.1.1.1
+  #   size: 1
+  templateRef:
+    name: dev
+
+  aerospikeConfig:
+    namespaces:
+      - name: test
+        storage-engine:
+          type: memory
+
+---
 # Example: Resync a cluster after the template was updated.
 # Add this annotation to trigger a one-time template resync:
 #   kubectl annotate aerospikececluster stage-cluster acko.io/resync-template=true

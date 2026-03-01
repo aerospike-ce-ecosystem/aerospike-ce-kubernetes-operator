@@ -43,6 +43,10 @@ This page documents the `AerospikeCEClusterTemplate` Custom Resource Definition 
 | `storage` | [TemplateStorage](#templatestorage) | Data volume defaults |
 | `resources` | [ResourceRequirements](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#resources) | Container CPU/memory defaults |
 | `rackConfig` | [TemplateRackConfig](#templaterackconfig) | Rack configuration defaults |
+| `image` | string | Default Aerospike CE container image (e.g. `aerospike:ce-8.1.1.1`). Applied when `spec.image` is not set in the cluster. |
+| `size` | integer | Default cluster size (1–8). Applied when `spec.size` is `0` (not set) in the cluster. |
+| `monitoring` | [AerospikeMonitoringSpec](./aerospikececluster.md#aerospikemonitoringspec) | Default Prometheus exporter sidecar configuration. Applied when `spec.monitoring` is not set in the cluster. |
+| `aerospikeNetworkPolicy` | [AerospikeNetworkPolicy](./aerospikececluster.md#aerospikenetworkpolicy) | Default network access configuration. Applied when `spec.aerospikeNetworkPolicy` is not set in the cluster. |
 
 ---
 
@@ -167,3 +171,6 @@ The operator will re-fetch the template, update `status.templateSnapshot`, emit 
 | V-T03 | `storage.localPVRequired=true` without `storageClassName` raises a warning |
 | V-T04 | For Guaranteed QoS, resource requests should equal limits (warning) |
 | V-T05 | `scheduling.podManagementPolicy` must be `OrderedReady` or `Parallel` |
+| V-T06 | `image` should contain `ce-` to confirm it is a Community Edition image (warning) |
+| V-T07 | `size` must be between 1 and 8 when specified (CE cluster limit) |
+| V-T08 | `monitoring.port` must be between 1 and 65535 when specified |

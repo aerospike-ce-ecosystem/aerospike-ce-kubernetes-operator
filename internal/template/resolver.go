@@ -123,6 +123,12 @@ func ApplyTemplate(resolvedTemplateSpec *asdbcev1alpha1.AerospikeCEClusterTempla
 			cluster.Spec.PodSpec.AerospikeContainerSpec.Resources = &resourcesCopy
 		}
 	}
+
+	// Apply image, size, monitoring, and network policy defaults.
+	applyImage(resolvedTemplateSpec.Image, cluster)
+	applySize(resolvedTemplateSpec.Size, cluster)
+	applyMonitoring(resolvedTemplateSpec.Monitoring, cluster)
+	applyNetworkPolicy(resolvedTemplateSpec.AerospikeNetworkPolicy, cluster)
 }
 
 // Resolve is the main entry point for template resolution in the reconciler.

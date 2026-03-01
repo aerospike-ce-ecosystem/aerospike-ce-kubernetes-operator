@@ -252,6 +252,7 @@ spec:
                 description: |-
                   Image is the Aerospike CE server container image.
                   Must be a community edition image (e.g., aerospike:ce-8.1.1.1).
+                  When spec.templateRef is set, image may be omitted and the template's default will be used.
                 type: string
               k8sNodeBlockList:
                 description: K8sNodeBlockList contains Kubernetes node names that
@@ -650,6 +651,359 @@ spec:
                           Uses the same format as aerospikeConfig.service.
                         type: object
                         x-kubernetes-preserve-unknown-fields: true
+                    type: object
+                  aerospikeNetworkPolicy:
+                    description: |-
+                      AerospikeNetworkPolicy defines the default network access configuration.
+                      Clusters that explicitly set spec.aerospikeNetworkPolicy will override this entirely.
+                    properties:
+                      accessType:
+                        default: pod
+                        description: AccessType determines how clients access the
+                          Aerospike service port.
+                        enum:
+                        - pod
+                        - hostInternal
+                        - hostExternal
+                        - configuredIP
+                        type: string
+                      alternateAccessType:
+                        default: pod
+                        description: |-
+                          AlternateAccessType determines how clients from alternate networks
+                          access the Aerospike service port.
+                        enum:
+                        - pod
+                        - hostInternal
+                        - hostExternal
+                        - configuredIP
+                        type: string
+                      customAccessNetworkNames:
+                        description: CustomAccessNetworkNames specifies network names
+                          for configuredIP access type.
+                        items:
+                          type: string
+                        type: array
+                      customAlternateAccessNetworkNames:
+                        description: |-
+                          CustomAlternateAccessNetworkNames specifies network names for
+                          configuredIP alternate access type.
+                        items:
+                          type: string
+                        type: array
+                      customFabricNetworkNames:
+                        description: |-
+                          CustomFabricNetworkNames specifies network names for
+                          configuredIP fabric type.
+                        items:
+                          type: string
+                        type: array
+                      fabricType:
+                        default: pod
+                        description: FabricType determines the network type for fabric
+                          (inter-node) communication.
+                        enum:
+                        - pod
+                        - hostInternal
+                        - hostExternal
+                        - configuredIP
+                        type: string
+                    type: object
+                  image:
+                    description: |-
+                      Image is the default Aerospike CE container image for clusters using this template.
+                      Must be a community edition image (e.g., aerospike:ce-8.1.1.1).
+                      Clusters can override this by explicitly setting spec.image.
+                    type: string
+                  monitoring:
+                    description: |-
+                      Monitoring configures default Prometheus monitoring via an exporter sidecar.
+                      Clusters that explicitly set spec.monitoring will override this entirely.
+                    properties:
+                      enabled:
+                        description: Enabled enables the Prometheus exporter sidecar.
+                        type: boolean
+                      env:
+                        description: |-
+                          Env specifies additional environment variables for the exporter container.
+                          These can be used for metric filtering, custom configuration, etc.
+                          User-provided env vars are appended last, allowing intentional overrides.
+                        items:
+                          description: EnvVar represents an environment variable present
+                            in a Container.
+                          properties:
+                            name:
+                              description: |-
+                                Name of the environment variable.
+                                May consist of any printable ASCII characters except '='.
+                              type: string
+                            value:
+                              description: |-
+                                Variable references $(VAR_NAME) are expanded
+                                using the previously defined environment variables in the container and
+                                any service environment variables. If a variable cannot be resolved,
+                                the reference in the input string will be unchanged. Double $$ are reduced
+                                to a single $, which allows for escaping the $(VAR_NAME) syntax: i.e.
+                                "$$(VAR_NAME)" will produce the string literal "$(VAR_NAME)".
+                                Escaped references will never be expanded, regardless of whether the variable
+                                exists or not.
+                                Defaults to "".
+                              type: string
+                            valueFrom:
+                              description: Source for the environment variable's value.
+                                Cannot be used if value is not empty.
+                              properties:
+                                configMapKeyRef:
+                                  description: Selects a key of a ConfigMap.
+                                  properties:
+                                    key:
+                                      description: The key to select.
+                                      type: string
+                                    name:
+                                      default: ""
+                                      description: |-
+                                        Name of the referent.
+                                        This field is effectively required, but due to backwards compatibility is
+                                        allowed to be empty. Instances of this type with an empty value here are
+                                        almost certainly wrong.
+                                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      type: string
+                                    optional:
+                                      description: Specify whether the ConfigMap or
+                                        its key must be defined
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                fieldRef:
+                                  description: |-
+                                    Selects a field of the pod: supports metadata.name, metadata.namespace, `metadata.labels['<KEY>']`, `metadata.annotations['<KEY>']`,
+                                    spec.nodeName, spec.serviceAccountName, status.hostIP, status.podIP, status.podIPs.
+                                  properties:
+                                    apiVersion:
+                                      description: Version of the schema the FieldPath
+                                        is written in terms of, defaults to "v1".
+                                      type: string
+                                    fieldPath:
+                                      description: Path of the field to select in
+                                        the specified API version.
+                                      type: string
+                                  required:
+                                  - fieldPath
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                fileKeyRef:
+                                  description: |-
+                                    FileKeyRef selects a key of the env file.
+                                    Requires the EnvFiles feature gate to be enabled.
+                                  properties:
+                                    key:
+                                      description: |-
+                                        The key within the env file. An invalid key will prevent the pod from starting.
+                                        The keys defined within a source may consist of any printable ASCII characters except '='.
+                                        During Alpha stage of the EnvFiles feature gate, the key size is limited to 128 characters.
+                                      type: string
+                                    optional:
+                                      default: false
+                                      description: |-
+                                        Specify whether the file or its key must be defined. If the file or key
+                                        does not exist, then the env var is not published.
+                                        If optional is set to true and the specified key does not exist,
+                                        the environment variable will not be set in the Pod's containers.
+
+                                        If optional is set to false and the specified key does not exist,
+                                        an error will be returned during Pod creation.
+                                      type: boolean
+                                    path:
+                                      description: |-
+                                        The path within the volume from which to select the file.
+                                        Must be relative and may not contain the '..' path or start with '..'.
+                                      type: string
+                                    volumeName:
+                                      description: The name of the volume mount containing
+                                        the env file.
+                                      type: string
+                                  required:
+                                  - key
+                                  - path
+                                  - volumeName
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                resourceFieldRef:
+                                  description: |-
+                                    Selects a resource of the container: only resources limits and requests
+                                    (limits.cpu, limits.memory, limits.ephemeral-storage, requests.cpu, requests.memory and requests.ephemeral-storage) are currently supported.
+                                  properties:
+                                    containerName:
+                                      description: 'Container name: required for volumes,
+                                        optional for env vars'
+                                      type: string
+                                    divisor:
+                                      anyOf:
+                                      - type: integer
+                                      - type: string
+                                      description: Specifies the output format of
+                                        the exposed resources, defaults to "1"
+                                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                      x-kubernetes-int-or-string: true
+                                    resource:
+                                      description: 'Required: resource to select'
+                                      type: string
+                                  required:
+                                  - resource
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                secretKeyRef:
+                                  description: Selects a key of a secret in the pod's
+                                    namespace
+                                  properties:
+                                    key:
+                                      description: The key of the secret to select
+                                        from.  Must be a valid secret key.
+                                      type: string
+                                    name:
+                                      default: ""
+                                      description: |-
+                                        Name of the referent.
+                                        This field is effectively required, but due to backwards compatibility is
+                                        allowed to be empty. Instances of this type with an empty value here are
+                                        almost certainly wrong.
+                                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      type: string
+                                    optional:
+                                      description: Specify whether the Secret or its
+                                        key must be defined
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                              type: object
+                          required:
+                          - name
+                          type: object
+                        type: array
+                      exporterImage:
+                        description: |-
+                          ExporterImage is the Aerospike Prometheus exporter container image.
+                          Defaults to "aerospike/aerospike-prometheus-exporter:v1.16.1".
+                        type: string
+                      metricLabels:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          MetricLabels specifies custom labels to add to all exported metrics.
+                          These are passed to the exporter via the METRIC_LABELS environment variable
+                          as sorted key=value pairs.
+                        type: object
+                      port:
+                        description: Port is the metrics port for the exporter. Defaults
+                          to 9145.
+                        format: int32
+                        maximum: 65535
+                        minimum: 1
+                        type: integer
+                      prometheusRule:
+                        description: PrometheusRule configures automatic PrometheusRule
+                          creation for Aerospike cluster alerts.
+                        properties:
+                          customRules:
+                            description: |-
+                              CustomRules completely replaces the default alert rules when provided.
+                              When set, the built-in alerts (NodeDown, StopWrites, HighDiskUsage, HighMemoryUsage)
+                              are NOT generated. Each entry must be a complete Prometheus rule group object.
+                            items:
+                              x-kubernetes-preserve-unknown-fields: true
+                            type: array
+                          enabled:
+                            description: Enabled enables PrometheusRule creation.
+                            type: boolean
+                          labels:
+                            additionalProperties:
+                              type: string
+                            description: Labels are additional labels to add to the
+                              PrometheusRule for discovery.
+                            type: object
+                        type: object
+                      resources:
+                        description: Resources defines CPU and memory resource requests/limits
+                          for the exporter.
+                        properties:
+                          claims:
+                            description: |-
+                              Claims lists the names of resources, defined in spec.resourceClaims,
+                              that are used by this container.
+
+                              This field depends on the
+                              DynamicResourceAllocation feature gate.
+
+                              This field is immutable. It can only be set for containers.
+                            items:
+                              description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                              properties:
+                                name:
+                                  description: |-
+                                    Name must match the name of one entry in pod.spec.resourceClaims of
+                                    the Pod where this field is used. It makes that resource available
+                                    inside a container.
+                                  type: string
+                                request:
+                                  description: |-
+                                    Request is the name chosen for a request in the referenced claim.
+                                    If empty, everything from the claim is made available, otherwise
+                                    only the result of this request.
+                                  type: string
+                              required:
+                              - name
+                              type: object
+                            type: array
+                            x-kubernetes-list-map-keys:
+                            - name
+                            x-kubernetes-list-type: map
+                          limits:
+                            additionalProperties:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            description: |-
+                              Limits describes the maximum amount of compute resources allowed.
+                              More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                            type: object
+                          requests:
+                            additionalProperties:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            description: |-
+                              Requests describes the minimum amount of compute resources required.
+                              If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                              otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                              More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                            type: object
+                        type: object
+                      serviceMonitor:
+                        description: ServiceMonitor configures automatic ServiceMonitor
+                          creation for Prometheus Operator.
+                        properties:
+                          enabled:
+                            description: Enabled enables ServiceMonitor creation.
+                            type: boolean
+                          interval:
+                            description: Interval is the Prometheus scrape interval.
+                              Defaults to "30s".
+                            type: string
+                          labels:
+                            additionalProperties:
+                              type: string
+                            description: Labels are additional labels to add to the
+                              ServiceMonitor for discovery.
+                            type: object
+                        type: object
                     type: object
                   rackConfig:
                     description: RackConfig defines rack-level configuration defaults.
@@ -1154,6 +1508,15 @@ spec:
                           type: object
                         type: array
                     type: object
+                  size:
+                    description: |-
+                      Size is the default number of Aerospike nodes for clusters using this template.
+                      CE limits this to a maximum of 8.
+                      Clusters that explicitly set spec.size (non-zero) will override this value.
+                    format: int32
+                    maximum: 8
+                    minimum: 1
+                    type: integer
                   storage:
                     description: Storage defines the default data volume configuration.
                     properties:
@@ -7652,9 +8015,10 @@ spec:
                 description: |-
                   Size is the number of Aerospike nodes (pods) in the cluster.
                   CE limits this to a maximum of 8.
+                  When spec.templateRef is set, size may be omitted and the template's default will be used.
                 format: int32
                 maximum: 8
-                minimum: 1
+                minimum: 0
                 type: integer
               storage:
                 description: Storage defines volumes and volume mounts for Aerospike
@@ -8196,9 +8560,6 @@ spec:
                       is mounted on persistent storage.
                     type: boolean
                 type: object
-            required:
-            - image
-            - size
             type: object
           status:
             description: AerospikeCEClusterStatus defines the observed state of the
@@ -8397,6 +8758,7 @@ spec:
                     description: |-
                       Image is the Aerospike CE server container image.
                       Must be a community edition image (e.g., aerospike:ce-8.1.1.1).
+                      When spec.templateRef is set, image may be omitted and the template's default will be used.
                     type: string
                   k8sNodeBlockList:
                     description: K8sNodeBlockList contains Kubernetes node names that
@@ -8798,6 +9160,361 @@ spec:
                               Uses the same format as aerospikeConfig.service.
                             type: object
                             x-kubernetes-preserve-unknown-fields: true
+                        type: object
+                      aerospikeNetworkPolicy:
+                        description: |-
+                          AerospikeNetworkPolicy defines the default network access configuration.
+                          Clusters that explicitly set spec.aerospikeNetworkPolicy will override this entirely.
+                        properties:
+                          accessType:
+                            default: pod
+                            description: AccessType determines how clients access
+                              the Aerospike service port.
+                            enum:
+                            - pod
+                            - hostInternal
+                            - hostExternal
+                            - configuredIP
+                            type: string
+                          alternateAccessType:
+                            default: pod
+                            description: |-
+                              AlternateAccessType determines how clients from alternate networks
+                              access the Aerospike service port.
+                            enum:
+                            - pod
+                            - hostInternal
+                            - hostExternal
+                            - configuredIP
+                            type: string
+                          customAccessNetworkNames:
+                            description: CustomAccessNetworkNames specifies network
+                              names for configuredIP access type.
+                            items:
+                              type: string
+                            type: array
+                          customAlternateAccessNetworkNames:
+                            description: |-
+                              CustomAlternateAccessNetworkNames specifies network names for
+                              configuredIP alternate access type.
+                            items:
+                              type: string
+                            type: array
+                          customFabricNetworkNames:
+                            description: |-
+                              CustomFabricNetworkNames specifies network names for
+                              configuredIP fabric type.
+                            items:
+                              type: string
+                            type: array
+                          fabricType:
+                            default: pod
+                            description: FabricType determines the network type for
+                              fabric (inter-node) communication.
+                            enum:
+                            - pod
+                            - hostInternal
+                            - hostExternal
+                            - configuredIP
+                            type: string
+                        type: object
+                      image:
+                        description: |-
+                          Image is the default Aerospike CE container image for clusters using this template.
+                          Must be a community edition image (e.g., aerospike:ce-8.1.1.1).
+                          Clusters can override this by explicitly setting spec.image.
+                        type: string
+                      monitoring:
+                        description: |-
+                          Monitoring configures default Prometheus monitoring via an exporter sidecar.
+                          Clusters that explicitly set spec.monitoring will override this entirely.
+                        properties:
+                          enabled:
+                            description: Enabled enables the Prometheus exporter sidecar.
+                            type: boolean
+                          env:
+                            description: |-
+                              Env specifies additional environment variables for the exporter container.
+                              These can be used for metric filtering, custom configuration, etc.
+                              User-provided env vars are appended last, allowing intentional overrides.
+                            items:
+                              description: EnvVar represents an environment variable
+                                present in a Container.
+                              properties:
+                                name:
+                                  description: |-
+                                    Name of the environment variable.
+                                    May consist of any printable ASCII characters except '='.
+                                  type: string
+                                value:
+                                  description: |-
+                                    Variable references $(VAR_NAME) are expanded
+                                    using the previously defined environment variables in the container and
+                                    any service environment variables. If a variable cannot be resolved,
+                                    the reference in the input string will be unchanged. Double $$ are reduced
+                                    to a single $, which allows for escaping the $(VAR_NAME) syntax: i.e.
+                                    "$$(VAR_NAME)" will produce the string literal "$(VAR_NAME)".
+                                    Escaped references will never be expanded, regardless of whether the variable
+                                    exists or not.
+                                    Defaults to "".
+                                  type: string
+                                valueFrom:
+                                  description: Source for the environment variable's
+                                    value. Cannot be used if value is not empty.
+                                  properties:
+                                    configMapKeyRef:
+                                      description: Selects a key of a ConfigMap.
+                                      properties:
+                                        key:
+                                          description: The key to select.
+                                          type: string
+                                        name:
+                                          default: ""
+                                          description: |-
+                                            Name of the referent.
+                                            This field is effectively required, but due to backwards compatibility is
+                                            allowed to be empty. Instances of this type with an empty value here are
+                                            almost certainly wrong.
+                                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                          type: string
+                                        optional:
+                                          description: Specify whether the ConfigMap
+                                            or its key must be defined
+                                          type: boolean
+                                      required:
+                                      - key
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                    fieldRef:
+                                      description: |-
+                                        Selects a field of the pod: supports metadata.name, metadata.namespace, `metadata.labels['<KEY>']`, `metadata.annotations['<KEY>']`,
+                                        spec.nodeName, spec.serviceAccountName, status.hostIP, status.podIP, status.podIPs.
+                                      properties:
+                                        apiVersion:
+                                          description: Version of the schema the FieldPath
+                                            is written in terms of, defaults to "v1".
+                                          type: string
+                                        fieldPath:
+                                          description: Path of the field to select
+                                            in the specified API version.
+                                          type: string
+                                      required:
+                                      - fieldPath
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                    fileKeyRef:
+                                      description: |-
+                                        FileKeyRef selects a key of the env file.
+                                        Requires the EnvFiles feature gate to be enabled.
+                                      properties:
+                                        key:
+                                          description: |-
+                                            The key within the env file. An invalid key will prevent the pod from starting.
+                                            The keys defined within a source may consist of any printable ASCII characters except '='.
+                                            During Alpha stage of the EnvFiles feature gate, the key size is limited to 128 characters.
+                                          type: string
+                                        optional:
+                                          default: false
+                                          description: |-
+                                            Specify whether the file or its key must be defined. If the file or key
+                                            does not exist, then the env var is not published.
+                                            If optional is set to true and the specified key does not exist,
+                                            the environment variable will not be set in the Pod's containers.
+
+                                            If optional is set to false and the specified key does not exist,
+                                            an error will be returned during Pod creation.
+                                          type: boolean
+                                        path:
+                                          description: |-
+                                            The path within the volume from which to select the file.
+                                            Must be relative and may not contain the '..' path or start with '..'.
+                                          type: string
+                                        volumeName:
+                                          description: The name of the volume mount
+                                            containing the env file.
+                                          type: string
+                                      required:
+                                      - key
+                                      - path
+                                      - volumeName
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                    resourceFieldRef:
+                                      description: |-
+                                        Selects a resource of the container: only resources limits and requests
+                                        (limits.cpu, limits.memory, limits.ephemeral-storage, requests.cpu, requests.memory and requests.ephemeral-storage) are currently supported.
+                                      properties:
+                                        containerName:
+                                          description: 'Container name: required for
+                                            volumes, optional for env vars'
+                                          type: string
+                                        divisor:
+                                          anyOf:
+                                          - type: integer
+                                          - type: string
+                                          description: Specifies the output format
+                                            of the exposed resources, defaults to
+                                            "1"
+                                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                          x-kubernetes-int-or-string: true
+                                        resource:
+                                          description: 'Required: resource to select'
+                                          type: string
+                                      required:
+                                      - resource
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                    secretKeyRef:
+                                      description: Selects a key of a secret in the
+                                        pod's namespace
+                                      properties:
+                                        key:
+                                          description: The key of the secret to select
+                                            from.  Must be a valid secret key.
+                                          type: string
+                                        name:
+                                          default: ""
+                                          description: |-
+                                            Name of the referent.
+                                            This field is effectively required, but due to backwards compatibility is
+                                            allowed to be empty. Instances of this type with an empty value here are
+                                            almost certainly wrong.
+                                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                          type: string
+                                        optional:
+                                          description: Specify whether the Secret
+                                            or its key must be defined
+                                          type: boolean
+                                      required:
+                                      - key
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                  type: object
+                              required:
+                              - name
+                              type: object
+                            type: array
+                          exporterImage:
+                            description: |-
+                              ExporterImage is the Aerospike Prometheus exporter container image.
+                              Defaults to "aerospike/aerospike-prometheus-exporter:v1.16.1".
+                            type: string
+                          metricLabels:
+                            additionalProperties:
+                              type: string
+                            description: |-
+                              MetricLabels specifies custom labels to add to all exported metrics.
+                              These are passed to the exporter via the METRIC_LABELS environment variable
+                              as sorted key=value pairs.
+                            type: object
+                          port:
+                            description: Port is the metrics port for the exporter.
+                              Defaults to 9145.
+                            format: int32
+                            maximum: 65535
+                            minimum: 1
+                            type: integer
+                          prometheusRule:
+                            description: PrometheusRule configures automatic PrometheusRule
+                              creation for Aerospike cluster alerts.
+                            properties:
+                              customRules:
+                                description: |-
+                                  CustomRules completely replaces the default alert rules when provided.
+                                  When set, the built-in alerts (NodeDown, StopWrites, HighDiskUsage, HighMemoryUsage)
+                                  are NOT generated. Each entry must be a complete Prometheus rule group object.
+                                items:
+                                  x-kubernetes-preserve-unknown-fields: true
+                                type: array
+                              enabled:
+                                description: Enabled enables PrometheusRule creation.
+                                type: boolean
+                              labels:
+                                additionalProperties:
+                                  type: string
+                                description: Labels are additional labels to add to
+                                  the PrometheusRule for discovery.
+                                type: object
+                            type: object
+                          resources:
+                            description: Resources defines CPU and memory resource
+                              requests/limits for the exporter.
+                            properties:
+                              claims:
+                                description: |-
+                                  Claims lists the names of resources, defined in spec.resourceClaims,
+                                  that are used by this container.
+
+                                  This field depends on the
+                                  DynamicResourceAllocation feature gate.
+
+                                  This field is immutable. It can only be set for containers.
+                                items:
+                                  description: ResourceClaim references one entry
+                                    in PodSpec.ResourceClaims.
+                                  properties:
+                                    name:
+                                      description: |-
+                                        Name must match the name of one entry in pod.spec.resourceClaims of
+                                        the Pod where this field is used. It makes that resource available
+                                        inside a container.
+                                      type: string
+                                    request:
+                                      description: |-
+                                        Request is the name chosen for a request in the referenced claim.
+                                        If empty, everything from the claim is made available, otherwise
+                                        only the result of this request.
+                                      type: string
+                                  required:
+                                  - name
+                                  type: object
+                                type: array
+                                x-kubernetes-list-map-keys:
+                                - name
+                                x-kubernetes-list-type: map
+                              limits:
+                                additionalProperties:
+                                  anyOf:
+                                  - type: integer
+                                  - type: string
+                                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                  x-kubernetes-int-or-string: true
+                                description: |-
+                                  Limits describes the maximum amount of compute resources allowed.
+                                  More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                                type: object
+                              requests:
+                                additionalProperties:
+                                  anyOf:
+                                  - type: integer
+                                  - type: string
+                                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                  x-kubernetes-int-or-string: true
+                                description: |-
+                                  Requests describes the minimum amount of compute resources required.
+                                  If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                                  otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                                  More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                                type: object
+                            type: object
+                          serviceMonitor:
+                            description: ServiceMonitor configures automatic ServiceMonitor
+                              creation for Prometheus Operator.
+                            properties:
+                              enabled:
+                                description: Enabled enables ServiceMonitor creation.
+                                type: boolean
+                              interval:
+                                description: Interval is the Prometheus scrape interval.
+                                  Defaults to "30s".
+                                type: string
+                              labels:
+                                additionalProperties:
+                                  type: string
+                                description: Labels are additional labels to add to
+                                  the ServiceMonitor for discovery.
+                                type: object
+                            type: object
                         type: object
                       rackConfig:
                         description: RackConfig defines rack-level configuration defaults.
@@ -9304,6 +10021,15 @@ spec:
                               type: object
                             type: array
                         type: object
+                      size:
+                        description: |-
+                          Size is the default number of Aerospike nodes for clusters using this template.
+                          CE limits this to a maximum of 8.
+                          Clusters that explicitly set spec.size (non-zero) will override this value.
+                        format: int32
+                        maximum: 8
+                        minimum: 1
+                        type: integer
                       storage:
                         description: Storage defines the default data volume configuration.
                         properties:
@@ -15847,9 +16573,10 @@ spec:
                     description: |-
                       Size is the number of Aerospike nodes (pods) in the cluster.
                       CE limits this to a maximum of 8.
+                      When spec.templateRef is set, size may be omitted and the template's default will be used.
                     format: int32
                     maximum: 8
-                    minimum: 1
+                    minimum: 0
                     type: integer
                   storage:
                     description: Storage defines volumes and volume mounts for Aerospike
@@ -16392,9 +17119,6 @@ spec:
                           is mounted on persistent storage.
                         type: boolean
                     type: object
-                required:
-                - image
-                - size
                 type: object
               conditions:
                 description: Conditions represent the latest observations of the cluster
@@ -16658,6 +17382,361 @@ spec:
                               Uses the same format as aerospikeConfig.service.
                             type: object
                             x-kubernetes-preserve-unknown-fields: true
+                        type: object
+                      aerospikeNetworkPolicy:
+                        description: |-
+                          AerospikeNetworkPolicy defines the default network access configuration.
+                          Clusters that explicitly set spec.aerospikeNetworkPolicy will override this entirely.
+                        properties:
+                          accessType:
+                            default: pod
+                            description: AccessType determines how clients access
+                              the Aerospike service port.
+                            enum:
+                            - pod
+                            - hostInternal
+                            - hostExternal
+                            - configuredIP
+                            type: string
+                          alternateAccessType:
+                            default: pod
+                            description: |-
+                              AlternateAccessType determines how clients from alternate networks
+                              access the Aerospike service port.
+                            enum:
+                            - pod
+                            - hostInternal
+                            - hostExternal
+                            - configuredIP
+                            type: string
+                          customAccessNetworkNames:
+                            description: CustomAccessNetworkNames specifies network
+                              names for configuredIP access type.
+                            items:
+                              type: string
+                            type: array
+                          customAlternateAccessNetworkNames:
+                            description: |-
+                              CustomAlternateAccessNetworkNames specifies network names for
+                              configuredIP alternate access type.
+                            items:
+                              type: string
+                            type: array
+                          customFabricNetworkNames:
+                            description: |-
+                              CustomFabricNetworkNames specifies network names for
+                              configuredIP fabric type.
+                            items:
+                              type: string
+                            type: array
+                          fabricType:
+                            default: pod
+                            description: FabricType determines the network type for
+                              fabric (inter-node) communication.
+                            enum:
+                            - pod
+                            - hostInternal
+                            - hostExternal
+                            - configuredIP
+                            type: string
+                        type: object
+                      image:
+                        description: |-
+                          Image is the default Aerospike CE container image for clusters using this template.
+                          Must be a community edition image (e.g., aerospike:ce-8.1.1.1).
+                          Clusters can override this by explicitly setting spec.image.
+                        type: string
+                      monitoring:
+                        description: |-
+                          Monitoring configures default Prometheus monitoring via an exporter sidecar.
+                          Clusters that explicitly set spec.monitoring will override this entirely.
+                        properties:
+                          enabled:
+                            description: Enabled enables the Prometheus exporter sidecar.
+                            type: boolean
+                          env:
+                            description: |-
+                              Env specifies additional environment variables for the exporter container.
+                              These can be used for metric filtering, custom configuration, etc.
+                              User-provided env vars are appended last, allowing intentional overrides.
+                            items:
+                              description: EnvVar represents an environment variable
+                                present in a Container.
+                              properties:
+                                name:
+                                  description: |-
+                                    Name of the environment variable.
+                                    May consist of any printable ASCII characters except '='.
+                                  type: string
+                                value:
+                                  description: |-
+                                    Variable references $(VAR_NAME) are expanded
+                                    using the previously defined environment variables in the container and
+                                    any service environment variables. If a variable cannot be resolved,
+                                    the reference in the input string will be unchanged. Double $$ are reduced
+                                    to a single $, which allows for escaping the $(VAR_NAME) syntax: i.e.
+                                    "$$(VAR_NAME)" will produce the string literal "$(VAR_NAME)".
+                                    Escaped references will never be expanded, regardless of whether the variable
+                                    exists or not.
+                                    Defaults to "".
+                                  type: string
+                                valueFrom:
+                                  description: Source for the environment variable's
+                                    value. Cannot be used if value is not empty.
+                                  properties:
+                                    configMapKeyRef:
+                                      description: Selects a key of a ConfigMap.
+                                      properties:
+                                        key:
+                                          description: The key to select.
+                                          type: string
+                                        name:
+                                          default: ""
+                                          description: |-
+                                            Name of the referent.
+                                            This field is effectively required, but due to backwards compatibility is
+                                            allowed to be empty. Instances of this type with an empty value here are
+                                            almost certainly wrong.
+                                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                          type: string
+                                        optional:
+                                          description: Specify whether the ConfigMap
+                                            or its key must be defined
+                                          type: boolean
+                                      required:
+                                      - key
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                    fieldRef:
+                                      description: |-
+                                        Selects a field of the pod: supports metadata.name, metadata.namespace, `metadata.labels['<KEY>']`, `metadata.annotations['<KEY>']`,
+                                        spec.nodeName, spec.serviceAccountName, status.hostIP, status.podIP, status.podIPs.
+                                      properties:
+                                        apiVersion:
+                                          description: Version of the schema the FieldPath
+                                            is written in terms of, defaults to "v1".
+                                          type: string
+                                        fieldPath:
+                                          description: Path of the field to select
+                                            in the specified API version.
+                                          type: string
+                                      required:
+                                      - fieldPath
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                    fileKeyRef:
+                                      description: |-
+                                        FileKeyRef selects a key of the env file.
+                                        Requires the EnvFiles feature gate to be enabled.
+                                      properties:
+                                        key:
+                                          description: |-
+                                            The key within the env file. An invalid key will prevent the pod from starting.
+                                            The keys defined within a source may consist of any printable ASCII characters except '='.
+                                            During Alpha stage of the EnvFiles feature gate, the key size is limited to 128 characters.
+                                          type: string
+                                        optional:
+                                          default: false
+                                          description: |-
+                                            Specify whether the file or its key must be defined. If the file or key
+                                            does not exist, then the env var is not published.
+                                            If optional is set to true and the specified key does not exist,
+                                            the environment variable will not be set in the Pod's containers.
+
+                                            If optional is set to false and the specified key does not exist,
+                                            an error will be returned during Pod creation.
+                                          type: boolean
+                                        path:
+                                          description: |-
+                                            The path within the volume from which to select the file.
+                                            Must be relative and may not contain the '..' path or start with '..'.
+                                          type: string
+                                        volumeName:
+                                          description: The name of the volume mount
+                                            containing the env file.
+                                          type: string
+                                      required:
+                                      - key
+                                      - path
+                                      - volumeName
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                    resourceFieldRef:
+                                      description: |-
+                                        Selects a resource of the container: only resources limits and requests
+                                        (limits.cpu, limits.memory, limits.ephemeral-storage, requests.cpu, requests.memory and requests.ephemeral-storage) are currently supported.
+                                      properties:
+                                        containerName:
+                                          description: 'Container name: required for
+                                            volumes, optional for env vars'
+                                          type: string
+                                        divisor:
+                                          anyOf:
+                                          - type: integer
+                                          - type: string
+                                          description: Specifies the output format
+                                            of the exposed resources, defaults to
+                                            "1"
+                                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                          x-kubernetes-int-or-string: true
+                                        resource:
+                                          description: 'Required: resource to select'
+                                          type: string
+                                      required:
+                                      - resource
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                    secretKeyRef:
+                                      description: Selects a key of a secret in the
+                                        pod's namespace
+                                      properties:
+                                        key:
+                                          description: The key of the secret to select
+                                            from.  Must be a valid secret key.
+                                          type: string
+                                        name:
+                                          default: ""
+                                          description: |-
+                                            Name of the referent.
+                                            This field is effectively required, but due to backwards compatibility is
+                                            allowed to be empty. Instances of this type with an empty value here are
+                                            almost certainly wrong.
+                                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                          type: string
+                                        optional:
+                                          description: Specify whether the Secret
+                                            or its key must be defined
+                                          type: boolean
+                                      required:
+                                      - key
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                  type: object
+                              required:
+                              - name
+                              type: object
+                            type: array
+                          exporterImage:
+                            description: |-
+                              ExporterImage is the Aerospike Prometheus exporter container image.
+                              Defaults to "aerospike/aerospike-prometheus-exporter:v1.16.1".
+                            type: string
+                          metricLabels:
+                            additionalProperties:
+                              type: string
+                            description: |-
+                              MetricLabels specifies custom labels to add to all exported metrics.
+                              These are passed to the exporter via the METRIC_LABELS environment variable
+                              as sorted key=value pairs.
+                            type: object
+                          port:
+                            description: Port is the metrics port for the exporter.
+                              Defaults to 9145.
+                            format: int32
+                            maximum: 65535
+                            minimum: 1
+                            type: integer
+                          prometheusRule:
+                            description: PrometheusRule configures automatic PrometheusRule
+                              creation for Aerospike cluster alerts.
+                            properties:
+                              customRules:
+                                description: |-
+                                  CustomRules completely replaces the default alert rules when provided.
+                                  When set, the built-in alerts (NodeDown, StopWrites, HighDiskUsage, HighMemoryUsage)
+                                  are NOT generated. Each entry must be a complete Prometheus rule group object.
+                                items:
+                                  x-kubernetes-preserve-unknown-fields: true
+                                type: array
+                              enabled:
+                                description: Enabled enables PrometheusRule creation.
+                                type: boolean
+                              labels:
+                                additionalProperties:
+                                  type: string
+                                description: Labels are additional labels to add to
+                                  the PrometheusRule for discovery.
+                                type: object
+                            type: object
+                          resources:
+                            description: Resources defines CPU and memory resource
+                              requests/limits for the exporter.
+                            properties:
+                              claims:
+                                description: |-
+                                  Claims lists the names of resources, defined in spec.resourceClaims,
+                                  that are used by this container.
+
+                                  This field depends on the
+                                  DynamicResourceAllocation feature gate.
+
+                                  This field is immutable. It can only be set for containers.
+                                items:
+                                  description: ResourceClaim references one entry
+                                    in PodSpec.ResourceClaims.
+                                  properties:
+                                    name:
+                                      description: |-
+                                        Name must match the name of one entry in pod.spec.resourceClaims of
+                                        the Pod where this field is used. It makes that resource available
+                                        inside a container.
+                                      type: string
+                                    request:
+                                      description: |-
+                                        Request is the name chosen for a request in the referenced claim.
+                                        If empty, everything from the claim is made available, otherwise
+                                        only the result of this request.
+                                      type: string
+                                  required:
+                                  - name
+                                  type: object
+                                type: array
+                                x-kubernetes-list-map-keys:
+                                - name
+                                x-kubernetes-list-type: map
+                              limits:
+                                additionalProperties:
+                                  anyOf:
+                                  - type: integer
+                                  - type: string
+                                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                  x-kubernetes-int-or-string: true
+                                description: |-
+                                  Limits describes the maximum amount of compute resources allowed.
+                                  More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                                type: object
+                              requests:
+                                additionalProperties:
+                                  anyOf:
+                                  - type: integer
+                                  - type: string
+                                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                  x-kubernetes-int-or-string: true
+                                description: |-
+                                  Requests describes the minimum amount of compute resources required.
+                                  If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                                  otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                                  More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                                type: object
+                            type: object
+                          serviceMonitor:
+                            description: ServiceMonitor configures automatic ServiceMonitor
+                              creation for Prometheus Operator.
+                            properties:
+                              enabled:
+                                description: Enabled enables ServiceMonitor creation.
+                                type: boolean
+                              interval:
+                                description: Interval is the Prometheus scrape interval.
+                                  Defaults to "30s".
+                                type: string
+                              labels:
+                                additionalProperties:
+                                  type: string
+                                description: Labels are additional labels to add to
+                                  the ServiceMonitor for discovery.
+                                type: object
+                            type: object
                         type: object
                       rackConfig:
                         description: RackConfig defines rack-level configuration defaults.
@@ -17164,6 +18243,15 @@ spec:
                               type: object
                             type: array
                         type: object
+                      size:
+                        description: |-
+                          Size is the default number of Aerospike nodes for clusters using this template.
+                          CE limits this to a maximum of 8.
+                          Clusters that explicitly set spec.size (non-zero) will override this value.
+                        format: int32
+                        maximum: 8
+                        minimum: 1
+                        type: integer
                       storage:
                         description: Storage defines the default data volume configuration.
                         properties:

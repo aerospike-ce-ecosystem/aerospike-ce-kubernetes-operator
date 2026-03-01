@@ -6,6 +6,14 @@ metadata:
   labels:
     environment: dev
 spec:
+  # Dev template: default image and single-node cluster for fast iteration
+  image: aerospike:ce-8.1.1.1   # Default image; clusters can override with spec.image
+  size: 1                         # Single node for dev; clusters can override with spec.size
+
+  # Monitoring disabled in dev to reduce resource usage
+  monitoring:
+    enabled: false
+
   # Dev template: minimal resource usage, no strict anti-affinity
   scheduling:
     podAntiAffinityLevel: none   # Allow multiple pods per node in dev

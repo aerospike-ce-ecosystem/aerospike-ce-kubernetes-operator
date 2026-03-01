@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func TestServicePortsChanged(t *testing.T) {
@@ -56,6 +57,36 @@ func TestServicePortsChanged(t *testing.T) {
 			desired: []corev1.ServicePort{
 				{Name: "service", Port: 3000},
 				{Name: "fabric", Port: 3001},
+			},
+			want: false,
+		},
+		{
+			name: "different TargetPort",
+			existing: []corev1.ServicePort{
+				{Name: "service", Port: 3000, TargetPort: intstr.FromInt32(3000), Protocol: corev1.ProtocolTCP},
+			},
+			desired: []corev1.ServicePort{
+				{Name: "service", Port: 3000, TargetPort: intstr.FromInt32(4000), Protocol: corev1.ProtocolTCP},
+			},
+			want: true,
+		},
+		{
+			name: "different Protocol",
+			existing: []corev1.ServicePort{
+				{Name: "service", Port: 3000, TargetPort: intstr.FromInt32(3000), Protocol: corev1.ProtocolTCP},
+			},
+			desired: []corev1.ServicePort{
+				{Name: "service", Port: 3000, TargetPort: intstr.FromInt32(3000), Protocol: corev1.ProtocolUDP},
+			},
+			want: true,
+		},
+		{
+			name: "same ports with all fields",
+			existing: []corev1.ServicePort{
+				{Name: "service", Port: 3000, TargetPort: intstr.FromInt32(3000), Protocol: corev1.ProtocolTCP},
+			},
+			desired: []corev1.ServicePort{
+				{Name: "service", Port: 3000, TargetPort: intstr.FromInt32(3000), Protocol: corev1.ProtocolTCP},
 			},
 			want: false,
 		},

@@ -2,10 +2,11 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -32,7 +33,7 @@ func (r *AerospikeCEClusterReconciler) handleDeletion(
 
 	// Set Deleting phase so observers know the cluster is being removed.
 	if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseDeleting, "Cluster is being deleted"); err != nil {
-		if !errors.IsConflict(err) {
+		if !k8serrors.IsConflict(err) {
 			return ctrl.Result{}, err
 		}
 		// Conflict is non-fatal here; the deletion will proceed regardless.
@@ -48,14 +49,15 @@ func (r *AerospikeCEClusterReconciler) handleDeletion(
 		var pvcErrors []error
 		for _, sts := range stsList.Items {
 			if err := storage.DeleteCascadeDeletePVCs(ctx, r.Client, cluster.Namespace, sts.Name, cluster.Spec.Storage); err != nil {
-				if !errors.IsNotFound(err) {
+				if !k8serrors.IsNotFound(err) {
 					log.Error(err, "Failed to delete cascade PVCs for StatefulSet", "statefulset", sts.Name)
 					pvcErrors = append(pvcErrors, fmt.Errorf("statefulset %s: %w", sts.Name, err))
 				}
 			}
 		}
 		if len(pvcErrors) > 0 {
-			return ctrl.Result{}, fmt.Errorf("failed to delete cascade PVCs for %d StatefulSet(s): %w", len(pvcErrors), pvcErrors[0])
+			return ctrl.Result{}, fmt.Errorf("failed to delete cascade PVCs for %d StatefulSet(s): %w",
+				len(pvcErrors), errors.Join(pvcErrors...))
 		}
 	}
 
@@ -67,7 +69,7 @@ func (r *AerospikeCEClusterReconciler) handleDeletion(
 
 	controllerutil.RemoveFinalizer(latest, utils.StorageFinalizer)
 	if err := r.Update(ctx, latest); err != nil {
-		if errors.IsConflict(err) {
+		if k8serrors.IsConflict(err) {
 			log.V(1).Info("Conflict removing finalizer, will requeue")
 			return ctrl.Result{Requeue: true}, nil
 		}

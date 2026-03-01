@@ -104,7 +104,9 @@ func servicePortsChanged(existing, desired []corev1.ServicePort) bool {
 		return true
 	}
 	for i, p := range existing {
-		if p.Name != desired[i].Name || p.Port != desired[i].Port {
+		d := desired[i]
+		if p.Name != d.Name || p.Port != d.Port ||
+			p.TargetPort != d.TargetPort || p.Protocol != d.Protocol {
 			return true
 		}
 	}

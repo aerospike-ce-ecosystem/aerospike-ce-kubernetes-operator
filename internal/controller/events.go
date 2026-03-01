@@ -44,6 +44,10 @@ const (
 	EventTemplateResolutionError = "TemplateResolutionError"
 	EventTemplateDrifted         = "TemplateDrifted"
 
+	// Readiness gate
+	EventReadinessGateSatisfied = "ReadinessGateSatisfied"
+	EventReadinessGateBlocking  = "ReadinessGateBlocking"
+
 	// Miscellaneous
 	EventValidationWarning = "ValidationWarning"
 	EventReconcileError    = "ReconcileError"

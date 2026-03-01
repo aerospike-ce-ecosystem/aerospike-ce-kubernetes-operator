@@ -51,6 +51,7 @@ type AerospikeCEClusterReconciler struct {
 // +kubebuilder:rbac:groups=acko.io,resources=aerospikececlustertemplates,verbs=get;list;watch
 // +kubebuilder:rbac:groups=acko.io,resources=aerospikececlustertemplates/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups="",resources=pods/status,verbs=patch
 // +kubebuilder:rbac:groups="",resources=pods/exec,verbs=create
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
@@ -278,6 +279,15 @@ func (r *AerospikeCEClusterReconciler) reconcileCluster(
 		return ctrl.Result{}, err
 	} else if inProgress {
 		return ctrl.Result{RequeueAfter: defaultReconcileRetryInterval}, nil
+	}
+
+	// Sync pod readiness gates (no-op when feature is disabled).
+	// Must run before the rolling restart loop so the gate state is up-to-date
+	// when anyPodGateUnsatisfied() is checked inside reconcileRollingRestart.
+	if err := r.syncAllPodsReadinessGates(ctx, cluster); err != nil {
+		log.Error(err, "Failed to sync pod readiness gates")
+		// Non-fatal: gate sync errors leave gates as-is.
+		// anyPodGateUnsatisfied() will safely hold the rolling restart.
 	}
 
 	// Rolling restart if needed

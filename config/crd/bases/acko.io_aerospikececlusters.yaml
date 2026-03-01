@@ -4379,6 +4379,15 @@ spec:
                     - OrderedReady
                     - Parallel
                     type: string
+                  readinessGateEnabled:
+                    description: |-
+                      ReadinessGateEnabled enables the custom Pod Readiness Gate "acko.io/aerospike-ready".
+                      When true, the operator injects the gate into each pod's spec and patches
+                      pod.Status.Conditions to True only after Aerospike has joined the cluster mesh
+                      and finished all data migrations. Pods are excluded from Service endpoints
+                      until the gate is satisfied.
+                      Defaults to false for backward compatibility.
+                    type: boolean
                   securityContext:
                     description: SecurityContext defines pod-level security attributes.
                     properties:
@@ -12912,6 +12921,15 @@ spec:
                         - OrderedReady
                         - Parallel
                         type: string
+                      readinessGateEnabled:
+                        description: |-
+                          ReadinessGateEnabled enables the custom Pod Readiness Gate "acko.io/aerospike-ready".
+                          When true, the operator injects the gate into each pod's spec and patches
+                          pod.Status.Conditions to True only after Aerospike has joined the cluster mesh
+                          and finished all data migrations. Pods are excluded from Service endpoints
+                          until the gate is satisfied.
+                          Defaults to false for backward compatibility.
+                        type: boolean
                       securityContext:
                         description: SecurityContext defines pod-level security attributes.
                         properties:
@@ -17353,6 +17371,12 @@ spec:
                     rack:
                       description: Rack is the rack ID assigned to this pod.
                       type: integer
+                    readinessGateSatisfied:
+                      description: |-
+                        ReadinessGateSatisfied reflects whether the "acko.io/aerospike-ready" readiness gate
+                        condition is currently True for this pod. Only meaningful when
+                        spec.podSpec.readinessGateEnabled=true.
+                      type: boolean
                     servicePort:
                       description: ServicePort is the Aerospike service port exposed
                         via node/LB.

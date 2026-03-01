@@ -487,6 +487,13 @@ type AerospikePodStatus struct {
 	// Populated via the asinfo "service" command.
 	// +optional
 	AccessEndpoints []string `json:"accessEndpoints,omitempty"`
+
+	// ReadinessGateSatisfied reflects whether the "acko.io/aerospike-ready" readiness gate
+	// condition is currently True for this pod. Only meaningful when
+	// spec.podSpec.readinessGateEnabled=true.
+	// +optional
+	ReadinessGateSatisfied bool `json:"readinessGateSatisfied,omitempty"`
+
 	// LastRestartReason is the reason the pod was last restarted by the operator.
 	// +optional
 	LastRestartReason *RestartReason `json:"lastRestartReason,omitempty"`

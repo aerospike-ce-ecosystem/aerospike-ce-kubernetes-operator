@@ -70,10 +70,19 @@ rules:
   - acko.io
   resources:
   - aerospikececlusters/status
+  - aerospikececlustertemplates/status
   verbs:
   - get
   - patch
   - update
+- apiGroups:
+  - acko.io
+  resources:
+  - aerospikececlustertemplates
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - apps
   resources:

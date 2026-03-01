@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -77,6 +78,16 @@ type AerospikeCEPodSpec struct {
 	// TerminationGracePeriodSeconds is the grace period for pod termination.
 	// +optional
 	TerminationGracePeriodSeconds *int64 `json:"terminationGracePeriodSeconds,omitempty"`
+
+	// TopologySpreadConstraints describes how pods ought to spread across topology domains.
+	// +optional
+	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty"`
+
+	// PodManagementPolicy controls how pods are created during scaling.
+	// Valid values are OrderedReady (default) or Parallel.
+	// +kubebuilder:validation:Enum=OrderedReady;Parallel
+	// +optional
+	PodManagementPolicy appsv1.PodManagementPolicyType `json:"podManagementPolicy,omitempty"`
 
 	// Metadata defines additional labels and annotations for the pods.
 	// +optional

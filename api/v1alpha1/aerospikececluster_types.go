@@ -85,6 +85,36 @@ func deepCopyValue(val any) any {
 	}
 }
 
+// TemplateRef is a reference to an AerospikeCEClusterTemplate in the same namespace.
+type TemplateRef struct {
+	// Name is the name of the AerospikeCEClusterTemplate resource.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+}
+
+// TemplateSnapshotStatus records which template version was resolved and when.
+type TemplateSnapshotStatus struct {
+	// Name is the name of the referenced AerospikeCEClusterTemplate.
+	Name string `json:"name"`
+
+	// ResourceVersion is the resourceVersion of the template at snapshot time.
+	// +optional
+	ResourceVersion string `json:"resourceVersion,omitempty"`
+
+	// SnapshotTimestamp is when the snapshot was taken.
+	// +optional
+	SnapshotTimestamp metav1.Time `json:"snapshotTimestamp,omitempty"`
+
+	// Synced indicates whether the cluster is using the latest version of the template.
+	// Set to false when the template changes after the snapshot was taken.
+	Synced bool `json:"synced"`
+
+	// Spec is the resolved template spec at snapshot time.
+	// +optional
+	Spec *AerospikeCEClusterTemplateSpec `json:"spec,omitempty"`
+}
+
 // OperationKind defines the type of on-demand operation.
 // +kubebuilder:validation:Enum=WarmRestart;PodRestart
 type OperationKind string
@@ -269,6 +299,18 @@ type AerospikeCEClusterSpec struct {
 	// EnableRackIDOverride enables dynamic rack ID assignment via pod annotations.
 	// +optional
 	EnableRackIDOverride *bool `json:"enableRackIDOverride,omitempty"`
+
+	// TemplateRef references an AerospikeCEClusterTemplate to use as a configuration base.
+	// When set, the template's spec is resolved at creation time and stored as a snapshot
+	// in status.templateSnapshot. Template changes are not automatically propagated;
+	// use the annotation "acko.io/resync-template: true" to trigger a manual resync.
+	// +optional
+	TemplateRef *TemplateRef `json:"templateRef,omitempty"`
+
+	// Overrides contains fields that override the referenced template's spec.
+	// Merge priority: overrides > template.spec > operator defaults.
+	// +optional
+	Overrides *AerospikeCEClusterTemplateSpec `json:"overrides,omitempty"`
 }
 
 // Condition type constants for AerospikeCECluster status conditions.
@@ -358,6 +400,12 @@ type AerospikeCEClusterStatus struct {
 	// Use this to detect configuration drift or compare against the current spec.
 	// +optional
 	AppliedSpec *AerospikeCEClusterSpec `json:"appliedSpec,omitempty"`
+
+	// TemplateSnapshot holds the resolved template spec at the time of last sync.
+	// This is the basis for template-derived configuration; changes to the template
+	// are not propagated until a manual resync is triggered.
+	// +optional
+	TemplateSnapshot *TemplateSnapshotStatus `json:"templateSnapshot,omitempty"`
 }
 
 // AerospikePodStatus holds per-pod status information.

@@ -232,12 +232,20 @@ func (r *AerospikeCEClusterReconciler) reconcileCluster(
 		return ctrl.Result{}, err
 	}
 	if scalingUp {
-		if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseScalingUp, "Scaling up cluster"); err != nil && !errors.IsConflict(err) {
-			return ctrl.Result{}, err
+		if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseScalingUp, "Scaling up cluster"); err != nil {
+			if errors.IsConflict(err) {
+				log.V(1).Info("Conflict setting ScalingUp phase, continuing reconcile")
+			} else {
+				return ctrl.Result{}, err
+			}
 		}
 	} else if scalingDown {
-		if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseScalingDown, "Scaling down cluster"); err != nil && !errors.IsConflict(err) {
-			return ctrl.Result{}, err
+		if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseScalingDown, "Scaling down cluster"); err != nil {
+			if errors.IsConflict(err) {
+				log.V(1).Info("Conflict setting ScalingDown phase, continuing reconcile")
+			} else {
+				return ctrl.Result{}, err
+			}
 		}
 	}
 
@@ -300,8 +308,11 @@ func (r *AerospikeCEClusterReconciler) reconcileCluster(
 		}
 		if restarted {
 			if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseRollingRestart,
-				fmt.Sprintf("Rolling restart in progress for rack %d", rack.ID)); err != nil && !errors.IsConflict(err) {
-				return ctrl.Result{}, err
+				fmt.Sprintf("Rolling restart in progress for rack %d", rack.ID)); err != nil {
+				if !errors.IsConflict(err) {
+					return ctrl.Result{}, err
+				}
+				log.V(1).Info("Conflict setting RollingRestart phase, continuing reconcile", "rack", rack.ID)
 			}
 			return ctrl.Result{RequeueAfter: defaultReconcileRetryInterval}, nil
 		}
@@ -311,8 +322,12 @@ func (r *AerospikeCEClusterReconciler) reconcileCluster(
 	var aclErr error
 	aclSynced := false
 	if cluster.Spec.AerospikeAccessControl != nil {
-		if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseACLSync, "Synchronizing ACL roles and users"); err != nil && !errors.IsConflict(err) {
-			return ctrl.Result{}, err
+		if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseACLSync, "Synchronizing ACL roles and users"); err != nil {
+			if errors.IsConflict(err) {
+				log.V(1).Info("Conflict setting ACLSync phase, continuing reconcile")
+			} else {
+				return ctrl.Result{}, err
+			}
 		}
 	}
 	if synced, err := r.reconcileACL(ctx, cluster); err != nil {

@@ -8,6 +8,7 @@ import (
 	aero "github.com/aerospike/aerospike-client-go/v8"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
@@ -123,13 +124,13 @@ func buildSetConfigCommand(change configdiff.Change) (string, error) {
 // findNodeForPod finds the Aerospike node that corresponds to a given pod by
 // matching the pod IP. Returns nil if no match is found (no single-node fallback
 // to avoid applying config to the wrong node).
-func findNodeForPod(client *aero.Client, pod *corev1.Pod) *aero.Node {
+func findNodeForPod(aeroClient *aero.Client, pod *corev1.Pod) *aero.Node {
 	podIP := pod.Status.PodIP
 	if podIP == "" {
 		return nil
 	}
 
-	for _, node := range client.GetNodes() {
+	for _, node := range aeroClient.GetNodes() {
 		host := node.GetHost()
 		if host != nil && host.Name == podIP {
 			return node
@@ -140,8 +141,10 @@ func findNodeForPod(client *aero.Client, pod *corev1.Pod) *aero.Node {
 }
 
 // updateDynamicConfigStatus updates the DynamicConfigStatus field in the pod's
-// status within the cluster CR. Failures are non-fatal: they are logged and
-// reported as warning Events since the caller cannot meaningfully retry.
+// status within the cluster CR. Uses Patch (MergeFrom) for atomic updates to
+// avoid race conditions with concurrent reconcile loops.
+// Failures are non-fatal: they are logged and reported as warning Events since
+// the caller cannot meaningfully retry.
 func (r *AerospikeCEClusterReconciler) updateDynamicConfigStatus(
 	ctx context.Context,
 	cluster *asdbcev1alpha1.AerospikeCECluster,
@@ -163,10 +166,11 @@ func (r *AerospikeCEClusterReconciler) updateDynamicConfigStatus(
 	}
 
 	if podStatus, ok := latest.Status.Pods[podName]; ok {
+		base := latest.DeepCopy()
 		podStatus.DynamicConfigStatus = status
 		latest.Status.Pods[podName] = podStatus
-		if err := r.Status().Update(ctx, latest); err != nil {
-			log.Error(err, "Failed to update dynamic config status", "pod", podName)
+		if err := r.Status().Patch(ctx, latest, client.MergeFrom(base)); err != nil {
+			log.Error(err, "Failed to patch dynamic config status", "pod", podName)
 			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventDynamicConfigFailed,
 				"Failed to update dynamic config status for pod %s: %v", podName, err)
 		}

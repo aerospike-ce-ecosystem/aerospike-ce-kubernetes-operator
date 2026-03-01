@@ -37,6 +37,9 @@ const (
 type ResolveResult struct {
 	// SnapshotUpdated is true if the template snapshot was created or refreshed.
 	SnapshotUpdated bool
+	// AnnotationNeedsCleanup is true when the resync annotation was consumed and must
+	// be removed from the cluster object by the caller (via a Patch call).
+	AnnotationNeedsCleanup bool
 	// Warnings contains non-fatal messages from validation.
 	Warnings []string
 }
@@ -142,15 +145,19 @@ func Resolve(
 
 	// Determine if we need to (re)fetch the template.
 	if NeedsResync(cluster) {
+		annotationTriggered := cluster.Annotations != nil && cluster.Annotations[AnnotationResyncTemplate] == "true"
+
 		_, updated, err := FetchAndSnapshot(ctx, reader, cluster)
 		if err != nil {
 			return result, err
 		}
 		result.SnapshotUpdated = updated
 
-		// Remove resync annotation after successful fetch.
-		if cluster.Annotations != nil && cluster.Annotations[AnnotationResyncTemplate] == "true" {
-			delete(cluster.Annotations, AnnotationResyncTemplate)
+		// Signal that the annotation must be deleted from the API server by the caller.
+		// We do NOT delete it in-memory here to avoid a stale resourceVersion when the
+		// caller subsequently patches the object.
+		if annotationTriggered && updated {
+			result.AnnotationNeedsCleanup = true
 		}
 	}
 
@@ -159,8 +166,14 @@ func Resolve(
 	effectiveSpec := MergeTemplateSpec(snapshotSpec, cluster.Spec.Overrides)
 
 	// Validate the effective spec.
-	warnings := ValidateResolvedSpec(&cluster.Spec, effectiveSpec)
-	result.Warnings = warnings
+	result.Warnings = ValidateResolvedSpec(&cluster.Spec, effectiveSpec)
+
+	// Validate LocalPV StorageClass binding mode when localPVRequired is set.
+	if effectiveSpec.Storage != nil && effectiveSpec.Storage.LocalPVRequired {
+		if err := ValidateLocalPV(ctx, reader, effectiveSpec.Storage.StorageClassName); err != nil {
+			result.Warnings = append(result.Warnings, "localPVRequired: "+err.Error())
+		}
+	}
 
 	// Apply the effective template spec to the in-memory cluster spec.
 	ApplyTemplate(effectiveSpec, cluster)

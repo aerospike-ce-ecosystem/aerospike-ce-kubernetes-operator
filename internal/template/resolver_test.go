@@ -426,6 +426,89 @@ func TestDeepMergeMapBaseFirst(t *testing.T) {
 	}
 }
 
+// --- MergeTemplateSpec: deep copy isolation ---
+
+func TestMergeTemplateSpec_AerospikeConfigIsolatedFromBase(t *testing.T) {
+	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
+		AerospikeConfig: &asdbcev1alpha1.TemplateAerospikeConfig{
+			NamespaceDefaults: &asdbcev1alpha1.AerospikeConfigSpec{
+				Value: map[string]any{"replication-factor": 2},
+			},
+		},
+	}
+	// override touches Service but NOT NamespaceDefaults
+	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
+		AerospikeConfig: &asdbcev1alpha1.TemplateAerospikeConfig{
+			Service: &asdbcev1alpha1.AerospikeConfigSpec{
+				Value: map[string]any{"proto-fd-max": 20000},
+			},
+		},
+	}
+	result := MergeTemplateSpec(base, override)
+
+	// Mutating the merged result's NamespaceDefaults must NOT affect the base.
+	result.AerospikeConfig.NamespaceDefaults.Value["replication-factor"] = 99
+	if base.AerospikeConfig.NamespaceDefaults.Value["replication-factor"] != 2 {
+		t.Error("mutating merge result must not affect the original base (shallow copy bug)")
+	}
+}
+
+func TestMergeTemplateSpec_NetworkConfigIsolatedFromBase(t *testing.T) {
+	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
+		AerospikeConfig: &asdbcev1alpha1.TemplateAerospikeConfig{
+			Network: &asdbcev1alpha1.TemplateNetworkConfig{
+				Heartbeat: &asdbcev1alpha1.TemplateHeartbeatConfig{
+					Mode:     "mesh",
+					Interval: 150,
+					Timeout:  10,
+				},
+			},
+		},
+	}
+	// override touches heartbeat partially
+	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
+		AerospikeConfig: &asdbcev1alpha1.TemplateAerospikeConfig{
+			Network: &asdbcev1alpha1.TemplateNetworkConfig{
+				Heartbeat: &asdbcev1alpha1.TemplateHeartbeatConfig{
+					Interval: 250,
+				},
+			},
+		},
+	}
+	result := MergeTemplateSpec(base, override)
+
+	if result.AerospikeConfig.Network.Heartbeat.Interval != 250 {
+		t.Errorf("expected override interval=250, got %d", result.AerospikeConfig.Network.Heartbeat.Interval)
+	}
+	if result.AerospikeConfig.Network.Heartbeat.Mode != "mesh" {
+		t.Errorf("expected base mode=mesh preserved, got %q", result.AerospikeConfig.Network.Heartbeat.Mode)
+	}
+}
+
+func TestMergeTemplateSpec_SchedulingIsolatedFromBase(t *testing.T) {
+	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
+		Scheduling: &asdbcev1alpha1.TemplateScheduling{
+			PodAntiAffinityLevel: asdbcev1alpha1.PodAntiAffinityPreferred,
+			Tolerations: []corev1.Toleration{
+				{Key: "base-key", Operator: corev1.TolerationOpExists},
+			},
+		},
+	}
+	// override touches PodAntiAffinityLevel but NOT Tolerations
+	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
+		Scheduling: &asdbcev1alpha1.TemplateScheduling{
+			PodAntiAffinityLevel: asdbcev1alpha1.PodAntiAffinityRequired,
+		},
+	}
+	result := MergeTemplateSpec(base, override)
+
+	// Mutating result's Tolerations must NOT affect base.
+	result.Scheduling.Tolerations[0].Key = "mutated"
+	if base.Scheduling.Tolerations[0].Key != "base-key" {
+		t.Error("mutating merge result must not affect the original base (shallow copy bug)")
+	}
+}
+
 // --- MergeTemplateSpec: Image ---
 
 func TestMergeTemplateSpec_ImageOverrideTakesPrecedence(t *testing.T) {

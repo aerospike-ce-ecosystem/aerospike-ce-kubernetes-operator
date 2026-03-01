@@ -567,14 +567,16 @@ func (v *AerospikeCEClusterValidator) validateSizeAndImage(cluster *AerospikeCEC
 	return sizeErrors, imageErrors, imageWarnings
 }
 
-// isEnterpriseTag returns true if the image tag starts with "ee-" (e.g., "aerospike:ee-8.0.0.1_1").
+// isEnterpriseTag returns true if the image tag indicates an Enterprise Edition image
+// (e.g., "aerospike:ee-8.0.0.1_1", "aerospike:ent-8.0.0").
 func isEnterpriseTag(image string) bool {
 	parts := strings.SplitN(image, ":", 2)
 	if len(parts) != 2 {
 		return false
 	}
 
-	return strings.HasPrefix(strings.ToLower(parts[1]), "ee-")
+	tagLower := strings.ToLower(parts[1])
+	return strings.HasPrefix(tagLower, "ee-") || strings.HasPrefix(tagLower, "ent-")
 }
 
 // hasVolumeForPath checks if any volume mounts to the given path.

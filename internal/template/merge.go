@@ -93,7 +93,8 @@ func mergeTemplateAerospikeConfig(base, override *asdbcev1alpha1.TemplateAerospi
 		return base.DeepCopy()
 	}
 
-	result := *base
+	// DeepCopy base to avoid sharing pointers for non-overridden fields.
+	result := *base.DeepCopy()
 
 	// Merge NamespaceDefaults: deep map merge.
 	if override.NamespaceDefaults != nil && len(override.NamespaceDefaults.Value) > 0 {
@@ -135,7 +136,8 @@ func mergeTemplateNetworkConfig(base, override *asdbcev1alpha1.TemplateNetworkCo
 		return base.DeepCopy()
 	}
 
-	result := *base
+	// DeepCopy base to avoid sharing pointers for non-overridden fields.
+	result := *base.DeepCopy()
 	if override.Heartbeat != nil {
 		hb := mergeTemplateHeartbeatConfig(base.Heartbeat, override.Heartbeat)
 		result.Heartbeat = hb
@@ -180,7 +182,9 @@ func mergeTemplateScheduling(base, override *asdbcev1alpha1.TemplateScheduling) 
 		return base.DeepCopy()
 	}
 
-	result := *base
+	// DeepCopy base to avoid sharing pointers (NodeAffinity, Tolerations, etc.)
+	// for non-overridden fields.
+	result := *base.DeepCopy()
 
 	if override.PodAntiAffinityLevel != "" {
 		result.PodAntiAffinityLevel = override.PodAntiAffinityLevel

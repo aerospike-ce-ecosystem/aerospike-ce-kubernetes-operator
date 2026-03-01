@@ -14,6 +14,9 @@ func AsinfoCommand(client *aero.Client, cmd string) (string, error) {
 	if len(nodes) == 0 {
 		return "", fmt.Errorf("no nodes available")
 	}
+	if nodes[0] == nil {
+		return "", fmt.Errorf("first node is nil")
+	}
 
 	policy := aero.NewInfoPolicy()
 	policy.Timeout = aeroInfoTimeout

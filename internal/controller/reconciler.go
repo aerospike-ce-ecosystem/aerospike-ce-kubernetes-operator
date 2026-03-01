@@ -233,19 +233,17 @@ func (r *AerospikeCEClusterReconciler) reconcileCluster(
 	}
 	if scalingUp {
 		if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseScalingUp, "Scaling up cluster"); err != nil {
-			if errors.IsConflict(err) {
-				log.V(1).Info("Conflict setting ScalingUp phase, continuing reconcile")
-			} else {
+			if !errors.IsConflict(err) {
 				return ctrl.Result{}, err
 			}
+			log.V(1).Info("Conflict setting ScalingUp phase, continuing reconcile")
 		}
 	} else if scalingDown {
 		if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseScalingDown, "Scaling down cluster"); err != nil {
-			if errors.IsConflict(err) {
-				log.V(1).Info("Conflict setting ScalingDown phase, continuing reconcile")
-			} else {
+			if !errors.IsConflict(err) {
 				return ctrl.Result{}, err
 			}
+			log.V(1).Info("Conflict setting ScalingDown phase, continuing reconcile")
 		}
 	}
 

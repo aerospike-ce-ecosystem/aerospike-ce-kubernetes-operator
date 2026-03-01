@@ -59,8 +59,6 @@ func (r *AerospikeCEClusterReconciler) handleDeletion(
 	}
 
 	controllerutil.RemoveFinalizer(latest, utils.StorageFinalizer)
-	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventFinalizerRemoved,
-		"Storage finalizer removed, cluster deletion proceeding")
 	if err := r.Update(ctx, latest); err != nil {
 		if errors.IsConflict(err) {
 			log.V(1).Info("Conflict removing finalizer, will requeue")
@@ -68,6 +66,8 @@ func (r *AerospikeCEClusterReconciler) handleDeletion(
 		}
 		return ctrl.Result{}, err
 	}
+	r.Recorder.Eventf(latest, corev1.EventTypeNormal, EventFinalizerRemoved,
+		"Storage finalizer removed, cluster deletion proceeding")
 
 	log.Info("Cluster deletion handled successfully")
 	return ctrl.Result{}, nil

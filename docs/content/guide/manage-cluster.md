@@ -670,10 +670,11 @@ kubectl get events --field-selector involvedObject.kind=AerospikeCECluster -n ae
 | `PodWarmRestarted` | Normal | Pod received SIGUSR1 (no downtime config reload) |
 | `PodColdRestarted` | Normal | Pod deleted and recreated for a full restart |
 | `RestartFailed` | Warning | Failed to restart a pod during rolling restart |
+| `LocalPVCDeleteFailed` | Warning | Local PVC deletion failed before cold restart |
 | `ConfigMapCreated` | Normal | Rack ConfigMap created for the first time |
 | `ConfigMapUpdated` | Normal | Rack ConfigMap updated with new configuration |
 | `DynamicConfigApplied` | Normal | Config changes applied to a pod without restart |
-| `DynamicConfigFailed` | Warning | Dynamic config status update failed |
+| `DynamicConfigStatusFailed` | Warning | Dynamic config status update failed |
 | `StatefulSetCreated` | Normal | Rack StatefulSet created for the first time |
 | `StatefulSetUpdated` | Normal | Rack StatefulSet spec updated |
 | `RackScaled` | Normal | Rack replica count changed; shows old and new counts |
@@ -691,3 +692,4 @@ kubectl get events --field-selector involvedObject.kind=AerospikeCECluster -n ae
 | `TemplateResolutionError` | Warning | Failed to resolve or apply a ClusterTemplate |
 | `ValidationWarning` | Warning | Non-blocking validation warning detected |
 | `ReconcileError` | Warning | Reconciliation loop encountered an unrecoverable error |
+| `Operation` | Normal | On-demand operation event |

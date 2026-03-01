@@ -15,7 +15,7 @@ const (
 	EventConfigMapCreated     = "ConfigMapCreated"
 	EventConfigMapUpdated     = "ConfigMapUpdated"
 	EventDynamicConfigApplied = "DynamicConfigApplied"
-	EventDynamicConfigFailed  = "DynamicConfigFailed"
+	EventDynamicConfigFailed  = "DynamicConfigStatusFailed"
 
 	// StatefulSet / Rack management
 	EventStatefulSetCreated = "StatefulSetCreated"

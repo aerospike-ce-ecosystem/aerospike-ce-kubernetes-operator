@@ -150,6 +150,11 @@ func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
 		restarted++
 	}
 
+	if restarted > 0 {
+		r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventRollingRestartCompleted,
+			"Rolling restart completed for rack %d", rack.ID)
+	}
+
 	return restarted > 0, nil
 }
 

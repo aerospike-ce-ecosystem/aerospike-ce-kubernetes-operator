@@ -14888,7 +14888,6 @@ spec:
                     - ScalingUp
                     - ScalingDown
                     - RollingRestart
-                    - ConfigUpdate
                     - ACLSync
                     - Paused
                     - Deleting
@@ -14903,7 +14902,6 @@ spec:
                 - ScalingUp
                 - ScalingDown
                 - RollingRestart
-                - ConfigUpdate
                 - ACLSync
                 - Paused
                 - Deleting

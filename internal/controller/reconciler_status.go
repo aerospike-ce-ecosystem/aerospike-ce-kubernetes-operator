@@ -39,7 +39,7 @@ func (r *AerospikeCEClusterReconciler) updateStatusAndPhase(
 	namespacedName types.NamespacedName,
 	phase asdbcev1alpha1.AerospikePhase,
 	phaseReason string,
-	opts ...StatusUpdateOpts,
+	opts StatusUpdateOpts,
 ) error {
 	log := logf.FromContext(ctx)
 
@@ -49,11 +49,12 @@ func (r *AerospikeCEClusterReconciler) updateStatusAndPhase(
 		return err
 	}
 
-	// Capture the previous state for comparison.
+	// Capture the previous state for comparison (before populateStatus modifies it).
 	prevPhase := latest.Status.Phase
 	prevPhaseReason := latest.Status.PhaseReason
 	prevSize := latest.Status.Size
 	prevGeneration := latest.Status.ObservedGeneration
+	prevConditions := conditionsSnapshot(latest.Status.Conditions)
 
 	readyCount, err := r.populateStatus(ctx, latest)
 	if err != nil {
@@ -62,19 +63,16 @@ func (r *AerospikeCEClusterReconciler) updateStatusAndPhase(
 	latest.Status.Phase = phase
 	latest.Status.PhaseReason = phaseReason
 
-	// Apply fine-grained conditions from opts.
-	var o StatusUpdateOpts
-	if len(opts) > 0 {
-		o = opts[0]
-	}
-	setFineGrainedConditions(latest, o)
+	// Apply fine-grained conditions.
+	setFineGrainedConditions(latest, opts)
 
 	// Skip the update if nothing meaningful changed to avoid
 	// triggering a reconciliation feedback loop via the watch.
 	if prevPhase == phase &&
 		prevPhaseReason == phaseReason &&
 		prevSize == readyCount &&
-		prevGeneration == latest.Generation {
+		prevGeneration == latest.Generation &&
+		!conditionsChanged(prevConditions, latest.Status.Conditions) {
 		log.V(1).Info("Status unchanged, skipping update",
 			"readyPods", readyCount, "desiredSize", latest.Spec.Size, "phase", phase)
 		return nil
@@ -82,8 +80,12 @@ func (r *AerospikeCEClusterReconciler) updateStatusAndPhase(
 
 	log.Info("Updating status", "readyPods", readyCount, "desiredSize", latest.Spec.Size, "phase", phase, "phaseReason", phaseReason)
 
-	// Enrich pod status with per-node Aerospike info when transitioning to Completed.
+	// On successful completion: record the full applied spec and refresh per-node info.
 	if phase == asdbcev1alpha1.AerospikePhaseCompleted {
+		// AppliedSpec records the last successfully reconciled spec for drift detection.
+		latest.Status.AppliedSpec = latest.Spec.DeepCopy()
+
+		// Enrich pod status with per-node Aerospike info (NodeID, ClusterName, endpoints).
 		if aeroInfoMap := r.collectAerospikeInfo(ctx, latest); aeroInfoMap != nil {
 			for podName, info := range aeroInfoMap {
 				if ps, ok := latest.Status.Pods[podName]; ok {
@@ -164,6 +166,16 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 			// else: pod is ready → init container completed wipe → clear dirty volumes
 		}
 
+		// Preserve Aerospike node info from previous status.
+		// These fields are refreshed via collectAerospikeInfo only when phase == Completed.
+		var nodeID, clusterName string
+		var accessEndpoints []string
+		if prev, exists := cluster.Status.Pods[pod.Name]; exists {
+			nodeID = prev.NodeID
+			clusterName = prev.ClusterName
+			accessEndpoints = prev.AccessEndpoints
+		}
+
 		podStatuses[pod.Name] = asdbcev1alpha1.AerospikePodStatus{
 			PodIP:             pod.Status.PodIP,
 			HostIP:            pod.Status.HostIP,
@@ -174,6 +186,9 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 			ConfigHash:        configHash,
 			PodSpecHash:       podSpecHash,
 			DirtyVolumes:      dirtyVolumes,
+			NodeID:            nodeID,
+			ClusterName:       clusterName,
+			AccessEndpoints:   accessEndpoints,
 		}
 	}
 
@@ -181,7 +196,6 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 	cluster.Status.Size = readyCount
 	cluster.Status.ObservedGeneration = cluster.Generation
 	cluster.Status.AerospikeConfig = cluster.Spec.AerospikeConfig
-	cluster.Status.AppliedSpec = cluster.Spec.DeepCopy()
 
 	// Build selector string for HPA
 	selectorLabels := utils.SelectorLabelsForCluster(cluster.Name)
@@ -191,27 +205,9 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 	}
 	cluster.Status.Selector = strings.Join(selectorParts, ",")
 
-	// Update conditions
+	// Update base conditions (Available, Ready).
 	setCondition(cluster, asdbcev1alpha1.ConditionAvailable, readyCount > 0, "ClusterAvailable", "At least one pod is ready")
 	setCondition(cluster, asdbcev1alpha1.ConditionReady, readyCount == cluster.Spec.Size, "AllPodsReady", fmt.Sprintf("%d/%d pods ready", readyCount, cluster.Spec.Size))
-
-	// ConfigApplied: true when all pods carry the same config hash as the desired config.
-	desiredConfigHash := configHash(cluster.Spec.AerospikeConfig)
-	allConfigApplied := len(podStatuses) > 0
-	for _, ps := range podStatuses {
-		if ps.ConfigHash != desiredConfigHash {
-			allConfigApplied = false
-			break
-		}
-	}
-	if len(podStatuses) == 0 {
-		allConfigApplied = false
-	}
-	if allConfigApplied {
-		setCondition(cluster, asdbcev1alpha1.ConditionConfigApplied, true, "ConfigApplied", "All pods have the desired Aerospike configuration")
-	} else {
-		setCondition(cluster, asdbcev1alpha1.ConditionConfigApplied, false, "ConfigPending", "One or more pods do not yet have the desired configuration")
-	}
 
 	return readyCount, nil
 }
@@ -255,9 +251,27 @@ func setCondition(cluster *asdbcev1alpha1.AerospikeCECluster, condType string, s
 	cluster.Status.Conditions = append(cluster.Status.Conditions, newCond)
 }
 
-// setFineGrainedConditions sets additional status conditions based on StatusUpdateOpts.
+// setFineGrainedConditions sets all fine-grained status conditions:
+// ConfigApplied, ReconciliationPaused, ACLSynced, MigrationComplete.
 // Called from updateStatusAndPhase after populateStatus.
 func setFineGrainedConditions(cluster *asdbcev1alpha1.AerospikeCECluster, o StatusUpdateOpts) {
+	// ConfigApplied: true when all pods carry the same config hash as the desired config.
+	desiredHash := configHash(cluster.Spec.AerospikeConfig)
+	allConfigApplied := len(cluster.Status.Pods) > 0
+	for _, ps := range cluster.Status.Pods {
+		if ps.ConfigHash != desiredHash {
+			allConfigApplied = false
+			break
+		}
+	}
+	if allConfigApplied {
+		setCondition(cluster, asdbcev1alpha1.ConditionConfigApplied, true,
+			"ConfigApplied", "All pods have the desired Aerospike configuration")
+	} else {
+		setCondition(cluster, asdbcev1alpha1.ConditionConfigApplied, false,
+			"ConfigPending", "One or more pods do not yet have the desired configuration")
+	}
+
 	// ReconciliationPaused
 	setCondition(cluster, asdbcev1alpha1.ConditionReconciliationPaused, o.Paused,
 		"ReconciliationPaused", "Reconciliation is paused by user (spec.paused=true)")
@@ -276,6 +290,29 @@ func setFineGrainedConditions(cluster *asdbcev1alpha1.AerospikeCECluster, o Stat
 	// MigrationComplete — False while rolling restart is in progress
 	setCondition(cluster, asdbcev1alpha1.ConditionMigrationComplete, !o.RestartInProgress,
 		"MigrationComplete", "No pending data migrations")
+}
+
+// conditionsSnapshot returns a map of condition Type → Status for skip-check comparison.
+func conditionsSnapshot(conds []metav1.Condition) map[string]metav1.ConditionStatus {
+	m := make(map[string]metav1.ConditionStatus, len(conds))
+	for _, c := range conds {
+		m[c.Type] = c.Status
+	}
+	return m
+}
+
+// conditionsChanged returns true if any condition type or status differs between
+// the snapshot taken before populateStatus and the current slice after all updates.
+func conditionsChanged(prev map[string]metav1.ConditionStatus, cur []metav1.Condition) bool {
+	if len(prev) != len(cur) {
+		return true
+	}
+	for _, c := range cur {
+		if s, ok := prev[c.Type]; !ok || s != c.Status {
+			return true
+		}
+	}
+	return false
 }
 
 // aeroPodInfo holds per-node Aerospike information collected via asinfo commands.

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -211,6 +212,162 @@ func TestSetCondition(t *testing.T) {
 
 		if cluster.Status.Conditions[0].Status != metav1.ConditionFalse {
 			t.Errorf("condition status = %q, want %q", cluster.Status.Conditions[0].Status, metav1.ConditionFalse)
+		}
+	})
+}
+
+func TestParseServiceEndpoints(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{
+			name:  "empty string returns nil",
+			input: "",
+			want:  nil,
+		},
+		{
+			name:  "whitespace-only string returns nil",
+			input: "   ",
+			want:  nil,
+		},
+		{
+			name:  "single endpoint",
+			input: "1.2.3.4:3000",
+			want:  []string{"1.2.3.4:3000"},
+		},
+		{
+			name:  "multiple endpoints separated by semicolons",
+			input: "1.2.3.4:3000;5.6.7.8:3000;9.10.11.12:3000",
+			want:  []string{"1.2.3.4:3000", "5.6.7.8:3000", "9.10.11.12:3000"},
+		},
+		{
+			name:  "endpoints with surrounding whitespace are trimmed",
+			input: " 1.2.3.4:3000 ; 5.6.7.8:3000 ",
+			want:  []string{"1.2.3.4:3000", "5.6.7.8:3000"},
+		},
+		{
+			name:  "trailing semicolon is ignored",
+			input: "1.2.3.4:3000;",
+			want:  []string{"1.2.3.4:3000"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := parseServiceEndpoints(tc.input)
+			if len(got) != len(tc.want) {
+				t.Fatalf("parseServiceEndpoints(%q) = %v (len %d), want %v (len %d)",
+					tc.input, got, len(got), tc.want, len(tc.want))
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Errorf("parseServiceEndpoints(%q)[%d] = %q, want %q", tc.input, i, got[i], tc.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestSetFineGrainedConditions(t *testing.T) {
+	findCondition := func(cluster *asdbcev1alpha1.AerospikeCECluster, condType string) *metav1.Condition {
+		for i := range cluster.Status.Conditions {
+			if cluster.Status.Conditions[i].Type == condType {
+				return &cluster.Status.Conditions[i]
+			}
+		}
+		return nil
+	}
+
+	t.Run("Paused=true sets ReconciliationPaused=True", func(t *testing.T) {
+		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+		setFineGrainedConditions(cluster, StatusUpdateOpts{Paused: true})
+
+		cond := findCondition(cluster, asdbcev1alpha1.ConditionReconciliationPaused)
+		if cond == nil {
+			t.Fatal("ReconciliationPaused condition not found")
+		}
+		if cond.Status != metav1.ConditionTrue {
+			t.Errorf("ReconciliationPaused = %q, want True", cond.Status)
+		}
+	})
+
+	t.Run("Paused=false sets ReconciliationPaused=False", func(t *testing.T) {
+		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+		setFineGrainedConditions(cluster, StatusUpdateOpts{Paused: false})
+
+		cond := findCondition(cluster, asdbcev1alpha1.ConditionReconciliationPaused)
+		if cond == nil {
+			t.Fatal("ReconciliationPaused condition not found")
+		}
+		if cond.Status != metav1.ConditionFalse {
+			t.Errorf("ReconciliationPaused = %q, want False", cond.Status)
+		}
+	})
+
+	t.Run("ACL spec nil: ACLSynced condition is not set", func(t *testing.T) {
+		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+		// AerospikeAccessControl is nil by default
+		setFineGrainedConditions(cluster, StatusUpdateOpts{})
+
+		cond := findCondition(cluster, asdbcev1alpha1.ConditionACLSynced)
+		if cond != nil {
+			t.Errorf("ACLSynced should not be set when ACL spec is nil, got %q", cond.Status)
+		}
+	})
+
+	t.Run("ACL spec set and ACLErr nil: ACLSynced=True", func(t *testing.T) {
+		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+		cluster.Spec.AerospikeAccessControl = &asdbcev1alpha1.AerospikeAccessControlSpec{}
+		setFineGrainedConditions(cluster, StatusUpdateOpts{ACLErr: nil})
+
+		cond := findCondition(cluster, asdbcev1alpha1.ConditionACLSynced)
+		if cond == nil {
+			t.Fatal("ACLSynced condition not found")
+		}
+		if cond.Status != metav1.ConditionTrue {
+			t.Errorf("ACLSynced = %q, want True", cond.Status)
+		}
+	})
+
+	t.Run("ACL spec set and ACLErr non-nil: ACLSynced=False", func(t *testing.T) {
+		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+		cluster.Spec.AerospikeAccessControl = &asdbcev1alpha1.AerospikeAccessControlSpec{}
+		setFineGrainedConditions(cluster, StatusUpdateOpts{ACLErr: errors.New("acl sync failed")})
+
+		cond := findCondition(cluster, asdbcev1alpha1.ConditionACLSynced)
+		if cond == nil {
+			t.Fatal("ACLSynced condition not found")
+		}
+		if cond.Status != metav1.ConditionFalse {
+			t.Errorf("ACLSynced = %q, want False", cond.Status)
+		}
+	})
+
+	t.Run("RestartInProgress=true sets MigrationComplete=False", func(t *testing.T) {
+		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+		setFineGrainedConditions(cluster, StatusUpdateOpts{RestartInProgress: true})
+
+		cond := findCondition(cluster, asdbcev1alpha1.ConditionMigrationComplete)
+		if cond == nil {
+			t.Fatal("MigrationComplete condition not found")
+		}
+		if cond.Status != metav1.ConditionFalse {
+			t.Errorf("MigrationComplete = %q, want False", cond.Status)
+		}
+	})
+
+	t.Run("RestartInProgress=false sets MigrationComplete=True", func(t *testing.T) {
+		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+		setFineGrainedConditions(cluster, StatusUpdateOpts{RestartInProgress: false})
+
+		cond := findCondition(cluster, asdbcev1alpha1.ConditionMigrationComplete)
+		if cond == nil {
+			t.Fatal("MigrationComplete condition not found")
+		}
+		if cond.Status != metav1.ConditionTrue {
+			t.Errorf("MigrationComplete = %q, want True", cond.Status)
 		}
 	})
 }

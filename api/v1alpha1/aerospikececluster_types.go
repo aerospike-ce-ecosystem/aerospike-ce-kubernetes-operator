@@ -288,7 +288,7 @@ const (
 )
 
 // AerospikePhase represents the current phase of the cluster.
-// +kubebuilder:validation:Enum=InProgress;Completed;Error;ScalingUp;ScalingDown;RollingRestart;ConfigUpdate;ACLSync;Paused;Deleting
+// +kubebuilder:validation:Enum=InProgress;Completed;Error;ScalingUp;ScalingDown;RollingRestart;ACLSync;Paused;Deleting
 type AerospikePhase string
 
 const (
@@ -304,8 +304,6 @@ const (
 	AerospikePhaseScalingDown AerospikePhase = "ScalingDown"
 	// AerospikePhaseRollingRestart indicates a rolling restart is in progress.
 	AerospikePhaseRollingRestart AerospikePhase = "RollingRestart"
-	// AerospikePhaseConfigUpdate indicates a dynamic configuration update is in progress.
-	AerospikePhaseConfigUpdate AerospikePhase = "ConfigUpdate"
 	// AerospikePhaseACLSync indicates ACL roles and users are being synchronized.
 	AerospikePhaseACLSync AerospikePhase = "ACLSync"
 	// AerospikePhasePaused indicates reconciliation is paused by the user.

@@ -224,6 +224,9 @@ func resolveIntOrPercent(val *intstr.IntOrString, total int32) int32 {
 // detectScaling checks each rack's current StatefulSet replicas against the
 // desired rack size and returns whether a scale-up or scale-down is needed.
 // Returns (scalingUp, scalingDown, error). Both can be false if no scaling is needed.
+// If racks are simultaneously scaling in opposite directions (one rack up, another
+// down), both flags can be true. The caller uses else-if so ScalingUp takes
+// precedence in the phase display when both are true.
 func (r *AerospikeCEClusterReconciler) detectScaling(
 	ctx context.Context,
 	cluster *asdbcev1alpha1.AerospikeCECluster,

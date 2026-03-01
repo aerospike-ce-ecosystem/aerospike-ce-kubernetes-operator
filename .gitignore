@@ -37,3 +37,6 @@ docs/node_modules/
 docs/build/
 docs/.docusaurus/
 docs/.cache-loader/
+
+# Claude Code agent worktrees (temporary, not to be committed)
+.claude/worktrees/

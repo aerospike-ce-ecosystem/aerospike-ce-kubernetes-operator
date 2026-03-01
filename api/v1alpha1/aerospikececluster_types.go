@@ -271,17 +271,45 @@ type AerospikeCEClusterSpec struct {
 	EnableRackIDOverride *bool `json:"enableRackIDOverride,omitempty"`
 }
 
+// Condition type constants for AerospikeCECluster status conditions.
+const (
+	// ConditionAvailable indicates at least one pod is ready to serve requests.
+	ConditionAvailable = "Available"
+	// ConditionReady indicates all desired pods are running and ready.
+	ConditionReady = "Ready"
+	// ConditionConfigApplied indicates all pods have the desired Aerospike configuration.
+	ConditionConfigApplied = "ConfigApplied"
+	// ConditionACLSynced indicates ACL roles and users are synchronized with the cluster.
+	ConditionACLSynced = "ACLSynced"
+	// ConditionMigrationComplete indicates no data migrations are pending.
+	ConditionMigrationComplete = "MigrationComplete"
+	// ConditionReconciliationPaused indicates reconciliation is paused by the user.
+	ConditionReconciliationPaused = "ReconciliationPaused"
+)
+
 // AerospikePhase represents the current phase of the cluster.
-// +kubebuilder:validation:Enum=InProgress;Completed;Error
+// +kubebuilder:validation:Enum=InProgress;Completed;Error;ScalingUp;ScalingDown;RollingRestart;ACLSync;Paused;Deleting
 type AerospikePhase string
 
 const (
-	// AerospikePhaseInProgress indicates reconciliation is actively in progress.
+	// AerospikePhaseInProgress indicates reconciliation is actively in progress (generic).
 	AerospikePhaseInProgress AerospikePhase = "InProgress"
 	// AerospikePhaseCompleted indicates the cluster has reached the desired state.
 	AerospikePhaseCompleted AerospikePhase = "Completed"
 	// AerospikePhaseError indicates an unrecoverable error during reconciliation.
 	AerospikePhaseError AerospikePhase = "Error"
+	// AerospikePhaseScalingUp indicates the cluster is scaling up (adding pods).
+	AerospikePhaseScalingUp AerospikePhase = "ScalingUp"
+	// AerospikePhaseScalingDown indicates the cluster is scaling down (removing pods).
+	AerospikePhaseScalingDown AerospikePhase = "ScalingDown"
+	// AerospikePhaseRollingRestart indicates a rolling restart is in progress.
+	AerospikePhaseRollingRestart AerospikePhase = "RollingRestart"
+	// AerospikePhaseACLSync indicates ACL roles and users are being synchronized.
+	AerospikePhaseACLSync AerospikePhase = "ACLSync"
+	// AerospikePhasePaused indicates reconciliation is paused by the user.
+	AerospikePhasePaused AerospikePhase = "Paused"
+	// AerospikePhaseDeleting indicates the cluster is being deleted.
+	AerospikePhaseDeleting AerospikePhase = "Deleting"
 )
 
 // AerospikeCEClusterStatus defines the observed state of the Aerospike CE cluster.
@@ -320,6 +348,16 @@ type AerospikeCEClusterStatus struct {
 	// OperationStatus tracks the current on-demand operation status.
 	// +optional
 	OperationStatus *OperationStatus `json:"operationStatus,omitempty"`
+
+	// PhaseReason provides a human-readable explanation of the current phase.
+	// Examples: "Rolling restart in progress for rack 1", "Scaling up rack 2 from 2 to 3 pods".
+	// +optional
+	PhaseReason string `json:"phaseReason,omitempty"`
+
+	// AppliedSpec is a copy of the last successfully reconciled spec.
+	// Use this to detect configuration drift or compare against the current spec.
+	// +optional
+	AppliedSpec *AerospikeCEClusterSpec `json:"appliedSpec,omitempty"`
 }
 
 // AerospikePodStatus holds per-pod status information.
@@ -349,6 +387,20 @@ type AerospikePodStatus struct {
 	DynamicConfigStatus string `json:"dynamicConfigStatus,omitempty"`
 	// DirtyVolumes lists volumes that need initialization or cleanup.
 	DirtyVolumes []string `json:"dirtyVolumes,omitempty"`
+
+	// NodeID is the Aerospike-assigned node identifier (e.g. "BB9020012AC4202").
+	// Populated by querying the node via asinfo; empty if the node is unreachable.
+	// +optional
+	NodeID string `json:"nodeID,omitempty"`
+
+	// ClusterName is the Aerospike cluster name as reported by the node.
+	// +optional
+	ClusterName string `json:"clusterName,omitempty"`
+
+	// AccessEndpoints are the network endpoints (host:port) for direct client access.
+	// Populated via the asinfo "service" command.
+	// +optional
+	AccessEndpoints []string `json:"accessEndpoints,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -361,6 +413,7 @@ type AerospikePodStatus struct {
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 // +kubebuilder:printcolumn:name="Image",type=string,JSONPath=`.spec.image`,priority=1
 // +kubebuilder:printcolumn:name="ObservedGen",type=integer,JSONPath=`.status.observedGeneration`,priority=1
+// +kubebuilder:printcolumn:name="PhaseReason",type=string,JSONPath=`.status.phaseReason`,priority=1
 
 // AerospikeCECluster is the Schema for the aerospikececlusters API.
 // It manages the lifecycle of an Aerospike Community Edition cluster.

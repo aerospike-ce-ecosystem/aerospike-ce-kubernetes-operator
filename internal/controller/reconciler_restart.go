@@ -139,6 +139,8 @@ func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
 
 		// 2. Restart pod (warm or cold)
 		if err := r.restartPod(ctx, cluster, pod, sts, desiredHash); err != nil {
+			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "RestartFailed",
+				"Failed to restart pod %s: %v", pod.Name, err)
 			return false, err
 		}
 
@@ -174,6 +176,8 @@ func (r *AerospikeCEClusterReconciler) restartPod(
 		log.Error(err, "Failed to update pod config hash after warm restart", "pod", pod.Name)
 	}
 	metrics.WarmRestartsTotal.WithLabelValues(cluster.Namespace, cluster.Name).Inc()
+	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, "PodWarmRestarted",
+		"Pod %s warm-restarted (SIGUSR1)", pod.Name)
 	return nil
 }
 
@@ -228,6 +232,8 @@ func (r *AerospikeCEClusterReconciler) coldRestartPod(
 		return err
 	}
 	metrics.ColdRestartsTotal.WithLabelValues(cluster.Namespace, cluster.Name).Inc()
+	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, "PodColdRestarted",
+		"Pod %s deleted for cold restart", pod.Name)
 	return nil
 }
 

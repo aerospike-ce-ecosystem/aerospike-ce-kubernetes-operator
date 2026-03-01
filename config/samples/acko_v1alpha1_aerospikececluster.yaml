@@ -35,7 +35,7 @@ spec:
         replication-factor: 1  # Single node, so replication-factor must be 1
         storage-engine:
           type: memory  # Pure in-memory storage (data lost on pod restart)
-          data-size: 1073741824  # 1 GiB of memory allocated for this namespace
+          memory-size: 1073741824  # 1 GiB of memory allocated for this namespace
 
     # Logging configuration.
     logging:

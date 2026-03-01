@@ -71,6 +71,8 @@ func (r *AerospikeCEClusterReconciler) reconcileStatefulSet(
 		if err := r.Create(ctx, sts); err != nil {
 			return fmt.Errorf("creating StatefulSet %s: %w", stsName, err)
 		}
+		r.Recorder.Eventf(cluster, corev1.EventTypeNormal, "StatefulSetCreated",
+			"StatefulSet %s created: replicas=%d", stsName, rackSize)
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("getting StatefulSet %s: %w", stsName, err)
@@ -110,6 +112,8 @@ func (r *AerospikeCEClusterReconciler) reconcileStatefulSet(
 	if err := r.Update(ctx, existing); err != nil {
 		return fmt.Errorf("updating StatefulSet %s: %w", stsName, err)
 	}
+	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, "StatefulSetUpdated",
+		"StatefulSet %s updated: replicas=%d", stsName, targetReplicas)
 
 	// Cleanup orphaned PVCs after StatefulSet update so pods terminate first.
 	if scaleDown {

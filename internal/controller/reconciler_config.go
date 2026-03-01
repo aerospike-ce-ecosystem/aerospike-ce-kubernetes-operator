@@ -136,6 +136,8 @@ func (r *AerospikeCEClusterReconciler) reconcileConfigMap(
 	if err := r.Update(ctx, existing); err != nil {
 		return fmt.Errorf("updating ConfigMap %s: %w", cmName, err)
 	}
+	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, "ConfigMapUpdated",
+		"ConfigMap %s updated with new configuration", cmName)
 	return nil
 }
 

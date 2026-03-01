@@ -4,4 +4,10 @@ resources:
 - acko_v1alpha1_template_dev.yaml
 - acko_v1alpha1_template_stage.yaml
 - acko_v1alpha1_template_prod.yaml
+- aerospike-ce-cluster-3node.yaml
+- aerospike-ce-cluster-acl.yaml
+- aerospike-ce-cluster-multirack.yaml
+- aerospike-ce-cluster-monitoring.yaml
+- aerospike-ce-cluster-storage-advanced.yaml
+- aerospike-ce-cluster-with-template.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples

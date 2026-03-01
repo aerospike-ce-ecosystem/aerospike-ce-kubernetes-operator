@@ -191,17 +191,16 @@ func (v *AerospikeCEClusterValidator) ValidateUpdate(ctx context.Context, oldClu
 	// Don't allow changing operations while one is InProgress
 	if oldCluster.Status.OperationStatus != nil &&
 		oldCluster.Status.OperationStatus.Phase == AerospikePhaseInProgress {
-		// Check if operations changed
-		oldOpID := ""
-		newOpID := ""
-		if len(oldCluster.Spec.Operations) > 0 {
-			oldOpID = oldCluster.Spec.Operations[0].ID
+		oldOps := oldCluster.Spec.Operations
+		newOps := cluster.Spec.Operations
+		// Block if operation list changed (added, removed, or replaced)
+		if len(oldOps) != len(newOps) {
+			return nil, fmt.Errorf("cannot change operations while operation %q is InProgress", oldCluster.Status.OperationStatus.ID)
 		}
-		if len(cluster.Spec.Operations) > 0 {
-			newOpID = cluster.Spec.Operations[0].ID
-		}
-		if oldOpID != newOpID {
-			return nil, fmt.Errorf("cannot change operations while operation %q is InProgress", oldOpID)
+		for i := range oldOps {
+			if oldOps[i].ID != newOps[i].ID || oldOps[i].Kind != newOps[i].Kind {
+				return nil, fmt.Errorf("cannot change operations while operation %q is InProgress", oldCluster.Status.OperationStatus.ID)
+			}
 		}
 	}
 
@@ -326,6 +325,11 @@ func (v *AerospikeCEClusterValidator) validate(cluster *AerospikeCECluster) (adm
 	warnings = append(warnings, v.validateMaxUnavailable(cluster)...)
 	if len(cluster.Spec.Operations) > 0 {
 		allErrors = append(allErrors, v.validateOperations(cluster.Spec.Operations)...)
+	}
+
+	// Validate overrides requires templateRef
+	if cluster.Spec.Overrides != nil && cluster.Spec.TemplateRef == nil {
+		allErrors = append(allErrors, "spec.overrides can only be set when spec.templateRef is specified")
 	}
 
 	if len(allErrors) > 0 {
@@ -489,7 +493,7 @@ func (v *AerospikeCEClusterValidator) validateAccessControl(acl *AerospikeAccess
 	}
 
 	if !hasAdmin {
-		errors = append(errors, "aerospikeAccessControl must have at least one user with both 'sys-admin' and 'user-admin' roles")
+		errors = append(errors, "aerospikeAccessControl must have at least one user with both 'sys-admin' and 'user-admin' roles (required for operator-managed cluster administration)")
 	}
 
 	// Validate that users reference only built-in or explicitly defined roles
@@ -507,7 +511,19 @@ func (v *AerospikeCEClusterValidator) validateAccessControl(acl *AerospikeAccess
 
 	// Validate privilege codes in role definitions
 	for _, role := range acl.Roles {
-		for _, privStr := range role.Privileges {
+		for i, privStr := range role.Privileges {
+			trimmed := strings.TrimSpace(privStr)
+			if trimmed == "" {
+				errors = append(errors, fmt.Sprintf("role %q privileges[%d]: privilege string must not be empty or whitespace-only", role.Name, i))
+				continue
+			}
+			// Reject strings with leading/trailing whitespace: the original value is
+			// stored as-is, so " read-write" would be sent to Aerospike verbatim and
+			// rejected at runtime even though it looks valid after trimming.
+			if privStr != trimmed {
+				errors = append(errors, fmt.Sprintf("role %q privileges[%d]: privilege string %q must not have leading or trailing whitespace", role.Name, i, privStr))
+				continue
+			}
 			// Format: "<code>" or "<code>.<namespace>" or "<code>.<namespace>.<set>"
 			code := strings.SplitN(privStr, ".", 2)[0]
 			if !aerospikeCEBuiltinRoles[code] {

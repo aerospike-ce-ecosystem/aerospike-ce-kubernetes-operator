@@ -6014,8 +6014,10 @@ spec:
                     description: |-
                       Namespaces lists Aerospike namespace names that are rack-aware.
                       If empty, all namespaces use the default replication factor.
+                      CE supports a maximum of 2 namespaces.
                     items:
                       type: string
+                    maxItems: 2
                     type: array
                   racks:
                     description: Racks is the list of rack definitions.
@@ -14183,8 +14185,10 @@ spec:
                         description: |-
                           Namespaces lists Aerospike namespace names that are rack-aware.
                           If empty, all namespaces use the default replication factor.
+                          CE supports a maximum of 2 namespaces.
                         items:
                           type: string
+                        maxItems: 2
                         type: array
                       racks:
                         description: Racks is the list of rack definitions.

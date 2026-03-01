@@ -29,6 +29,8 @@ type RackConfig struct {
 
 	// Namespaces lists Aerospike namespace names that are rack-aware.
 	// If empty, all namespaces use the default replication factor.
+	// CE supports a maximum of 2 namespaces.
+	// +kubebuilder:validation:MaxItems=2
 	// +optional
 	Namespaces []string `json:"namespaces,omitempty"`
 

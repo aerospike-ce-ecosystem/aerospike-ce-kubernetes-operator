@@ -15,7 +15,10 @@ RUN go mod download
 COPY . .
 
 # Build for the target platform
-RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o manager cmd/main.go
+ARG VERSION=unknown
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build \
+    -ldflags "-X github.com/ksr/aerospike-ce-kubernetes-operator/internal/version.Version=${VERSION}" \
+    -a -o manager cmd/main.go
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details

@@ -298,6 +298,15 @@ func (in *AerospikeCEClusterStatus) DeepCopyInto(out *AerospikeCEClusterStatus) 
 		*out = new(AerospikeCEClusterSpec)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.PendingRestartPods != nil {
+		in, out := &in.PendingRestartPods, &out.PendingRestartPods
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	if in.LastReconcileTime != nil {
+		in, out := &in.LastReconcileTime, &out.LastReconcileTime
+		*out = (*in).DeepCopy()
+	}
 	if in.TemplateSnapshot != nil {
 		in, out := &in.TemplateSnapshot, &out.TemplateSnapshot
 		*out = new(TemplateSnapshotStatus)
@@ -752,6 +761,19 @@ func (in *AerospikePodStatus) DeepCopyInto(out *AerospikePodStatus) {
 		in, out := &in.AccessEndpoints, &out.AccessEndpoints
 		*out = make([]string, len(*in))
 		copy(*out, *in)
+	}
+	if in.LastRestartReason != nil {
+		in, out := &in.LastRestartReason, &out.LastRestartReason
+		*out = new(RestartReason)
+		**out = **in
+	}
+	if in.LastRestartTime != nil {
+		in, out := &in.LastRestartTime, &out.LastRestartTime
+		*out = (*in).DeepCopy()
+	}
+	if in.UnstableSince != nil {
+		in, out := &in.UnstableSince, &out.UnstableSince
+		*out = (*in).DeepCopy()
 	}
 }
 

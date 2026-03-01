@@ -263,7 +263,7 @@ var _ = Describe("reconcileMonitoring", func() {
 	})
 
 	Describe("defaultAlertRules", func() {
-		It("should generate 4 default alert rules", func() {
+		It("should generate 6 default alert rules", func() {
 			rules := defaultAlertRules("my-cluster", "default")
 			Expect(rules).To(HaveLen(1)) // one group
 
@@ -273,7 +273,7 @@ var _ = Describe("reconcileMonitoring", func() {
 
 			rulesList, ok := group["rules"].([]any)
 			Expect(ok).To(BeTrue())
-			Expect(rulesList).To(HaveLen(4))
+			Expect(rulesList).To(HaveLen(6))
 
 			// Verify rule names
 			expectedAlerts := []string{
@@ -281,6 +281,8 @@ var _ = Describe("reconcileMonitoring", func() {
 				"AerospikeNamespaceStopWrites",
 				"AerospikeHighDiskUsage",
 				"AerospikeHighMemoryUsage",
+				"AerospikeReconcileStale",
+				"AerospikeClusterSizeMismatch",
 			}
 			for i, rule := range rulesList {
 				r, ok := rule.(map[string]any)

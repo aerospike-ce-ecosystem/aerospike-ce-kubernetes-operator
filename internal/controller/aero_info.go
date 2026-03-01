@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	aero "github.com/aerospike/aerospike-client-go/v8"
@@ -62,4 +63,18 @@ func IsMigrating(client *aero.Client) (bool, error) {
 func Recluster(client *aero.Client) error {
 	_, err := AsinfoCommand(client, "recluster:")
 	return err
+}
+
+// ClusterSize returns the number of nodes in the Aerospike cluster as reported by asinfo.
+// Returns 0 and an error if the cluster is unreachable or the response cannot be parsed.
+func ClusterSize(client *aero.Client) (int, error) {
+	result, err := AsinfoCommand(client, "cluster-size:")
+	if err != nil {
+		return 0, err
+	}
+	size, err := strconv.Atoi(strings.TrimSpace(result))
+	if err != nil {
+		return 0, fmt.Errorf("parsing cluster-size response %q: %w", result, err)
+	}
+	return size, nil
 }

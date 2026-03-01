@@ -1,4 +1,7 @@
 {{- if .Values.ui.enabled }}
+{{- if and .Values.ui.autoscaling.enabled .Values.ui.postgresql.enabled }}
+{{- fail "ui.autoscaling.enabled and ui.postgresql.enabled cannot both be true. The embedded PostgreSQL sidecar is single-instance only. Disable ui.postgresql.enabled and provide ui.env.databaseUrl for an external database when using HPA." }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -56,7 +59,7 @@ spec:
             - configMapRef:
                 name: {{ include "aerospike-operator.ui.fullname" . }}-config
             - secretRef:
-                name: {{ include "aerospike-operator.ui.fullname" . }}-db
+                name: {{ .Values.ui.postgresql.existingSecret | default (printf "%s-db" (include "aerospike-operator.ui.fullname" .)) }}
           {{- with .Values.ui.extraEnv }}
           env:
             {{- toYaml . | nindent 12 }}
@@ -97,7 +100,7 @@ spec:
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "aerospike-operator.ui.fullname" . }}-db
+                  name: {{ .Values.ui.postgresql.existingSecret | default (printf "%s-db" (include "aerospike-operator.ui.fullname" .)) }}
                   key: POSTGRES_PASSWORD
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
@@ -124,6 +127,8 @@ spec:
             periodSeconds: 20
             timeoutSeconds: 5
           securityContext:
+            runAsUser: 70
+            runAsGroup: 70
             allowPrivilegeEscalation: false
             capabilities:
               drop:

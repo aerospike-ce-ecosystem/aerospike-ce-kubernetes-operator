@@ -91,6 +91,7 @@ spec:
                       properties:
                         name:
                           description: Name is the role name.
+                          minLength: 1
                           type: string
                         privileges:
                           description: Privileges is a list of privilege strings (e.g.,
@@ -117,6 +118,7 @@ spec:
                       properties:
                         name:
                           description: Name is the username.
+                          minLength: 1
                           type: string
                         roles:
                           description: Roles is a list of role names assigned to this
@@ -129,6 +131,7 @@ spec:
                           description: |-
                             SecretName is the Kubernetes Secret containing the user's password.
                             The secret must have a "password" key.
+                          minLength: 1
                           type: string
                       required:
                       - name
@@ -8231,6 +8234,7 @@ spec:
                           properties:
                             name:
                               description: Name is the role name.
+                              minLength: 1
                               type: string
                             privileges:
                               description: Privileges is a list of privilege strings
@@ -8257,6 +8261,7 @@ spec:
                           properties:
                             name:
                               description: Name is the username.
+                              minLength: 1
                               type: string
                             roles:
                               description: Roles is a list of role names assigned
@@ -8269,6 +8274,7 @@ spec:
                               description: |-
                                 SecretName is the Kubernetes Secret containing the user's password.
                                 The secret must have a "password" key.
+                              minLength: 1
                               type: string
                           required:
                           - name

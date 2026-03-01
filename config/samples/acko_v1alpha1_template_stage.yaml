@@ -32,8 +32,8 @@ spec:
     service:
       proto-fd-max: 4096
     namespaceDefaults:
-      memory-size: 536870912   # 512Mi default per namespace
       replication-factor: 2
+      # memory-size is obsolete in CE 8.x
     network:
       heartbeat:
         mode: mesh

@@ -373,14 +373,10 @@ func (r *AerospikeCEClusterReconciler) markDirtyVolumes(
 	}
 
 	if latest.Status.Pods == nil {
-		return nil
+		latest.Status.Pods = make(map[string]asdbcev1alpha1.AerospikePodStatus)
 	}
 
-	podStatus, ok := latest.Status.Pods[podName]
-	if !ok {
-		return nil
-	}
-
+	podStatus := latest.Status.Pods[podName]
 	podStatus.DirtyVolumes = dirtyVols
 	latest.Status.Pods[podName] = podStatus
 	return r.Status().Update(ctx, latest)

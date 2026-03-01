@@ -86,18 +86,20 @@ func applyScheduling(scheduling *asdbcev1alpha1.TemplateScheduling, cluster *asd
 			ps.Affinity = &corev1.Affinity{}
 		}
 		if ps.Affinity.NodeAffinity == nil {
-			ps.Affinity.NodeAffinity = scheduling.NodeAffinity
+			ps.Affinity.NodeAffinity = scheduling.NodeAffinity.DeepCopy()
 		}
 	}
 
 	// Apply tolerations if not already set.
 	if len(scheduling.Tolerations) > 0 && len(ps.Tolerations) == 0 {
-		ps.Tolerations = scheduling.Tolerations
+		ps.Tolerations = make([]corev1.Toleration, len(scheduling.Tolerations))
+		copy(ps.Tolerations, scheduling.Tolerations)
 	}
 
 	// Apply topology spread constraints if not already set.
 	if len(scheduling.TopologySpreadConstraints) > 0 && len(ps.TopologySpreadConstraints) == 0 {
-		ps.TopologySpreadConstraints = scheduling.TopologySpreadConstraints
+		ps.TopologySpreadConstraints = make([]corev1.TopologySpreadConstraint, len(scheduling.TopologySpreadConstraints))
+		copy(ps.TopologySpreadConstraints, scheduling.TopologySpreadConstraints)
 	}
 
 	// Apply pod management policy if not already set.

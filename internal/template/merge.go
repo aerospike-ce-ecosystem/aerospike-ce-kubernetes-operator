@@ -17,6 +17,8 @@ limitations under the License.
 package template
 
 import (
+	corev1 "k8s.io/api/core/v1"
+
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
@@ -190,14 +192,16 @@ func mergeTemplateScheduling(base, override *asdbcev1alpha1.TemplateScheduling) 
 		result.PodAntiAffinityLevel = override.PodAntiAffinityLevel
 	}
 	if override.NodeAffinity != nil {
-		result.NodeAffinity = override.NodeAffinity
+		result.NodeAffinity = override.NodeAffinity.DeepCopy()
 	}
-	// Arrays: override replaces entirely.
+	// Arrays: override replaces entirely (deep copy to avoid shared backing array).
 	if len(override.Tolerations) > 0 {
-		result.Tolerations = override.Tolerations
+		result.Tolerations = make([]corev1.Toleration, len(override.Tolerations))
+		copy(result.Tolerations, override.Tolerations)
 	}
 	if len(override.TopologySpreadConstraints) > 0 {
-		result.TopologySpreadConstraints = override.TopologySpreadConstraints
+		result.TopologySpreadConstraints = make([]corev1.TopologySpreadConstraint, len(override.TopologySpreadConstraints))
+		copy(result.TopologySpreadConstraints, override.TopologySpreadConstraints)
 	}
 	if override.PodManagementPolicy != "" {
 		result.PodManagementPolicy = override.PodManagementPolicy

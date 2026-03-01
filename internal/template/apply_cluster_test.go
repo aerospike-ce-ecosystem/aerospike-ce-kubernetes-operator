@@ -25,8 +25,10 @@ import (
 )
 
 const (
-	testImageCE8 = "aerospike:ce-8.1.1.1"
-	testImageCE7 = "aerospike:ce-7.2.0.6"
+	testImageCE8     = "aerospike:ce-8.1.1.1"
+	testImageCE7     = "aerospike:ce-7.2.0.6"
+	testTopologyZone = "zone"
+	testMutatedValue = "mutated"
 )
 
 // newCluster returns a minimal AerospikeCECluster for testing.

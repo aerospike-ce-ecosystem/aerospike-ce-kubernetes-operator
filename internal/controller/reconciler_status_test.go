@@ -598,8 +598,8 @@ func TestUnstableSince(t *testing.T) {
 				if prev.UnstableSince != nil {
 					unstableSince = prev.UnstableSince
 				} else {
-					t := metav1.Now()
-					unstableSince = &t
+					now := metav1.Now()
+					unstableSince = &now
 				}
 			}
 

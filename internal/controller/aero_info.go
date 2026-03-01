@@ -68,7 +68,7 @@ func Recluster(client *aero.Client) error {
 // ClusterSize returns the number of nodes in the Aerospike cluster as reported by asinfo.
 // Returns 0 and an error if the cluster is unreachable or the response cannot be parsed.
 func ClusterSize(client *aero.Client) (int, error) {
-	result, err := AsinfoCommand(client, "cluster-size:")
+	result, err := AsinfoCommand(client, "cluster-size")
 	if err != nil {
 		return 0, err
 	}

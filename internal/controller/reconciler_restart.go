@@ -204,7 +204,7 @@ func (r *AerospikeCEClusterReconciler) restartPod(
 }
 
 // determineRestartReason returns the reason a pod needs to be restarted.
-// Priority: image change > pod spec change > config change.
+// Priority: image change > config change > pod spec change.
 func determineRestartReason(
 	pod *corev1.Pod,
 	desiredImage string,

@@ -159,6 +159,12 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 				return ctrl.Result{}, err
 			}
 		}
+		if resolveResult.SnapshotUpdated && cluster.Status.TemplateSnapshot != nil {
+			r.Recorder.Eventf(cluster, corev1.EventTypeNormal, "TemplateApplied",
+				"Applied template %q (rv: %s)",
+				cluster.Spec.TemplateRef.Name,
+				cluster.Status.TemplateSnapshot.ResourceVersion)
+		}
 		for _, w := range resolveResult.Warnings {
 			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "ValidationWarning", "%s", w)
 		}

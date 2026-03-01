@@ -134,6 +134,11 @@ func (r *AerospikeCEClusterReconciler) buildStatefulSet(
 	selectorLabels := utils.SelectorLabelsForCluster(cluster.Name)
 	serviceName := utils.HeadlessServiceName(cluster.Name)
 
+	podManagementPolicy := appsv1.ParallelPodManagement
+	if cluster.Spec.PodSpec != nil && cluster.Spec.PodSpec.PodManagementPolicy != "" {
+		podManagementPolicy = cluster.Spec.PodSpec.PodManagementPolicy
+	}
+
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -143,7 +148,7 @@ func (r *AerospikeCEClusterReconciler) buildStatefulSet(
 		Spec: appsv1.StatefulSetSpec{
 			ServiceName:         serviceName,
 			Replicas:            &replicas,
-			PodManagementPolicy: appsv1.ParallelPodManagement,
+			PodManagementPolicy: podManagementPolicy,
 			UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
 				Type: appsv1.OnDeleteStatefulSetStrategyType,
 			},

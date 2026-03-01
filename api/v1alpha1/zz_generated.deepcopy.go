@@ -539,6 +539,13 @@ func (in *AerospikeCEPodSpec) DeepCopyInto(out *AerospikeCEPodSpec) {
 		*out = new(int64)
 		**out = **in
 	}
+	if in.TopologySpreadConstraints != nil {
+		in, out := &in.TopologySpreadConstraints, &out.TopologySpreadConstraints
+		*out = make([]corev1.TopologySpreadConstraint, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	if in.Metadata != nil {
 		in, out := &in.Metadata, &out.Metadata
 		*out = new(AerospikePodMetadata)

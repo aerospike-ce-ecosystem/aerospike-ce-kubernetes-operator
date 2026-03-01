@@ -127,6 +127,18 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 				"Failed to resolve template %q: %v", cluster.Spec.TemplateRef.Name, err)
 			return ctrl.Result{}, err
 		}
+		// Remove the resync annotation from the API server now that the snapshot is updated.
+		// Resolve() signals this via AnnotationNeedsCleanup to avoid a stale resourceVersion issue.
+		if resolveResult.AnnotationNeedsCleanup {
+			patch := client.MergeFrom(cluster.DeepCopy())
+			delete(cluster.Annotations, aerotmpl.AnnotationResyncTemplate)
+			if err := r.Patch(ctx, cluster, patch); err != nil {
+				if errors.IsConflict(err) {
+					return ctrl.Result{Requeue: true}, nil
+				}
+				return ctrl.Result{}, err
+			}
+		}
 		if resolveResult.SnapshotUpdated {
 			r.Recorder.Eventf(cluster, corev1.EventTypeNormal, "TemplateApplied",
 				"Applied template %q (rv: %s)",
@@ -412,7 +424,7 @@ func (r *AerospikeCEClusterReconciler) mapTemplateToCluster(ctx context.Context,
 			latest := cl.DeepCopy()
 			latest.Status.TemplateSnapshot.Synced = false
 			if err := r.Status().Update(ctx, latest); err != nil {
-				log.V(1).Info("Failed to mark cluster template as drifted", "cluster", cl.Name, "error", err)
+				log.Error(err, "Failed to mark cluster template as drifted", "cluster", cl.Name)
 			} else {
 				r.Recorder.Eventf(cl, corev1.EventTypeWarning, "TemplateDrifted",
 					"Template %q changed (rv: %s → %s); cluster using snapshot. Set annotation acko.io/resync-template=true to resync.",

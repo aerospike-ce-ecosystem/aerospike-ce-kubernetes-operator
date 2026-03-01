@@ -19,6 +19,10 @@ package template
 import (
 	"testing"
 
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
@@ -232,6 +236,148 @@ func TestApplyTemplate_Resources(t *testing.T) {
 	if cluster.Spec.PodSpec != nil && cluster.Spec.PodSpec.AerospikeContainerSpec != nil &&
 		cluster.Spec.PodSpec.AerospikeContainerSpec.Resources != nil {
 		t.Errorf("expected no resources to be set when template has none")
+	}
+}
+
+// ---- applyStorage tests ----
+
+func TestApplyStorage_CreatesVolumeFromTemplate(t *testing.T) {
+	cluster := &asdbcev1alpha1.AerospikeCECluster{}
+	qty := resource.MustParse("50Gi")
+	tmplStorage := &asdbcev1alpha1.TemplateStorage{
+		StorageClassName: "local-path",
+		Resources: corev1.VolumeResourceRequirements{
+			Requests: corev1.ResourceList{corev1.ResourceStorage: qty},
+		},
+	}
+
+	applyStorage(tmplStorage, cluster)
+
+	if cluster.Spec.Storage == nil || len(cluster.Spec.Storage.Volumes) == 0 {
+		t.Fatal("expected storage volume to be created")
+	}
+	vol := cluster.Spec.Storage.Volumes[0]
+	if vol.Name != defaultDataVolumeName {
+		t.Errorf("expected volume name %q, got %q", defaultDataVolumeName, vol.Name)
+	}
+	if vol.Source.PersistentVolume == nil {
+		t.Fatal("expected PersistentVolume to be set")
+	}
+	if vol.Source.PersistentVolume.StorageClass != "local-path" {
+		t.Errorf("expected storageClass=local-path, got %q", vol.Source.PersistentVolume.StorageClass)
+	}
+	if vol.Source.PersistentVolume.Size != "50Gi" {
+		t.Errorf("expected size=50Gi, got %q", vol.Source.PersistentVolume.Size)
+	}
+}
+
+func TestApplyStorage_SkipsIfVolumeAlreadySet(t *testing.T) {
+	cluster := &asdbcev1alpha1.AerospikeCECluster{
+		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+			Storage: &asdbcev1alpha1.AerospikeStorageSpec{
+				Volumes: []asdbcev1alpha1.VolumeSpec{
+					{Name: "existing"},
+				},
+			},
+		},
+	}
+	tmplStorage := &asdbcev1alpha1.TemplateStorage{StorageClassName: "other"}
+
+	applyStorage(tmplStorage, cluster)
+
+	if len(cluster.Spec.Storage.Volumes) != 1 || cluster.Spec.Storage.Volumes[0].Name != "existing" {
+		t.Error("expected existing volume to be preserved when cluster already has volumes")
+	}
+}
+
+func TestApplyStorage_DefaultsApplied(t *testing.T) {
+	cluster := &asdbcev1alpha1.AerospikeCECluster{}
+	tmplStorage := &asdbcev1alpha1.TemplateStorage{StorageClassName: "standard"}
+
+	applyStorage(tmplStorage, cluster)
+
+	if cluster.Spec.Storage == nil || len(cluster.Spec.Storage.Volumes) == 0 {
+		t.Fatal("expected volume to be created")
+	}
+	pv := cluster.Spec.Storage.Volumes[0].Source.PersistentVolume
+	if pv.Size != "1Gi" {
+		t.Errorf("expected default size=1Gi, got %q", pv.Size)
+	}
+	if pv.VolumeMode != corev1.PersistentVolumeFilesystem {
+		t.Errorf("expected default volumeMode=Filesystem, got %v", pv.VolumeMode)
+	}
+	if len(pv.AccessModes) != 1 || pv.AccessModes[0] != corev1.ReadWriteOnce {
+		t.Errorf("expected default accessModes=[ReadWriteOnce], got %v", pv.AccessModes)
+	}
+}
+
+// ---- applyScheduling tests ----
+
+func TestApplyScheduling_Tolerations(t *testing.T) {
+	cluster := &asdbcev1alpha1.AerospikeCECluster{}
+	scheduling := &asdbcev1alpha1.TemplateScheduling{
+		Tolerations: []corev1.Toleration{
+			{Key: "aerospike", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
+		},
+	}
+
+	applyScheduling(scheduling, cluster)
+
+	if cluster.Spec.PodSpec == nil || len(cluster.Spec.PodSpec.Tolerations) == 0 {
+		t.Fatal("expected tolerations to be applied")
+	}
+	if cluster.Spec.PodSpec.Tolerations[0].Key != "aerospike" {
+		t.Errorf("expected toleration key=aerospike, got %q", cluster.Spec.PodSpec.Tolerations[0].Key)
+	}
+}
+
+func TestApplyScheduling_TolerationsNotOverriddenIfAlreadySet(t *testing.T) {
+	cluster := &asdbcev1alpha1.AerospikeCECluster{
+		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+			PodSpec: &asdbcev1alpha1.AerospikeCEPodSpec{
+				Tolerations: []corev1.Toleration{{Key: "existing"}},
+			},
+		},
+	}
+	scheduling := &asdbcev1alpha1.TemplateScheduling{
+		Tolerations: []corev1.Toleration{{Key: "from-template"}},
+	}
+
+	applyScheduling(scheduling, cluster)
+
+	if cluster.Spec.PodSpec.Tolerations[0].Key != "existing" {
+		t.Error("existing tolerations should not be overridden by template")
+	}
+}
+
+func TestApplyScheduling_TopologySpreadConstraints(t *testing.T) {
+	cluster := &asdbcev1alpha1.AerospikeCECluster{}
+	scheduling := &asdbcev1alpha1.TemplateScheduling{
+		TopologySpreadConstraints: []corev1.TopologySpreadConstraint{
+			{MaxSkew: 1, TopologyKey: "zone", WhenUnsatisfiable: corev1.DoNotSchedule},
+		},
+	}
+
+	applyScheduling(scheduling, cluster)
+
+	if cluster.Spec.PodSpec == nil || len(cluster.Spec.PodSpec.TopologySpreadConstraints) == 0 {
+		t.Fatal("expected TopologySpreadConstraints to be applied")
+	}
+	if cluster.Spec.PodSpec.TopologySpreadConstraints[0].TopologyKey != "zone" {
+		t.Errorf("expected topologyKey=zone, got %q", cluster.Spec.PodSpec.TopologySpreadConstraints[0].TopologyKey)
+	}
+}
+
+func TestApplyScheduling_PodManagementPolicy(t *testing.T) {
+	cluster := &asdbcev1alpha1.AerospikeCECluster{}
+	scheduling := &asdbcev1alpha1.TemplateScheduling{
+		PodManagementPolicy: appsv1.OrderedReadyPodManagement,
+	}
+
+	applyScheduling(scheduling, cluster)
+
+	if cluster.Spec.PodSpec == nil || cluster.Spec.PodSpec.PodManagementPolicy != appsv1.OrderedReadyPodManagement {
+		t.Errorf("expected PodManagementPolicy=OrderedReady, got %v", cluster.Spec.PodSpec.PodManagementPolicy)
 	}
 }
 

@@ -94,4 +94,14 @@ func applyScheduling(scheduling *asdbcev1alpha1.TemplateScheduling, cluster *asd
 	if len(scheduling.Tolerations) > 0 && len(ps.Tolerations) == 0 {
 		ps.Tolerations = scheduling.Tolerations
 	}
+
+	// Apply topology spread constraints if not already set.
+	if len(scheduling.TopologySpreadConstraints) > 0 && len(ps.TopologySpreadConstraints) == 0 {
+		ps.TopologySpreadConstraints = scheduling.TopologySpreadConstraints
+	}
+
+	// Apply pod management policy if not already set.
+	if scheduling.PodManagementPolicy != "" && ps.PodManagementPolicy == "" {
+		ps.PodManagementPolicy = scheduling.PodManagementPolicy
+	}
 }

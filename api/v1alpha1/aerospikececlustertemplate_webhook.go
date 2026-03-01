@@ -1,0 +1,174 @@
+/*
+Copyright 2026.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package v1alpha1
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	corev1 "k8s.io/api/core/v1"
+	ctrl "sigs.k8s.io/controller-runtime"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+)
+
+var aerospikececlustertemplatelog = logf.Log.WithName("aerospikececlustertemplate-resource")
+
+// SetupWebhookWithManager registers the webhooks for AerospikeCEClusterTemplate.
+func (r *AerospikeCEClusterTemplate) SetupWebhookWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewWebhookManagedBy(mgr, r).
+		WithDefaulter(&AerospikeCEClusterTemplateDefaulter{}).
+		WithValidator(&AerospikeCEClusterTemplateValidator{}).
+		Complete()
+}
+
+// +kubebuilder:webhook:path=/mutate-acko-io-v1alpha1-aerospikececlustertemplate,mutating=true,failurePolicy=fail,sideEffects=None,groups=acko.io,resources=aerospikececlustertemplates,verbs=create;update,versions=v1alpha1,name=maerospikececlustertemplate.kb.io,admissionReviewVersions=v1
+
+// AerospikeCEClusterTemplateDefaulter implements admission.Defaulter for AerospikeCEClusterTemplate.
+type AerospikeCEClusterTemplateDefaulter struct{}
+
+var _ admission.Defaulter[*AerospikeCEClusterTemplate] = &AerospikeCEClusterTemplateDefaulter{}
+
+// Default implements admission.Defaulter[*AerospikeCEClusterTemplate].
+func (d *AerospikeCEClusterTemplateDefaulter) Default(_ context.Context, tmpl *AerospikeCEClusterTemplate) error {
+	aerospikececlustertemplatelog.Info("Defaulting", "name", tmpl.Name, "namespace", tmpl.Namespace)
+
+	// Default scheduling.podAntiAffinityLevel to "preferred" if scheduling is set but level is empty.
+	if tmpl.Spec.Scheduling != nil && tmpl.Spec.Scheduling.PodAntiAffinityLevel == "" {
+		tmpl.Spec.Scheduling.PodAntiAffinityLevel = PodAntiAffinityPreferred
+	}
+
+	// Default storage.volumeMode to Filesystem if storage is specified.
+	if tmpl.Spec.Storage != nil && tmpl.Spec.Storage.VolumeMode == "" {
+		tmpl.Spec.Storage.VolumeMode = corev1.PersistentVolumeFilesystem
+	}
+
+	// Default storage.accessModes to ReadWriteOnce if not set.
+	if tmpl.Spec.Storage != nil && len(tmpl.Spec.Storage.AccessModes) == 0 {
+		tmpl.Spec.Storage.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
+	}
+
+	return nil
+}
+
+// +kubebuilder:webhook:path=/validate-acko-io-v1alpha1-aerospikececlustertemplate,mutating=false,failurePolicy=fail,sideEffects=None,groups=acko.io,resources=aerospikececlustertemplates,verbs=create;update,versions=v1alpha1,name=vaerospikececlustertemplate.kb.io,admissionReviewVersions=v1
+
+// AerospikeCEClusterTemplateValidator implements admission.Validator for AerospikeCEClusterTemplate.
+type AerospikeCEClusterTemplateValidator struct{}
+
+var _ admission.Validator[*AerospikeCEClusterTemplate] = &AerospikeCEClusterTemplateValidator{}
+
+// ValidateCreate implements admission.Validator[*AerospikeCEClusterTemplate].
+func (v *AerospikeCEClusterTemplateValidator) ValidateCreate(_ context.Context, tmpl *AerospikeCEClusterTemplate) (admission.Warnings, error) {
+	aerospikececlustertemplatelog.Info("Validating create", "name", tmpl.Name)
+	return v.validate(tmpl)
+}
+
+// ValidateUpdate implements admission.Validator[*AerospikeCEClusterTemplate].
+func (v *AerospikeCEClusterTemplateValidator) ValidateUpdate(_ context.Context, _, tmpl *AerospikeCEClusterTemplate) (admission.Warnings, error) {
+	aerospikececlustertemplatelog.Info("Validating update", "name", tmpl.Name)
+	return v.validate(tmpl)
+}
+
+// ValidateDelete implements admission.Validator[*AerospikeCEClusterTemplate].
+func (v *AerospikeCEClusterTemplateValidator) ValidateDelete(_ context.Context, _ *AerospikeCEClusterTemplate) (admission.Warnings, error) {
+	return nil, nil
+}
+
+// validate performs all template-specific validations.
+func (v *AerospikeCEClusterTemplateValidator) validate(tmpl *AerospikeCEClusterTemplate) (admission.Warnings, error) {
+	var allErrors []string
+	var warnings admission.Warnings
+
+	spec := &tmpl.Spec
+
+	// V-T01: podAntiAffinityLevel must be one of: none, preferred, required.
+	if spec.Scheduling != nil {
+		level := spec.Scheduling.PodAntiAffinityLevel
+		if level != "" &&
+			level != PodAntiAffinityNone &&
+			level != PodAntiAffinityPreferred &&
+			level != PodAntiAffinityRequired {
+			allErrors = append(allErrors, fmt.Sprintf(
+				"spec.scheduling.podAntiAffinityLevel must be one of: none, preferred, required (got %q)", level))
+		}
+
+		// V-T05: podManagementPolicy validation.
+		pm := spec.Scheduling.PodManagementPolicy
+		if pm != "" {
+			switch string(pm) {
+			case "OrderedReady", "Parallel":
+				// valid
+			default:
+				allErrors = append(allErrors, fmt.Sprintf(
+					"spec.scheduling.podManagementPolicy must be one of: OrderedReady, Parallel (got %q)", pm))
+			}
+		}
+	}
+
+	// V-T02: maxRacksPerNode must be >= 0.
+	if spec.RackConfig != nil && spec.RackConfig.MaxRacksPerNode < 0 {
+		allErrors = append(allErrors, fmt.Sprintf(
+			"spec.rackConfig.maxRacksPerNode must be >= 0 (got %d)", spec.RackConfig.MaxRacksPerNode))
+	}
+
+	// V-T03: localPVRequired=true warns if storageClassName is empty.
+	if spec.Storage != nil && spec.Storage.LocalPVRequired && spec.Storage.StorageClassName == "" {
+		warnings = append(warnings, "spec.storage.localPVRequired=true but spec.storage.storageClassName is empty; local PV scheduling may fail")
+	}
+
+	// V-T04: Guaranteed QoS warning when requests != limits.
+	if spec.Resources != nil {
+		if !templateResourcesEqualRequestsLimits(spec.Resources) {
+			warnings = append(warnings, "for Guaranteed QoS, resource requests should equal resource limits in spec.resources")
+		}
+	}
+
+	// Validate aerospikeConfig if present: heartbeat mode must be mesh for CE.
+	if spec.AerospikeConfig != nil {
+		if spec.AerospikeConfig.Network != nil && spec.AerospikeConfig.Network.Heartbeat != nil {
+			mode := spec.AerospikeConfig.Network.Heartbeat.Mode
+			if mode != "" && mode != "mesh" {
+				allErrors = append(allErrors, fmt.Sprintf(
+					"spec.aerospikeConfig.network.heartbeat.mode must be 'mesh' for CE (got %q)", mode))
+			}
+		}
+	}
+
+	if len(allErrors) > 0 {
+		return warnings, fmt.Errorf("template validation failed: %s", strings.Join(allErrors, "; "))
+	}
+
+	return warnings, nil
+}
+
+// templateResourcesEqualRequestsLimits checks if CPU and memory requests equal limits.
+func templateResourcesEqualRequestsLimits(r *corev1.ResourceRequirements) bool {
+	checkResource := func(name corev1.ResourceName) bool {
+		req, hasReq := r.Requests[name]
+		lim, hasLim := r.Limits[name]
+		if !hasReq && !hasLim {
+			return true
+		}
+		if hasReq != hasLim {
+			return false
+		}
+		return req.Cmp(lim) == 0
+	}
+	return checkResource(corev1.ResourceCPU) && checkResource(corev1.ResourceMemory)
+}

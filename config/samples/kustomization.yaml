@@ -1,4 +1,7 @@
 ## Append samples of your project ##
 resources:
 - acko_v1alpha1_aerospikececluster.yaml
+- acko_v1alpha1_template_dev.yaml
+- acko_v1alpha1_template_stage.yaml
+- acko_v1alpha1_template_prod.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples

@@ -57,6 +57,32 @@ Defines the desired state of an Aerospike CE cluster.
 | `headlessService` | [AerospikeServiceSpec](#aerospikeservicespec) | No | — | Custom metadata for the headless service. |
 | `podService` | [AerospikeServiceSpec](#aerospikeservicespec) | No | — | Custom metadata for per-pod services. Creates individual Service per pod when set. |
 | `enableRackIDOverride` | *bool | No | `false` | Enable dynamic rack ID assignment via pod annotations. |
+| `templateRef` | [TemplateRef](#templateref) | No | — | Reference to an `AerospikeCEClusterTemplate`. When set, the template spec is resolved and stored as a snapshot at creation time. |
+| `overrides` | [AerospikeCEClusterTemplateSpec](./aerospikececlustertemplate#aerospikececlustertemplatetspec) | No | — | Fields that override the referenced template. Merge priority: overrides > template > operator defaults. |
+
+---
+
+## TemplateRef
+
+Reference to an `AerospikeCEClusterTemplate` in the same namespace.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | Yes | Name of the `AerospikeCEClusterTemplate` resource |
+
+---
+
+## TemplateSnapshotStatus
+
+Recorded in `status.templateSnapshot` after a template is resolved.
+
+| Field | Type | Description |
+|---|---|---|
+| `name` | string | Name of the referenced template |
+| `resourceVersion` | string | ResourceVersion of the template at snapshot time |
+| `snapshotTimestamp` | Time | When the snapshot was taken |
+| `synced` | boolean | Whether the cluster uses the latest template version. Set to `false` when the template changes after the snapshot. |
+| `spec` | object | Resolved template spec at snapshot time |
 
 ---
 

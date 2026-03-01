@@ -197,15 +197,17 @@ type AerospikeServiceSpec struct {
 type AerospikeCEClusterSpec struct {
 	// Size is the number of Aerospike nodes (pods) in the cluster.
 	// CE limits this to a maximum of 8.
-	// +kubebuilder:validation:Minimum=1
+	// When spec.templateRef is set, size may be omitted and the template's default will be used.
+	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=8
-	// +kubebuilder:validation:Required
-	Size int32 `json:"size"`
+	// +optional
+	Size int32 `json:"size,omitempty"`
 
 	// Image is the Aerospike CE server container image.
 	// Must be a community edition image (e.g., aerospike:ce-8.1.1.1).
-	// +kubebuilder:validation:Required
-	Image string `json:"image"`
+	// When spec.templateRef is set, image may be omitted and the template's default will be used.
+	// +optional
+	Image string `json:"image,omitempty"`
 
 	// AerospikeConfig is the raw Aerospike configuration map.
 	// This is converted to aerospike.conf by the operator.

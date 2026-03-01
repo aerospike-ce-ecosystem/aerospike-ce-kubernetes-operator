@@ -57,6 +57,27 @@ func MergeTemplateSpec(base, override *asdbcev1alpha1.AerospikeCEClusterTemplate
 		result.RackConfig = override.RackConfig.DeepCopy()
 	}
 
+	// Merge Image: override takes precedence if non-empty.
+	if override.Image != "" {
+		result.Image = override.Image
+	}
+
+	// Merge Size: override takes precedence if non-nil.
+	if override.Size != nil {
+		sizeCopy := *override.Size
+		result.Size = &sizeCopy
+	}
+
+	// Merge Monitoring: override replaces entirely if set.
+	if override.Monitoring != nil {
+		result.Monitoring = override.Monitoring.DeepCopy()
+	}
+
+	// Merge AerospikeNetworkPolicy: override replaces entirely if set.
+	if override.AerospikeNetworkPolicy != nil {
+		result.AerospikeNetworkPolicy = override.AerospikeNetworkPolicy.DeepCopy()
+	}
+
 	return result
 }
 

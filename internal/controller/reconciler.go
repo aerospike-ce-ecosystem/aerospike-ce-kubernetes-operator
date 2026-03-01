@@ -123,7 +123,7 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		resolveResult, err := aerotmpl.Resolve(ctx, r.Client, cluster)
 		if err != nil {
 			log.Error(err, "Failed to resolve template", "template", cluster.Spec.TemplateRef.Name)
-			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "TemplateResolutionError",
+			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventTemplateResolutionError,
 				"Failed to resolve template %q: %v", cluster.Spec.TemplateRef.Name, err)
 			return ctrl.Result{}, err
 		}
@@ -155,13 +155,13 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 			}
 		}
 		if resolveResult.SnapshotUpdated && cluster.Status.TemplateSnapshot != nil {
-			r.Recorder.Eventf(cluster, corev1.EventTypeNormal, "TemplateApplied",
+			r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventTemplateApplied,
 				"Applied template %q (rv: %s)",
 				cluster.Spec.TemplateRef.Name,
 				cluster.Status.TemplateSnapshot.ResourceVersion)
 		}
 		for _, w := range resolveResult.Warnings {
-			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "ValidationWarning", "%s", w)
+			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventValidationWarning, "%s", w)
 		}
 	}
 
@@ -182,7 +182,7 @@ func (r *AerospikeCEClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// 6. Reconcile headless service
 	if err := r.reconcileHeadlessService(ctx, cluster); err != nil {
 		log.Error(err, "Failed to reconcile headless service")
-		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "ReconcileError", "Headless service: %v", err)
+		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventReconcileError, "Headless service: %v", err)
 		metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, metrics.ReasonService).Inc()
 		return ctrl.Result{}, err
 	}
@@ -307,7 +307,7 @@ func (r *AerospikeCEClusterReconciler) reconcileCluster(
 	}
 	if synced, err := r.reconcileACL(ctx, cluster); err != nil {
 		log.Error(err, "Failed to reconcile ACL")
-		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "ACLSyncError", "ACL sync failed: %v", err)
+		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventACLSyncError, "ACL sync failed: %v", err)
 		metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, metrics.ReasonACL).Inc()
 		aclErr = err
 	} else {
@@ -454,7 +454,7 @@ func (r *AerospikeCEClusterReconciler) mapTemplateToCluster(ctx context.Context,
 					log.Error(err, "Failed to mark cluster template as drifted", "cluster", cl.Name)
 				}
 			} else {
-				r.Recorder.Eventf(cl, corev1.EventTypeWarning, "TemplateDrifted",
+				r.Recorder.Eventf(cl, corev1.EventTypeWarning, EventTemplateDrifted,
 					"Template %q changed (rv: %s → %s); cluster using snapshot. Set annotation acko.io/resync-template=true to resync.",
 					obj.GetName(),
 					cl.Status.TemplateSnapshot.ResourceVersion,

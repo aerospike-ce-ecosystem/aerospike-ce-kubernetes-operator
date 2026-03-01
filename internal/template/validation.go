@@ -18,6 +18,7 @@ package template
 
 import (
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -139,6 +140,34 @@ func ValidateTemplateSpec(spec *asdbcev1alpha1.AerospikeCEClusterTemplateSpec) (
 					errs = append(errs, "storage.resources.requests.storage must be > 0")
 				}
 			}
+		}
+	}
+
+	// V-T06: Image should be a CE image (warning only).
+	// Note: this check looks for the 'ce-' substring. Custom registries or retagged images
+	// (e.g. myregistry.io/aerospike:8.1.1.1) will trigger this warning even if they are
+	// valid CE images. In those cases the warning can be safely ignored.
+	if spec.Image != "" {
+		if !strings.Contains(spec.Image, "ce-") {
+			warnings = append(warnings, fmt.Sprintf(
+				"template image %q may not be a CE image; CE images typically contain 'ce-' (e.g., aerospike:ce-8.1.1.1). "+
+					"Retagged or custom-registry CE images that omit 'ce-' will also trigger this warning.",
+				spec.Image,
+			))
+		}
+	}
+
+	// V-T07: Size must be in the CE-allowed range (1–8) when specified.
+	if spec.Size != nil {
+		if *spec.Size < 1 || *spec.Size > 8 {
+			errs = append(errs, fmt.Sprintf("size must be between 1 and 8 (CE limit), got %d", *spec.Size))
+		}
+	}
+
+	// V-T08: Monitoring port must be in valid range when specified.
+	if spec.Monitoring != nil && spec.Monitoring.Port != 0 {
+		if spec.Monitoring.Port < 1 || spec.Monitoring.Port > 65535 {
+			errs = append(errs, fmt.Sprintf("monitoring.port must be between 1 and 65535, got %d", spec.Monitoring.Port))
 		}
 	}
 

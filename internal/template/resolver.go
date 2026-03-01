@@ -119,10 +119,15 @@ func ApplyTemplate(resolvedTemplateSpec *asdbcev1alpha1.AerospikeCEClusterTempla
 			cluster.Spec.PodSpec.AerospikeContainerSpec = &asdbcev1alpha1.AerospikeContainerSpec{}
 		}
 		if cluster.Spec.PodSpec.AerospikeContainerSpec.Resources == nil {
-			resourcesCopy := *resolvedTemplateSpec.Resources
-			cluster.Spec.PodSpec.AerospikeContainerSpec.Resources = &resourcesCopy
+			cluster.Spec.PodSpec.AerospikeContainerSpec.Resources = resolvedTemplateSpec.Resources.DeepCopy()
 		}
 	}
+
+	// Apply image, size, monitoring, and network policy defaults.
+	applyImage(resolvedTemplateSpec.Image, cluster)
+	applySize(resolvedTemplateSpec.Size, cluster)
+	applyMonitoring(resolvedTemplateSpec.Monitoring, cluster)
+	applyNetworkPolicy(resolvedTemplateSpec.AerospikeNetworkPolicy, cluster)
 }
 
 // Resolve is the main entry point for template resolution in the reconciler.
@@ -180,6 +185,22 @@ func Resolve(
 
 	// Apply the effective template spec to the in-memory cluster spec.
 	ApplyTemplate(effectiveSpec, cluster)
+
+	// Post-template required field check: image and size must be resolvable after
+	// applying both the cluster spec and the template. If either is still unset,
+	// the template does not provide a sufficient default and reconciliation cannot proceed.
+	if cluster.Spec.Image == "" {
+		return result, fmt.Errorf(
+			"spec.image is required: neither the cluster spec nor template %q provides an image",
+			cluster.Spec.TemplateRef.Name,
+		)
+	}
+	if cluster.Spec.Size == 0 {
+		return result, fmt.Errorf(
+			"spec.size is required: neither the cluster spec nor template %q provides a size",
+			cluster.Spec.TemplateRef.Name,
+		)
+	}
 
 	return result, nil
 }

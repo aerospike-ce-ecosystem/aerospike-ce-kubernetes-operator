@@ -238,31 +238,11 @@ func (v *AerospikeCEClusterValidator) validate(cluster *AerospikeCECluster) (adm
 	var allErrors []string
 	var warnings admission.Warnings
 
-	// Validate cluster size
-	if cluster.Spec.Size > maxCEClusterSize {
-		allErrors = append(allErrors, fmt.Sprintf("spec.size %d exceeds CE maximum of %d", cluster.Spec.Size, maxCEClusterSize))
-	}
-
-	// Validate image is not empty
-	if cluster.Spec.Image == "" {
-		allErrors = append(allErrors, "spec.image must not be empty")
-	}
-
-	// Validate image is not enterprise (legacy "enterprise" in name or new ":ee-" tag prefix)
-	imageLower := strings.ToLower(cluster.Spec.Image)
-	if strings.Contains(imageLower, "enterprise") || isEnterpriseTag(cluster.Spec.Image) {
-		allErrors = append(allErrors, fmt.Sprintf("spec.image %q is an Enterprise Edition image; only Community Edition images are allowed", cluster.Spec.Image))
-	}
-
-	// Warn about untagged or "latest" images
-	if !strings.Contains(cluster.Spec.Image, ":") {
-		warnings = append(warnings, fmt.Sprintf("spec.image %q has no tag; use an explicit version tag (e.g., aerospike:ce-8.1.1.1) for reproducible deployments", cluster.Spec.Image))
-	} else {
-		parts := strings.SplitN(cluster.Spec.Image, ":", 2)
-		if parts[1] == "latest" {
-			warnings = append(warnings, "spec.image uses 'latest' tag; use an explicit version tag for reproducible deployments")
-		}
-	}
+	// Validate size and image (may be supplied by template when templateRef is set).
+	sizeErrors, imageErrors, imageWarnings := v.validateSizeAndImage(cluster)
+	allErrors = append(allErrors, sizeErrors...)
+	allErrors = append(allErrors, imageErrors...)
+	warnings = append(warnings, imageWarnings...)
 
 	// Validate aerospikeConfig
 	if cluster.Spec.AerospikeConfig != nil {
@@ -550,6 +530,41 @@ func (v *AerospikeCEClusterValidator) validateAccessControl(acl *AerospikeAccess
 	}
 
 	return errors
+}
+
+// validateSizeAndImage validates spec.size and spec.image, accounting for the fact that
+// both fields may be supplied by a template when spec.templateRef is set.
+func (v *AerospikeCEClusterValidator) validateSizeAndImage(cluster *AerospikeCECluster) (sizeErrors, imageErrors []string, imageWarnings admission.Warnings) {
+	// size=0 is only allowed when templateRef is present (template will supply the default).
+	if cluster.Spec.Size > maxCEClusterSize {
+		sizeErrors = append(sizeErrors, fmt.Sprintf("spec.size %d exceeds CE maximum of %d", cluster.Spec.Size, maxCEClusterSize))
+	}
+	if cluster.Spec.Size == 0 && cluster.Spec.TemplateRef == nil {
+		sizeErrors = append(sizeErrors, "spec.size must be set (1–8) when spec.templateRef is not specified")
+	}
+
+	// image=="" is only allowed when templateRef is present (template will supply the default).
+	if cluster.Spec.Image == "" && cluster.Spec.TemplateRef == nil {
+		imageErrors = append(imageErrors, "spec.image must not be empty when spec.templateRef is not specified")
+	}
+
+	// Validate image content only when the image is provided.
+	if cluster.Spec.Image != "" {
+		imageLower := strings.ToLower(cluster.Spec.Image)
+		if strings.Contains(imageLower, "enterprise") || isEnterpriseTag(cluster.Spec.Image) {
+			imageErrors = append(imageErrors, fmt.Sprintf("spec.image %q is an Enterprise Edition image; only Community Edition images are allowed", cluster.Spec.Image))
+		}
+		if !strings.Contains(cluster.Spec.Image, ":") {
+			imageWarnings = append(imageWarnings, fmt.Sprintf("spec.image %q has no tag; use an explicit version tag (e.g., aerospike:ce-8.1.1.1) for reproducible deployments", cluster.Spec.Image))
+		} else {
+			parts := strings.SplitN(cluster.Spec.Image, ":", 2)
+			if parts[1] == "latest" {
+				imageWarnings = append(imageWarnings, "spec.image uses 'latest' tag; use an explicit version tag for reproducible deployments")
+			}
+		}
+	}
+
+	return sizeErrors, imageErrors, imageWarnings
 }
 
 // isEnterpriseTag returns true if the image tag starts with "ee-" (e.g., "aerospike:ee-8.0.0.1_1").

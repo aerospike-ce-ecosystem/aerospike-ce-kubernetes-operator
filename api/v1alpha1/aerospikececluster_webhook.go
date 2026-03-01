@@ -472,6 +472,15 @@ var aerospikeCEBuiltinRoles = map[string]bool{
 func (v *AerospikeCEClusterValidator) validateAccessControl(acl *AerospikeAccessControlSpec) []string {
 	var errors []string
 
+	// Check for duplicate user names
+	seenUsers := make(map[string]bool)
+	for _, user := range acl.Users {
+		if seenUsers[user.Name] {
+			errors = append(errors, fmt.Sprintf("accessControl.users: duplicate user name %q", user.Name))
+		}
+		seenUsers[user.Name] = true
+	}
+
 	hasAdmin := false
 	for _, user := range acl.Users {
 		if user.SecretName == "" {
@@ -494,6 +503,15 @@ func (v *AerospikeCEClusterValidator) validateAccessControl(acl *AerospikeAccess
 
 	if !hasAdmin {
 		errors = append(errors, "aerospikeAccessControl must have at least one user with both 'sys-admin' and 'user-admin' roles (required for operator-managed cluster administration)")
+	}
+
+	// Check for duplicate role names
+	seenRoles := make(map[string]bool)
+	for _, role := range acl.Roles {
+		if seenRoles[role.Name] {
+			errors = append(errors, fmt.Sprintf("accessControl.roles: duplicate role name %q", role.Name))
+		}
+		seenRoles[role.Name] = true
 	}
 
 	// Validate that users reference only built-in or explicitly defined roles
@@ -913,6 +931,11 @@ var aerospikeReservedPorts = map[int32]string{
 func (v *AerospikeCEClusterValidator) validateMonitoring(m *AerospikeMonitoringSpec) ([]string, admission.Warnings) {
 	var errors []string
 	var warnings admission.Warnings
+
+	// Validate port is in valid TCP range.
+	if m.Port < 1 || m.Port > 65535 {
+		errors = append(errors, fmt.Sprintf("monitoring.port must be in range 1-65535 (got %d)", m.Port))
+	}
 
 	// Port conflict check with Aerospike reserved ports.
 	if portName, ok := aerospikeReservedPorts[m.Port]; ok {

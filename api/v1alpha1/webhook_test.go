@@ -3377,3 +3377,170 @@ func TestValidate_ImageEnterpriseEETag(t *testing.T) {
 		t.Errorf("expected enterprise image error, got: %v", err)
 	}
 }
+
+func TestValidate_DuplicateUserNames(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeAccessControl: &AerospikeAccessControlSpec{
+				Users: []AerospikeUserSpec{
+					{
+						Name:       "admin",
+						SecretName: "admin-secret",
+						Roles:      []string{"sys-admin", "user-admin"},
+					},
+					{
+						Name:       "admin",
+						SecretName: "admin-secret-2",
+						Roles:      []string{"read"},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error for duplicate user names")
+	}
+	if !strings.Contains(err.Error(), "duplicate user name") {
+		t.Errorf("error should mention 'duplicate user name', got: %v", err)
+	}
+}
+
+func TestValidate_DuplicateRoleNames(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeAccessControl: &AerospikeAccessControlSpec{
+				Users: []AerospikeUserSpec{
+					{
+						Name:       "admin",
+						SecretName: "admin-secret",
+						Roles:      []string{"sys-admin", "user-admin"},
+					},
+				},
+				Roles: []AerospikeRoleSpec{
+					{
+						Name:       "custom-role",
+						Privileges: []string{"read"},
+					},
+					{
+						Name:       "custom-role",
+						Privileges: []string{"write"},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error for duplicate role names")
+	}
+	if !strings.Contains(err.Error(), "duplicate role name") {
+		t.Errorf("error should mention 'duplicate role name', got: %v", err)
+	}
+}
+
+func TestValidate_UniqueUserNames(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeAccessControl: &AerospikeAccessControlSpec{
+				Users: []AerospikeUserSpec{
+					{
+						Name:       "admin",
+						SecretName: "admin-secret",
+						Roles:      []string{"sys-admin", "user-admin"},
+					},
+					{
+						Name:       "reader",
+						SecretName: "reader-secret",
+						Roles:      []string{"read"},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error for unique user names: %v", err)
+	}
+}
+
+func TestValidate_MonitoringPortOutOfRange_Negative(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled:       true,
+				ExporterImage: "exporter:v1",
+				Port:          -1,
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error for negative monitoring port")
+	}
+	if !strings.Contains(err.Error(), "must be in range 1-65535") {
+		t.Errorf("error should mention port range, got: %v", err)
+	}
+}
+
+func TestValidate_MonitoringPortOutOfRange_Zero(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled:       true,
+				ExporterImage: "exporter:v1",
+				Port:          0,
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error for zero monitoring port")
+	}
+	if !strings.Contains(err.Error(), "must be in range 1-65535") {
+		t.Errorf("error should mention port range, got: %v", err)
+	}
+}
+
+func TestValidate_MonitoringPortOutOfRange_TooHigh(t *testing.T) {
+	v := &AerospikeCEClusterValidator{}
+	cluster := &AerospikeCECluster{
+		Spec: AerospikeCEClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			Monitoring: &AerospikeMonitoringSpec{
+				Enabled:       true,
+				ExporterImage: "exporter:v1",
+				Port:          70000,
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error for port > 65535")
+	}
+	if !strings.Contains(err.Error(), "must be in range 1-65535") {
+		t.Errorf("error should mention port range, got: %v", err)
+	}
+}

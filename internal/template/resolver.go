@@ -163,7 +163,7 @@ func Resolve(
 
 	// Build effective template spec: snapshot base + overrides.
 	if cluster.Status.TemplateSnapshot == nil || cluster.Status.TemplateSnapshot.Spec == nil {
-		return result, fmt.Errorf("template snapshot not initialized for cluster %s/%s", cluster.Namespace, cluster.Name)
+		return result, fmt.Errorf("template snapshot is missing or has no spec; cannot resolve template %q", cluster.Spec.TemplateRef.Name)
 	}
 	snapshotSpec := cluster.Status.TemplateSnapshot.Spec
 	effectiveSpec := MergeTemplateSpec(snapshotSpec, cluster.Spec.Overrides)

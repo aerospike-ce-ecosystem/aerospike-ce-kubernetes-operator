@@ -3,7 +3,73 @@ package controller
 import (
 	"maps"
 	"testing"
+
+	corev1 "k8s.io/api/core/v1"
 )
+
+func TestServicePortsChanged(t *testing.T) {
+	tests := []struct {
+		name     string
+		existing []corev1.ServicePort
+		desired  []corev1.ServicePort
+		want     bool
+	}{
+		{
+			name:     "both empty",
+			existing: nil,
+			desired:  nil,
+			want:     false,
+		},
+		{
+			name:     "same single port",
+			existing: []corev1.ServicePort{{Name: "service", Port: 3000}},
+			desired:  []corev1.ServicePort{{Name: "service", Port: 3000}},
+			want:     false,
+		},
+		{
+			name:     "different lengths",
+			existing: []corev1.ServicePort{{Name: "service", Port: 3000}},
+			desired: []corev1.ServicePort{
+				{Name: "service", Port: 3000},
+				{Name: "fabric", Port: 3001},
+			},
+			want: true,
+		},
+		{
+			name:     "different port name",
+			existing: []corev1.ServicePort{{Name: "service", Port: 3000}},
+			desired:  []corev1.ServicePort{{Name: "fabric", Port: 3000}},
+			want:     true,
+		},
+		{
+			name:     "different port number",
+			existing: []corev1.ServicePort{{Name: "service", Port: 3000}},
+			desired:  []corev1.ServicePort{{Name: "service", Port: 4000}},
+			want:     true,
+		},
+		{
+			name: "same multiple ports",
+			existing: []corev1.ServicePort{
+				{Name: "service", Port: 3000},
+				{Name: "fabric", Port: 3001},
+			},
+			desired: []corev1.ServicePort{
+				{Name: "service", Port: 3000},
+				{Name: "fabric", Port: 3001},
+			},
+			want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := servicePortsChanged(tc.existing, tc.desired)
+			if got != tc.want {
+				t.Errorf("servicePortsChanged() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
 
 func TestEqualAnnotations(t *testing.T) {
 	tests := []struct {

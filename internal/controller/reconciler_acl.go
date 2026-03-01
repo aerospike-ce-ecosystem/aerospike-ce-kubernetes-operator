@@ -39,10 +39,11 @@ func (r *AerospikeCEClusterReconciler) reconcileACL(
 	}
 
 	// Skip if ACL spec hasn't changed since the last successful reconcile.
+	// Return true (synced) because ACL is already in sync from the previous reconcile.
 	if cluster.Status.Phase == asdbcev1alpha1.AerospikePhaseCompleted &&
 		cluster.Status.ObservedGeneration == cluster.Generation {
 		log.V(1).Info("ACL spec unchanged, skipping sync")
-		return false, nil
+		return true, nil
 	}
 
 	// Check if any pod is ready before attempting ACL sync.

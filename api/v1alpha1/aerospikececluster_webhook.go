@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -737,6 +738,9 @@ func (v *AerospikeCEClusterValidator) validateOperations(ops []OperationSpec) []
 // validateIntOrString validates that an IntOrString value meets a minimum bound.
 // Use minValue=1 for positive validation, minValue=0 for non-negative validation.
 func validateIntOrString(val *intstr.IntOrString, fieldName string, minValue int) string {
+	if val == nil {
+		return ""
+	}
 	label := "positive"
 	if minValue == 0 {
 		label = "non-negative"
@@ -837,6 +841,22 @@ func (v *AerospikeCEClusterValidator) validateVolume(vol VolumeSpec, index int) 
 		warnings = append(warnings, fmt.Sprintf(
 			"storage.volumes[%d] %q: cascadeDelete has no effect on non-persistent volumes",
 			index, vol.Name))
+	}
+
+	// Validate PV size is a valid Kubernetes quantity
+	if vol.Source.PersistentVolume != nil {
+		if vol.Source.PersistentVolume.Size == "" {
+			errors = append(errors, fmt.Sprintf(
+				"storage.volumes[%d] %q: persistentVolume.size must not be empty", index, vol.Name))
+		} else if qty, err := resource.ParseQuantity(vol.Source.PersistentVolume.Size); err != nil {
+			errors = append(errors, fmt.Sprintf(
+				"storage.volumes[%d] %q: persistentVolume.size %q is not a valid Kubernetes quantity: %v",
+				index, vol.Name, vol.Source.PersistentVolume.Size, err))
+		} else if qty.Sign() <= 0 {
+			errors = append(errors, fmt.Sprintf(
+				"storage.volumes[%d] %q: persistentVolume.size must be a positive quantity (got %q)",
+				index, vol.Name, vol.Source.PersistentVolume.Size))
+		}
 	}
 
 	// Validate Aerospike mount path is absolute

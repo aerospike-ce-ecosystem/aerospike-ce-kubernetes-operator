@@ -4,6 +4,7 @@ import (
 	"context"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -116,6 +117,10 @@ func (r *AerospikeCEClusterReconciler) reconcileOperations(
 	base := latest.DeepCopy()
 	latest.Status.OperationStatus = opStatus
 	if err := r.Status().Patch(ctx, latest, client.MergeFrom(base)); err != nil {
+		if errors.IsConflict(err) {
+			log.V(1).Info("Conflict patching operation status, will requeue", "operation", op.ID)
+			return true, nil
+		}
 		return !allDone, err
 	}
 

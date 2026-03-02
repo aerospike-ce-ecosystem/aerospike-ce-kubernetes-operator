@@ -127,6 +127,18 @@ func (r *AerospikeClusterReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{Requeue: true}, nil
 	}
 
+	// 4. Check if paused
+	if cluster.Spec.Paused != nil && *cluster.Spec.Paused {
+		log.Info("Reconciliation paused")
+		if err := r.setPhase(ctx, cluster, ackov1alpha1.AerospikePhasePaused, "Reconciliation paused by user"); err != nil {
+			if errors.IsConflict(err) {
+				return ctrl.Result{Requeue: true}, nil
+			}
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+	}
+
 	// Circuit breaker: if consecutive failures exceed threshold, back off exponentially.
 	if cluster.Status.FailedReconcileCount >= maxFailedReconciles {
 		backoff := calculateBackoff(cluster.Status.FailedReconcileCount)
@@ -141,18 +153,6 @@ func (r *AerospikeClusterReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{RequeueAfter: backoff}, nil
 	}
 	metrics.CircuitBreakerActive.WithLabelValues(cluster.Namespace, cluster.Name).Set(0)
-
-	// 4. Check if paused
-	if cluster.Spec.Paused != nil && *cluster.Spec.Paused {
-		log.Info("Reconciliation paused")
-		if err := r.setPhase(ctx, cluster, ackov1alpha1.AerospikePhasePaused, "Reconciliation paused by user"); err != nil {
-			if errors.IsConflict(err) {
-				return ctrl.Result{Requeue: true}, nil
-			}
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{}, nil
-	}
 
 	// 4.5 Template resolution: fetch/snapshot template and apply to in-memory spec.
 	if cluster.Spec.TemplateRef != nil {
@@ -272,8 +272,12 @@ func (r *AerospikeClusterReconciler) handleReconcileError(
 ) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
+	// Use a detached context so status writes succeed even if the reconcile ctx timed out.
+	updateCtx, updateCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer updateCancel()
+
 	// Re-fetch to avoid conflict on a stale object.
-	latest, err := r.refetchCluster(ctx, types.NamespacedName{Name: cluster.Name, Namespace: cluster.Namespace})
+	latest, err := r.refetchCluster(updateCtx, types.NamespacedName{Name: cluster.Name, Namespace: cluster.Namespace})
 	if err != nil {
 		// Cannot update status — return original error and let controller-runtime retry.
 		log.Error(err, "Failed to re-fetch cluster for error tracking")
@@ -288,7 +292,7 @@ func (r *AerospikeClusterReconciler) handleReconcileError(
 	}
 	latest.Status.LastReconcileError = errMsg
 
-	if err := r.Status().Update(ctx, latest); err != nil {
+	if err := r.Status().Update(updateCtx, latest); err != nil {
 		log.Error(err, "Failed to update failed reconcile count in status")
 		// Return original error; the counter will be incremented on the next attempt.
 		return ctrl.Result{}, reconcileErr
@@ -299,12 +303,11 @@ func (r *AerospikeClusterReconciler) handleReconcileError(
 	cluster.Status.LastReconcileError = latest.Status.LastReconcileError
 
 	backoff := calculateBackoff(latest.Status.FailedReconcileCount)
-	log.Info("Reconcile failed, scheduling retry with backoff",
+	log.Error(reconcileErr, "Reconcile failed, scheduling retry with backoff",
 		"failedCount", latest.Status.FailedReconcileCount,
-		"backoff", backoff,
-		"error", reconcileErr)
+		"backoff", backoff)
 
-	return ctrl.Result{RequeueAfter: backoff}, reconcileErr
+	return ctrl.Result{RequeueAfter: backoff}, nil
 }
 
 // resetFailedReconcileCount resets the circuit breaker counter after a successful reconcile.

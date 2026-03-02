@@ -3,4 +3,4 @@ dependencies:
   repository: file://../aerospike-ce-operator-crds
   version: 0.1.0
 digest: sha256:7e29bfc077842c68ca2c5e3e56265def02a4fb08b2c196399e94dcf84934a9e6
-generated: "2026-03-02T19:11:16.752431+09:00"
+generated: "2026-03-02T21:26:55.174407+09:00"

@@ -1,0 +1,16 @@
+{{- if and .Values.ui.enabled .Values.ui.rbac.create .Values.ui.k8s.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "aerospike-ce-operator.ui.fullname" . }}
+  labels:
+    {{- include "aerospike-ce-operator.ui.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "aerospike-ce-operator.ui.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "aerospike-ce-operator.ui.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

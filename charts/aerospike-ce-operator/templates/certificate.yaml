@@ -1,0 +1,55 @@
+{{- if and .Values.webhook.enabled .Values.certManager.enabled }}
+{{- if eq .Values.certManager.issuer.type "selfSigned" }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "aerospike-ce-operator.issuerName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "aerospike-ce-operator.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+---
+{{- else if eq .Values.certManager.issuer.type "ca" }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "aerospike-ce-operator.issuerName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "aerospike-ce-operator.labels" . | nindent 4 }}
+spec:
+  ca:
+    secretName: {{ .Values.certManager.issuer.caSecretName }}
+---
+{{- end }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "aerospike-ce-operator.certName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "aerospike-ce-operator.labels" . | nindent 4 }}
+spec:
+  dnsNames:
+    - {{ include "aerospike-ce-operator.webhookServiceName" . }}.{{ .Release.Namespace }}.svc
+    - {{ include "aerospike-ce-operator.webhookServiceName" . }}.{{ .Release.Namespace }}.svc.cluster.local
+  {{- if eq .Values.certManager.issuer.type "clusterIssuer" }}
+  issuerRef:
+    kind: ClusterIssuer
+    name: {{ .Values.certManager.issuer.name }}
+  {{- else }}
+  issuerRef:
+    kind: Issuer
+    name: {{ include "aerospike-ce-operator.issuerName" . }}
+  {{- end }}
+  secretName: {{ include "aerospike-ce-operator.certSecretName" . }}
+  privateKey:
+    rotationPolicy: Always
+  {{- with .Values.certManager.duration }}
+  duration: {{ . }}
+  {{- end }}
+  {{- with .Values.certManager.renewBefore }}
+  renewBefore: {{ . }}
+  {{- end }}
+{{- end }}

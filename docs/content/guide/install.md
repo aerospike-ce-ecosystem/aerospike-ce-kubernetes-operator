@@ -42,7 +42,7 @@ kubectl -n cert-manager wait --for=condition=Available deployment/cert-manager-w
 The simplest installation method using the published OCI Helm chart.
 
 ```bash
-helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   --version 0.1.0 \  # Replace with latest version
   -n aerospike-operator --create-namespace
 ```
@@ -52,7 +52,7 @@ helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
 You can override default values:
 
 ```bash
-helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   --version 0.1.0 \  # Replace with latest version
   -n aerospike-operator --create-namespace \
   --set replicaCount=2 \
@@ -62,7 +62,7 @@ helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
 To see all available values:
 
 ```bash
-helm show values oci://ghcr.io/kimsoungryoul/charts/acko --version 0.1.0  # Replace with latest version
+helm show values oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator --version 0.1.0  # Replace with latest version
 ```
 
 </TabItem>
@@ -74,7 +74,7 @@ of the operator lifecycle.
 **Step 1: Install CRDs once per cluster**
 
 ```bash
-helm install acko-crds oci://ghcr.io/kimsoungryoul/charts/acko-crds \
+helm install aerospike-ce-operator-crds oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator-crds \
   --version 0.1.0
 ```
 
@@ -84,7 +84,7 @@ on `helm uninstall`, protecting your cluster data.
 **Step 2: Install the operator (skip CRD installation)**
 
 ```bash
-helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   --version 0.1.0 \
   --set crds.install=false \
   -n aerospike-operator --create-namespace
@@ -97,13 +97,13 @@ helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: acko-crds
+  name: aerospike-ce-operator-crds
   annotations:
     argocd.argoproj.io/sync-options: Replace=true
 spec:
   source:
     repoURL: ghcr.io/kimsoungryoul/charts
-    chart: acko-crds
+    chart: aerospike-ce-operator-crds
     targetRevision: "0.1.0"
   syncPolicy:
     automated:
@@ -114,11 +114,11 @@ spec:
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: acko
+  name: aerospike-ce-operator
 spec:
   source:
     repoURL: ghcr.io/kimsoungryoul/charts
-    chart: acko
+    chart: aerospike-ce-operator
     targetRevision: "0.1.0"
     helm:
       values: |
@@ -141,7 +141,7 @@ spec:
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
 metadata:
-  name: acko
+  name: aerospike-ce-operator
   namespace: flux-system
 spec:
   type: oci
@@ -150,16 +150,16 @@ spec:
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: acko-crds
+  name: aerospike-ce-operator-crds
   namespace: flux-system
 spec:
   chart:
     spec:
-      chart: acko-crds
+      chart: aerospike-ce-operator-crds
       version: "0.1.0"
       sourceRef:
         kind: HelmRepository
-        name: acko
+        name: aerospike-ce-operator
   install:
     crds: CreateReplace
   upgrade:
@@ -168,19 +168,19 @@ spec:
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: acko
+  name: aerospike-ce-operator
   namespace: flux-system
 spec:
   dependsOn:
-    - name: acko-crds
+    - name: aerospike-ce-operator-crds
   targetNamespace: aerospike-operator
   chart:
     spec:
-      chart: acko
+      chart: aerospike-ce-operator
       version: "0.1.0"
       sourceRef:
         kind: HelmRepository
-        name: acko
+        name: aerospike-ce-operator
   values:
     crds:
       install: false
@@ -218,7 +218,7 @@ All monitoring features are **disabled by default** and require [Prometheus Oper
 Creates a `ServiceMonitor` resource so Prometheus automatically scrapes operator metrics.
 
 ```bash
-helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   --version 0.1.0 \
   -n aerospike-operator --create-namespace \
   --set serviceMonitor.enabled=true \
@@ -244,7 +244,7 @@ kubectl get prometheus -A -o jsonpath='{.items[*].spec.serviceMonitorSelector}'
 Creates a `PrometheusRule` resource with built-in alerting rules for the operator.
 
 ```bash
-helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   --version 0.1.0 \
   -n aerospike-operator --create-namespace \
   --set serviceMonitor.enabled=true \
@@ -288,7 +288,7 @@ prometheusRule:
 Creates a `ConfigMap` with a pre-built Grafana dashboard. Requires the [Grafana sidecar](https://github.com/grafana/helm-charts/tree/main/charts/grafana#sidecar-for-dashboards) to be configured for auto-discovery.
 
 ```bash
-helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   --version 0.1.0 \
   -n aerospike-operator --create-namespace \
   --set grafanaDashboard.enabled=true
@@ -333,7 +333,7 @@ helm install grafana grafana/grafana \
 **3. Install (or upgrade) the operator with the dashboard enabled:**
 
 ```bash
-helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   --version 0.1.0 \
   -n aerospike-operator --create-namespace \
   --set grafanaDashboard.enabled=true
@@ -369,7 +369,7 @@ kubectl -n aerospike-operator get configmap -l grafana_dashboard=1
 Enable all monitoring features at once:
 
 ```bash
-helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   --version 0.1.0 \
   -n aerospike-operator --create-namespace \
   --set serviceMonitor.enabled=true \
@@ -392,7 +392,7 @@ The UI is bundled with the Helm chart and deployed alongside the operator. It in
 Add `--set ui.enabled=true` to your Helm install command:
 
 ```bash
-helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   --version 0.1.0 \
   -n aerospike-operator --create-namespace \
   --set ui.enabled=true
@@ -401,15 +401,15 @@ helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
 ### Access via Port-Forward
 
 ```bash
-kubectl -n aerospike-operator port-forward svc/acko-ui 3000:3000
+kubectl -n aerospike-operator port-forward svc/aerospike-ce-operator-ui 3000:3000
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 :::tip
-The service name is `<release>-acko-ui`. If you used a custom release name, adjust accordingly:
+The service name is `<release>-aerospike-ce-operator-ui`. If you used a custom release name, adjust accordingly:
 ```bash
-kubectl -n aerospike-operator port-forward svc/<release>-acko-ui 3000:3000
+kubectl -n aerospike-operator port-forward svc/<release>-aerospike-ce-operator-ui 3000:3000
 ```
 :::
 
@@ -418,7 +418,7 @@ kubectl -n aerospike-operator port-forward svc/<release>-acko-ui 3000:3000
 For persistent external access, enable Ingress:
 
 ```bash
-helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   --version 0.1.0 \
   -n aerospike-operator --create-namespace \
   --set ui.enabled=true \
@@ -450,7 +450,7 @@ helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
 To use an existing PostgreSQL instance instead of the embedded sidecar:
 
 ```bash
-helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   --version 0.1.0 \
   -n aerospike-operator --create-namespace \
   --set ui.enabled=true \
@@ -470,7 +470,7 @@ Expected output:
 
 ```
 NAME                                    READY   STATUS    RESTARTS   AGE
-acko-controller-manager-xxxxx-yyyyy     1/1     Running   0          30s
+aerospike-ce-operator-controller-manager-xxxxx-yyyyy     1/1     Running   0          30s
 ```
 
 Check the CRD is registered:
@@ -520,7 +520,7 @@ helm install prometheus prometheus-community/kube-prometheus-stack \
 # =============================================================================
 # 3. Install Aerospike Operator (all monitoring enabled)
 # =============================================================================
-helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   --version 0.1.0 \
   -n aerospike-operator --create-namespace \
   --set serviceMonitor.enabled=true \
@@ -592,10 +592,10 @@ Always delete AerospikeCluster resources before uninstalling the operator. Remov
 kubectl delete asc --all --all-namespaces
 
 # Uninstall the operator
-helm uninstall acko -n aerospike-operator
+helm uninstall aerospike-ce-operator -n aerospike-operator
 
 # (Optional) Uninstall CRDs — WARNING: this deletes all AerospikeCluster data
-# helm uninstall acko-crds
+# helm uninstall aerospike-ce-operator-crds
 
 # (Optional) Delete the namespace
 kubectl delete namespace aerospike-operator

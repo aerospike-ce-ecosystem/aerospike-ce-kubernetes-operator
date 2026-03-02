@@ -19,7 +19,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: kimsoungryoul/aerospike-ce-operator
+  IMAGE_NAME: kimsoungryoul/aerospike-ce-kubernetes-operator
 
 jobs:
   build-and-push:

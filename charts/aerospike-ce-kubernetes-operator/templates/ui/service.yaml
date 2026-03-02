@@ -1,0 +1,24 @@
+{{- if .Values.ui.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "aerospike-ce-kubernetes-operator.ui.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "aerospike-ce-kubernetes-operator.ui.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.ui.service.type }}
+  ports:
+    - name: frontend
+      port: {{ .Values.ui.service.frontendPort }}
+      targetPort: frontend
+      protocol: TCP
+      appProtocol: http
+    - name: backend
+      port: {{ .Values.ui.service.backendPort }}
+      targetPort: backend
+      protocol: TCP
+      appProtocol: http
+  selector:
+    {{- include "aerospike-ce-kubernetes-operator.ui.selectorLabels" . | nindent 4 }}
+{{- end }}

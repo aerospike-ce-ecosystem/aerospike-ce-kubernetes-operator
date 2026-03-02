@@ -39,13 +39,13 @@ import (
 const namespace = "aerospike-operator"
 
 // serviceAccountName created for the project
-const serviceAccountName = "aerospike-ce-operator-controller-manager"
+const serviceAccountName = "aerospike-ce-kubernetes-operator-controller-manager"
 
 // metricsServiceName is the name of the metrics service of the project
-const metricsServiceName = "aerospike-ce-operator-controller-manager-metrics-service"
+const metricsServiceName = "aerospike-ce-kubernetes-operator-controller-manager-metrics-service"
 
 // metricsRoleBindingName is the name of the RBAC that will be created to allow get the metrics data
-const metricsRoleBindingName = "aerospike-ce-operator-metrics-binding"
+const metricsRoleBindingName = "aerospike-ce-kubernetes-operator-metrics-binding"
 
 var _ = Describe("Manager", Ordered, func() {
 	var controllerPodName string

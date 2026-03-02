@@ -14,7 +14,7 @@ const (
 	StorageFinalizer      = "acko.io/storage-finalizer"
 
 	appName     = "aerospike-cluster"
-	managerName = "aerospike-ce-operator"
+	managerName = "aerospike-ce-kubernetes-operator"
 )
 
 // LabelsForCluster returns the common labels for resources belonging to a cluster.

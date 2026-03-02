@@ -6,7 +6,7 @@ cliVersion: 4.12.0
 domain: acko.io
 layout:
 - go.kubebuilder.io/v4
-projectName: aerospike-ce-operator
+projectName: aerospike-ce-kubernetes-operator
 repo: github.com/ksr/aerospike-ce-kubernetes-operator
 resources:
 - api:

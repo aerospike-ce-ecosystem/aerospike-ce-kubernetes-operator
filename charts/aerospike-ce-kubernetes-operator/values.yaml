@@ -1,0 +1,610 @@
+# =============================================================================
+# Aerospike CE Kubernetes Operator - Helm Values
+# =============================================================================
+
+# =============================================================================
+# CRD Management
+# =============================================================================
+crds:
+  # -- Install aerospike-ce-kubernetes-operator-crds as a subchart dependency.
+  # Set to false if you have already installed aerospike-ce-kubernetes-operator-crds separately,
+  # e.g., via GitOps (ArgoCD/Flux) or manual `helm install aerospike-ce-kubernetes-operator-crds`.
+  install: true
+  # -- Retain CRDs on `helm uninstall` (documentation only).
+  # The actual keep behavior is enforced by the helm.sh/resource-policy: keep
+  # annotation on each CRD template in the aerospike-ce-kubernetes-operator-crds chart.
+  keep: true
+
+# -- Number of operator replicas. Typically 1 is sufficient as leader election
+# handles HA. Increase for faster failover.
+replicaCount: 1
+
+# -- Operator container image settings
+image:
+  # -- Container image repository
+  repository: ghcr.io/kimsoungryoul/aerospike-ce-kubernetes-operator
+  # -- Container image tag; defaults to Chart.appVersion when empty
+  tag: ""
+  # -- Image pull policy: Always, IfNotPresent, or Never
+  pullPolicy: IfNotPresent
+
+# -- List of image pull secrets for private registries
+# Example:
+#   imagePullSecrets:
+#     - name: my-registry-secret
+imagePullSecrets: []
+
+# -- Override the chart name used in resource names
+nameOverride: ""
+# -- Override the full resource name (takes precedence over nameOverride)
+fullnameOverride: ""
+
+# =============================================================================
+# Service Account
+# =============================================================================
+serviceAccount:
+  # -- Annotations to add to the operator service account
+  # Useful for IAM roles (e.g., EKS IRSA, GKE Workload Identity)
+  annotations: {}
+
+# =============================================================================
+# Resource Limits
+# =============================================================================
+# -- CPU and memory resource requests/limits for the operator pod
+resources:
+  limits:
+    cpu: 500m
+    memory: 128Mi
+  requests:
+    cpu: 10m
+    memory: 64Mi
+
+# =============================================================================
+# Webhook Configuration
+# =============================================================================
+webhook:
+  # -- Enable admission webhooks for CR validation and defaulting
+  enabled: true
+  # -- Webhook server listen port
+  port: 9443
+
+# =============================================================================
+# cert-manager Integration
+# =============================================================================
+certManager:
+  # -- Use cert-manager to provision webhook TLS certificates.
+  # This controls whether Certificate/Issuer resources are created.
+  # Requires cert-manager to be installed in the cluster — either:
+  #   1) Via subchart: set cert-manager.enabled=true below, OR
+  #   2) Pre-installed: install cert-manager separately before this chart.
+  # When disabled, you must provide a TLS secret manually via webhookTlsSecret.
+  enabled: true
+
+  # -- Issuer configuration for cert-manager
+  issuer:
+    # -- Issuer type: "selfSigned", "ca", or "clusterIssuer"
+    # - selfSigned: creates a self-signed Issuer (default, good for development)
+    # - ca: uses an existing CA secret to sign certificates
+    # - clusterIssuer: references an existing ClusterIssuer by name
+    type: selfSigned
+
+    # -- Name of an existing ClusterIssuer (only used when type is "clusterIssuer")
+    name: ""
+
+    # -- CA secret name containing tls.crt and tls.key (only used when type is "ca")
+    caSecretName: ""
+
+  # -- Certificate duration (default: 8760h = 1 year)
+  duration: ""
+  # -- Certificate renewal time before expiry (default: 2880h = 120 days)
+  renewBefore: ""
+
+# -- Manually provide a TLS secret for the webhook server.
+# Only used when certManager.enabled is false and webhook.enabled is true.
+# The secret must contain tls.crt and tls.key.
+# Example: webhookTlsSecret: "my-webhook-tls"
+webhookTlsSecret: ""
+
+# =============================================================================
+# Monitoring - ServiceMonitor (Prometheus Operator)
+# =============================================================================
+serviceMonitor:
+  # -- Create a ServiceMonitor resource for Prometheus Operator
+  enabled: false
+  # -- Scrape interval (e.g., "30s")
+  # interval: 30s
+  # -- Scrape timeout (e.g., "10s")
+  # scrapeTimeout: 10s
+  # -- Additional labels for the ServiceMonitor (useful for Prometheus selection)
+  additionalLabels: {}
+
+# =============================================================================
+# Monitoring - PrometheusRule (Alerting Rules)
+# =============================================================================
+prometheusRule:
+  # -- Create PrometheusRule resource with Aerospike operator alerting rules
+  enabled: false
+  # -- Additional labels for the PrometheusRule (useful for Prometheus selection)
+  additionalLabels: {}
+  # -- Custom alerting rules to append or override defaults.
+  # When empty, built-in default rules are used.
+  # Example:
+  #   rules:
+  #     - alert: CustomAerospikeAlert
+  #       expr: up{job="aerospike"} == 0
+  #       for: 5m
+  #       labels:
+  #         severity: critical
+  #       annotations:
+  #         summary: "Custom Aerospike alert"
+  rules: []
+
+# =============================================================================
+# Monitoring - Grafana Dashboard
+# =============================================================================
+grafanaDashboard:
+  # -- Create a ConfigMap with a Grafana dashboard for the Aerospike operator.
+  # Requires Grafana sidecar to be configured with dashboard auto-discovery.
+  enabled: false
+  # -- Grafana sidecar label key for dashboard auto-discovery
+  sidecarLabel: grafana_dashboard
+  # -- Grafana sidecar label value
+  sidecarLabelValue: "1"
+  # -- Grafana folder annotation for organizing dashboards
+  folder: ""
+
+# =============================================================================
+# Network Policy (standard Kubernetes NetworkPolicy)
+# =============================================================================
+networkPolicy:
+  # -- Create standard Kubernetes NetworkPolicy resources
+  # Mutually exclusive with cilium.enabled
+  enabled: false
+
+# =============================================================================
+# Cilium Network Policy
+# =============================================================================
+cilium:
+  # -- Create CiliumNetworkPolicy resources instead of standard NetworkPolicy.
+  # Mutually exclusive with networkPolicy.enabled.
+  # Requires Cilium CNI to be installed in the cluster.
+  enabled: false
+  # -- Enable L7 (application-layer) policy rules for Aerospike ports
+  l7Enabled: false
+
+# =============================================================================
+# Pod Disruption Budget
+# =============================================================================
+podDisruptionBudget:
+  # -- Create a PodDisruptionBudget for the operator deployment
+  enabled: false
+  # -- Minimum available pods (mutually exclusive with maxUnavailable)
+  minAvailable: 1
+  # -- Maximum unavailable pods (mutually exclusive with minAvailable).
+  # Uncomment and remove minAvailable to use.
+  # maxUnavailable: 0
+
+# =============================================================================
+# Horizontal Pod Autoscaler
+# =============================================================================
+autoscaling:
+  # -- Enable HorizontalPodAutoscaler for the operator deployment.
+  # Only useful when running multiple replicas.
+  enabled: false
+  # -- Minimum number of replicas
+  minReplicas: 1
+  # -- Maximum number of replicas
+  maxReplicas: 3
+  # -- Target average CPU utilization percentage
+  targetCPUUtilizationPercentage: 80
+  # -- Target average memory utilization percentage (optional)
+  # targetMemoryUtilizationPercentage: 80
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+# -- Node selector labels for operator pod scheduling
+nodeSelector: {}
+
+# -- Tolerations for operator pod scheduling
+tolerations: []
+
+# -- Affinity rules for operator pod scheduling
+affinity: {}
+
+# -- Topology spread constraints for operator pod scheduling.
+# Useful for spreading operator replicas across zones/nodes.
+# Example:
+#   topologySpreadConstraints:
+#     - maxSkew: 1
+#       topologyKey: topology.kubernetes.io/zone
+#       whenUnsatisfiable: DoNotSchedule
+#       labelSelector:
+#         matchLabels:
+#           app.kubernetes.io/name: aerospike-ce-kubernetes-operator
+topologySpreadConstraints: []
+
+# -- Priority class name for operator pod
+priorityClassName: ""
+
+# =============================================================================
+# Extra annotations and labels
+# =============================================================================
+
+# -- Additional annotations to add to the operator pods
+podAnnotations: {}
+
+# -- Additional labels to add to the operator pods
+podLabels: {}
+
+# =============================================================================
+# UI - Aerospike Cluster Manager
+# =============================================================================
+ui:
+  # -- Enable the Aerospike Cluster Manager web UI.
+  # Deploys a full-stack management dashboard alongside the operator.
+  # Access via: kubectl port-forward svc/<release>-aerospike-ce-kubernetes-operator-ui 3000:3000
+  enabled: false
+
+  # -- Number of UI replicas
+  replicaCount: 1
+
+  # -- Container image settings for the Cluster Manager
+  image:
+    # -- Container image repository
+    repository: ghcr.io/kimsoungryoul/aerospike-cluster-manager
+    # -- Container image tag; set explicitly since the UI has its own release cycle
+    tag: "latest"
+    # -- Image pull policy
+    pullPolicy: IfNotPresent
+
+  # -- Image pull secrets for private registries
+  imagePullSecrets: []
+
+  # =============================================================================
+  # Service Account & RBAC
+  # =============================================================================
+  serviceAccount:
+    # -- Create a service account for the UI
+    create: true
+    # -- Annotations for the UI service account
+    annotations: {}
+
+  rbac:
+    # -- Create ClusterRole and ClusterRoleBinding for K8s API access
+    create: true
+
+  # =============================================================================
+  # Service
+  # =============================================================================
+  service:
+    # -- Service type
+    type: ClusterIP
+    # -- Frontend port
+    frontendPort: 3000
+    # -- Backend port
+    backendPort: 8000
+
+  # =============================================================================
+  # Ingress
+  # =============================================================================
+  ingress:
+    # -- Enable ingress for external access
+    enabled: false
+    # -- Ingress class name
+    className: ""
+    # -- Ingress annotations
+    annotations: {}
+    # -- Ingress hosts
+    hosts:
+      - host: aerospike-admin.local
+        paths:
+          - path: /
+            pathType: Prefix
+    # -- Ingress TLS configuration
+    tls: []
+
+  # =============================================================================
+  # PostgreSQL
+  # =============================================================================
+  postgresql:
+    # -- Deploy an embedded PostgreSQL sidecar container.
+    # Disable this and set env.databaseUrl to use an external PostgreSQL instance.
+    enabled: true
+    # -- PostgreSQL container image
+    image:
+      repository: postgres
+      tag: "17-alpine"
+      pullPolicy: IfNotPresent
+    # -- Database name
+    database: aerospike_manager
+    # -- Database user
+    username: aerospike
+    # -- Database password (used for embedded sidecar only)
+    password: aerospike
+    # -- Use an existing Secret instead of creating one.
+    # The Secret must contain POSTGRES_PASSWORD and DATABASE_URL keys.
+    existingSecret: ""
+    # -- Resource requests and limits for the PostgreSQL sidecar
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+  # =============================================================================
+  # Persistence (PostgreSQL data)
+  # =============================================================================
+  persistence:
+    # -- Enable persistent storage for the embedded PostgreSQL database
+    enabled: true
+    # -- Storage class name (empty = default)
+    storageClassName: ""
+    # -- Access mode
+    accessMode: ReadWriteOnce
+    # -- Volume size
+    size: 1Gi
+
+  # =============================================================================
+  # K8s Cluster Management
+  # =============================================================================
+  k8s:
+    # -- Enable Kubernetes cluster management features (Create Cluster)
+    enabled: true
+
+  # =============================================================================
+  # Resources
+  # =============================================================================
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  # =============================================================================
+  # Security Context
+  # =============================================================================
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+    seccompProfile:
+      type: RuntimeDefault
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    capabilities:
+      drop:
+        - ALL
+
+  # =============================================================================
+  # Probes
+  # =============================================================================
+  livenessProbe:
+    httpGet:
+      path: /api/health
+      port: backend
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 5
+
+  readinessProbe:
+    httpGet:
+      path: /api/health
+      port: backend
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+
+  startupProbe:
+    httpGet:
+      path: /api/health
+      port: backend
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+
+  # =============================================================================
+  # Environment
+  # =============================================================================
+  env:
+    # -- Backend CORS origins (empty = no CORS; frontend proxies via Next.js rewrites)
+    corsOrigins: ""
+    # -- Log level (DEBUG, INFO, WARNING, ERROR)
+    logLevel: "INFO"
+    # -- External PostgreSQL connection URL.
+    # Only used when postgresql.enabled is false.
+    # Example: "postgresql://user:pass@db-host:5432/aerospike_manager"
+    databaseUrl: ""
+
+  # =============================================================================
+  # Scheduling
+  # =============================================================================
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+  # -- Topology spread constraints for UI pod scheduling
+  topologySpreadConstraints: []
+
+  # -- Additional annotations to add to the UI pods
+  podAnnotations: {}
+
+  # -- Additional labels to add to the UI pods
+  podLabels: {}
+
+  # -- Termination grace period in seconds
+  terminationGracePeriodSeconds: 45
+
+  # =============================================================================
+  # Aerospike Ports
+  # =============================================================================
+  aerospikePorts:
+    # -- Aerospike service port
+    service: 3000
+    # -- Aerospike fabric port
+    fabric: 3001
+    # -- Aerospike heartbeat port
+    heartbeat: 3002
+
+  # =============================================================================
+  # Network Policy
+  # =============================================================================
+  networkPolicy:
+    # -- Enable NetworkPolicy for restricting UI ingress/egress traffic
+    enabled: false
+    # -- Optional ingress source restrictions (namespaceSelector, podSelector)
+    ingressFrom: []
+
+  # =============================================================================
+  # Pod Disruption Budget
+  # =============================================================================
+  podDisruptionBudget:
+    # -- Enable PodDisruptionBudget for UI pods
+    enabled: false
+    # -- Minimum number of pods that must remain available (mutually exclusive with maxUnavailable)
+    minAvailable: 1
+    # -- Maximum number of pods that can be unavailable (mutually exclusive with minAvailable).
+    # Uncomment and remove minAvailable to use.
+    # maxUnavailable: 1
+
+  # =============================================================================
+  # Autoscaling (HPA)
+  # =============================================================================
+  autoscaling:
+    # -- Enable Horizontal Pod Autoscaler for UI
+    enabled: false
+    # -- Minimum number of replicas
+    minReplicas: 1
+    # -- Maximum number of replicas
+    maxReplicas: 3
+    # -- Target CPU utilization percentage
+    targetCPUUtilizationPercentage: 80
+    # -- Target memory utilization percentage (optional, uncomment to enable)
+    # targetMemoryUtilizationPercentage: 80
+
+  # =============================================================================
+  # Extra Environment Variables
+  # =============================================================================
+  # -- Extra environment variables to set on the UI container
+  extraEnv: []
+
+  # =============================================================================
+  # Helm Tests
+  # =============================================================================
+  tests:
+    # -- Enable Helm test pods for UI (run with `helm test <release>`)
+    enabled: true
+
+
+# =============================================================================
+# Default AerospikeClusterTemplates
+# =============================================================================
+defaultTemplates:
+  # -- Create pre-built AerospikeClusterTemplate resources in the release namespace.
+  # Three tiers are provided: minimal (dev), soft-rack (stage), hard-rack (prod).
+  # NOTE: AerospikeClusterTemplate is namespace-scoped. Templates created here are
+  # only accessible to AerospikeCluster resources in the same namespace (Release.Namespace).
+  # For cross-namespace use, apply templates manually: kubectl apply -f config/samples/acko_v1alpha1_template_*.yaml -n <namespace>
+  enabled: true
+
+  templates:
+    minimal:
+      image: aerospike:ce-8.1.1.1
+      size: 1
+      monitoring:
+        enabled: false
+      scheduling:
+        podAntiAffinityLevel: none
+      storage:
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 1Gi
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "256Mi"
+        limits:
+          cpu: "500m"
+          memory: "512Mi"
+      aerospikeConfig:
+        service:
+          proto-fd-max: 1024
+        namespaceDefaults:
+          replication-factor: 1
+
+    soft-rack:
+      scheduling:
+        podAntiAffinityLevel: preferred
+        tolerations:
+          - key: "aerospike"
+            operator: "Exists"
+            effect: "NoSchedule"
+      storage:
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 10Gi
+      resources:
+        requests:
+          cpu: "500m"
+          memory: "1Gi"
+        limits:
+          cpu: "2"
+          memory: "2Gi"
+      aerospikeConfig:
+        service:
+          proto-fd-max: 4096
+        namespaceDefaults:
+          replication-factor: 2
+
+    hard-rack:
+      image: aerospike:ce-8.1.1.1
+      size: 6
+      monitoring:
+        enabled: true
+        port: 9145
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+        serviceMonitor:
+          enabled: true
+          interval: 30s
+      scheduling:
+        podAntiAffinityLevel: required
+        tolerations:
+          - key: "aerospike"
+            operator: "Exists"
+            effect: "NoSchedule"
+      storage:
+        storageClassName: local-path
+        localPVRequired: true
+        resources:
+          requests:
+            storage: 100Gi
+      resources:
+        requests:
+          cpu: "2"
+          memory: "4Gi"
+        limits:
+          cpu: "2"
+          memory: "4Gi"
+      rackConfig:
+        maxRacksPerNode: 1
+      aerospikeConfig:
+        service:
+          proto-fd-max: 15000
+        namespaceDefaults:
+          replication-factor: 2
+          data-size: 2147483648

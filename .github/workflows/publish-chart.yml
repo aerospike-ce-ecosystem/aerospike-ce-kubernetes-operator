@@ -28,13 +28,13 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           TAG="${GITHUB_REF_NAME#v}"
-          sed -i "s/^version:.*/version: ${TAG}/" charts/aerospike-ce-operator-crds/Chart.yaml
-          sed -i "s/^appVersion:.*/appVersion: \"${TAG}\"/" charts/aerospike-ce-operator-crds/Chart.yaml
-          sed -i "s/^version:.*/version: ${TAG}/" charts/aerospike-ce-operator/Chart.yaml
-          sed -i "s/^appVersion:.*/appVersion: \"${TAG}\"/" charts/aerospike-ce-operator/Chart.yaml
+          sed -i "s/^version:.*/version: ${TAG}/" charts/aerospike-ce-kubernetes-operator-crds/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${TAG}\"/" charts/aerospike-ce-kubernetes-operator-crds/Chart.yaml
+          sed -i "s/^version:.*/version: ${TAG}/" charts/aerospike-ce-kubernetes-operator/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${TAG}\"/" charts/aerospike-ce-kubernetes-operator/Chart.yaml
           # Update the acko-crds dependency version reference in acko/Chart.yaml
           # Use a pattern that matches any version string so this works after version bumps.
-          sed -i '/name: aerospike-ce-operator-crds/{n;s/version: ".*"/version: "'"${TAG}"'"/}' charts/aerospike-ce-operator/Chart.yaml
+          sed -i '/name: aerospike-ce-kubernetes-operator-crds/{n;s/version: ".*"/version: "'"${TAG}"'"/}' charts/aerospike-ce-kubernetes-operator/Chart.yaml
 
       - name: Add Helm repositories
         run: |
@@ -47,27 +47,27 @@ jobs:
       - name: Create output directory
         run: mkdir -p dist/charts
 
-      # aerospike-ce-operator-crds must be published first so that `helm dep update charts/aerospike-ce-operator`
+      # aerospike-ce-kubernetes-operator-crds must be published first so that `helm dep update charts/aerospike-ce-kubernetes-operator`
       # can resolve the dependency from the OCI registry.
-      - name: Package and push aerospike-ce-operator-crds chart
+      - name: Package and push aerospike-ce-kubernetes-operator-crds chart
         run: |
-          helm package charts/aerospike-ce-operator-crds --destination dist/charts
-          helm push dist/charts/aerospike-ce-operator-crds-*.tgz oci://ghcr.io/${OWNER,,}/charts
+          helm package charts/aerospike-ce-kubernetes-operator-crds --destination dist/charts
+          helm push dist/charts/aerospike-ce-kubernetes-operator-crds-*.tgz oci://ghcr.io/${OWNER,,}/charts
         env:
           OWNER: ${{ github.repository_owner }}
 
-      - name: Update aerospike-ce-operator chart dependencies
+      - name: Update aerospike-ce-kubernetes-operator chart dependencies
         # Override the file:// local reference to use the OCI registry (just pushed).
         run: |
-          sed -i "s|repository: \"file://../aerospike-ce-operator-crds\"|repository: \"oci://ghcr.io/${OWNER,,}/charts\"|" charts/aerospike-ce-operator/Chart.yaml
-          helm dep update charts/aerospike-ce-operator
+          sed -i "s|repository: \"file://../aerospike-ce-kubernetes-operator-crds\"|repository: \"oci://ghcr.io/${OWNER,,}/charts\"|" charts/aerospike-ce-kubernetes-operator/Chart.yaml
+          helm dep update charts/aerospike-ce-kubernetes-operator
         env:
           OWNER: ${{ github.repository_owner }}
 
-      - name: Package and push aerospike-ce-operator chart
+      - name: Package and push aerospike-ce-kubernetes-operator chart
         run: |
-          helm package charts/aerospike-ce-operator --destination dist/charts
-          # Use [0-9] prefix to avoid matching aerospike-ce-operator-crds-*.tgz
-          helm push dist/charts/aerospike-ce-operator-[0-9]*.tgz oci://ghcr.io/${OWNER,,}/charts
+          helm package charts/aerospike-ce-kubernetes-operator --destination dist/charts
+          # Use [0-9] prefix to avoid matching aerospike-ce-kubernetes-operator-crds-*.tgz
+          helm push dist/charts/aerospike-ce-kubernetes-operator-[0-9]*.tgz oci://ghcr.io/${OWNER,,}/charts
         env:
           OWNER: ${{ github.repository_owner }}

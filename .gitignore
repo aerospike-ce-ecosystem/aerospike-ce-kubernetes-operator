@@ -42,6 +42,6 @@ docs/.cache-loader/
 .claude/worktrees/
 
 # Helm chart dependencies and build artifacts
-charts/aerospike-ce-operator/charts/*.tgz
-charts/aerospike-ce-operator/Chart.lock
+charts/aerospike-ce-kubernetes-operator/charts/*.tgz
+charts/aerospike-ce-kubernetes-operator/Chart.lock
 dist/charts/

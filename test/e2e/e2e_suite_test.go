@@ -61,7 +61,7 @@ var (
 // To skip CertManager installation, set: CERT_MANAGER_INSTALL_SKIP=true
 func TestE2E(t *testing.T) {
 	RegisterFailHandler(Fail)
-	_, _ = fmt.Fprintf(GinkgoWriter, "Starting aerospike-ce-operator e2e test suite\n")
+	_, _ = fmt.Fprintf(GinkgoWriter, "Starting aerospike-ce-kubernetes-operator e2e test suite\n")
 	RunSpecs(t, "e2e suite")
 }
 
@@ -136,7 +136,7 @@ var _ = BeforeSuite(func() {
 	Eventually(func(g Gomega) {
 		vwc := &admissionv1.ValidatingWebhookConfiguration{}
 		err := k8sClient.Get(ctx, types.NamespacedName{
-			Name: "aerospike-ce-operator-validating-webhook-configuration",
+			Name: "aerospike-ce-kubernetes-operator-validating-webhook-configuration",
 		}, vwc)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(vwc.Webhooks).NotTo(BeEmpty())
@@ -145,7 +145,7 @@ var _ = BeforeSuite(func() {
 
 	By("creating ClusterRoleBinding for metrics access")
 	cmd = exec.Command("kubectl", "create", "clusterrolebinding", metricsRoleBindingName,
-		"--clusterrole=aerospike-ce-operator-metrics-reader",
+		"--clusterrole=aerospike-ce-kubernetes-operator-metrics-reader",
 		fmt.Sprintf("--serviceaccount=%s:%s", namespace, serviceAccountName),
 	)
 	_, _ = utils.Run(cmd) // ignore error if already exists

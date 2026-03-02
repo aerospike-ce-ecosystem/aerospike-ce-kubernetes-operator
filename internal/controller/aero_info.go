@@ -62,6 +62,51 @@ func IsMigrating(client *aero.Client) (bool, error) {
 	return strings.TrimSpace(result) == "", nil
 }
 
+// IsMigratingOnAnyNode checks whether any node in the cluster has outstanding
+// partition migrations. Uses migrate_partitions_remaining which is supported
+// in Aerospike CE 7.x and 8.x (migrate_progress_send/recv are removed in 8.x).
+func IsMigratingOnAnyNode(client *aero.Client) (bool, error) {
+	nodes := client.GetNodes()
+	if len(nodes) == 0 {
+		return false, fmt.Errorf("no nodes available in Aerospike cluster")
+	}
+
+	for _, node := range nodes {
+		if node == nil {
+			continue
+		}
+		stats, err := asinfoCommandOnNode(node, "statistics")
+		if err != nil {
+			return false, fmt.Errorf("statistics command on node %s failed: %w", node.GetName(), err)
+		}
+		remaining := parseMigrateStat(stats, "migrate_partitions_remaining")
+		if remaining > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// parseMigrateStat extracts a numeric migration statistic from the asinfo
+// "statistics" response. The response is semicolon-delimited key=value pairs.
+// Returns 0 if the key is not found or cannot be parsed.
+func parseMigrateStat(stats, key string) int64 {
+	for pair := range strings.SplitSeq(stats, ";") {
+		k, v, ok := strings.Cut(pair, "=")
+		if !ok {
+			continue
+		}
+		if strings.TrimSpace(k) == key {
+			n, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+			if err != nil {
+				return 0
+			}
+			return n
+		}
+	}
+	return 0
+}
+
 // Recluster sends the recluster command to the cluster.
 func Recluster(client *aero.Client) error {
 	_, err := AsinfoCommand(client, "recluster:")

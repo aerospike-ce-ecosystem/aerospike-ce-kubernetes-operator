@@ -209,11 +209,6 @@ func (r *AerospikeClusterReconciler) reconcileCluster(
 	racks := r.getRacks(cluster)
 
 	// Pre-compute effective config and hash per rack.
-	type rackInfo struct {
-		effectiveConfig *ackov1alpha1.AerospikeConfigSpec
-		hash            string
-		rackSize        int32
-	}
 	rackInfos := make([]rackInfo, len(racks))
 	rackSizes := make([]int32, len(racks))
 	for i, rack := range racks {
@@ -247,17 +242,13 @@ func (r *AerospikeClusterReconciler) reconcileCluster(
 		}
 	}
 
-	// Reconcile each rack's ConfigMap + StatefulSet
-	for i, rack := range racks {
-		ri := rackInfos[i]
-		if err := r.reconcileConfigMap(ctx, cluster, &rack, ri.effectiveConfig); err != nil {
-			metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, metrics.ReasonConfigMap).Inc()
-			return ctrl.Result{}, err
-		}
-		if err := r.reconcileStatefulSet(ctx, cluster, &rack, ri.effectiveConfig, ri.hash, ri.rackSize); err != nil {
-			metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, metrics.ReasonStatefulSet).Inc()
-			return ctrl.Result{}, err
-		}
+	// Reconcile each rack's ConfigMap + StatefulSet.
+	// reconcileRacks returns true if any scale-down was deferred due to migration.
+	if deferred, err := r.reconcileRacks(ctx, cluster, racks, rackInfos); err != nil {
+		return ctrl.Result{}, err
+	} else if deferred {
+		log.Info("Scale-down deferred due to data migration, requeuing")
+		return ctrl.Result{RequeueAfter: defaultReconcileRetryInterval}, nil
 	}
 
 	// Clean up removed racks
@@ -349,6 +340,41 @@ func (r *AerospikeClusterReconciler) reconcileCluster(
 
 	log.Info("Reconciliation completed successfully")
 	return ctrl.Result{}, nil
+}
+
+// rackInfo holds pre-computed per-rack configuration used during reconciliation.
+type rackInfo struct {
+	effectiveConfig *ackov1alpha1.AerospikeConfigSpec
+	hash            string
+	rackSize        int32
+}
+
+// reconcileRacks reconciles each rack's ConfigMap and StatefulSet.
+// Returns (deferred, error). deferred is true when at least one rack's
+// scale-down was blocked because data migration is still in progress.
+func (r *AerospikeClusterReconciler) reconcileRacks(
+	ctx context.Context,
+	cluster *ackov1alpha1.AerospikeCluster,
+	racks []ackov1alpha1.Rack,
+	rackInfos []rackInfo,
+) (bool, error) {
+	scaleDownDeferred := false
+	for i, rack := range racks {
+		ri := rackInfos[i]
+		if err := r.reconcileConfigMap(ctx, cluster, &rack, ri.effectiveConfig); err != nil {
+			metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, metrics.ReasonConfigMap).Inc()
+			return false, err
+		}
+		deferred, err := r.reconcileStatefulSet(ctx, cluster, &rack, ri.effectiveConfig, ri.hash, ri.rackSize)
+		if err != nil {
+			metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, metrics.ReasonStatefulSet).Inc()
+			return false, err
+		}
+		if deferred {
+			scaleDownDeferred = true
+		}
+	}
+	return scaleDownDeferred, nil
 }
 
 // getRacks returns the list of racks. If no rack config, returns a default rack.

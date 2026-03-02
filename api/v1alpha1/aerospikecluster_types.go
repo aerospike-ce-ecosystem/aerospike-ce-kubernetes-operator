@@ -332,7 +332,7 @@ const (
 )
 
 // AerospikePhase represents the current phase of the cluster.
-// +kubebuilder:validation:Enum=InProgress;Completed;Error;ScalingUp;ScalingDown;RollingRestart;ACLSync;Paused;Deleting
+// +kubebuilder:validation:Enum=InProgress;Completed;Error;ScalingUp;ScalingDown;WaitingForMigration;RollingRestart;ACLSync;Paused;Deleting
 type AerospikePhase string
 
 const (
@@ -346,6 +346,10 @@ const (
 	AerospikePhaseScalingUp AerospikePhase = "ScalingUp"
 	// AerospikePhaseScalingDown indicates the cluster is scaling down (removing pods).
 	AerospikePhaseScalingDown AerospikePhase = "ScalingDown"
+	// AerospikePhaseWaitingForMigration indicates a scale-down is deferred because
+	// data migration has not yet completed. The controller will retry after the
+	// migration finishes to prevent data loss.
+	AerospikePhaseWaitingForMigration AerospikePhase = "WaitingForMigration"
 	// AerospikePhaseRollingRestart indicates a rolling restart is in progress.
 	AerospikePhaseRollingRestart AerospikePhase = "RollingRestart"
 	// AerospikePhaseACLSync indicates ACL roles and users are being synchronized.

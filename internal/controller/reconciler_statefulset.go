@@ -14,11 +14,15 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/metrics"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/podutil"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/storage"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
+// reconcileStatefulSet creates or updates the StatefulSet for a rack.
+// Returns (deferred, error). deferred is true when a scale-down was blocked
+// because data migration is still in progress; the caller should requeue.
 func (r *AerospikeClusterReconciler) reconcileStatefulSet(
 	ctx context.Context,
 	cluster *ackov1alpha1.AerospikeCluster,
@@ -26,7 +30,7 @@ func (r *AerospikeClusterReconciler) reconcileStatefulSet(
 	_ *ackov1alpha1.AerospikeConfigSpec, // effectiveConfig (pre-computed, hash passed separately)
 	hash string,
 	rackSize int32,
-) error {
+) (bool, error) {
 	log := logf.FromContext(ctx)
 
 	stsName := utils.StatefulSetName(cluster.Name, rack.ID)
@@ -65,17 +69,17 @@ func (r *AerospikeClusterReconciler) reconcileStatefulSet(
 		// Create new StatefulSet
 		sts := r.buildStatefulSet(cluster, stsName, rackSize, podTemplate, pvcTemplates)
 		if err := r.setOwnerRef(cluster, sts); err != nil {
-			return err
+			return false, err
 		}
 		log.Info("Creating StatefulSet", "name", stsName, "replicas", rackSize)
 		if err := r.Create(ctx, sts); err != nil {
-			return fmt.Errorf("creating StatefulSet %s: %w", stsName, err)
+			return false, fmt.Errorf("creating StatefulSet %s: %w", stsName, err)
 		}
 		r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventStatefulSetCreated,
 			"StatefulSet %s created: replicas=%d", stsName, rackSize)
-		return nil
+		return false, nil
 	} else if err != nil {
-		return fmt.Errorf("getting StatefulSet %s: %w", stsName, err)
+		return false, fmt.Errorf("getting StatefulSet %s: %w", stsName, err)
 	}
 
 	// Update only if replicas or config hash changed
@@ -97,10 +101,41 @@ func (r *AerospikeClusterReconciler) reconcileStatefulSet(
 	}
 
 	if !needsUpdate {
-		return nil
+		return false, nil
 	}
 
 	scaleDown := rackSize < oldReplicas
+
+	// Safety check: block scale-down while data migration is in progress.
+	// This prevents data loss when pods are removed before their partitions
+	// have been fully migrated to remaining nodes.
+	if scaleDown {
+		migrating, err := r.isMigrationInProgress(ctx, cluster)
+		if err != nil {
+			// Connection failure is non-fatal: log the error and proceed with
+			// the scale-down. This avoids permanently blocking the operator
+			// when the Aerospike cluster is unreachable (e.g. during initial deploy).
+			log.V(1).Info("Could not check migration status before scale-down, proceeding cautiously",
+				"error", err, "rack", rack.ID)
+		} else if migrating {
+			log.Info("Data migration in progress, deferring scale-down",
+				"rack", rack.ID, "currentReplicas", oldReplicas, "desiredReplicas", rackSize)
+			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventScaleDownDeferred,
+				"Scale-down deferred for rack %d: data migration in progress (current=%d, desired=%d)",
+				rack.ID, oldReplicas, rackSize)
+			metrics.ScaleDownDeferralsTotal.WithLabelValues(cluster.Namespace, cluster.Name).Inc()
+
+			if phaseErr := r.setPhase(ctx, cluster, ackov1alpha1.AerospikePhaseWaitingForMigration,
+				fmt.Sprintf("Scale-down deferred for rack %d: data migration in progress", rack.ID)); phaseErr != nil {
+				if !errors.IsConflict(phaseErr) {
+					return false, phaseErr
+				}
+				log.V(1).Info("Conflict setting WaitingForMigration phase, continuing reconcile")
+			}
+
+			return true, nil
+		}
+	}
 
 	targetReplicas := rackSize
 	if scaleDown {
@@ -113,7 +148,7 @@ func (r *AerospikeClusterReconciler) reconcileStatefulSet(
 	existing.Spec.Template = podTemplate
 	log.Info("Updating StatefulSet", "name", stsName, "targetReplicas", targetReplicas)
 	if err := r.Update(ctx, existing); err != nil {
-		return fmt.Errorf("updating StatefulSet %s: %w", stsName, err)
+		return false, fmt.Errorf("updating StatefulSet %s: %w", stsName, err)
 	}
 	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventStatefulSetUpdated,
 		"StatefulSet %s updated: replicas=%d", stsName, targetReplicas)
@@ -142,7 +177,7 @@ func (r *AerospikeClusterReconciler) reconcileStatefulSet(
 		}
 	}
 
-	return nil
+	return false, nil
 }
 
 func (r *AerospikeClusterReconciler) buildStatefulSet(

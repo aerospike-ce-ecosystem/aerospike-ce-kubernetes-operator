@@ -1,5 +1,5 @@
 # Image URL to use all building/pushing image targets
-IMG ?= ghcr.io/kimsoungryoul/aerospike-ce-kubernetes-operator:latest
+IMG ?= ghcr.io/kimsoungryoul/aerospike-ce-operator:latest
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -160,28 +160,28 @@ HELM_PACKAGE_DIR ?= dist/charts
 CHART_REGISTRY ?= oci://ghcr.io/kimsoungryoul/charts
 
 .PHONY: helm-sync-crds
-helm-sync-crds: manifests ## Sync generated CRDs into acko-crds chart templates/ (with helm.sh/resource-policy: keep).
+helm-sync-crds: manifests ## Sync generated CRDs into aerospike-ce-operator-crds chart templates/ (with helm.sh/resource-policy: keep).
 	bash hack/helm-sync-crds.sh
 
 .PHONY: helm-lint
-helm-lint: ## Lint both Helm charts (acko-crds and acko).
-	helm lint charts/acko-crds
-	helm lint charts/acko --set crds.install=false
+helm-lint: ## Lint both Helm charts (aerospike-ce-operator-crds and aerospike-ce-operator).
+	helm lint charts/aerospike-ce-operator-crds
+	helm lint charts/aerospike-ce-operator --set crds.install=false
 
 .PHONY: helm-package
 helm-package: helm-sync-crds ## Package both Helm charts into dist/charts/.
 	mkdir -p $(HELM_PACKAGE_DIR)
-	helm package charts/acko-crds --destination $(HELM_PACKAGE_DIR)
-	helm dep update charts/acko
-	helm package charts/acko --destination $(HELM_PACKAGE_DIR)
+	helm package charts/aerospike-ce-operator-crds --destination $(HELM_PACKAGE_DIR)
+	helm dep update charts/aerospike-ce-operator
+	helm package charts/aerospike-ce-operator --destination $(HELM_PACKAGE_DIR)
 	@echo "Packaged charts:"
 	@ls -1 $(HELM_PACKAGE_DIR)/*.tgz
 
 .PHONY: helm-push
-helm-push: helm-package ## Push packaged Helm charts to OCI registry (acko-crds first, then acko).
-	helm push $(HELM_PACKAGE_DIR)/acko-crds-*.tgz $(CHART_REGISTRY)
-	@# Use [0-9] prefix to avoid matching acko-crds-*.tgz again
-	helm push $(HELM_PACKAGE_DIR)/acko-[0-9]*.tgz $(CHART_REGISTRY)
+helm-push: helm-package ## Push packaged Helm charts to OCI registry (aerospike-ce-operator-crds first, then aerospike-ce-operator).
+	helm push $(HELM_PACKAGE_DIR)/aerospike-ce-operator-crds-*.tgz $(CHART_REGISTRY)
+	@# Use [0-9] prefix to avoid matching aerospike-ce-operator-crds-*.tgz again
+	helm push $(HELM_PACKAGE_DIR)/aerospike-ce-operator-[0-9]*.tgz $(CHART_REGISTRY)
 
 ##@ Deployment
 

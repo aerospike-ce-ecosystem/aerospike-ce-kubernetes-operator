@@ -1,0 +1,14 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "aerospike-ce-operator.fullname" . }}-manager
+  labels:
+    {{- include "aerospike-ce-operator.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "aerospike-ce-operator.fullname" . }}-manager
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "aerospike-ce-operator.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}

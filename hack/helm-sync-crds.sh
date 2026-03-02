@@ -6,7 +6,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CRD_SRC_DIR="${REPO_ROOT}/config/crd/bases"
-CRD_DST_DIR="${REPO_ROOT}/charts/acko-crds/templates"
+CRD_DST_DIR="${REPO_ROOT}/charts/aerospike-ce-operator-crds/templates"
 
 sync_crd() {
   local src="${CRD_SRC_DIR}/$1"
@@ -29,7 +29,7 @@ sync_crd() {
     { print }
   ' "${src}" > "${dst}"
 
-  echo "Synced: $1 → charts/acko-crds/templates/$2"
+  echo "Synced: $1 → charts/aerospike-ce-operator-crds/templates/$2"
 }
 
 sync_crd "acko.io_aerospikeclusters.yaml"        "aerospikecluster-crd.yaml"

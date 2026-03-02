@@ -1,0 +1,18 @@
+{{- if and .Values.ui.enabled .Values.ui.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "aerospike-ce-operator.ui.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "aerospike-ce-operator.ui.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.ui.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.ui.podDisruptionBudget.maxUnavailable }}
+  {{- else }}
+  minAvailable: {{ .Values.ui.podDisruptionBudget.minAvailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "aerospike-ce-operator.ui.selectorLabels" . | nindent 6 }}
+{{- end }}

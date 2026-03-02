@@ -87,6 +87,13 @@ helm install acko oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-ope
 | `ui.persistence.storageClassName` | Storage class for PostgreSQL PVC | `""` (default) |
 | `ui.postgresql.existingSecret` | Use an existing Secret for database credentials | `""` |
 
+:::tip
+For the full list of configuration options (probes, security contexts, tolerations, affinity, autoscaling, etc.), run:
+```bash
+helm show values oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator | grep -A 500 "^ui:"
+```
+:::
+
 ---
 
 ## Features
@@ -112,16 +119,20 @@ Build and execute scan/query operations with predicates. Construct queries visua
 When `ui.k8s.enabled=true` (the default), the UI provides Kubernetes-native cluster management:
 
 - **Create clusters** -- Deploy new AerospikeCluster CRs with a guided wizard
+- **Edit clusters** -- Modify running cluster settings (image, size, dynamic config, aerospike config) via an edit dialog
 - **Scale clusters** -- Adjust cluster size (1-8 nodes for CE)
 - **Monitor status** -- View cluster phase, conditions, and pod details
-- **Manage templates** -- Browse available AerospikeClusterTemplates
-- **Trigger operations** -- Initiate warm restarts and pod restarts
+- **Manage templates** -- Browse available AerospikeClusterTemplates with sync status
+- **Template snapshot** -- View resolved template spec with sync status (Synced/Out of Sync)
+- **Trigger operations** -- Initiate warm restarts and pod restarts with optional pod selection
+- **Pod selection** -- Select specific pods via checkboxes for targeted restart operations
 - **Pause/Resume** -- Pause and resume reconciliation
-- **Configure ACL** -- Set up access control with roles, users, and K8s secret-based credentials during cluster creation
+- **Configure ACL** -- Set up access control with roles, users, and K8s secret-based credentials (with secrets picker dropdown)
 - **Rolling update strategy** -- Configure batch size, max unavailable, and PDB settings
 - **Monitor operations** -- View active operation status, completed/failed pods in real-time
+- **Dynamic config status** -- View per-pod dynamic config status (Applied/Failed/Pending) and last restart reason
 - **Track reconciliation** -- See reconcile error counts and failure reasons
-- **View events** -- Browse K8s events timeline for each cluster
+- **View events** -- Browse K8s events timeline for each cluster (auto-refreshes during transitional phases)
 
 :::info
 K8s cluster management requires the UI service account to have RBAC access to AerospikeCluster resources. This is configured automatically when `ui.rbac.create=true` (the default).
@@ -175,7 +186,9 @@ When `ui.rbac.create=true` (the default), the Helm chart creates a ClusterRole a
 
 - **Read/write** access to `AerospikeCluster` resources (create, scale, update, delete)
 - **Read-only** access to `AerospikeClusterTemplate` resources (browse templates)
-- **Read-only** access to Pods, Services, Namespaces, and StorageClasses (for cluster monitoring and wizard dropdowns)
+- **Read-only** access to Pods, Services, Events, and Namespaces (for cluster monitoring, events timeline, and wizard dropdowns)
+- **List-only** access to Secrets (name enumeration for ACL credential selection — contents are never read)
+- **List-only** access to StorageClasses (for storage wizard dropdowns)
 
 ### Pod Security
 

@@ -97,3 +97,76 @@ func TestGetServicePort(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildQuiesceCommand(t *testing.T) {
+	tests := []struct {
+		name    string
+		cluster *ackov1alpha1.AerospikeCluster
+		port    int
+		want    []string
+	}{
+		{
+			name:    "no ACL — basic asinfo command",
+			cluster: &ackov1alpha1.AerospikeCluster{},
+			port:    3000,
+			want:    []string{"asinfo", "-v", "quiesce:", "-h", "localhost", "-p", "3000"},
+		},
+		{
+			name:    "custom port",
+			cluster: &ackov1alpha1.AerospikeCluster{},
+			port:    4000,
+			want:    []string{"asinfo", "-v", "quiesce:", "-h", "localhost", "-p", "4000"},
+		},
+		{
+			name: "ACL enabled — includes -U flag",
+			cluster: &ackov1alpha1.AerospikeCluster{
+				Spec: ackov1alpha1.AerospikeClusterSpec{
+					AerospikeAccessControl: &ackov1alpha1.AerospikeAccessControlSpec{
+						Users: []ackov1alpha1.AerospikeUserSpec{
+							{
+								Name:       "admin",
+								SecretName: "admin-secret",
+								Roles:      []string{"sys-admin", "user-admin"},
+							},
+						},
+					},
+				},
+			},
+			port: 3000,
+			want: []string{"asinfo", "-v", "quiesce:", "-h", "localhost", "-p", "3000", "-U", "admin"},
+		},
+		{
+			name: "ACL enabled but no admin user — no -U flag",
+			cluster: &ackov1alpha1.AerospikeCluster{
+				Spec: ackov1alpha1.AerospikeClusterSpec{
+					AerospikeAccessControl: &ackov1alpha1.AerospikeAccessControlSpec{
+						Users: []ackov1alpha1.AerospikeUserSpec{
+							{
+								Name:       "reader",
+								SecretName: "reader-secret",
+								Roles:      []string{"read"},
+							},
+						},
+					},
+				},
+			},
+			port: 3000,
+			want: []string{"asinfo", "-v", "quiesce:", "-h", "localhost", "-p", "3000"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := buildQuiesceCommand(tc.cluster, tc.port)
+			if len(got) != len(tc.want) {
+				t.Fatalf("buildQuiesceCommand() returned %d args, want %d: got %v, want %v",
+					len(got), len(tc.want), got, tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Errorf("buildQuiesceCommand()[%d] = %q, want %q", i, got[i], tc.want[i])
+				}
+			}
+		})
+	}
+}

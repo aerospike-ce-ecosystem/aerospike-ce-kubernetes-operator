@@ -450,6 +450,8 @@ helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts
   --set ui.env.databaseUrl="postgresql://user:pass@db-host:5432/aerospike_manager"
 ```
 
+See the [Cluster Manager UI](./cluster-manager-ui) guide for detailed feature documentation, security configuration, and advanced options.
+
 ## Verify Installation
 
 Check the operator pod is running:

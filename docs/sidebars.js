@@ -15,6 +15,7 @@ const sidebars = {
         'guide/storage',
         'guide/access-control',
         'guide/cluster-templates',
+        'guide/cluster-manager-ui',
         'guide/glossary',
       ],
     },

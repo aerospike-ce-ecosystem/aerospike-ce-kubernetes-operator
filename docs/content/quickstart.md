@@ -202,4 +202,5 @@ kubectl -n aerospike run asinfo-client --rm -it --restart=Never \
 - [Installation Guide](./guide/install) — detailed installation options (Helm, Kustomize)
 - [Create Cluster](./guide/create-cluster) — sample configurations and CRD field reference
 - [Manage Cluster](./guide/manage-cluster) — scaling, rolling updates, monitoring
+- [Cluster Manager UI](./guide/cluster-manager-ui) — web-based GUI for browsing records, managing clusters, and executing AQL
 - [API Reference](./api-reference/aerospikecluster) — full CRD type documentation

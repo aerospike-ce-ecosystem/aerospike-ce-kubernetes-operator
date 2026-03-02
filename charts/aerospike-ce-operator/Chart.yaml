@@ -24,6 +24,6 @@ dependencies:
     repository: "file://../aerospike-ce-operator-crds"
     condition: crds.install
   - name: cert-manager
-    version: v1.17.2
+    version: 1.17.2
     repository: https://charts.jetstack.io
     condition: cert-manager.install

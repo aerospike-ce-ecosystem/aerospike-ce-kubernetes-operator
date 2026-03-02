@@ -84,7 +84,7 @@ spec:
 ```
 
 ```bash
-kubectl apply -f hard-rack-template.yaml
+kubectl apply -f config/samples/acko_v1alpha1_template_prod.yaml   # hard-rack
 ```
 
 ---

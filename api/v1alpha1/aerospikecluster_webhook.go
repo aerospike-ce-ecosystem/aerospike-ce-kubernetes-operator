@@ -356,9 +356,21 @@ func (v *AerospikeClusterValidator) validateAerospikeConfig(config map[string]an
 		}
 	}
 
-	// The security stanza is allowed in aerospikeConfig but intentionally
-	// skipped during config generation (configgen). ACL is managed via the
-	// Aerospike client API when aerospikeAccessControl is configured.
+	// The security stanza is allowed in aerospikeConfig (CE 7.x+ supports
+	// enable-security and default-password-file), but enterprise-only sub-keys
+	// must be rejected. ACL is managed via the Aerospike client API when
+	// aerospikeAccessControl is configured; the security section is intentionally
+	// skipped during config generation (configgen).
+	if secSection, exists := config["security"]; exists {
+		if secMap, ok := secSection.(map[string]any); ok {
+			for enterpriseKey, reason := range enterpriseOnlySecurityKeys {
+				if _, found := secMap[enterpriseKey]; found {
+					errors = append(errors, fmt.Sprintf(
+						"aerospikeConfig.security.%s is not allowed in CE edition (%s)", enterpriseKey, reason))
+				}
+			}
+		}
+	}
 
 	// Validate heartbeat mode is mesh (CE only supports mesh)
 	if netCfg, ok := config["network"].(map[string]any); ok {
@@ -370,6 +382,16 @@ func (v *AerospikeClusterValidator) validateAerospikeConfig(config map[string]an
 	}
 
 	return errors, warnings
+}
+
+// enterpriseOnlySecurityKeys lists security sub-keys that are Enterprise-only.
+// CE 7.x+ supports: enable-security, default-password-file.
+// Enterprise-only: tls, ldap, log, syslog.
+var enterpriseOnlySecurityKeys = map[string]string{
+	"tls":    "TLS within the security stanza is Enterprise-only",
+	"ldap":   "LDAP authentication is Enterprise-only",
+	"log":    "security audit logging is Enterprise-only",
+	"syslog": "security syslog sink is Enterprise-only",
 }
 
 // enterpriseOnlyNamespaceKeys lists namespace-level config keys that are Enterprise-only.

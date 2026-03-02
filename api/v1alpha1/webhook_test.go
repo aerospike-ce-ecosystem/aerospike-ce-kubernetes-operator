@@ -2,6 +2,7 @@ package v1alpha1
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -617,9 +618,7 @@ func TestValidate_ValidNamespaceConfigAccepted(t *testing.T) {
 // --- Security section validation tests ---
 
 // TestValidate_SecuritySectionAllowed verifies that the security stanza is allowed
-// in aerospikeConfig. ACL is managed via the Aerospike client API when
-// aerospikeAccessControl is configured; the security section is intentionally
-// skipped during config generation (configgen).
+// in aerospikeConfig. CE 6.0+ supports enable-security and default-password-file.
 func TestValidate_SecuritySectionAllowed(t *testing.T) {
 	v := &AerospikeClusterValidator{}
 	cluster := &AerospikeCluster{
@@ -637,6 +636,123 @@ func TestValidate_SecuritySectionAllowed(t *testing.T) {
 	_, err := v.validate(cluster)
 	if err != nil {
 		t.Errorf("expected security section to be allowed in CE, got: %v", err)
+	}
+}
+
+// TestValidate_SecurityEnableSecurityAllowed verifies that enable-security is
+// a valid CE security setting.
+func TestValidate_SecurityEnableSecurityAllowed(t *testing.T) {
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"security": map[string]any{
+						"enable-security": true,
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("expected security.enable-security to be allowed in CE, got: %v", err)
+	}
+}
+
+// TestValidate_SecurityDefaultPasswordFileAllowed verifies that default-password-file
+// is a valid CE security setting.
+func TestValidate_SecurityDefaultPasswordFileAllowed(t *testing.T) {
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"security": map[string]any{
+						"enable-security":       true,
+						"default-password-file": "/etc/aerospike/secret/password.txt",
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("expected security.default-password-file to be allowed in CE, got: %v", err)
+	}
+}
+
+// TestValidate_SecurityEnterpriseOnlyKeysRejected verifies that enterprise-only
+// security sub-keys (tls, ldap, log, syslog) are rejected.
+func TestValidate_SecurityEnterpriseOnlyKeysRejected(t *testing.T) {
+	v := &AerospikeClusterValidator{}
+
+	enterpriseKeys := []struct {
+		key  string
+		desc string
+	}{
+		{"tls", "TLS within security"},
+		{"ldap", "LDAP within security"},
+		{"log", "security audit log"},
+		{"syslog", "security syslog sink"},
+	}
+
+	for _, tc := range enterpriseKeys {
+		t.Run(tc.key, func(t *testing.T) {
+			cluster := &AerospikeCluster{
+				Spec: AerospikeClusterSpec{
+					Size:  3,
+					Image: "aerospike:ce-8.1.1.1",
+					AerospikeConfig: &AerospikeConfigSpec{
+						Value: map[string]any{
+							"security": map[string]any{
+								tc.key: map[string]any{},
+							},
+						},
+					},
+				},
+			}
+
+			_, err := v.validate(cluster)
+			if err == nil {
+				t.Errorf("expected error for enterprise-only security.%s, but got none", tc.key)
+			}
+			expected := fmt.Sprintf("security.%s is not allowed in CE", tc.key)
+			if err != nil && !strings.Contains(err.Error(), expected) {
+				t.Errorf("expected error to contain %q, got: %v", expected, err)
+			}
+		})
+	}
+}
+
+// TestValidate_SecurityMixedCEAndEnterpriseKeys verifies that a security stanza
+// with both CE-allowed and enterprise-only keys is rejected.
+func TestValidate_SecurityMixedCEAndEnterpriseKeys(t *testing.T) {
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"security": map[string]any{
+						"enable-security": true,
+						"ldap":            map[string]any{"query-base-dn": "dc=example,dc=com"},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Error("expected error for enterprise-only security.ldap mixed with CE settings")
 	}
 }
 

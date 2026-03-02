@@ -1,5 +1,5 @@
 ---
-sidebar_position: 8
+sidebar_position: 6
 title: Cluster Manager UI
 ---
 
@@ -80,6 +80,12 @@ helm install acko oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-ope
 | `ui.persistence.enabled` | Enable PVC for PostgreSQL data | `true` |
 | `ui.persistence.size` | PVC storage size | `1Gi` |
 | `ui.env.databaseUrl` | External PostgreSQL URL (when `postgresql.enabled=false`) | `""` |
+| `ui.rbac.create` | Create ClusterRole and ClusterRoleBinding for K8s API access | `true` |
+| `ui.serviceAccount.create` | Create a ServiceAccount for the UI pod | `true` |
+| `ui.networkPolicy.enabled` | Restrict network traffic to the UI pod | `false` |
+| `ui.image.pullPolicy` | Image pull policy | `IfNotPresent` |
+| `ui.persistence.storageClassName` | Storage class for PostgreSQL PVC | `""` (default) |
+| `ui.postgresql.existingSecret` | Use an existing Secret for database credentials | `""` |
 
 ---
 
@@ -160,7 +166,11 @@ You can also use an existing Kubernetes Secret for the database credentials by s
 
 ### RBAC
 
-When `ui.rbac.create=true` (the default), the Helm chart creates a ClusterRole and ClusterRoleBinding granting the UI service account read/write access to AerospikeCluster and AerospikeClusterTemplate resources.
+When `ui.rbac.create=true` (the default), the Helm chart creates a ClusterRole and ClusterRoleBinding granting the UI service account:
+
+- **Read/write** access to `AerospikeCluster` resources (create, scale, update, delete)
+- **Read-only** access to `AerospikeClusterTemplate` resources (browse templates)
+- **Read-only** access to Pods, Services, Namespaces, and StorageClasses (for cluster monitoring and wizard dropdowns)
 
 ### Pod Security
 

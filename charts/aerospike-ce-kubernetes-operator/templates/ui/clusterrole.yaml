@@ -6,10 +6,10 @@ metadata:
   labels:
     {{- include "aerospike-ce-kubernetes-operator.ui.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["aerospike-ce-kubernetes-operator.io"]
+  - apiGroups: ["acko.io"]
     resources: ["aerospikeclusters"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
-  - apiGroups: ["aerospike-ce-kubernetes-operator.io"]
+  - apiGroups: ["acko.io"]
     resources: ["aerospikeclusters/status"]
     verbs: ["get"]
   - apiGroups: [""]

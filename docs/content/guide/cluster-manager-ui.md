@@ -70,7 +70,7 @@ helm install acko oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-ope
 | `ui.enabled` | Enable the Cluster Manager UI | `false` |
 | `ui.replicaCount` | Number of UI replicas | `1` |
 | `ui.image.repository` | UI container image | `ghcr.io/kimsoungryoul/aerospike-cluster-manager` |
-| `ui.image.tag` | Image tag | `latest` |
+| `ui.image.tag` | Image tag (defaults to Chart appVersion when empty) | `""` |
 | `ui.service.type` | Service type (`ClusterIP`, `NodePort`, `LoadBalancer`) | `ClusterIP` |
 | `ui.service.frontendPort` | Frontend (Next.js) port | `3000` |
 | `ui.service.backendPort` | Backend (FastAPI) port | `8000` |
@@ -133,10 +133,42 @@ When `ui.k8s.enabled=true` (the default), the UI provides Kubernetes-native clus
 - **Dynamic config status** -- View per-pod dynamic config status (Applied/Failed/Pending) and last restart reason
 - **Track reconciliation** -- See reconcile error counts and failure reasons
 - **View events** -- Browse K8s events timeline for each cluster (auto-refreshes during transitional phases)
+- **Pod logs** -- View container logs directly from the pod table with tail lines selection, copy, and download
+- **Export CR YAML** -- Copy the cluster's AerospikeCluster CR as clean YAML for debugging or migration
+- **Health dashboard** -- At-a-glance cluster health: pod readiness, migration status, config state, availability, and rack distribution
+- **Storage policies** -- Configure volume init method (deleteFiles/dd/blkdiscard/headerCleanup), wipe method, and cascade delete behavior for PVCs
+- **Network access type** -- Choose how clients access the cluster: Pod IP (default), Host Internal, Host External, or Configured IP; configure fabric type for inter-node communication
+- **Node block list** -- Specify Kubernetes nodes where Aerospike pods should not be scheduled (via the edit dialog)
 
 :::info
 K8s cluster management requires the UI service account to have RBAC access to AerospikeCluster resources. This is configured automatically when `ui.rbac.create=true` (the default).
 :::
+
+### Rack Configuration
+
+The wizard includes a **Rack Config** step for multi-rack, zone-aware deployments:
+
+- **Add/Remove Racks**: Configure multiple racks with unique IDs
+- **Zone Affinity**: Select K8s availability zones from live node data
+- **Pod Distribution**: Set max pods per node for each rack
+- **Distribution Preview**: See estimated pod distribution across racks
+
+Each rack creates a separate StatefulSet, enabling zone-aware high availability.
+
+### Storage Policies
+
+When using persistent storage (device mode), the wizard lets you configure:
+
+- **Init Method**: How volumes are prepared on first use (`none`, `deleteFiles`, `dd`, `blkdiscard`, `headerCleanup`)
+- **Wipe Method**: How dirty volumes are cleaned on pod restart (`none`, `deleteFiles`, `dd`, `blkdiscard`, `headerCleanup`, `blkdiscardWithHeaderCleanup`)
+- **Cascade Delete**: Whether PVCs are automatically deleted when the cluster CR is deleted (default: enabled)
+
+### Network Access
+
+Configure client-to-cluster and node-to-node communication:
+
+- **Client Access Type**: `pod` (default — uses Pod IP), `hostInternal` (node internal IP), `hostExternal` (node external IP), or `configuredIP` (annotation-based)
+- **Fabric Type**: Network type for inter-node fabric communication (defaults to `pod`)
 
 ### Index Management
 
@@ -187,8 +219,10 @@ When `ui.rbac.create=true` (the default), the Helm chart creates a ClusterRole a
 - **Read/write** access to `AerospikeCluster` resources (create, scale, update, delete)
 - **Read-only** access to `AerospikeClusterTemplate` resources (browse templates)
 - **Read-only** access to Pods, Services, Events, and Namespaces (for cluster monitoring, events timeline, and wizard dropdowns)
+- **Read-only** access to Pod logs (`pods/log`) for viewing container logs from the UI
 - **List-only** access to Secrets (name enumeration for ACL credential selection — contents are never read)
 - **List-only** access to StorageClasses (for storage wizard dropdowns)
+- **Read-only** access to Nodes (`get`, `list`) for retrieving availability zone information used in rack configuration
 
 ### Pod Security
 

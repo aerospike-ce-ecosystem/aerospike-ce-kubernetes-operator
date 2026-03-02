@@ -512,7 +512,7 @@ defaultTemplates:
   # NOTE: AerospikeClusterTemplate is namespace-scoped. Templates created here are
   # only accessible to AerospikeCluster resources in the same namespace (Release.Namespace).
   # For cross-namespace use, apply templates manually: kubectl apply -f config/samples/acko_v1alpha1_template_*.yaml -n <namespace>
-  enabled: false
+  enabled: true
 
   templates:
     minimal:

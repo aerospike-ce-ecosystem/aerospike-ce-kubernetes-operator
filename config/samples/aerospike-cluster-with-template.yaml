@@ -28,7 +28,7 @@ spec:
   aerospikeConfig:
     namespaces:
       - name: data
-        memory-size: 1073741824   # 1GiB — overrides template namespaceDefaults
+        data-size: 1073741824   # 1GiB — overrides template namespaceDefaults
         storage-engine:
           type: memory
 

@@ -607,4 +607,4 @@ defaultTemplates:
           proto-fd-max: 15000
         namespaceDefaults:
           replication-factor: 2
-          memory-size: 2147483648
+          data-size: 2147483648

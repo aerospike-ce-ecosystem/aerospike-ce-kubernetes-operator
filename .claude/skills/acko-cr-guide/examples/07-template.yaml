@@ -66,7 +66,7 @@ spec:
     service:
       proto-fd-max: 15000
     namespaceDefaults:
-      memory-size: 2147483648  # 2 GiB
+      data-size: 2147483648  # 2 GiB
       replication-factor: 2
     network:
       heartbeat:
@@ -101,9 +101,9 @@ spec:
   aerospikeConfig:
     namespaces:
       - name: data
-        memory-size: 1073741824  # 1 GiB — overrides template namespaceDefaults
         storage-engine:
           type: memory
+          data-size: 1073741824  # 1 GiB — overrides template namespaceDefaults
 
 # Resync after template changes:
 #   kubectl annotate aerospikecluster prod-cluster acko.io/resync-template=true

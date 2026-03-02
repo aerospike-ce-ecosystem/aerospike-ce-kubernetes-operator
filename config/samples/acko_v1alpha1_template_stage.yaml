@@ -33,7 +33,7 @@ spec:
       proto-fd-max: 4096
     namespaceDefaults:
       replication-factor: 2
-      # memory-size: optional; CE 8.x auto-sizes in-memory namespaces when omitted
+      # data-size: optional; CE 8.x auto-sizes in-memory namespaces when omitted
     network:
       heartbeat:
         mode: mesh

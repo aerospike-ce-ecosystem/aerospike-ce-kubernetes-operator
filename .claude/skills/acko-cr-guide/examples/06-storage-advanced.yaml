@@ -114,7 +114,7 @@ spec:
       cluster-name: storage-advanced-demo
     namespaces:
       - name: test
-        memory-size: 1073741824        # 1 GiB index memory budget
+        indexes-memory-budget: 1073741824  # 1 GiB index memory budget
         replication-factor: 2
         storage-engine:
           type: device

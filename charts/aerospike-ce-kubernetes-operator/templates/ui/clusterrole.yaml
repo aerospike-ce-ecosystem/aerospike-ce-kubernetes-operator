@@ -14,7 +14,7 @@ rules:
     verbs: ["get"]
   - apiGroups: ["acko.io"]
     resources: ["aerospikeclustertemplates"]
-    verbs: ["get", "list", "watch"]
+    verbs: ["create", "delete", "get", "list", "watch"]
   - apiGroups: ["acko.io"]
     resources: ["aerospikeclustertemplates/status"]
     verbs: ["get"]

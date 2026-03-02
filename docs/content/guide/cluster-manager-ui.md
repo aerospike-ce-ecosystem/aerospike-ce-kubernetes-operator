@@ -122,7 +122,8 @@ When `ui.k8s.enabled=true` (the default), the UI provides Kubernetes-native clus
 - **Edit clusters** -- Modify running cluster settings (image, size, dynamic config, aerospike config) via an edit dialog
 - **Scale clusters** -- Adjust cluster size (1-8 nodes for CE)
 - **Monitor status** -- View cluster phase, conditions, and pod details
-- **Manage templates** -- Browse available AerospikeClusterTemplates with sync status
+- **Manage templates** -- Create, browse, and delete AerospikeClusterTemplates with sync status
+- **Template CRUD** -- Full template lifecycle: create templates with default image, size, resources, scheduling, storage, monitoring and network settings; view template detail with usage tracking; delete unused templates (clusters must unlink first)
 - **Template snapshot** -- View resolved template spec with sync status (Synced/Out of Sync)
 - **Trigger operations** -- Initiate warm restarts and pod restarts with optional pod selection
 - **Pod selection** -- Select specific pods via checkboxes for targeted restart operations
@@ -217,7 +218,7 @@ You can also use an existing Kubernetes Secret for the database credentials by s
 When `ui.rbac.create=true` (the default), the Helm chart creates a ClusterRole and ClusterRoleBinding granting the UI service account:
 
 - **Read/write** access to `AerospikeCluster` resources (create, scale, update, delete)
-- **Read-only** access to `AerospikeClusterTemplate` resources (browse templates)
+- **Create/delete/read** access to `AerospikeClusterTemplate` resources (full template management)
 - **Read-only** access to Pods, Services, Events, and Namespaces (for cluster monitoring, events timeline, and wizard dropdowns)
 - **Read-only** access to Pod logs (`pods/log`) for viewing container logs from the UI
 - **List-only** access to Secrets (name enumeration for ACL credential selection — contents are never read)

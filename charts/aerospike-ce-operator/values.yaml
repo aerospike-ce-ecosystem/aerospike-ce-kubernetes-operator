@@ -501,3 +501,121 @@ ui:
   tests:
     # -- Enable Helm test pods for UI (run with `helm test <release>`)
     enabled: true
+
+# =============================================================================
+# cert-manager subchart (optional bundled install)
+# =============================================================================
+cert-manager:
+  # -- Install cert-manager as a subchart alongside the operator.
+  # When true, cert-manager v1.17.2 is deployed automatically.
+  # Recommended for quick-start and single-command installs.
+  # Set to false (default) if cert-manager is already installed in the cluster.
+  install: false
+  crds:
+    enabled: true
+
+# =============================================================================
+# Default AerospikeClusterTemplates
+# =============================================================================
+defaultTemplates:
+  # -- Create pre-built AerospikeClusterTemplate resources in the release namespace.
+  # Three tiers are provided: minimal (dev), soft-rack (stage), hard-rack (prod).
+  # NOTE: AerospikeClusterTemplate is namespace-scoped. Templates created here are
+  # only accessible to AerospikeCluster resources in the same namespace (Release.Namespace).
+  # For cross-namespace use, apply templates manually: kubectl apply -f config/samples/acko_v1alpha1_template_*.yaml -n <namespace>
+  enabled: false
+
+  templates:
+    minimal:
+      image: aerospike:ce-8.1.1.1
+      size: 1
+      monitoring:
+        enabled: false
+      scheduling:
+        podAntiAffinityLevel: none
+      storage:
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 1Gi
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "256Mi"
+        limits:
+          cpu: "500m"
+          memory: "512Mi"
+      aerospikeConfig:
+        service:
+          proto-fd-max: 1024
+        namespaceDefaults:
+          replication-factor: 1
+
+    soft-rack:
+      scheduling:
+        podAntiAffinityLevel: preferred
+        tolerations:
+          - key: "aerospike"
+            operator: "Exists"
+            effect: "NoSchedule"
+      storage:
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 10Gi
+      resources:
+        requests:
+          cpu: "500m"
+          memory: "1Gi"
+        limits:
+          cpu: "2"
+          memory: "2Gi"
+      aerospikeConfig:
+        service:
+          proto-fd-max: 4096
+        namespaceDefaults:
+          replication-factor: 2
+
+    hard-rack:
+      image: aerospike:ce-8.1.1.1
+      size: 6
+      monitoring:
+        enabled: true
+        port: 9145
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+        serviceMonitor:
+          enabled: true
+          interval: 30s
+      scheduling:
+        podAntiAffinityLevel: required
+        tolerations:
+          - key: "aerospike"
+            operator: "Exists"
+            effect: "NoSchedule"
+      storage:
+        storageClassName: local-path
+        localPVRequired: true
+        resources:
+          requests:
+            storage: 100Gi
+      resources:
+        requests:
+          cpu: "2"
+          memory: "4Gi"
+        limits:
+          cpu: "2"
+          memory: "4Gi"
+      rackConfig:
+        maxRacksPerNode: 1
+      aerospikeConfig:
+        service:
+          proto-fd-max: 15000
+        namespaceDefaults:
+          replication-factor: 2
+          memory-size: 2147483648

@@ -1,12 +1,12 @@
 apiVersion: acko.io/v1alpha1
 kind: AerospikeClusterTemplate
 metadata:
-  name: stage
+  name: soft-rack
   namespace: default
   labels:
-    environment: stage
+    app.kubernetes.io/profile: soft-rack
 spec:
-  # Stage template: moderate resources, preferred anti-affinity
+  # Soft-rack template: moderate resources, preferred anti-affinity
   scheduling:
     podAntiAffinityLevel: preferred   # Soft anti-affinity for better spread
     tolerations:

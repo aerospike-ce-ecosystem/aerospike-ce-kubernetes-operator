@@ -1,16 +1,16 @@
 apiVersion: acko.io/v1alpha1
 kind: AerospikeClusterTemplate
 metadata:
-  name: prod
+  name: hard-rack
   namespace: default
   labels:
-    environment: prod
+    app.kubernetes.io/profile: hard-rack
 spec:
-  # Prod template: standard Aerospike image and cluster size
+  # Hard-rack template: standard Aerospike image and cluster size for production
   image: aerospike:ce-8.1.1.1   # Default image; clusters can override with spec.image
-  size: 6                         # Default cluster size (prod); clusters can override with spec.size
+  size: 6                         # Default cluster size; clusters can override with spec.size
 
-  # Default monitoring: Prometheus exporter sidecar with ServiceMonitor
+  # Monitoring: Prometheus exporter sidecar with ServiceMonitor
   monitoring:
     enabled: true
     port: 9145
@@ -31,7 +31,7 @@ spec:
     alternateAccessType: pod
     fabricType: pod
 
-  # Prod template: full resources, required anti-affinity, local PV
+  # Hard-rack: full resources, required anti-affinity, local PV
   scheduling:
     podAntiAffinityLevel: required   # Hard anti-affinity: one pod per node
     tolerations:

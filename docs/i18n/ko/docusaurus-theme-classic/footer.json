@@ -17,7 +17,7 @@
   },
   "link.item.label.API Reference": {
     "message": "API 레퍼런스",
-    "description": "The label of footer link with label=API Reference linking to /api-reference/aerospikececluster"
+    "description": "The label of footer link with label=API Reference linking to /api-reference/aerospikecluster"
   },
   "link.item.label.GitHub": {
     "message": "GitHub",

@@ -1,0 +1,154 @@
+Aerospike CE Kubernetes Operator has been installed.
+{{- if not .Values.crds.install }}
+
+NOTE: CRD installation is disabled (crds.install=false).
+Ensure acko-crds is installed separately before creating AerospikeCECluster resources:
+  helm install acko-crds oci://ghcr.io/kimsoungryoul/charts/acko-crds --version {{ .Chart.Version }}
+{{- end }}
+
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+1. Verify the operator is running:
+
+  kubectl -n {{ .Release.Namespace }} get deployment {{ include "acko.fullname" . }}
+  kubectl -n {{ .Release.Namespace }} get pods -l control-plane=controller-manager
+
+{{- if .Values.webhook.enabled }}
+
+2. Webhooks are ENABLED.
+{{- if .Values.certManager.enabled }}
+   TLS certificates are managed by cert-manager (issuer type: {{ .Values.certManager.issuer.type }}).
+{{- else if .Values.webhookTlsSecret }}
+   Using manually provided TLS secret: {{ .Values.webhookTlsSecret }}
+{{- else }}
+   WARNING: No TLS certificate source configured. Webhooks may not function correctly.
+   Set certManager.enabled=true or provide webhookTlsSecret.
+{{- end }}
+{{- else }}
+
+2. Webhooks are DISABLED. CR validation and defaulting will not be enforced.
+{{- end }}
+
+3. Create an Aerospike CE cluster:
+
+  cat <<EOF | kubectl apply -f -
+  apiVersion: acko.io/v1alpha1
+  kind: AerospikeCECluster
+  metadata:
+    name: aerospike-ce-basic
+    namespace: aerospike
+  spec:
+    size: 1
+    image: aerospike:ce-8.1.1.1
+    aerospikeConfig:
+      namespaces:
+        - name: test
+          replication-factor: 1
+          storage-engine:
+            type: memory
+            data-size: 1073741824
+  EOF
+
+4. Check the cluster status:
+
+  kubectl -n aerospike get asce
+
+{{- if .Values.serviceMonitor.enabled }}
+
+5. ServiceMonitor is enabled. Prometheus will scrape operator metrics automatically.
+{{- end }}
+
+{{- if .Values.prometheusRule.enabled }}
+   PrometheusRule alerting rules are deployed.
+{{- end }}
+
+{{- if .Values.grafanaDashboard.enabled }}
+   Grafana dashboard ConfigMap is deployed (auto-discovery via sidecar label: {{ .Values.grafanaDashboard.sidecarLabel }}).
+{{- end }}
+
+{{- if .Values.cilium.enabled }}
+
+   Cilium network policies are enabled for the operator.
+{{- end }}
+
+{{- if .Values.networkPolicy.enabled }}
+
+   Kubernetes NetworkPolicy is enabled for the operator.
+{{- end }}
+
+{{- if .Values.ui.enabled }}
+
+------------------------------------------------------------------------
+  Aerospike Cluster Manager (Web UI)
+------------------------------------------------------------------------
+
+The Aerospike Cluster Manager UI is ENABLED.
+
+{{- if .Values.ui.ingress.enabled }}
+
+Access the UI via Ingress:
+{{- range .Values.ui.ingress.hosts }}
+  http{{ if $.Values.ui.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+
+{{- else }}
+
+Access the UI via port-forward:
+
+  kubectl port-forward svc/{{ include "acko.ui.fullname" . }} {{ .Values.ui.service.frontendPort }}:{{ .Values.ui.service.frontendPort }} -n {{ .Release.Namespace }}
+
+Then open http://localhost:{{ .Values.ui.service.frontendPort }} in your browser.
+
+{{- end }}
+
+Verify the backend is running:
+
+  kubectl port-forward svc/{{ include "acko.ui.fullname" . }} {{ .Values.ui.service.backendPort }}:{{ .Values.ui.service.backendPort }} -n {{ .Release.Namespace }}
+  curl http://localhost:{{ .Values.ui.service.backendPort }}/api/health
+
+{{- if .Values.ui.k8s.enabled }}
+
+K8s Cluster Management is ENABLED.
+You can create and manage Aerospike clusters directly from the UI.
+
+{{- if .Values.ui.rbac.create }}
+RBAC resources (ClusterRole/ClusterRoleBinding) have been created.
+NOTE: The ClusterRole grants create/delete/patch permissions for
+AerospikeCECluster CRDs across all namespaces. For production environments,
+consider restricting to specific namespaces using a Role + RoleBinding instead.
+{{- else }}
+
+WARNING: RBAC resource creation is disabled (ui.rbac.create=false).
+  Ensure the service account "{{ include "acko.ui.serviceAccountName" . }}"
+  has the required permissions to manage AerospikeCECluster CRDs.
+{{- end }}
+
+{{- else }}
+
+K8s Cluster Management is DISABLED.
+To enable it, set ui.k8s.enabled=true in your values.
+
+{{- end }}
+
+{{- if not .Values.ui.networkPolicy.enabled }}
+
+SECURITY NOTE: NetworkPolicy is disabled for the UI. For production deployments,
+consider enabling it (ui.networkPolicy.enabled=true).
+{{- end }}
+
+Check UI pod status:
+  kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=ui -n {{ .Release.Namespace }}
+
+View UI logs:
+  kubectl logs -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=ui -n {{ .Release.Namespace }} -f
+
+{{- if and .Values.ui.persistence.enabled .Values.ui.postgresql.enabled }}
+
+Persistent storage is enabled ({{ .Values.ui.persistence.size }}).
+PostgreSQL data will persist across pod restarts.
+{{- end }}
+{{- end }}
+
+For more examples, visit:
+  https://github.com/kimsoungryoul/aerospike-ce-kubernetes-operator/tree/main/config/samples

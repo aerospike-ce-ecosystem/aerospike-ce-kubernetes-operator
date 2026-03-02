@@ -1,4 +1,4 @@
-name: Publish Helm Chart
+name: Publish Helm Charts
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
       - "v*"
     paths:
       - "charts/**"
+      - "config/crd/bases/**"
   workflow_dispatch:
 
 jobs:
@@ -27,15 +28,40 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           TAG="${GITHUB_REF_NAME#v}"
-          sed -i "s/^version:.*/version: ${TAG}/" charts/aerospike-operator/Chart.yaml
-          sed -i "s/^appVersion:.*/appVersion: \"${TAG}\"/" charts/aerospike-operator/Chart.yaml
+          sed -i "s/^version:.*/version: ${TAG}/" charts/acko-crds/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${TAG}\"/" charts/acko-crds/Chart.yaml
+          sed -i "s/^version:.*/version: ${TAG}/" charts/acko/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${TAG}\"/" charts/acko/Chart.yaml
+          # Update the acko-crds dependency version reference in acko/Chart.yaml
+          sed -i "s/version: \"0\.1\.0\"/version: \"${TAG}\"/" charts/acko/Chart.yaml
 
       - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Package and push chart
+      - name: Create output directory
+        run: mkdir -p dist/charts
+
+      # acko-crds must be published first so that `helm dep update charts/acko`
+      # can resolve the dependency from the OCI registry.
+      - name: Package and push acko-crds chart
         run: |
-          helm package charts/aerospike-operator
-          helm push aerospike-operator-*.tgz oci://ghcr.io/${OWNER,,}
+          helm package charts/acko-crds --destination dist/charts
+          helm push dist/charts/acko-crds-*.tgz oci://ghcr.io/${OWNER,,}/charts
+        env:
+          OWNER: ${{ github.repository_owner }}
+
+      - name: Update acko chart dependencies
+        # Override the file:// local reference to use the OCI registry (just pushed).
+        run: |
+          sed -i "s|repository: \"file://../acko-crds\"|repository: \"oci://ghcr.io/${OWNER,,}/charts\"|" charts/acko/Chart.yaml
+          helm dep update charts/acko
+        env:
+          OWNER: ${{ github.repository_owner }}
+
+      - name: Package and push acko chart
+        run: |
+          helm package charts/acko --destination dist/charts
+          # Use [0-9] prefix to avoid matching acko-crds-*.tgz
+          helm push dist/charts/acko-[0-9]*.tgz oci://ghcr.io/${OWNER,,}/charts
         env:
           OWNER: ${{ github.repository_owner }}

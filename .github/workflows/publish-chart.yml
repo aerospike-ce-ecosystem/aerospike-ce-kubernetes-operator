@@ -33,7 +33,8 @@ jobs:
           sed -i "s/^version:.*/version: ${TAG}/" charts/acko/Chart.yaml
           sed -i "s/^appVersion:.*/appVersion: \"${TAG}\"/" charts/acko/Chart.yaml
           # Update the acko-crds dependency version reference in acko/Chart.yaml
-          sed -i "s/version: \"0\.1\.0\"/version: \"${TAG}\"/" charts/acko/Chart.yaml
+          # Use a pattern that matches any version string so this works after version bumps.
+          sed -i '/name: acko-crds/{n;s/version: ".*"/version: "'"${TAG}"'"/}' charts/acko/Chart.yaml
 
       - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin

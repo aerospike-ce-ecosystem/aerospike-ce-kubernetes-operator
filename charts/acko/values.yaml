@@ -222,7 +222,7 @@ affinity: {}
 #       whenUnsatisfiable: DoNotSchedule
 #       labelSelector:
 #         matchLabels:
-#           app.kubernetes.io/name: aerospike-operator
+#           app.kubernetes.io/name: acko
 topologySpreadConstraints: []
 
 # -- Priority class name for operator pod
@@ -244,7 +244,7 @@ podLabels: {}
 ui:
   # -- Enable the Aerospike Cluster Manager web UI.
   # Deploys a full-stack management dashboard alongside the operator.
-  # Access via: kubectl port-forward svc/<release>-aerospike-operator-ui 3000:3000
+  # Access via: kubectl port-forward svc/<release>-acko-ui 3000:3000
   enabled: false
 
   # -- Number of UI replicas

@@ -36,6 +36,11 @@ jobs:
           # Use a pattern that matches any version string so this works after version bumps.
           sed -i '/name: aerospike-ce-operator-crds/{n;s/version: ".*"/version: "'"${TAG}"'"/}' charts/aerospike-ce-operator/Chart.yaml
 
+      - name: Add Helm repositories
+        run: |
+          helm repo add jetstack https://charts.jetstack.io
+          helm repo update
+
       - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
 

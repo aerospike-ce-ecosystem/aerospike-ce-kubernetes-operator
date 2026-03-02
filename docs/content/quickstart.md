@@ -50,9 +50,9 @@ Skip this step if you already have a Kubernetes cluster.
 kind create cluster --name aerospike
 ```
 
-## Step 2: Install cert-manager
+## Step 2: Install cert-manager (Optional)
 
-cert-manager is required for webhook TLS certificate management.
+Skip this step if you plan to use the bundled cert-manager option in Step 3.
 
 ```bash
 helm repo add jetstack https://charts.jetstack.io
@@ -72,9 +72,10 @@ kubectl -n cert-manager wait --for=condition=Available deployment/cert-manager -
 ## Step 3: Install the Operator
 
 ```bash
+# With bundled cert-manager (recommended if you skipped Step 2)
 helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
-  --version 0.1.0 \  # Replace with latest version
-  -n aerospike-operator --create-namespace
+  -n aerospike-operator --create-namespace \
+  --set cert-manager.install=true
 ```
 
 Verify the operator is running:

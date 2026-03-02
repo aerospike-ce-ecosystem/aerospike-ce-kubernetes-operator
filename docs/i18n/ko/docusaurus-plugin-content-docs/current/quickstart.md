@@ -50,9 +50,9 @@ go install sigs.k8s.io/kind@latest
 kind create cluster --name aerospike
 ```
 
-## Step 2: cert-manager 설치
+## Step 2: cert-manager 설치 (선택사항)
 
-cert-manager는 웹훅 TLS 인증서 관리에 필요합니다.
+Step 3에서 번들 cert-manager 옵션을 사용할 예정이라면 이 단계를 건너뛰세요.
 
 ```bash
 helm repo add jetstack https://charts.jetstack.io
@@ -72,9 +72,10 @@ kubectl -n cert-manager wait --for=condition=Available deployment/cert-manager -
 ## Step 3: 오퍼레이터 설치
 
 ```bash
-helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
-  --version 0.1.0 \  # 최신 버전으로 교체
-  -n aerospike-operator --create-namespace
+# cert-manager 번들 설치 포함 (Step 2를 건너뛴 경우 권장)
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
+  -n aerospike-operator --create-namespace \
+  --set cert-manager.install=true
 ```
 
 오퍼레이터가 실행 중인지 확인:

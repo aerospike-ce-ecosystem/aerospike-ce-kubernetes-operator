@@ -16,7 +16,13 @@ import TabItem from '@theme/TabItem';
 - 클러스터에 접근 가능하도록 설정된 kubectl
 - [cert-manager](https://cert-manager.io/) 설치 완료 (웹훅 TLS에 필요)
 
-### cert-manager 설치
+### cert-manager
+
+cert-manager는 웹훅 TLS에 필요합니다. 아래 두 가지 방법 중 하나를 선택하세요:
+
+**방법 A — 오퍼레이터와 함께 설치 (권장):** 오퍼레이터 설치 시 `--set cert-manager.install=true`를 전달합니다. cert-manager가 자동으로 함께 배포됩니다. [오퍼레이터 설치](#오퍼레이터-설치)로 바로 건너뛰세요.
+
+**방법 B — 별도 설치:** GitOps 환경이나 cert-manager를 독립적으로 관리하는 경우.
 
 ```bash
 helm repo add jetstack https://charts.jetstack.io
@@ -42,9 +48,10 @@ kubectl -n cert-manager wait --for=condition=Available deployment/cert-manager-w
 게시된 OCI Helm 차트를 사용하는 가장 간단한 설치 방법입니다.
 
 ```bash
-helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
-  --version 0.1.0 \  # 최신 버전으로 교체
-  -n aerospike-operator --create-namespace
+# cert-manager 번들 설치 포함 (권장)
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
+  -n aerospike-operator --create-namespace \
+  --set cert-manager.install=true
 ```
 
 ### Helm 값 커스터마이징
@@ -52,8 +59,7 @@ helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
 기본값을 재정의할 수 있습니다:
 
 ```bash
-helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
-  --version 0.1.0 \  # 최신 버전으로 교체
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   -n aerospike-operator --create-namespace \
   --set replicaCount=2 \
   --set resources.limits.memory=256Mi
@@ -62,13 +68,13 @@ helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
 사용 가능한 모든 값 조회:
 
 ```bash
-helm show values oci://ghcr.io/kimsoungryoul/aerospike-operator --version 0.1.0  # 최신 버전으로 교체
+helm show values oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator
 ```
 
 </TabItem>
-<TabItem value="kustomize" label="Kustomize">
+<TabItem value="local-build" label="로컬 빌드">
 
-Kustomize 기반 배포를 선호하는 사용자를 위한 방법입니다.
+소스에서 직접 빌드하는 개발자/기여자용 방법입니다.
 
 ```bash
 git clone https://github.com/KimSoungRyoul/aerospike-ce-kubernetes-operator.git
@@ -97,8 +103,7 @@ Helm 차트에는 Prometheus Operator 모니터링 리소스가 내장되어 있
 Prometheus가 오퍼레이터 메트릭을 자동으로 스크레이핑하도록 `ServiceMonitor` 리소스를 생성합니다.
 
 ```bash
-helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
-  --version 0.1.0 \
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   -n aerospike-operator --create-namespace \
   --set serviceMonitor.enabled=true \
   --set serviceMonitor.additionalLabels.release=prometheus
@@ -123,8 +128,7 @@ kubectl get prometheus -A -o jsonpath='{.items[*].spec.serviceMonitorSelector}'
 오퍼레이터를 위한 내장 알림 규칙이 포함된 `PrometheusRule` 리소스를 생성합니다.
 
 ```bash
-helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
-  --version 0.1.0 \
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   -n aerospike-operator --create-namespace \
   --set serviceMonitor.enabled=true \
   --set prometheusRule.enabled=true
@@ -167,8 +171,7 @@ prometheusRule:
 사전 구성된 Grafana 대시보드가 포함된 `ConfigMap`을 생성합니다. [Grafana sidecar](https://github.com/grafana/helm-charts/tree/main/charts/grafana#sidecar-for-dashboards)가 자동 발견을 위해 설정되어 있어야 합니다.
 
 ```bash
-helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
-  --version 0.1.0 \
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   -n aerospike-operator --create-namespace \
   --set grafanaDashboard.enabled=true
 ```
@@ -212,8 +215,7 @@ helm install grafana grafana/grafana \
 **3. 대시보드를 활성화하여 오퍼레이터 설치 (또는 업그레이드):**
 
 ```bash
-helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
-  --version 0.1.0 \
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   -n aerospike-operator --create-namespace \
   --set grafanaDashboard.enabled=true
 ```
@@ -248,8 +250,7 @@ kubectl -n aerospike-operator get configmap -l grafana_dashboard=1
 모든 모니터링 기능을 한 번에 활성화:
 
 ```bash
-helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
-  --version 0.1.0 \
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   -n aerospike-operator --create-namespace \
   --set serviceMonitor.enabled=true \
   --set serviceMonitor.additionalLabels.release=prometheus \
@@ -271,8 +272,7 @@ UI는 Helm 차트에 내장되어 오퍼레이터와 함께 배포됩니다. 클
 Helm 설치 명령에 `--set ui.enabled=true`를 추가합니다:
 
 ```bash
-helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
-  --version 0.1.0 \
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   -n aerospike-operator --create-namespace \
   --set ui.enabled=true
 ```
@@ -297,8 +297,7 @@ kubectl -n aerospike-operator port-forward svc/<release>-aerospike-operator-ui 3
 외부에서 지속적으로 접근하려면 Ingress를 활성화합니다:
 
 ```bash
-helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
-  --version 0.1.0 \
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   -n aerospike-operator --create-namespace \
   --set ui.enabled=true \
   --set ui.ingress.enabled=true \
@@ -329,8 +328,7 @@ helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
 임베디드 사이드카 대신 기존 PostgreSQL 인스턴스를 사용하려면:
 
 ```bash
-helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
-  --version 0.1.0 \
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   -n aerospike-operator --create-namespace \
   --set ui.enabled=true \
   --set ui.postgresql.enabled=false \
@@ -375,18 +373,7 @@ kind create cluster --config kind-config.yaml --name kind
 
 ```bash
 # =============================================================================
-# 1. cert-manager 설치
-# =============================================================================
-helm repo add jetstack https://charts.jetstack.io
-helm repo update jetstack
-helm install cert-manager jetstack/cert-manager \
-  --namespace cert-manager \
-  --create-namespace \
-  --set crds.enabled=true \
-  --wait
-
-# =============================================================================
-# 2. Prometheus Operator 설치 (kube-prometheus-stack)
+# 1. Prometheus Operator 설치 (kube-prometheus-stack)
 # =============================================================================
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo update prometheus-community
@@ -397,11 +384,11 @@ helm install prometheus prometheus-community/kube-prometheus-stack \
   --wait
 
 # =============================================================================
-# 3. Aerospike Operator 설치 (모니터링 전체 활성화)
+# 2. Aerospike Operator 설치 (cert-manager 번들 + 모니터링 전체 활성화)
 # =============================================================================
-helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
-  --version 0.1.0 \
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   -n aerospike-operator --create-namespace \
+  --set cert-manager.install=true \
   --set serviceMonitor.enabled=true \
   --set serviceMonitor.additionalLabels.release=prometheus \
   --set prometheusRule.enabled=true \
@@ -410,7 +397,7 @@ helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
   --wait
 
 # =============================================================================
-# 4. Grafana 설치 (sidecar 대시보드 자동 발견 활성화)
+# 3. Grafana 설치 (sidecar 대시보드 자동 발견 활성화)
 # =============================================================================
 helm repo add grafana https://grafana.github.io/helm-charts
 helm repo update grafana
@@ -424,7 +411,7 @@ helm install grafana grafana/grafana \
   --wait
 
 # =============================================================================
-# 5. Aerospike CE 클러스터 배포
+# 4. Aerospike CE 클러스터 배포
 # =============================================================================
 kubectl create namespace aerospike --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f config/samples/acko_v1alpha1_aerospikecluster.yaml
@@ -433,14 +420,14 @@ echo "Aerospike 파드 준비 대기 중..."
 kubectl -n aerospike wait --for=condition=Ready pod/aerospike-ce-basic-0-0 --timeout=120s
 
 # =============================================================================
-# 6. 검증: Aerospike 파드에서 asinfo 실행
+# 5. 검증: Aerospike 파드에서 asinfo 실행
 # =============================================================================
 echo "=== Aerospike 클러스터 정보 ==="
 kubectl -n aerospike exec -it aerospike-ce-basic-0-0 -- asinfo -v status
 kubectl -n aerospike exec -it aerospike-ce-basic-0-0 -- asinfo -v build
 
 # =============================================================================
-# 7. Grafana port-forward (http://localhost:3000 에서 접속)
+# 6. Grafana port-forward (http://localhost:3000 에서 접속)
 # =============================================================================
 GRAFANA_PASSWORD=$(kubectl -n monitoring get secret grafana \
   -o jsonpath="{.data.admin-password}" | base64 -d)
@@ -471,14 +458,14 @@ kubectl -n monitoring port-forward svc/grafana 3000:80
 kubectl delete asc --all --all-namespaces
 
 # 오퍼레이터 제거
-helm uninstall aerospike-operator -n aerospike-operator
+helm uninstall aerospike-ce-operator -n aerospike-operator
 
 # (선택) 네임스페이스 삭제
 kubectl delete namespace aerospike-operator
 ```
 
 </TabItem>
-<TabItem value="kustomize" label="Kustomize">
+<TabItem value="local-build" label="로컬 빌드">
 
 ```bash
 # 먼저 모든 Aerospike 클러스터를 삭제

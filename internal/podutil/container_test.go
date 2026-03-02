@@ -581,15 +581,34 @@ func TestBuildAerospikeContainer_HasLivenessProbe(t *testing.T) {
 	if c.LivenessProbe == nil {
 		t.Fatal("expected liveness probe to be set")
 	}
-	if c.LivenessProbe.TCPSocket == nil {
-		t.Error("liveness probe should use TCPSocket handler")
+	if c.LivenessProbe.Exec == nil {
+		t.Fatal("liveness probe should use Exec handler")
 	}
-	if c.LivenessProbe.TCPSocket.Port.IntVal != ServicePort {
-		t.Errorf("liveness probe port = %d, want %d", c.LivenessProbe.TCPSocket.Port.IntVal, ServicePort)
+	cmd := strings.Join(c.LivenessProbe.Exec.Command, " ")
+	if !strings.Contains(cmd, "asinfo") {
+		t.Errorf("liveness probe command should contain 'asinfo', got %q", cmd)
+	}
+	if !strings.Contains(cmd, "build") {
+		t.Errorf("liveness probe command should query 'build', got %q", cmd)
+	}
+	if !strings.Contains(cmd, "3000") {
+		t.Errorf("liveness probe command should reference port 3000, got %q", cmd)
 	}
 	// Liveness probe should have more generous timing than readiness
 	if c.LivenessProbe.InitialDelaySeconds < c.ReadinessProbe.InitialDelaySeconds {
 		t.Error("liveness probe InitialDelaySeconds should be >= readiness probe's")
+	}
+	if c.LivenessProbe.InitialDelaySeconds != 30 {
+		t.Errorf("liveness InitialDelaySeconds = %d, want 30", c.LivenessProbe.InitialDelaySeconds)
+	}
+	if c.LivenessProbe.PeriodSeconds != 30 {
+		t.Errorf("liveness PeriodSeconds = %d, want 30", c.LivenessProbe.PeriodSeconds)
+	}
+	if c.LivenessProbe.TimeoutSeconds != 5 {
+		t.Errorf("liveness TimeoutSeconds = %d, want 5", c.LivenessProbe.TimeoutSeconds)
+	}
+	if c.LivenessProbe.FailureThreshold != 3 {
+		t.Errorf("liveness FailureThreshold = %d, want 3", c.LivenessProbe.FailureThreshold)
 	}
 }
 
@@ -600,11 +619,71 @@ func TestBuildAerospikeContainer_HasReadinessProbe(t *testing.T) {
 	if c.ReadinessProbe == nil {
 		t.Fatal("expected readiness probe to be set")
 	}
-	if c.ReadinessProbe.TCPSocket == nil {
-		t.Error("readiness probe should use TCPSocket handler")
+	if c.ReadinessProbe.Exec == nil {
+		t.Fatal("readiness probe should use Exec handler")
 	}
-	if c.ReadinessProbe.TCPSocket.Port.IntVal != ServicePort {
-		t.Errorf("readiness probe port = %d, want %d", c.ReadinessProbe.TCPSocket.Port.IntVal, ServicePort)
+	cmd := strings.Join(c.ReadinessProbe.Exec.Command, " ")
+	if !strings.Contains(cmd, "asinfo") {
+		t.Errorf("readiness probe command should contain 'asinfo', got %q", cmd)
+	}
+	if !strings.Contains(cmd, "statistics") {
+		t.Errorf("readiness probe command should query 'statistics', got %q", cmd)
+	}
+	if !strings.Contains(cmd, "cluster_size") {
+		t.Errorf("readiness probe command should check 'cluster_size', got %q", cmd)
+	}
+	if !strings.Contains(cmd, "3000") {
+		t.Errorf("readiness probe command should reference port 3000, got %q", cmd)
+	}
+	if c.ReadinessProbe.InitialDelaySeconds != 15 {
+		t.Errorf("readiness InitialDelaySeconds = %d, want 15", c.ReadinessProbe.InitialDelaySeconds)
+	}
+	if c.ReadinessProbe.PeriodSeconds != 10 {
+		t.Errorf("readiness PeriodSeconds = %d, want 10", c.ReadinessProbe.PeriodSeconds)
+	}
+	if c.ReadinessProbe.TimeoutSeconds != 5 {
+		t.Errorf("readiness TimeoutSeconds = %d, want 5", c.ReadinessProbe.TimeoutSeconds)
+	}
+	if c.ReadinessProbe.FailureThreshold != 3 {
+		t.Errorf("readiness FailureThreshold = %d, want 3", c.ReadinessProbe.FailureThreshold)
+	}
+}
+
+func TestBuildLivenessProbe_ReturnsExecProbe(t *testing.T) {
+	probe := buildLivenessProbe()
+	if probe == nil {
+		t.Fatal("expected non-nil probe")
+	}
+	if probe.Exec == nil {
+		t.Fatal("expected Exec handler")
+	}
+	if probe.TCPSocket != nil {
+		t.Error("should not use TCPSocket handler")
+	}
+	if len(probe.Exec.Command) != 3 {
+		t.Fatalf("expected 3-element command, got %d", len(probe.Exec.Command))
+	}
+	if probe.Exec.Command[0] != "/bin/sh" || probe.Exec.Command[1] != "-c" {
+		t.Errorf("expected [/bin/sh -c ...], got %v", probe.Exec.Command[:2])
+	}
+}
+
+func TestBuildReadinessProbe_ReturnsExecProbe(t *testing.T) {
+	probe := buildReadinessProbe()
+	if probe == nil {
+		t.Fatal("expected non-nil probe")
+	}
+	if probe.Exec == nil {
+		t.Fatal("expected Exec handler")
+	}
+	if probe.TCPSocket != nil {
+		t.Error("should not use TCPSocket handler")
+	}
+	if len(probe.Exec.Command) != 3 {
+		t.Fatalf("expected 3-element command, got %d", len(probe.Exec.Command))
+	}
+	if probe.Exec.Command[0] != "/bin/sh" || probe.Exec.Command[1] != "-c" {
+		t.Errorf("expected [/bin/sh -c ...], got %v", probe.Exec.Command[:2])
 	}
 }
 

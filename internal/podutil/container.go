@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 
 	v1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/storage"
@@ -57,28 +56,8 @@ func BuildAerospikeContainer(cluster *v1alpha1.AerospikeCluster, volumeMounts []
 				},
 			},
 		},
-		ReadinessProbe: &corev1.Probe{
-			ProbeHandler: corev1.ProbeHandler{
-				TCPSocket: &corev1.TCPSocketAction{
-					Port: intstr.FromInt32(ServicePort),
-				},
-			},
-			InitialDelaySeconds: 10,
-			PeriodSeconds:       10,
-			TimeoutSeconds:      5,
-			FailureThreshold:    3,
-		},
-		LivenessProbe: &corev1.Probe{
-			ProbeHandler: corev1.ProbeHandler{
-				TCPSocket: &corev1.TCPSocketAction{
-					Port: intstr.FromInt32(ServicePort),
-				},
-			},
-			InitialDelaySeconds: 30,
-			PeriodSeconds:       30,
-			TimeoutSeconds:      5,
-			FailureThreshold:    3,
-		},
+		ReadinessProbe: buildReadinessProbe(),
+		LivenessProbe:  buildLivenessProbe(),
 	}
 
 	if cluster.Spec.PodSpec != nil && cluster.Spec.PodSpec.AerospikeContainerSpec != nil {
@@ -92,6 +71,48 @@ func BuildAerospikeContainer(cluster *v1alpha1.AerospikeCluster, volumeMounts []
 	}
 
 	return c
+}
+
+// buildLivenessProbe creates an exec-based liveness probe that verifies the
+// Aerospike server is responsive by querying the build version via asinfo.
+// This is more reliable than a TCP socket check because it confirms the
+// Aerospike process is actively handling info protocol requests.
+func buildLivenessProbe() *corev1.Probe {
+	return &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			Exec: &corev1.ExecAction{
+				Command: []string{
+					"/bin/sh", "-c",
+					fmt.Sprintf("asinfo -v 'build' -h 127.0.0.1 -p %d", ServicePort),
+				},
+			},
+		},
+		InitialDelaySeconds: 30,
+		PeriodSeconds:       30,
+		TimeoutSeconds:      5,
+		FailureThreshold:    3,
+	}
+}
+
+// buildReadinessProbe creates an exec-based readiness probe that verifies the
+// Aerospike server is ready to accept client requests by checking that
+// cluster_size is reported in statistics. This ensures the node has joined
+// the cluster and is serving data, not just listening on a TCP port.
+func buildReadinessProbe() *corev1.Probe {
+	return &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			Exec: &corev1.ExecAction{
+				Command: []string{
+					"/bin/sh", "-c",
+					fmt.Sprintf("asinfo -v 'statistics' -h 127.0.0.1 -p %d 2>&1 | grep -q 'cluster_size'", ServicePort),
+				},
+			},
+		},
+		InitialDelaySeconds: 15,
+		PeriodSeconds:       10,
+		TimeoutSeconds:      5,
+		FailureThreshold:    3,
+	}
 }
 
 // BuildInitContainer creates the init container that runs the aerospike-init.sh script

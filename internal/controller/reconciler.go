@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -31,7 +32,22 @@ import (
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
-const defaultReconcileRetryInterval = 5 * time.Second
+const (
+	defaultReconcileRetryInterval = 5 * time.Second
+
+	// reconcileTimeout is the maximum duration for a single reconciliation loop.
+	// If the context deadline is exceeded, the reconcile will be retried with backoff.
+	reconcileTimeout = 5 * time.Minute
+
+	// maxFailedReconciles is the circuit breaker threshold. After this many
+	// consecutive failures, the operator backs off exponentially to prevent
+	// excessive retries on persistently failing clusters.
+	maxFailedReconciles int32 = 10
+
+	// maxBackoffSeconds is the maximum backoff duration (5 minutes) for the
+	// exponential backoff used by the circuit breaker.
+	maxBackoffSeconds = 300
+)
 
 // AerospikeClusterReconciler reconciles an AerospikeCluster object.
 type AerospikeClusterReconciler struct {
@@ -66,6 +82,10 @@ type AerospikeClusterReconciler struct {
 // +kubebuilder:rbac:groups=cilium.io,resources=ciliumnetworkpolicies,verbs=get;list;watch;create;update;patch;delete
 
 func (r *AerospikeClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	// Apply reconcile timeout to prevent infinite execution.
+	ctx, cancel := context.WithTimeout(ctx, reconcileTimeout)
+	defer cancel()
+
 	log := logf.FromContext(ctx)
 	reconcileStart := time.Now()
 
@@ -119,50 +139,27 @@ func (r *AerospikeClusterReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{}, nil
 	}
 
+	// Circuit breaker: if consecutive failures exceed threshold, back off exponentially.
+	if cluster.Status.FailedReconcileCount >= maxFailedReconciles {
+		backoff := calculateBackoff(cluster.Status.FailedReconcileCount)
+		log.Info("Circuit breaker active, backing off",
+			"failedCount", cluster.Status.FailedReconcileCount,
+			"backoff", backoff,
+			"lastError", cluster.Status.LastReconcileError)
+		metrics.CircuitBreakerActive.WithLabelValues(cluster.Namespace, cluster.Name).Set(1)
+		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventCircuitBreakerActive,
+			"Circuit breaker active after %d consecutive failures, backing off %v. Last error: %s",
+			cluster.Status.FailedReconcileCount, backoff, cluster.Status.LastReconcileError)
+		return ctrl.Result{RequeueAfter: backoff}, nil
+	}
+	metrics.CircuitBreakerActive.WithLabelValues(cluster.Namespace, cluster.Name).Set(0)
+
 	// 4.5 Template resolution: fetch/snapshot template and apply to in-memory spec.
 	if cluster.Spec.TemplateRef != nil {
-		resolveResult, err := aerotmpl.Resolve(ctx, r.Client, cluster)
-		if err != nil {
-			log.Error(err, "Failed to resolve template", "template", cluster.Spec.TemplateRef.Name)
-			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventTemplateResolutionError,
-				"Failed to resolve template %q: %v", cluster.Spec.TemplateRef.Name, err)
-			return ctrl.Result{}, err
-		}
-		if resolveResult.SnapshotUpdated {
-			// Persist the new snapshot to the API server immediately so that
-			// subsequent setPhase/updateStatusAndPhase calls (which re-fetch
-			// the object) do not overwrite it with the stale version.
-			// Status must be persisted BEFORE the Annotation Patch: the Patch
-			// response refreshes the full cluster object (incl. Status) from the
-			// server, which would nil-out the in-memory snapshot if Status has
-			// not been saved yet.
-			if err := r.Status().Update(ctx, cluster); err != nil {
-				if errors.IsConflict(err) {
-					return ctrl.Result{Requeue: true}, nil
-				}
-				return ctrl.Result{}, err
-			}
-		}
-		// Remove the resync annotation from the API server now that the snapshot is persisted.
-		// This Patch runs after Status.Update so it does not overwrite the snapshot.
-		if resolveResult.AnnotationNeedsCleanup {
-			patch := client.MergeFrom(cluster.DeepCopy())
-			delete(cluster.Annotations, aerotmpl.AnnotationResyncTemplate)
-			if err := r.Patch(ctx, cluster, patch); err != nil {
-				if errors.IsConflict(err) {
-					return ctrl.Result{Requeue: true}, nil
-				}
-				return ctrl.Result{}, err
-			}
-		}
-		if resolveResult.SnapshotUpdated && cluster.Status.TemplateSnapshot != nil {
-			r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventTemplateApplied,
-				"Applied template %q (rv: %s)",
-				cluster.Spec.TemplateRef.Name,
-				cluster.Status.TemplateSnapshot.ResourceVersion)
-		}
-		for _, w := range resolveResult.Warnings {
-			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventValidationWarning, "%s", w)
+		if result, err := r.resolveTemplate(ctx, cluster); err != nil {
+			return r.handleReconcileError(ctx, cluster, err)
+		} else if result != nil {
+			return *result, nil
 		}
 	}
 
@@ -176,7 +173,7 @@ func (r *AerospikeClusterReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			if errors.IsConflict(err) {
 				return ctrl.Result{Requeue: true}, nil
 			}
-			return ctrl.Result{}, err
+			return r.handleReconcileError(ctx, cluster, err)
 		}
 	}
 
@@ -185,18 +182,182 @@ func (r *AerospikeClusterReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		log.Error(err, "Failed to reconcile headless service")
 		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventReconcileError, "Headless service: %v", err)
 		metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, metrics.ReasonService).Inc()
-		return ctrl.Result{}, err
+		return r.handleReconcileError(ctx, cluster, err)
 	}
 
 	// 6b. Reconcile per-pod services
 	if err := r.reconcilePodServices(ctx, cluster); err != nil {
 		log.Error(err, "Failed to reconcile per-pod services")
 		metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, metrics.ReasonService).Inc()
-		return ctrl.Result{}, err
+		return r.handleReconcileError(ctx, cluster, err)
 	}
 
 	// 7-17. Reconcile cluster resources
-	return r.reconcileCluster(ctx, req.NamespacedName, cluster)
+	result, err := r.reconcileCluster(ctx, req.NamespacedName, cluster)
+	if err != nil {
+		return r.handleReconcileError(ctx, cluster, err)
+	}
+
+	// Reconcile succeeded — reset circuit breaker counter if previously non-zero.
+	if cluster.Status.FailedReconcileCount > 0 {
+		if resetErr := r.resetFailedReconcileCount(ctx, cluster); resetErr != nil {
+			log.Error(resetErr, "Failed to reset circuit breaker counter")
+			// Non-fatal: the counter will be reset on the next successful reconcile.
+		}
+	}
+
+	return result, nil
+}
+
+// resolveTemplate handles template resolution, snapshot persistence, and annotation cleanup.
+// Returns (nil, nil) on success, (*result, nil) if a requeue is needed, or (nil, err) on failure.
+func (r *AerospikeClusterReconciler) resolveTemplate(
+	ctx context.Context,
+	cluster *ackov1alpha1.AerospikeCluster,
+) (*ctrl.Result, error) {
+	log := logf.FromContext(ctx)
+
+	resolveResult, err := aerotmpl.Resolve(ctx, r.Client, cluster)
+	if err != nil {
+		log.Error(err, "Failed to resolve template", "template", cluster.Spec.TemplateRef.Name)
+		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventTemplateResolutionError,
+			"Failed to resolve template %q: %v", cluster.Spec.TemplateRef.Name, err)
+		return nil, err
+	}
+	if resolveResult.SnapshotUpdated {
+		// Persist the new snapshot to the API server immediately so that
+		// subsequent setPhase/updateStatusAndPhase calls (which re-fetch
+		// the object) do not overwrite it with the stale version.
+		// Status must be persisted BEFORE the Annotation Patch: the Patch
+		// response refreshes the full cluster object (incl. Status) from the
+		// server, which would nil-out the in-memory snapshot if Status has
+		// not been saved yet.
+		if err := r.Status().Update(ctx, cluster); err != nil {
+			if errors.IsConflict(err) {
+				return &ctrl.Result{Requeue: true}, nil
+			}
+			return nil, err
+		}
+	}
+	// Remove the resync annotation from the API server now that the snapshot is persisted.
+	// This Patch runs after Status.Update so it does not overwrite the snapshot.
+	if resolveResult.AnnotationNeedsCleanup {
+		patch := client.MergeFrom(cluster.DeepCopy())
+		delete(cluster.Annotations, aerotmpl.AnnotationResyncTemplate)
+		if err := r.Patch(ctx, cluster, patch); err != nil {
+			if errors.IsConflict(err) {
+				return &ctrl.Result{Requeue: true}, nil
+			}
+			return nil, err
+		}
+	}
+	if resolveResult.SnapshotUpdated && cluster.Status.TemplateSnapshot != nil {
+		r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventTemplateApplied,
+			"Applied template %q (rv: %s)",
+			cluster.Spec.TemplateRef.Name,
+			cluster.Status.TemplateSnapshot.ResourceVersion)
+	}
+	for _, w := range resolveResult.Warnings {
+		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventValidationWarning, "%s", w)
+	}
+	return nil, nil
+}
+
+// handleReconcileError increments the failed reconcile count in the cluster status
+// and returns the appropriate result with exponential backoff.
+func (r *AerospikeClusterReconciler) handleReconcileError(
+	ctx context.Context,
+	cluster *ackov1alpha1.AerospikeCluster,
+	reconcileErr error,
+) (ctrl.Result, error) {
+	log := logf.FromContext(ctx)
+
+	// Use a detached context so status writes succeed even if the reconcile ctx timed out.
+	updateCtx, updateCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer updateCancel()
+
+	// Re-fetch to avoid conflict on a stale object.
+	latest, err := r.refetchCluster(updateCtx, types.NamespacedName{Name: cluster.Name, Namespace: cluster.Namespace})
+	if err != nil {
+		// Cannot update status — return original error and let controller-runtime retry.
+		log.Error(err, "Failed to re-fetch cluster for error tracking")
+		return ctrl.Result{}, reconcileErr
+	}
+
+	latest.Status.FailedReconcileCount++
+	// Truncate error message to avoid bloating the status object.
+	errMsg := reconcileErr.Error()
+	if len(errMsg) > 256 {
+		errMsg = errMsg[:256] + "..."
+	}
+	latest.Status.LastReconcileError = errMsg
+
+	if err := r.Status().Update(updateCtx, latest); err != nil {
+		log.Error(err, "Failed to update failed reconcile count in status")
+		// Return original error; the counter will be incremented on the next attempt.
+		return ctrl.Result{}, reconcileErr
+	}
+
+	// Propagate updated fields back to the caller's object.
+	cluster.Status.FailedReconcileCount = latest.Status.FailedReconcileCount
+	cluster.Status.LastReconcileError = latest.Status.LastReconcileError
+
+	backoff := calculateBackoff(latest.Status.FailedReconcileCount)
+	log.Error(reconcileErr, "Reconcile failed, scheduling retry with backoff",
+		"failedCount", latest.Status.FailedReconcileCount,
+		"backoff", backoff)
+
+	return ctrl.Result{RequeueAfter: backoff}, nil
+}
+
+// resetFailedReconcileCount resets the circuit breaker counter after a successful reconcile.
+func (r *AerospikeClusterReconciler) resetFailedReconcileCount(
+	ctx context.Context,
+	cluster *ackov1alpha1.AerospikeCluster,
+) error {
+	log := logf.FromContext(ctx)
+
+	latest, err := r.refetchCluster(ctx, types.NamespacedName{Name: cluster.Name, Namespace: cluster.Namespace})
+	if err != nil {
+		return err
+	}
+
+	if latest.Status.FailedReconcileCount == 0 && latest.Status.LastReconcileError == "" {
+		return nil
+	}
+
+	prevCount := latest.Status.FailedReconcileCount
+	latest.Status.FailedReconcileCount = 0
+	latest.Status.LastReconcileError = ""
+
+	if err := r.Status().Update(ctx, latest); err != nil {
+		return err
+	}
+
+	cluster.Status.FailedReconcileCount = 0
+	cluster.Status.LastReconcileError = ""
+
+	log.Info("Circuit breaker counter reset after successful reconcile", "previousFailedCount", prevCount)
+	if prevCount >= maxFailedReconciles {
+		r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventCircuitBreakerReset,
+			"Circuit breaker reset after successful reconcile (was %d consecutive failures)", prevCount)
+	}
+	return nil
+}
+
+// calculateBackoff computes the exponential backoff duration for the given
+// consecutive failure count. Uses 2^n seconds, capped at maxBackoffSeconds (5 min).
+func calculateBackoff(failCount int32) time.Duration {
+	if failCount <= 0 {
+		return defaultReconcileRetryInterval
+	}
+	// Cap the exponent to avoid overflow: 2^8 = 256s which is < maxBackoffSeconds (300).
+	exponent := min(failCount, 8)
+	seconds := math.Pow(2, float64(exponent))
+	if seconds > float64(maxBackoffSeconds) {
+		seconds = float64(maxBackoffSeconds)
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 // reconcileCluster reconciles all cluster resources (racks, services, operations, ACL, status).

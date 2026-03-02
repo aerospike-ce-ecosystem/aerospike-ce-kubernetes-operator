@@ -448,6 +448,18 @@ type AerospikeClusterStatus struct {
 	// are not propagated until a manual resync is triggered.
 	// +optional
 	TemplateSnapshot *TemplateSnapshotStatus `json:"templateSnapshot,omitempty"`
+
+	// FailedReconcileCount is the number of consecutive failed reconciliations.
+	// Reset to 0 on a successful reconcile. When this exceeds the circuit breaker
+	// threshold (default 10), the operator backs off exponentially to prevent
+	// excessive retries on persistently failing clusters.
+	// +optional
+	FailedReconcileCount int32 `json:"failedReconcileCount,omitempty"`
+
+	// LastReconcileError is the error message from the most recent failed reconciliation.
+	// Cleared on successful reconciliation.
+	// +optional
+	LastReconcileError string `json:"lastReconcileError,omitempty"`
 }
 
 // AerospikePodStatus holds per-pod status information.

@@ -58,6 +58,10 @@ const (
 	EventPVCCleanedUp     = "PVCCleanedUp"
 	EventPVCCleanupFailed = "PVCCleanupFailed"
 
+	// Circuit breaker
+	EventCircuitBreakerActive = "CircuitBreakerActive"
+	EventCircuitBreakerReset  = "CircuitBreakerReset"
+
 	// Miscellaneous
 	EventValidationWarning = "ValidationWarning"
 	EventReconcileError    = "ReconcileError"

@@ -110,6 +110,17 @@ var (
 		},
 		[]string{"namespace", "name"},
 	)
+
+	// CircuitBreakerActive reports whether the circuit breaker is active (1) or inactive (0)
+	// for each AerospikeCluster. The circuit breaker activates after consecutive reconcile failures
+	// exceed the threshold (default 10).
+	CircuitBreakerActive = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "acko_circuit_breaker_active",
+			Help: "Whether the reconcile circuit breaker is active (1=active, 0=inactive)",
+		},
+		[]string{"namespace", "name"},
+	)
 )
 
 // ReconcileErrorReason constants define bounded labels for ReconcileErrorsTotal.
@@ -167,6 +178,7 @@ func CleanupClusterMetrics(namespace, name string) {
 	LastReconcileTimestamp.Delete(labels)
 	ClusterASSize.Delete(labels)
 	ScaleDownDeferralsTotal.Delete(labels)
+	CircuitBreakerActive.Delete(labels)
 
 	for _, result := range []string{"success", "error"} {
 		ACLSyncTotal.Delete(prometheus.Labels{"namespace": namespace, "name": name, "result": result})
@@ -194,5 +206,6 @@ func init() {
 		LastReconcileTimestamp,
 		ClusterASSize,
 		ScaleDownDeferralsTotal,
+		CircuitBreakerActive,
 	)
 }

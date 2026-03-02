@@ -23,7 +23,3 @@ dependencies:
     # Local reference for development. CI overrides to OCI registry after pushing aerospike-ce-operator-crds.
     repository: "file://../aerospike-ce-operator-crds"
     condition: crds.install
-  - name: cert-manager
-    version: 1.17.2
-    repository: https://charts.jetstack.io
-    condition: certManagerSubchart.enabled

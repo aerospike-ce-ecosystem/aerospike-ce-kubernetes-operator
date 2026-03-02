@@ -18,11 +18,7 @@ import TabItem from '@theme/TabItem';
 
 ### cert-manager
 
-cert-manager는 웹훅 TLS에 필요합니다. 아래 두 가지 방법 중 하나를 선택하세요:
-
-**방법 A — 오퍼레이터와 함께 설치 (권장):** 오퍼레이터 설치 시 `--set certManagerSubchart.enabled=true`를 전달합니다. cert-manager가 자동으로 함께 배포됩니다. [오퍼레이터 설치](#오퍼레이터-설치)로 바로 건너뛰세요.
-
-**방법 B — 별도 설치:** GitOps 환경이나 cert-manager를 독립적으로 관리하는 경우.
+cert-manager는 웹훅 TLS에 필요합니다. 오퍼레이터 설치 전에 먼저 설치하세요:
 
 ```bash
 helm repo add jetstack https://charts.jetstack.io
@@ -48,10 +44,8 @@ kubectl -n cert-manager wait --for=condition=Available deployment/cert-manager-w
 게시된 OCI Helm 차트를 사용하는 가장 간단한 설치 방법입니다.
 
 ```bash
-# cert-manager 번들 설치 포함 (권장)
 helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
-  -n aerospike-operator --create-namespace \
-  --set certManagerSubchart.enabled=true
+  -n aerospike-operator --create-namespace
 ```
 
 ### Helm 값 커스터마이징
@@ -373,7 +367,18 @@ kind create cluster --config kind-config.yaml --name kind
 
 ```bash
 # =============================================================================
-# 1. Prometheus Operator 설치 (kube-prometheus-stack)
+# 1. cert-manager 설치
+# =============================================================================
+helm repo add jetstack https://charts.jetstack.io
+helm repo update jetstack
+helm install cert-manager jetstack/cert-manager \
+  --namespace cert-manager \
+  --create-namespace \
+  --set crds.enabled=true \
+  --wait
+
+# =============================================================================
+# 2. Prometheus Operator 설치 (kube-prometheus-stack)
 # =============================================================================
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo update prometheus-community
@@ -384,11 +389,10 @@ helm install prometheus prometheus-community/kube-prometheus-stack \
   --wait
 
 # =============================================================================
-# 2. Aerospike Operator 설치 (cert-manager 번들 + 모니터링 전체 활성화)
+# 3. Aerospike Operator 설치 (모니터링 전체 활성화)
 # =============================================================================
 helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   -n aerospike-operator --create-namespace \
-  --set certManagerSubchart.enabled=true \
   --set serviceMonitor.enabled=true \
   --set serviceMonitor.additionalLabels.release=prometheus \
   --set prometheusRule.enabled=true \
@@ -397,7 +401,7 @@ helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-
   --wait
 
 # =============================================================================
-# 3. Grafana 설치 (sidecar 대시보드 자동 발견 활성화)
+# 4. Grafana 설치 (sidecar 대시보드 자동 발견 활성화)
 # =============================================================================
 helm repo add grafana https://grafana.github.io/helm-charts
 helm repo update grafana
@@ -411,7 +415,7 @@ helm install grafana grafana/grafana \
   --wait
 
 # =============================================================================
-# 4. Aerospike CE 클러스터 배포
+# 5. Aerospike CE 클러스터 배포
 # =============================================================================
 kubectl create namespace aerospike --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f config/samples/acko_v1alpha1_aerospikecluster.yaml
@@ -420,14 +424,14 @@ echo "Aerospike 파드 준비 대기 중..."
 kubectl -n aerospike wait --for=condition=Ready pod/aerospike-ce-basic-0-0 --timeout=120s
 
 # =============================================================================
-# 5. 검증: Aerospike 파드에서 asinfo 실행
+# 6. 검증: Aerospike 파드에서 asinfo 실행
 # =============================================================================
 echo "=== Aerospike 클러스터 정보 ==="
 kubectl -n aerospike exec -it aerospike-ce-basic-0-0 -- asinfo -v status
 kubectl -n aerospike exec -it aerospike-ce-basic-0-0 -- asinfo -v build
 
 # =============================================================================
-# 6. Grafana port-forward (http://localhost:3000 에서 접속)
+# 7. Grafana port-forward (http://localhost:3000 에서 접속)
 # =============================================================================
 GRAFANA_PASSWORD=$(kubectl -n monitoring get secret grafana \
   -o jsonpath="{.data.admin-password}" | base64 -d)

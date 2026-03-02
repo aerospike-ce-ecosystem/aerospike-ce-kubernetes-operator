@@ -18,11 +18,7 @@ This guide covers two methods to install the ACKO operator.
 
 ### cert-manager
 
-cert-manager is required for webhook TLS. Choose one of the following installation methods:
-
-**Option A — Bundle with operator (Recommended):** Pass `--set certManagerSubchart.enabled=true` when installing the operator. cert-manager is deployed automatically. Skip to [Install the Operator](#install-the-operator).
-
-**Option B — Install separately:** For GitOps environments or when cert-manager is already managed independently.
+cert-manager is required for webhook TLS. Install it before the operator:
 
 ```bash
 helm repo add jetstack https://charts.jetstack.io
@@ -48,10 +44,8 @@ kubectl -n cert-manager wait --for=condition=Available deployment/cert-manager-w
 The simplest installation method using the published OCI Helm chart.
 
 ```bash
-# Bundled cert-manager install (recommended)
 helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
-  -n aerospike-operator --create-namespace \
-  --set certManagerSubchart.enabled=true
+  -n aerospike-operator --create-namespace
 ```
 
 ### Customizing Helm Values
@@ -494,7 +488,18 @@ kind create cluster --config kind-config.yaml --name kind
 
 ```bash
 # =============================================================================
-# 1. Install Prometheus Operator (kube-prometheus-stack)
+# 1. Install cert-manager
+# =============================================================================
+helm repo add jetstack https://charts.jetstack.io
+helm repo update jetstack
+helm install cert-manager jetstack/cert-manager \
+  --namespace cert-manager \
+  --create-namespace \
+  --set crds.enabled=true \
+  --wait
+
+# =============================================================================
+# 2. Install Prometheus Operator (kube-prometheus-stack)
 # =============================================================================
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo update prometheus-community
@@ -505,11 +510,10 @@ helm install prometheus prometheus-community/kube-prometheus-stack \
   --wait
 
 # =============================================================================
-# 2. Install Aerospike Operator (cert-manager bundled + all monitoring enabled)
+# 3. Install Aerospike Operator (all monitoring enabled)
 # =============================================================================
 helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   -n aerospike-operator --create-namespace \
-  --set certManagerSubchart.enabled=true \
   --set serviceMonitor.enabled=true \
   --set serviceMonitor.additionalLabels.release=prometheus \
   --set prometheusRule.enabled=true \
@@ -518,7 +522,7 @@ helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-
   --wait
 
 # =============================================================================
-# 3. Install Grafana with sidecar dashboard auto-discovery
+# 4. Install Grafana with sidecar dashboard auto-discovery
 # =============================================================================
 helm repo add grafana https://grafana.github.io/helm-charts
 helm repo update grafana
@@ -532,7 +536,7 @@ helm install grafana grafana/grafana \
   --wait
 
 # =============================================================================
-# 4. Deploy an Aerospike CE cluster
+# 5. Deploy an Aerospike CE cluster
 # =============================================================================
 kubectl create namespace aerospike --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f config/samples/acko_v1alpha1_aerospikecluster.yaml
@@ -541,14 +545,14 @@ echo "Waiting for Aerospike pod to be ready..."
 kubectl -n aerospike wait --for=condition=Ready pod/aerospike-ce-basic-0-0 --timeout=120s
 
 # =============================================================================
-# 5. Verify: run asinfo inside the Aerospike pod
+# 6. Verify: run asinfo inside the Aerospike pod
 # =============================================================================
 echo "=== Aerospike cluster info ==="
 kubectl -n aerospike exec -it aerospike-ce-basic-0-0 -- asinfo -v status
 kubectl -n aerospike exec -it aerospike-ce-basic-0-0 -- asinfo -v build
 
 # =============================================================================
-# 6. Port-forward Grafana (access at http://localhost:3000)
+# 7. Port-forward Grafana (access at http://localhost:3000)
 # =============================================================================
 GRAFANA_PASSWORD=$(kubectl -n monitoring get secret grafana \
   -o jsonpath="{.data.admin-password}" | base64 -d)

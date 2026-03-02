@@ -3,6 +3,7 @@ name: acko-crds
 description: CustomResourceDefinitions for the Aerospike CE Kubernetes Operator (acko.io group)
 type: application
 version: 0.1.0
+appVersion: "0.1.0"
 kubeVersion: ">=1.26.0-0"
 home: https://github.com/kimsoungryoul/aerospike-ce-kubernetes-operator
 sources:

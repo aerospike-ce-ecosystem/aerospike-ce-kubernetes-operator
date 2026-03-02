@@ -177,7 +177,8 @@ helm-package: helm-sync-crds ## Package both Helm charts into dist/charts/.
 .PHONY: helm-push
 helm-push: helm-package ## Push packaged Helm charts to OCI registry (acko-crds first, then acko).
 	helm push $(HELM_PACKAGE_DIR)/acko-crds-*.tgz $(CHART_REGISTRY)
-	helm push $(HELM_PACKAGE_DIR)/acko-*.tgz $(CHART_REGISTRY)
+	@# Use [0-9] prefix to avoid matching acko-crds-*.tgz again
+	helm push $(HELM_PACKAGE_DIR)/acko-[0-9]*.tgz $(CHART_REGISTRY)
 
 ##@ Deployment
 

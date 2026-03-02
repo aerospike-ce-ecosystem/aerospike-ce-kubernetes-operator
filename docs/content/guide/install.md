@@ -137,36 +137,53 @@ spec:
 **Flux example**
 
 ```yaml
-apiVersion: helm.toolkit.fluxcd.io/v2beta2
+# HelmRepository (OCI) — shared by both HelmReleases
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: acko
+  namespace: flux-system
+spec:
+  type: oci
+  url: oci://ghcr.io/kimsoungryoul/charts
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: acko-crds
+  namespace: flux-system
 spec:
   chart:
     spec:
       chart: acko-crds
       version: "0.1.0"
+      sourceRef:
+        kind: HelmRepository
+        name: acko
   install:
     crds: CreateReplace
   upgrade:
     crds: CreateReplace
 ---
-apiVersion: helm.toolkit.fluxcd.io/v2beta2
+apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: acko
+  namespace: flux-system
 spec:
   dependsOn:
     - name: acko-crds
+  targetNamespace: aerospike-operator
   chart:
     spec:
       chart: acko
       version: "0.1.0"
+      sourceRef:
+        kind: HelmRepository
+        name: acko
   values:
     crds:
       install: false
-  destination:
-    namespace: aerospike-operator
 ```
 
 </TabItem>

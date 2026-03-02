@@ -29,6 +29,7 @@ jobs:
         run: |
           TAG="${GITHUB_REF_NAME#v}"
           sed -i "s/^version:.*/version: ${TAG}/" charts/acko-crds/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${TAG}\"/" charts/acko-crds/Chart.yaml
           sed -i "s/^version:.*/version: ${TAG}/" charts/acko/Chart.yaml
           sed -i "s/^appVersion:.*/appVersion: \"${TAG}\"/" charts/acko/Chart.yaml
           # Update the acko-crds dependency version reference in acko/Chart.yaml
@@ -60,6 +61,7 @@ jobs:
       - name: Package and push acko chart
         run: |
           helm package charts/acko --destination dist/charts
-          helm push dist/charts/acko-*.tgz oci://ghcr.io/${OWNER,,}/charts
+          # Use [0-9] prefix to avoid matching acko-crds-*.tgz
+          helm push dist/charts/acko-[0-9]*.tgz oci://ghcr.io/${OWNER,,}/charts
         env:
           OWNER: ${{ github.repository_owner }}

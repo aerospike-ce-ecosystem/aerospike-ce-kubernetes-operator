@@ -175,36 +175,53 @@ spec:
 ### GitOps — Flux example
 
 ```yaml
-apiVersion: helm.toolkit.fluxcd.io/v2beta2
+# HelmRepository (OCI) — shared by both HelmReleases
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: acko
+  namespace: flux-system
+spec:
+  type: oci
+  url: oci://ghcr.io/kimsoungryoul/charts
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: acko-crds
+  namespace: flux-system
 spec:
   chart:
     spec:
       chart: acko-crds
       version: "0.1.0"
+      sourceRef:
+        kind: HelmRepository
+        name: acko
   install:
     crds: CreateReplace
   upgrade:
     crds: CreateReplace
 ---
-apiVersion: helm.toolkit.fluxcd.io/v2beta2
+apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: acko
+  namespace: flux-system
 spec:
   dependsOn:
     - name: acko-crds
+  targetNamespace: aerospike-operator
   chart:
     spec:
       chart: acko
       version: "0.1.0"
+      sourceRef:
+        kind: HelmRepository
+        name: acko
   values:
     crds:
       install: false
-  destination:
-    namespace: aerospike-operator
 ```
 
 ## Deploy an Aerospike cluster
@@ -261,5 +278,17 @@ See [values.yaml](values.yaml) for all available configuration options with desc
 ## Uninstall
 
 ```bash
+# Delete all Aerospike clusters first to avoid orphaned StatefulSets/PVCs
+kubectl delete asce --all --all-namespaces
+
+# Uninstall the operator
 helm uninstall acko -n aerospike-operator
 ```
+
+> **Note:** CRDs are protected with `helm.sh/resource-policy: keep` — they are
+> **not** removed on `helm uninstall`. To remove CRDs explicitly (this deletes
+> **all** AerospikeCECluster resources and their data):
+>
+> ```bash
+> kubectl delete crd aerospikececlusters.acko.io aerospikececlustertemplates.acko.io
+> ```

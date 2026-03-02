@@ -78,7 +78,7 @@ const config = {
             items: [
               { label: 'Quick Start', to: '/' },
               { label: 'Installation', to: '/guide/install' },
-              { label: 'API Reference', to: '/api-reference/aerospikececluster' },
+              { label: 'API Reference', to: '/api-reference/aerospikecluster' },
             ],
           },
           {

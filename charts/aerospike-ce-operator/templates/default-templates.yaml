@@ -9,6 +9,9 @@ metadata:
   labels:
     {{- include "aerospike-ce-operator.labels" $ | nindent 4 }}
     app.kubernetes.io/component: cluster-template
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "10"
 spec:
   {{- toYaml $spec | nindent 2 }}
 {{- end }}

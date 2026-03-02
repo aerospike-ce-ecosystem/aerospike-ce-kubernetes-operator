@@ -17211,6 +17211,19 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              failedReconcileCount:
+                description: |-
+                  FailedReconcileCount is the number of consecutive failed reconciliations.
+                  Reset to 0 on a successful reconcile. When this exceeds the circuit breaker
+                  threshold (default 10), the operator backs off exponentially to prevent
+                  excessive retries on persistently failing clusters.
+                format: int32
+                type: integer
+              lastReconcileError:
+                description: |-
+                  LastReconcileError is the error message from the most recent failed reconciliation.
+                  Cleared on successful reconciliation.
+                type: string
               lastReconcileTime:
                 description: LastReconcileTime is the timestamp of the last successful
                   reconciliation.

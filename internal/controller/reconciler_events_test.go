@@ -55,6 +55,9 @@ func TestEventConstants(t *testing.T) {
 		// PVC cleanup
 		{"PVCCleanedUp", EventPVCCleanedUp, "PVCCleanedUp"},
 		{"PVCCleanupFailed", EventPVCCleanupFailed, "PVCCleanupFailed"},
+		// Circuit breaker
+		{"CircuitBreakerActive", EventCircuitBreakerActive, "CircuitBreakerActive"},
+		{"CircuitBreakerReset", EventCircuitBreakerReset, "CircuitBreakerReset"},
 		// Miscellaneous
 		{"ValidationWarning", EventValidationWarning, "ValidationWarning"},
 		{"ReconcileError", EventReconcileError, "ReconcileError"},

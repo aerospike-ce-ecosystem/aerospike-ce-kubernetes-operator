@@ -40,3 +40,8 @@ docs/.cache-loader/
 
 # Claude Code agent worktrees (temporary, not to be committed)
 .claude/worktrees/
+
+# Helm chart dependencies and build artifacts
+charts/acko/charts/*.tgz
+charts/acko/Chart.lock
+dist/charts/

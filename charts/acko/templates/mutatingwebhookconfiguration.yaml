@@ -1,0 +1,33 @@
+{{- if .Values.webhook.enabled }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ include "acko.fullname" . }}-mutating
+  labels:
+    {{- include "acko.labels" . | nindent 4 }}
+  {{- if .Values.certManager.enabled }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ include "acko.certName" . }}
+  {{- end }}
+webhooks:
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: {{ include "acko.webhookServiceName" . }}
+        namespace: {{ .Release.Namespace }}
+        path: /mutate-acko-io-v1alpha1-aerospikececluster
+    failurePolicy: Fail
+    name: maerospikececluster.kb.io
+    rules:
+      - apiGroups:
+          - acko.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - aerospikececlusters
+    sideEffects: None
+{{- end }}

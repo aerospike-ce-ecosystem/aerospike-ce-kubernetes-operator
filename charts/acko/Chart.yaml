@@ -1,0 +1,25 @@
+apiVersion: v2
+name: acko
+description: Kubernetes Operator for Aerospike Community Edition clusters
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.26.0-0"
+home: https://github.com/kimsoungryoul/aerospike-ce-kubernetes-operator
+sources:
+  - https://github.com/kimsoungryoul/aerospike-ce-kubernetes-operator
+keywords:
+  - aerospike
+  - operator
+  - database
+  - nosql
+  - kubernetes
+maintainers:
+  - name: kimsoungryoul
+    url: https://github.com/kimsoungryoul
+dependencies:
+  - name: acko-crds
+    version: "0.1.0"
+    # Local reference for development. CI overrides to OCI registry after pushing acko-crds.
+    repository: "file://../acko-crds"
+    condition: crds.install

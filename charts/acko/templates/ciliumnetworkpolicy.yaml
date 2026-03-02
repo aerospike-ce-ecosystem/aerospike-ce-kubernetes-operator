@@ -1,0 +1,58 @@
+{{- if .Values.cilium.enabled }}
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "acko.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "acko.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      {{- include "acko.selectorLabels" . | nindent 6 }}
+  ingress:
+    # Allow metrics scraping (port 8443)
+    - fromEndpoints:
+        - {}
+      toPorts:
+        - ports:
+            - port: "8443"
+              protocol: TCP
+          {{- if .Values.cilium.l7Enabled }}
+          rules:
+            http:
+              - method: GET
+                path: "/metrics"
+          {{- end }}
+    {{- if .Values.webhook.enabled }}
+    # Allow webhook traffic from kube-apiserver
+    - fromEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: {{ .Values.webhook.port | quote }}
+              protocol: TCP
+    {{- end }}
+    # Allow health probes
+    - fromEndpoints:
+        - {}
+      toPorts:
+        - ports:
+            - port: "8081"
+              protocol: TCP
+  egress:
+    # Allow DNS resolution
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # Allow communication with kube-apiserver
+    - toEntities:
+        - kube-apiserver
+{{- end }}

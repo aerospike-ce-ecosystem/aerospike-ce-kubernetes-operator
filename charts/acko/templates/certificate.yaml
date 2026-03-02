@@ -1,0 +1,55 @@
+{{- if and .Values.webhook.enabled .Values.certManager.enabled }}
+{{- if eq .Values.certManager.issuer.type "selfSigned" }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "acko.issuerName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "acko.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+---
+{{- else if eq .Values.certManager.issuer.type "ca" }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "acko.issuerName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "acko.labels" . | nindent 4 }}
+spec:
+  ca:
+    secretName: {{ .Values.certManager.issuer.caSecretName }}
+---
+{{- end }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "acko.certName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "acko.labels" . | nindent 4 }}
+spec:
+  dnsNames:
+    - {{ include "acko.webhookServiceName" . }}.{{ .Release.Namespace }}.svc
+    - {{ include "acko.webhookServiceName" . }}.{{ .Release.Namespace }}.svc.cluster.local
+  {{- if eq .Values.certManager.issuer.type "clusterIssuer" }}
+  issuerRef:
+    kind: ClusterIssuer
+    name: {{ .Values.certManager.issuer.name }}
+  {{- else }}
+  issuerRef:
+    kind: Issuer
+    name: {{ include "acko.issuerName" . }}
+  {{- end }}
+  secretName: {{ include "acko.certSecretName" . }}
+  privateKey:
+    rotationPolicy: Always
+  {{- with .Values.certManager.duration }}
+  duration: {{ . }}
+  {{- end }}
+  {{- with .Values.certManager.renewBefore }}
+  renewBefore: {{ . }}
+  {{- end }}
+{{- end }}

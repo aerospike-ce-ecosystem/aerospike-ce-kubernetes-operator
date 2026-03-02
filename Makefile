@@ -153,9 +153,31 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	cd config/manager && "$(KUSTOMIZE)" edit set image controller=${IMG}
 	"$(KUSTOMIZE)" build config/default > dist/install.yaml
 
+HELM_PACKAGE_DIR ?= dist/charts
+CHART_REGISTRY ?= oci://ghcr.io/kimsoungryoul/charts
+
 .PHONY: helm-sync-crds
-helm-sync-crds: manifests ## Copy CRD to Helm chart crds/ directory.
-	cp config/crd/bases/acko.io_aerospikececlusters.yaml charts/aerospike-operator/crds/
+helm-sync-crds: manifests ## Sync generated CRDs into acko-crds chart templates/ (with helm.sh/resource-policy: keep).
+	bash hack/helm-sync-crds.sh
+
+.PHONY: helm-lint
+helm-lint: ## Lint both Helm charts (acko-crds and acko).
+	helm lint charts/acko-crds
+	helm lint charts/acko --set crds.install=false
+
+.PHONY: helm-package
+helm-package: helm-sync-crds ## Package both Helm charts into dist/charts/.
+	mkdir -p $(HELM_PACKAGE_DIR)
+	helm package charts/acko-crds --destination $(HELM_PACKAGE_DIR)
+	helm dep update charts/acko
+	helm package charts/acko --destination $(HELM_PACKAGE_DIR)
+	@echo "Packaged charts:"
+	@ls -1 $(HELM_PACKAGE_DIR)/*.tgz
+
+.PHONY: helm-push
+helm-push: helm-package ## Push packaged Helm charts to OCI registry (acko-crds first, then acko).
+	helm push $(HELM_PACKAGE_DIR)/acko-crds-*.tgz $(CHART_REGISTRY)
+	helm push $(HELM_PACKAGE_DIR)/acko-*.tgz $(CHART_REGISTRY)
 
 ##@ Deployment
 

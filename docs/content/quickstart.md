@@ -72,7 +72,7 @@ kubectl -n cert-manager wait --for=condition=Available deployment/cert-manager -
 ## Step 3: Install the Operator
 
 ```bash
-helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
   --version 0.1.0 \  # Replace with latest version
   -n aerospike-operator --create-namespace
 ```

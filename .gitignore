@@ -42,8 +42,6 @@ docs/.cache-loader/
 .claude/worktrees/
 
 # Helm chart dependencies and build artifacts
-charts/acko/charts/*.tgz
-charts/acko/Chart.lock
 charts/aerospike-ce-operator/charts/*.tgz
 charts/aerospike-ce-operator/Chart.lock
 dist/charts/

@@ -48,6 +48,7 @@ func GetPVCsForStatefulSet(ctx context.Context, c client.Client, namespace, stsN
 
 // DeleteOrphanedPVCs removes PVCs that belong to pod ordinals >= desiredReplicas.
 // This is useful after a scale-down to clean up storage for removed pods.
+// Deprecated: Use DeleteOrphanedCascadeDeletePVCs to respect cascadeDelete policy.
 func DeleteOrphanedPVCs(ctx context.Context, c client.Client, namespace, stsName string, desiredReplicas int32) error {
 	pvcs, err := GetPVCsForStatefulSet(ctx, c, namespace, stsName)
 	if err != nil {
@@ -71,6 +72,71 @@ func DeleteOrphanedPVCs(ctx context.Context, c client.Client, namespace, stsName
 	}
 
 	return nil
+}
+
+// DeleteOrphanedCascadeDeletePVCs removes PVCs for pod ordinals >= desiredReplicas,
+// but only for volumes that have cascadeDelete enabled. Non-cascade PVCs are preserved.
+// This is the correct function to use during scale-down.
+func DeleteOrphanedCascadeDeletePVCs(
+	ctx context.Context,
+	c client.Client,
+	namespace, stsName string,
+	desiredReplicas int32,
+	storageSpec *v1alpha1.AerospikeStorageSpec,
+) (int, error) {
+	if storageSpec == nil {
+		return 0, nil
+	}
+
+	// Build a set of volume names that have cascadeDelete enabled
+	cascadeVolumes := make(map[string]bool)
+	for i := range storageSpec.Volumes {
+		vol := &storageSpec.Volumes[i]
+		if vol.Source.PersistentVolume != nil && ResolveCascadeDelete(vol, storageSpec) {
+			cascadeVolumes[vol.Name] = true
+		}
+	}
+
+	if len(cascadeVolumes) == 0 {
+		return 0, nil
+	}
+
+	pvcs, err := GetPVCsForStatefulSet(ctx, c, namespace, stsName)
+	if err != nil {
+		return 0, err
+	}
+
+	deleted := 0
+	for i := range pvcs {
+		pvc := &pvcs[i]
+		ordinal, ok := extractOrdinal(pvc.Name, stsName)
+		if !ok {
+			continue
+		}
+
+		if ordinal < desiredReplicas {
+			continue
+		}
+
+		volName, ok := extractVolumeName(pvc.Name, stsName)
+		if !ok {
+			continue
+		}
+
+		if !cascadeVolumes[volName] {
+			continue
+		}
+
+		if err := c.Delete(ctx, pvc); err != nil {
+			if errors.IsNotFound(err) {
+				continue
+			}
+			return deleted, fmt.Errorf("deleting orphaned cascade PVC %s: %w", pvc.Name, err)
+		}
+		deleted++
+	}
+
+	return deleted, nil
 }
 
 // DeletePVCsForStatefulSet deletes all PVCs associated with the given StatefulSet.

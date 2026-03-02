@@ -44,6 +44,12 @@ func TestEventConstants(t *testing.T) {
 		{"TemplateApplied", EventTemplateApplied, "TemplateApplied"},
 		{"TemplateResolutionError", EventTemplateResolutionError, "TemplateResolutionError"},
 		{"TemplateDrifted", EventTemplateDrifted, "TemplateDrifted"},
+		// Readiness gate
+		{"ReadinessGateSatisfied", EventReadinessGateSatisfied, "ReadinessGateSatisfied"},
+		{"ReadinessGateBlocking", EventReadinessGateBlocking, "ReadinessGateBlocking"},
+		// PVC cleanup
+		{"PVCCleanedUp", EventPVCCleanedUp, "PVCCleanedUp"},
+		{"PVCCleanupFailed", EventPVCCleanupFailed, "PVCCleanupFailed"},
 		// Miscellaneous
 		{"ValidationWarning", EventValidationWarning, "ValidationWarning"},
 		{"ReconcileError", EventReconcileError, "ReconcileError"},

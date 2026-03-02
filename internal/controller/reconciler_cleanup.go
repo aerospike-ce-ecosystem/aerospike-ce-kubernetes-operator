@@ -51,6 +51,8 @@ func (r *AerospikeClusterReconciler) handleDeletion(
 			if err := storage.DeleteCascadeDeletePVCs(ctx, r.Client, cluster.Namespace, sts.Name, cluster.Spec.Storage); err != nil {
 				if !k8serrors.IsNotFound(err) {
 					log.Error(err, "Failed to delete cascade PVCs for StatefulSet", "statefulset", sts.Name)
+					r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventPVCCleanupFailed,
+						"Failed to delete cascade PVCs for StatefulSet %s: %v", sts.Name, err)
 					pvcErrors = append(pvcErrors, fmt.Errorf("statefulset %s: %w", sts.Name, err))
 				}
 			}
@@ -59,6 +61,7 @@ func (r *AerospikeClusterReconciler) handleDeletion(
 			return ctrl.Result{}, fmt.Errorf("failed to delete cascade PVCs for %d StatefulSet(s): %w",
 				len(pvcErrors), errors.Join(pvcErrors...))
 		}
+		log.Info("Cascade-delete PVCs cleaned up for cluster deletion")
 	}
 
 	// Re-fetch before removing finalizer to avoid conflict on stale object.

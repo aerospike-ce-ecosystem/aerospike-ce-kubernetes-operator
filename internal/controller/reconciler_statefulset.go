@@ -123,11 +123,26 @@ func (r *AerospikeClusterReconciler) reconcileStatefulSet(
 	}
 
 	// Cleanup orphaned PVCs after StatefulSet update so pods terminate first.
+	// Only delete PVCs for volumes with cascadeDelete enabled; preserve all others.
 	if scaleDown {
-		log.Info("Scale-down detected, cleaning up orphaned PVCs", "name", stsName, "old", oldReplicas, "new", targetReplicas)
-		if err := storage.DeleteOrphanedPVCs(ctx, r.Client, cluster.Namespace, stsName, targetReplicas); err != nil {
-			log.Error(err, "Failed to delete orphaned PVCs", "statefulset", stsName)
+		storageSpec := cluster.Spec.Storage
+		if rack.Storage != nil {
+			storageSpec = rack.Storage
+		}
+		log.Info("Scale-down detected, cleaning up orphaned cascade-delete PVCs",
+			"name", stsName, "old", oldReplicas, "new", targetReplicas)
+		deleted, err := storage.DeleteOrphanedCascadeDeletePVCs(
+			ctx, r.Client, cluster.Namespace, stsName, targetReplicas, storageSpec)
+		if err != nil {
+			log.Error(err, "Failed to delete orphaned cascade PVCs", "statefulset", stsName)
+			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventPVCCleanupFailed,
+				"Failed to delete orphaned cascade PVCs for %s: %v", stsName, err)
 			// Non-fatal: PVCs will be cleaned up on next reconcile
+		} else if deleted > 0 {
+			log.Info("Deleted orphaned cascade-delete PVCs",
+				"statefulset", stsName, "count", deleted)
+			r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventPVCCleanedUp,
+				"Deleted %d orphaned PVC(s) for %s after scale-down", deleted, stsName)
 		}
 	}
 
@@ -192,13 +207,18 @@ func (r *AerospikeClusterReconciler) cleanupRemovedRacks(
 		currentRackNames[utils.StatefulSetName(cluster.Name, rack.ID)] = true
 	}
 
+	// Resolve effective storage spec: per-rack storage overrides cluster-level.
 	for i := range stsList.Items {
 		sts := &stsList.Items[i]
 		if !currentRackNames[sts.Name] {
 			log.Info("Deleting removed rack StatefulSet", "name", sts.Name)
-			// Delete PVCs for removed rack before deleting the StatefulSet
-			if err := storage.DeletePVCsForStatefulSet(ctx, r.Client, cluster.Namespace, sts.Name); err != nil {
-				log.Error(err, "Failed to delete PVCs for removed rack", "statefulset", sts.Name)
+			// Delete PVCs for removed rack before deleting the StatefulSet,
+			// but only for volumes that have cascadeDelete enabled.
+			storageSpec := cluster.Spec.Storage
+			if err := storage.DeleteCascadeDeletePVCs(ctx, r.Client, cluster.Namespace, sts.Name, storageSpec); err != nil {
+				log.Error(err, "Failed to delete cascade PVCs for removed rack", "statefulset", sts.Name)
+				r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventPVCCleanupFailed,
+					"Failed to delete cascade PVCs for removed rack %s: %v", sts.Name, err)
 			}
 			if err := r.Delete(ctx, sts); err != nil && !errors.IsNotFound(err) {
 				return err

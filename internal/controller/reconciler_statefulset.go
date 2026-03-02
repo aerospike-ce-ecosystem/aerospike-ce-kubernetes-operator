@@ -279,15 +279,17 @@ func (r *AerospikeClusterReconciler) detectScaling(
 // config) are captured.
 func computePodSpecHash(cluster *ackov1alpha1.AerospikeCluster, rack *ackov1alpha1.Rack) string {
 	input := struct {
-		Image      string                                `json:"image"`
-		PodSpec    *ackov1alpha1.AerospikeCEPodSpec      `json:"podSpec,omitempty"`
-		Monitoring *ackov1alpha1.AerospikeMonitoringSpec `json:"monitoring,omitempty"`
-		RackID     int                                   `json:"rackID"`
+		Image           string                                `json:"image"`
+		PodSpec         *ackov1alpha1.AerospikeCEPodSpec      `json:"podSpec,omitempty"`
+		Monitoring      *ackov1alpha1.AerospikeMonitoringSpec `json:"monitoring,omitempty"`
+		RackID          int                                   `json:"rackID"`
+		PreStopSleepSec int                                   `json:"preStopSleepSec"`
 	}{
-		Image:      cluster.Spec.Image,
-		PodSpec:    cluster.Spec.PodSpec,
-		Monitoring: cluster.Spec.Monitoring,
-		RackID:     rack.ID,
+		Image:           cluster.Spec.Image,
+		PodSpec:         cluster.Spec.PodSpec,
+		Monitoring:      cluster.Spec.Monitoring,
+		RackID:          rack.ID,
+		PreStopSleepSec: podutil.PreStopSleepSeconds,
 	}
 	return utils.ShortSHA256(input)
 }

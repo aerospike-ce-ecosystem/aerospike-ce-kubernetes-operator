@@ -18,7 +18,7 @@ import (
 const (
 	configMapVolumeName        = "aerospike-config-map"
 	aerospikeConfigVolumeName  = "aerospike-config"
-	defaultTerminationGraceSec = int64(30)
+	defaultTerminationGraceSec = int64(60)
 
 	// AerospikeReadinessGateConditionType is the custom pod condition type injected
 	// when spec.podSpec.readinessGateEnabled=true. The operator patches this condition

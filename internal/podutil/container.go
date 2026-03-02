@@ -28,6 +28,12 @@ const (
 	aerospikeConfigPath      = "/etc/aerospike"
 )
 
+// PreStopSleepSeconds is the number of seconds the PreStop lifecycle hook sleeps
+// before the container receives SIGTERM. This gives in-flight requests time to
+// complete and allows Kubernetes to update endpoints/iptables so new traffic is
+// no longer routed to the terminating pod.
+const PreStopSleepSeconds = 15
+
 // BuildAerospikeContainer creates the main Aerospike server container spec.
 func BuildAerospikeContainer(cluster *v1alpha1.AerospikeCluster, volumeMounts []corev1.VolumeMount) corev1.Container {
 	c := corev1.Container{
@@ -44,6 +50,13 @@ func BuildAerospikeContainer(cluster *v1alpha1.AerospikeCluster, volumeMounts []
 			{Name: "info", ContainerPort: InfoPort, Protocol: corev1.ProtocolTCP},
 		},
 		VolumeMounts: volumeMounts,
+		Lifecycle: &corev1.Lifecycle{
+			PreStop: &corev1.LifecycleHandler{
+				Exec: &corev1.ExecAction{
+					Command: []string{"sleep", fmt.Sprintf("%d", PreStopSleepSeconds)},
+				},
+			},
+		},
 		ReadinessProbe: &corev1.Probe{
 			ProbeHandler: corev1.ProbeHandler{
 				TCPSocket: &corev1.TCPSocketAction{

@@ -1,6 +1,7 @@
 package podutil
 
 import (
+	"fmt"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -746,6 +747,92 @@ func TestPodNameForIndex(t *testing.T) {
 		if got := PodNameForIndex(tc.stsName, tc.index); got != tc.expected {
 			t.Errorf("PodNameForIndex(%q, %d) = %q, want %q", tc.stsName, tc.index, got, tc.expected)
 		}
+	}
+}
+
+// --- TerminationGracePeriodSeconds tests ---
+
+func TestBuildPodTemplateSpec_DefaultTerminationGracePeriod(t *testing.T) {
+	cluster := &v1alpha1.AerospikeCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-cluster"},
+		Spec: v1alpha1.AerospikeClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+		},
+	}
+
+	pt := BuildPodTemplateSpec(cluster, nil, 0, "test-config", "abc123")
+
+	if pt.Spec.TerminationGracePeriodSeconds == nil {
+		t.Fatal("expected terminationGracePeriodSeconds to be set")
+	}
+	if *pt.Spec.TerminationGracePeriodSeconds != 60 {
+		t.Errorf("terminationGracePeriodSeconds = %d, want 60", *pt.Spec.TerminationGracePeriodSeconds)
+	}
+}
+
+func TestBuildPodTemplateSpec_CustomTerminationGracePeriod(t *testing.T) {
+	customGrace := int64(120)
+	cluster := &v1alpha1.AerospikeCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-cluster"},
+		Spec: v1alpha1.AerospikeClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			PodSpec: &v1alpha1.AerospikeCEPodSpec{
+				TerminationGracePeriodSeconds: &customGrace,
+			},
+		},
+	}
+
+	pt := BuildPodTemplateSpec(cluster, nil, 0, "test-config", "abc123")
+
+	if pt.Spec.TerminationGracePeriodSeconds == nil {
+		t.Fatal("expected terminationGracePeriodSeconds to be set")
+	}
+	if *pt.Spec.TerminationGracePeriodSeconds != 120 {
+		t.Errorf("terminationGracePeriodSeconds = %d, want 120", *pt.Spec.TerminationGracePeriodSeconds)
+	}
+}
+
+// --- PreStop lifecycle hook integration test ---
+
+func TestBuildPodTemplateSpec_AerospikeContainerHasPreStopHook(t *testing.T) {
+	cluster := &v1alpha1.AerospikeCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-cluster"},
+		Spec: v1alpha1.AerospikeClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+		},
+	}
+
+	pt := BuildPodTemplateSpec(cluster, nil, 0, "test-config", "abc123")
+
+	var aerospikeContainer *corev1.Container
+	for i := range pt.Spec.Containers {
+		if pt.Spec.Containers[i].Name == AerospikeContainerName {
+			aerospikeContainer = &pt.Spec.Containers[i]
+			break
+		}
+	}
+	if aerospikeContainer == nil {
+		t.Fatal("aerospike container not found")
+	}
+	if aerospikeContainer.Lifecycle == nil || aerospikeContainer.Lifecycle.PreStop == nil {
+		t.Fatal("expected preStop hook on aerospike container")
+	}
+	if aerospikeContainer.Lifecycle.PreStop.Exec == nil {
+		t.Fatal("expected preStop to use exec handler")
+	}
+	cmd := aerospikeContainer.Lifecycle.PreStop.Exec.Command
+	if len(cmd) != 2 {
+		t.Fatalf("expected 2 command parts, got %d: %v", len(cmd), cmd)
+	}
+	if cmd[0] != "sleep" {
+		t.Errorf("expected sleep, got %q", cmd[0])
+	}
+	expectedArg := fmt.Sprintf("%d", PreStopSleepSeconds)
+	if cmd[1] != expectedArg {
+		t.Errorf("sleep arg = %q, want %q", cmd[1], expectedArg)
 	}
 }
 

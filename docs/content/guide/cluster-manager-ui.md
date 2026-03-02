@@ -133,6 +133,9 @@ When `ui.k8s.enabled=true` (the default), the UI provides Kubernetes-native clus
 - **Dynamic config status** -- View per-pod dynamic config status (Applied/Failed/Pending) and last restart reason
 - **Track reconciliation** -- See reconcile error counts and failure reasons
 - **View events** -- Browse K8s events timeline for each cluster (auto-refreshes during transitional phases)
+- **Pod logs** -- View container logs directly from the pod table with tail lines selection, copy, and download
+- **Export CR YAML** -- Copy the cluster's AerospikeCluster CR as clean YAML for debugging or migration
+- **Health dashboard** -- At-a-glance cluster health: pod readiness, migration status, config state, availability, and rack distribution
 
 :::info
 K8s cluster management requires the UI service account to have RBAC access to AerospikeCluster resources. This is configured automatically when `ui.rbac.create=true` (the default).
@@ -198,6 +201,7 @@ When `ui.rbac.create=true` (the default), the Helm chart creates a ClusterRole a
 - **Read/write** access to `AerospikeCluster` resources (create, scale, update, delete)
 - **Read-only** access to `AerospikeClusterTemplate` resources (browse templates)
 - **Read-only** access to Pods, Services, Events, and Namespaces (for cluster monitoring, events timeline, and wizard dropdowns)
+- **Read-only** access to Pod logs (`pods/log`) for viewing container logs from the UI
 - **List-only** access to Secrets (name enumeration for ACL credential selection — contents are never read)
 - **List-only** access to StorageClasses (for storage wizard dropdowns)
 - **Read-only** access to Nodes (`get`, `list`) for retrieving availability zone information used in rack configuration

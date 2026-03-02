@@ -91,6 +91,33 @@ spec:
 
 활성화하면, 오퍼레이터가 Aerospike의 `set-config` 명령을 사용하여 가능한 경우 런타임에 설정 변경을 적용합니다. 동적으로 적용할 수 없는 변경만 롤링 재시작을 트리거합니다.
 
+## Pod Readiness Gates
+
+기본적으로 파드는 Kubernetes가 `PodReady=True`를 보고할 때 "준비됨"으로 간주됩니다. 이는 Aerospike가 클러스터 mesh에 완전히 참여하고 데이터 마이그레이션을 완료하기 전에 파드가 Service 엔드포인트에 추가될 수 있음을 의미합니다.
+
+커스텀 readiness gate `acko.io/aerospike-ready`를 활성화하여 Aerospike가 진정으로 준비될 때까지 각 파드를 Service 엔드포인트에서 제외합니다:
+
+```yaml
+spec:
+  podSpec:
+    readinessGateEnabled: true
+```
+
+활성화하면 오퍼레이터가:
+1. 모든 파드의 `spec.readinessGates`에 `acko.io/aerospike-ready`를 주입합니다
+2. 다음 조건이 충족된 후에만 파드의 `status.conditions`를 `True`로 패치합니다:
+   - 파드의 Aerospike 프로세스가 클러스터 mesh에 참여했을 때, **그리고**
+   - 모든 데이터 마이그레이션이 완료되었을 때 (`cluster-stable: true`)
+3. 롤링 리스타트를 보류합니다 — 이전 파드의 게이트가 충족될 때까지 다음 파드를 삭제하지 않습니다
+
+:::info
+`readinessGateEnabled` 변경은 `ReadinessGates`가 파드 생성 후 불변이므로 롤링 리스타트를 트리거합니다. 오퍼레이터가 이를 자동으로 처리합니다.
+:::
+
+:::note
+이것은 **옵트인** 기능입니다. `readinessGateEnabled`가 설정되지 않은(또는 `false`인) 기존 클러스터는 이전과 동일하게 동작합니다.
+:::
+
 ## 재조정 일시 중지
 
 오퍼레이터의 재조정을 임시로 중지합니다:
@@ -550,9 +577,15 @@ kubectl -n aerospike get asce
 
 | Phase | 의미 |
 |---|---|
-| `InProgress` | 재조정 진행 중 |
+| `InProgress` | 재조정 진행 중 (일반) |
 | `Completed` | 클러스터 정상, 최신 상태 |
-| `Error` | 재조정 중 오류 발생 |
+| `Error` | 재조정 중 복구 불가능한 오류 발생 |
+| `ScalingUp` | 클러스터 스케일 업 중 (파드 추가) |
+| `ScalingDown` | 클러스터 스케일 다운 중 (파드 제거) |
+| `RollingRestart` | 롤링 리스타트 진행 중 |
+| `ACLSync` | ACL 역할 및 사용자 동기화 중 |
+| `Paused` | 사용자에 의해 재조정 일시 중지됨 |
+| `Deleting` | 클러스터 삭제 중 |
 
 ### Conditions 확인
 
@@ -577,6 +610,13 @@ kubectl -n aerospike get asce aerospike-ce-3node -o jsonpath='{.status.pods}' | 
 | `isRunningAndReady` | 파드 정상 여부 |
 | `configHash` | 적용된 설정의 SHA256 해시 |
 | `dynamicConfigStatus` | `Applied`, `Failed`, `Pending`, 또는 빈 문자열 |
+| `nodeID` | Aerospike가 할당한 노드 식별자 (예: `BB9020012AC4202`) |
+| `clusterName` | 노드가 보고한 Aerospike 클러스터 이름 |
+| `accessEndpoints` | 직접 클라이언트 접근용 네트워크 엔드포인트 |
+| `readinessGateSatisfied` | `acko.io/aerospike-ready` 게이트 충족 시 `true` (`readinessGateEnabled: true` 필요) |
+| `lastRestartReason` | 파드가 마지막으로 재시작된 이유: `ConfigChanged`, `ImageChanged`, `PodSpecChanged`, `ManualRestart`, `WarmRestart` |
+| `lastRestartTime` | 오퍼레이터에 의한 마지막 재시작 타임스탬프 |
+| `unstableSince` | 이 파드가 처음 NotReady가 된 시점; Ready 시 초기화 |
 
 ### 오퍼레이터 로그 확인
 
@@ -598,3 +638,48 @@ kubectl -n aerospike-operator logs -l control-plane=controller-manager -f
 **웹훅 거부:**
 - 오류 메시지를 읽으세요 — 웹훅이 CE 제약 조건을 검증합니다
 - [CE 검증 규칙](./create-cluster#ce-검증-규칙)을 확인하세요
+
+## Kubernetes 이벤트
+
+오퍼레이터는 모든 중요한 라이프사이클 전환에 대해 Kubernetes Event를 발생시킵니다.
+`kubectl get events`를 사용하여 클러스터 활동을 실시간으로 관찰할 수 있습니다:
+
+```bash
+# 특정 클러스터의 이벤트 감시
+kubectl get events --field-selector involvedObject.name=my-cluster -w
+
+# 네임스페이스의 모든 AerospikeCECluster 이벤트 조회
+kubectl get events --field-selector involvedObject.kind=AerospikeCECluster -n aerospike
+```
+
+### 이벤트 레퍼런스
+
+| Reason | Type | 설명 |
+|--------|------|------|
+| `RollingRestartStarted` | Normal | 롤링 리스타트 루프 시작; 랙 ID와 파드 수 표시 |
+| `PodWarmRestarted` | Normal | 파드가 SIGUSR1 수신 (무중단 설정 리로드) |
+| `PodColdRestarted` | Normal | 파드가 삭제 후 재생성됨 (풀 리스타트) |
+| `RestartFailed` | Warning | 롤링 리스타트 중 파드 재시작 실패 |
+| `LocalPVCDeleteFailed` | Warning | 콜드 리스타트 전 로컬 PVC 삭제 실패 |
+| `ConfigMapCreated` | Normal | 랙 ConfigMap 최초 생성 |
+| `ConfigMapUpdated` | Normal | 랙 ConfigMap 새 설정으로 업데이트 |
+| `DynamicConfigApplied` | Normal | 재시작 없이 파드에 설정 변경 적용 |
+| `DynamicConfigStatusFailed` | Warning | 동적 설정 상태 업데이트 실패 |
+| `StatefulSetCreated` | Normal | 랙 StatefulSet 최초 생성 |
+| `StatefulSetUpdated` | Normal | 랙 StatefulSet 스펙 업데이트 |
+| `RackScaled` | Normal | 랙 레플리카 수 변경; 이전/새 수 표시 |
+| `ACLSyncStarted` | Normal | ACL 역할/사용자 동기화 시작 |
+| `ACLSyncCompleted` | Normal | ACL 역할과 사용자 동기화 성공 |
+| `ACLSyncError` | Warning | ACL 동기화 중 오류 발생 |
+| `PDBCreated` | Normal | PodDisruptionBudget 생성 |
+| `PDBUpdated` | Normal | PodDisruptionBudget 업데이트 |
+| `ServiceCreated` | Normal | Headless 서비스 생성 |
+| `ServiceUpdated` | Normal | Headless 서비스 업데이트 |
+| `ClusterDeletionStarted` | Normal | 클러스터 삭제 시작 (finalizer 활성) |
+| `FinalizerRemoved` | Normal | 스토리지 finalizer 제거; 객체 삭제 예정 |
+| `TemplateApplied` | Normal | ClusterTemplate 스펙이 이 클러스터에 적용됨 |
+| `TemplateDrifted` | Warning | 클러스터 스펙이 템플릿에서 드리프트됨 |
+| `TemplateResolutionError` | Warning | ClusterTemplate 해결 또는 적용 실패 |
+| `ValidationWarning` | Warning | 비차단 검증 경고 감지 |
+| `ReconcileError` | Warning | 재조정 루프에서 복구 불가능한 오류 발생 |
+| `Operation` | Normal | 온디맨드 오퍼레이션 이벤트 |

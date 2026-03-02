@@ -58,7 +58,7 @@ Defines the desired state of an Aerospike CE cluster.
 | `podService` | [AerospikeServiceSpec](#aerospikeservicespec) | No | — | Custom metadata for per-pod services. Creates individual Service per pod when set. |
 | `enableRackIDOverride` | *bool | No | `false` | Enable dynamic rack ID assignment via pod annotations. |
 | `templateRef` | [TemplateRef](#templateref) | No | — | Reference to an `AerospikeCEClusterTemplate`. When set, the template spec is resolved and stored as a snapshot at creation time. |
-| `overrides` | [AerospikeCEClusterTemplateSpec](./aerospikececlustertemplate#aerospikececlustertemplatetspec) | No | — | Fields that override the referenced template. Merge priority: overrides > template > operator defaults. |
+| `overrides` | [AerospikeCEClusterTemplateSpec](./aerospikececlustertemplate#aerospikececlustertemplatespec) | No | — | Fields that override the referenced template. Merge priority: overrides > template > operator defaults. |
 
 ---
 
@@ -125,7 +125,7 @@ Observed state of the Aerospike CE cluster.
 
 | Field | Type | Description |
 |---|---|---|
-| `phase` | string | Cluster phase: `InProgress`, `Completed`, or `Error`. |
+| `phase` | string | Cluster phase: `InProgress`, `Completed`, `Error`, `ScalingUp`, `ScalingDown`, `RollingRestart`, `ACLSync`, `Paused`, `Deleting`. |
 | `size` | int32 | Current cluster size. |
 | `conditions` | [][Condition](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/conditions/) | Latest observations of cluster state. |
 | `pods` | map[string][AerospikePodStatus](#aerospikepodstatus) | Per-pod status information, keyed by pod name. |
@@ -133,6 +133,28 @@ Observed state of the Aerospike CE cluster.
 | `selector` | string | Label selector string for HPA compatibility. |
 | `aerospikeConfig` | [AerospikeConfigSpec](#aerospikeconfigspec) | Last applied Aerospike configuration. |
 | `operationStatus` | [OperationStatus](#operationstatus) | Current on-demand operation status. |
+| `phaseReason` | string | Human-readable explanation of the current phase (e.g., "Rolling restart in progress for rack 1"). |
+| `appliedSpec` | [AerospikeCEClusterSpec](#aerospikececlusterspec) | Copy of the last successfully reconciled spec. Used to detect configuration drift. |
+| `aerospikeClusterSize` | int32 | Aerospike cluster-size as reported by `asinfo`. May differ from K8s pod count during split-brain or rolling restarts. |
+| `operatorVersion` | string | Version of the operator that last reconciled this cluster. |
+| `pendingRestartPods` | []string | Pods queued for restart in the current rolling restart. Cleared when complete. |
+| `lastReconcileTime` | [Time](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/object-meta/#System) | Timestamp of the last successful reconciliation. |
+| `templateSnapshot` | [TemplateSnapshotStatus](#templatesnapshotstatus) | Resolved template spec at last sync time. |
+
+---
+
+## Condition Types
+
+The operator maintains the following condition types in `status.conditions`:
+
+| Type | Description |
+|---|---|
+| `Available` | At least one pod is ready to serve requests. |
+| `Ready` | All desired pods are running and ready. |
+| `ConfigApplied` | All pods have the desired Aerospike configuration. |
+| `ACLSynced` | ACL roles and users are synchronized with the cluster. |
+| `MigrationComplete` | No data migrations are pending. |
+| `ReconciliationPaused` | Reconciliation is paused by the user (`spec.paused: true`). |
 
 ---
 
@@ -154,6 +176,27 @@ Per-pod status information.
 | `podSpecHash` | string | Hash of the pod template spec. |
 | `dynamicConfigStatus` | string | Dynamic config update result: `Applied`, `Failed`, `Pending`, or empty. |
 | `dirtyVolumes` | []string | Volumes needing initialization or cleanup. |
+| `nodeID` | string | Aerospike-assigned node identifier (e.g., `BB9020012AC4202`). Empty if unreachable. |
+| `clusterName` | string | Aerospike cluster name as reported by the node. |
+| `accessEndpoints` | []string | Network endpoints (`host:port`) for direct client access via `asinfo "service"`. |
+| `readinessGateSatisfied` | bool | Whether `acko.io/aerospike-ready` gate is `True`. Only meaningful when `readinessGateEnabled=true`. |
+| `lastRestartReason` | [RestartReason](#restartreason) | Reason the pod was last restarted by the operator. |
+| `lastRestartTime` | [Time](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/object-meta/#System) | When the pod was last restarted by the operator. |
+| `unstableSince` | [Time](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/object-meta/#System) | First time this pod became NotReady. Reset to `nil` when Ready. |
+
+---
+
+## RestartReason
+
+Describes why a pod was restarted by the operator.
+
+| Value | Description |
+|---|---|
+| `ConfigChanged` | Cold restart triggered by an Aerospike config change. |
+| `ImageChanged` | Pod image was updated. |
+| `PodSpecChanged` | Pod spec (resources, env, etc.) changed. |
+| `ManualRestart` | On-demand pod restart (`OperationPodRestart`). |
+| `WarmRestart` | On-demand or rolling warm restart (SIGUSR1). |
 
 ---
 
@@ -165,6 +208,22 @@ Defines storage volumes for Aerospike pods.
 |---|---|---|---|---|
 | `volumes` | [][VolumeSpec](#volumespec) | No | — | List of volumes to attach. |
 | `cleanupThreads` | int32 | No | `1` | Max threads for volume cleanup/init. |
+| `filesystemVolumePolicy` | [AerospikeVolumePolicy](#aerospikevolumepolicy) | No | — | Default policy for filesystem-mode persistent volumes. Per-volume settings override this. |
+| `blockVolumePolicy` | [AerospikeVolumePolicy](#aerospikevolumepolicy) | No | — | Default policy for block-mode persistent volumes. Per-volume settings override this. |
+| `localStorageClasses` | []string | No | — | StorageClass names using local storage (e.g., `local-path`). Volumes using these classes require special handling on pod restart. |
+| `deleteLocalStorageOnRestart` | *bool | No | — | Delete local PVCs before pod restart, forcing re-provisioning on new node. |
+
+---
+
+## AerospikeVolumePolicy
+
+Default policies for a category of persistent volumes (filesystem or block).
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `initMethod` | string | `none` | Default init method for this volume category. |
+| `wipeMethod` | string | `none` | Default wipe method for this volume category. |
+| `cascadeDelete` | *bool | `nil` | Delete PVCs when the CR is deleted. |
 
 ---
 
@@ -175,12 +234,13 @@ Defines a single volume attachment.
 | Field | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `name` | string | Yes | — | Volume name. |
-| `source` | [VolumeSource](#volumesource) | Yes | — | Volume source (PVC, emptyDir, secret, configMap). |
+| `source` | [VolumeSource](#volumesource) | Yes | — | Volume source (PVC, emptyDir, secret, configMap, hostPath). |
 | `aerospike` | [AerospikeVolumeAttachment](#aerospikevolumeattachment) | No | — | Mount path in Aerospike container. |
 | `sidecars` | [][VolumeAttachment](#volumeattachment) | No | — | Volume mounts for sidecar containers. |
 | `initContainers` | [][VolumeAttachment](#volumeattachment) | No | — | Volume mounts for init containers. |
 | `initMethod` | string | No | `none` | Init method: `none`, `deleteFiles`, `dd`, `blkdiscard`, `headerCleanup`. |
-| `cascadeDelete` | bool | No | `false` | Delete PVC when CR is deleted. |
+| `wipeMethod` | string | No | `none` | Wipe method for dirty volumes: `none`, `deleteFiles`, `dd`, `blkdiscard`, `headerCleanup`, `blkdiscardWithHeaderCleanup`. |
+| `cascadeDelete` | *bool | No | `nil` | Delete PVC when CR is deleted. When `nil`, falls back to global volume policy. |
 
 ---
 
@@ -194,6 +254,7 @@ Describes the volume data source. Exactly one field should be set.
 | `emptyDir` | [EmptyDirVolumeSource](https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/volume/#emptyDir) | Use emptyDir. |
 | `secret` | [SecretVolumeSource](https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/volume/#secret) | Use a Kubernetes Secret. |
 | `configMap` | [ConfigMapVolumeSource](https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/volume/#configMap) | Use a Kubernetes ConfigMap. |
+| `hostPath` | [HostPathVolumeSource](https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/volume/#hostPath) | Use a path on the host node. |
 
 ---
 
@@ -208,6 +269,7 @@ Defines a persistent volume claim template.
 | `size` | string | Yes | — | Storage size (e.g., `10Gi`). |
 | `accessModes` | []string | No | — | Access modes (e.g., `ReadWriteOnce`). |
 | `selector` | [LabelSelector](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/label-selector/) | No | — | Label selector for PV binding. |
+| `metadata` | [AerospikeObjectMeta](#aerospikeobjectmeta) | No | — | Custom labels and annotations for the PVC. |
 
 ---
 
@@ -218,6 +280,10 @@ Defines how a volume is mounted in the Aerospike container.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `path` | string | Yes | Mount path in the container. |
+| `readOnly` | bool | No | Mount the volume as read-only. |
+| `subPath` | string | No | Mount only a sub-path of the volume. |
+| `subPathExpr` | string | No | Expanded path using environment variables. Mutually exclusive with `subPath`. |
+| `mountPropagation` | [MountPropagationMode](https://kubernetes.io/docs/concepts/storage/volumes/#mount-propagation) | No | How mounts are propagated: `None`, `HostToContainer`, `Bidirectional`. |
 
 ---
 
@@ -291,7 +357,10 @@ Pod-level customization for Aerospike pods.
 | `hostNetwork` | bool | Enable host networking. |
 | `multiPodPerHost` | *bool | Allow multiple pods on the same node. |
 | `terminationGracePeriodSeconds` | *int64 | Pod termination grace period. |
+| `topologySpreadConstraints` | [][TopologySpreadConstraint](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#scheduling) | How pods spread across topology domains. |
+| `podManagementPolicy` | string | StatefulSet pod management: `OrderedReady` (default) or `Parallel`. |
 | `metadata` | [AerospikePodMetadata](#aerospikepodmetadata) | Additional pod labels/annotations. |
+| `readinessGateEnabled` | *bool | Enable custom readiness gate `acko.io/aerospike-ready`. Pods excluded from Service endpoints until Aerospike joins cluster mesh and finishes migrations. |
 
 ---
 
@@ -414,10 +483,13 @@ Prometheus monitoring configuration.
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `enabled` | bool | `false` | Enable Prometheus exporter sidecar. |
-| `exporterImage` | string | `aerospike/aerospike-prometheus-exporter:latest` | Exporter container image. |
+| `exporterImage` | string | `aerospike/aerospike-prometheus-exporter:v1.16.1` | Exporter container image. |
 | `port` | int32 | `9145` | Metrics port. |
 | `resources` | [ResourceRequirements](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#resources) | — | Exporter resource limits. |
+| `env` | [][EnvVar](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#environment-variables) | — | Additional environment variables for the exporter container. |
+| `metricLabels` | map[string]string | — | Custom labels added to all exported metrics via `METRIC_LABELS` env var. |
 | `serviceMonitor` | [ServiceMonitorSpec](#servicemonitorspec) | — | ServiceMonitor configuration. |
+| `prometheusRule` | [PrometheusRuleSpec](#prometheusrulespec) | — | PrometheusRule configuration for cluster alerts. |
 
 ---
 
@@ -430,6 +502,18 @@ ServiceMonitor configuration for Prometheus Operator.
 | `enabled` | bool | `false` | Create ServiceMonitor resource. |
 | `interval` | string | `30s` | Scrape interval. |
 | `labels` | map[string]string | — | Additional labels for ServiceMonitor discovery. |
+
+---
+
+## PrometheusRuleSpec
+
+PrometheusRule configuration for Aerospike cluster alerts.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | bool | `false` | Create PrometheusRule resource. |
+| `labels` | map[string]string | — | Additional labels for PrometheusRule discovery. |
+| `customRules` | []JSON | — | Custom rule groups replacing built-in alerts (NodeDown, StopWrites, HighDiskUsage, HighMemoryUsage). Each entry must be a complete Prometheus rule group object with `name` and `rules` fields. |
 
 ---
 

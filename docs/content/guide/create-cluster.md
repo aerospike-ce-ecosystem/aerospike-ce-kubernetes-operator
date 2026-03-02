@@ -255,7 +255,7 @@ The operator's mutating webhook automatically sets the following defaults if not
 | `aerospikeConfig.network.heartbeat.port` | `3002` | Heartbeat port |
 | `aerospikeConfig.network.heartbeat.mode` | `mesh` | Heartbeat mode |
 | `aerospikeConfig.network.fabric.port` | `3001` | Fabric (inter-node) port |
-| `monitoring.exporterImage` | `aerospike/aerospike-prometheus-exporter:latest` | Exporter image (when monitoring enabled) |
+| `monitoring.exporterImage` | `aerospike/aerospike-prometheus-exporter:v1.16.1` | Exporter image (when monitoring enabled) |
 | `monitoring.port` | `9145` | Exporter metrics port (when monitoring enabled) |
 | `monitoring.serviceMonitor.interval` | `30s` | Scrape interval (when ServiceMonitor enabled) |
 | `podSpec.multiPodPerHost` | `false` | One pod per node (when hostNetwork enabled) |

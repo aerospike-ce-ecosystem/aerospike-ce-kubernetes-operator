@@ -57,6 +57,8 @@ Aerospike CE 클러스터의 원하는 상태를 정의합니다.
 | `headlessService` | [AerospikeServiceSpec](#aerospikeservicespec) | 아니요 | — | Headless 서비스 커스텀 메타데이터. |
 | `podService` | [AerospikeServiceSpec](#aerospikeservicespec) | 아니요 | — | Pod별 서비스 커스텀 메타데이터. 설정 시 파드마다 개별 Service 생성. |
 | `enableRackIDOverride` | *bool | 아니요 | `false` | 파드 어노테이션을 통한 동적 랙 ID 할당 활성화. |
+| `templateRef` | [TemplateRef](#templateref) | 아니요 | — | `AerospikeCEClusterTemplate` 참조. 설정 시 템플릿 스펙이 생성 시점에 스냅샷으로 저장됨. |
+| `overrides` | [AerospikeCEClusterTemplateSpec](./aerospikececlustertemplate#aerospikececlustertemplatespec) | 아니요 | — | 참조된 템플릿을 오버라이드하는 필드. 병합 우선순위: overrides > template > 오퍼레이터 기본값. |
 
 ---
 
@@ -93,13 +95,37 @@ aerospikeConfig:
 
 ---
 
+## TemplateRef
+
+같은 네임스페이스의 `AerospikeCEClusterTemplate` 참조입니다.
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `name` | string | 예 | `AerospikeCEClusterTemplate` 리소스 이름 |
+
+---
+
+## TemplateSnapshotStatus
+
+템플릿이 해결된 후 `status.templateSnapshot`에 기록됩니다.
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `name` | string | 참조된 템플릿 이름 |
+| `resourceVersion` | string | 스냅샷 시점의 템플릿 ResourceVersion |
+| `snapshotTimestamp` | Time | 스냅샷이 촬영된 시점 |
+| `synced` | boolean | 클러스터가 최신 템플릿 버전을 사용하는지 여부. 스냅샷 이후 템플릿 변경 시 `false`로 설정. |
+| `spec` | object | 스냅샷 시점의 해결된 템플릿 스펙 |
+
+---
+
 ## AerospikeCEClusterStatus
 
 Aerospike CE 클러스터의 관측된 상태입니다.
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
-| `phase` | string | 클러스터 단계: `InProgress`, `Completed`, 또는 `Error`. |
+| `phase` | string | 클러스터 단계: `InProgress`, `Completed`, `Error`, `ScalingUp`, `ScalingDown`, `RollingRestart`, `ACLSync`, `Paused`, `Deleting`. |
 | `size` | int32 | 현재 클러스터 크기. |
 | `conditions` | [][Condition](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/conditions/) | 클러스터 상태의 최신 관측. |
 | `pods` | map[string][AerospikePodStatus](#aerospikepodstatus) | 파드별 상태 정보, 파드 이름으로 키 지정. |
@@ -107,6 +133,28 @@ Aerospike CE 클러스터의 관측된 상태입니다.
 | `selector` | string | HPA 호환을 위한 레이블 셀렉터 문자열. |
 | `aerospikeConfig` | [AerospikeConfigSpec](#aerospikeconfigspec) | 마지막으로 적용된 Aerospike 설정. |
 | `operationStatus` | [OperationStatus](#operationstatus) | 현재 온디맨드 오퍼레이션 상태. |
+| `phaseReason` | string | 현재 단계의 사람이 읽을 수 있는 설명 (예: "Rolling restart in progress for rack 1"). |
+| `appliedSpec` | [AerospikeCEClusterSpec](#aerospikececlusterspec) | 마지막으로 성공적으로 재조정된 스펙의 사본. 설정 드리프트 감지용. |
+| `aerospikeClusterSize` | int32 | `asinfo`로 보고된 Aerospike 클러스터 크기. 스플릿 브레인이나 롤링 리스타트 중 K8s 파드 수와 다를 수 있음. |
+| `operatorVersion` | string | 이 클러스터를 마지막으로 재조정한 오퍼레이터 버전. |
+| `pendingRestartPods` | []string | 현재 롤링 리스타트에서 재시작 대기 중인 파드. 완료 시 비워짐. |
+| `lastReconcileTime` | [Time](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/object-meta/#System) | 마지막 성공적인 재조정의 타임스탬프. |
+| `templateSnapshot` | [TemplateSnapshotStatus](#templatesnapshotstatus) | 마지막 동기화 시점의 해결된 템플릿 스펙. |
+
+---
+
+## Condition Types
+
+오퍼레이터가 `status.conditions`에서 관리하는 조건 타입입니다:
+
+| 타입 | 설명 |
+|---|---|
+| `Available` | 최소 하나의 파드가 요청을 처리할 준비가 됨. |
+| `Ready` | 모든 원하는 파드가 실행 중이고 준비됨. |
+| `ConfigApplied` | 모든 파드에 원하는 Aerospike 설정이 적용됨. |
+| `ACLSynced` | ACL 역할과 사용자가 클러스터와 동기화됨. |
+| `MigrationComplete` | 보류 중인 데이터 마이그레이션이 없음. |
+| `ReconciliationPaused` | 사용자에 의해 재조정이 일시 중지됨 (`spec.paused: true`). |
 
 ---
 
@@ -128,6 +176,27 @@ Aerospike CE 클러스터의 관측된 상태입니다.
 | `podSpecHash` | string | 파드 템플릿 스펙의 해시. |
 | `dynamicConfigStatus` | string | 동적 설정 업데이트 결과: `Applied`, `Failed`, `Pending`, 또는 빈 문자열. |
 | `dirtyVolumes` | []string | 초기화 또는 정리가 필요한 볼륨. |
+| `nodeID` | string | Aerospike가 할당한 노드 식별자 (예: `BB9020012AC4202`). 접근 불가 시 빈 문자열. |
+| `clusterName` | string | 노드가 보고한 Aerospike 클러스터 이름. |
+| `accessEndpoints` | []string | `asinfo "service"`를 통한 직접 클라이언트 접근용 네트워크 엔드포인트 (`host:port`). |
+| `readinessGateSatisfied` | bool | `acko.io/aerospike-ready` 게이트가 `True`인지 여부. `readinessGateEnabled=true`일 때만 유효. |
+| `lastRestartReason` | [RestartReason](#restartreason) | 오퍼레이터에 의해 파드가 마지막으로 재시작된 이유. |
+| `lastRestartTime` | [Time](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/object-meta/#System) | 오퍼레이터에 의해 파드가 마지막으로 재시작된 시점. |
+| `unstableSince` | [Time](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/object-meta/#System) | 이 파드가 처음 NotReady가 된 시점. Ready로 돌아가면 `nil`로 초기화. |
+
+---
+
+## RestartReason
+
+오퍼레이터에 의해 파드가 재시작된 이유를 설명합니다.
+
+| 값 | 설명 |
+|---|---|
+| `ConfigChanged` | Aerospike 설정 변경으로 인한 콜드 리스타트. |
+| `ImageChanged` | 파드 이미지 업데이트. |
+| `PodSpecChanged` | 파드 스펙(리소스, 환경변수 등) 변경. |
+| `ManualRestart` | 온디맨드 파드 리스타트 (`OperationPodRestart`). |
+| `WarmRestart` | 온디맨드 또는 롤링 웜 리스타트 (SIGUSR1). |
 
 ---
 
@@ -139,6 +208,22 @@ Aerospike 파드의 스토리지 볼륨을 정의합니다.
 |---|---|---|---|---|
 | `volumes` | [][VolumeSpec](#volumespec) | 아니요 | — | 연결할 볼륨 목록. |
 | `cleanupThreads` | int32 | 아니요 | `1` | 볼륨 정리/초기화 최대 스레드 수. |
+| `filesystemVolumePolicy` | [AerospikeVolumePolicy](#aerospikevolumepolicy) | 아니요 | — | 파일시스템 모드 영구 볼륨의 기본 정책. 볼륨별 설정이 우선. |
+| `blockVolumePolicy` | [AerospikeVolumePolicy](#aerospikevolumepolicy) | 아니요 | — | 블록 모드 영구 볼륨의 기본 정책. 볼륨별 설정이 우선. |
+| `localStorageClasses` | []string | 아니요 | — | 로컬 스토리지를 사용하는 StorageClass 이름 (예: `local-path`). 파드 재시작 시 특수 처리 필요. |
+| `deleteLocalStorageOnRestart` | *bool | 아니요 | — | 파드 재시작 전 로컬 PVC를 삭제하여 새 노드에서 재프로비저닝. |
+
+---
+
+## AerospikeVolumePolicy
+
+영구 볼륨 카테고리(파일시스템 또는 블록)의 기본 정책입니다.
+
+| 필드 | 타입 | 기본값 | 설명 |
+|---|---|---|---|
+| `initMethod` | string | `none` | 이 볼륨 카테고리의 기본 초기화 방법. |
+| `wipeMethod` | string | `none` | 이 볼륨 카테고리의 기본 와이프 방법. |
+| `cascadeDelete` | *bool | `nil` | CR 삭제 시 PVC 삭제 여부. |
 
 ---
 
@@ -149,12 +234,13 @@ Aerospike 파드의 스토리지 볼륨을 정의합니다.
 | 필드 | 타입 | 필수 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `name` | string | 예 | — | 볼륨 이름. |
-| `source` | [VolumeSource](#volumesource) | 예 | — | 볼륨 소스 (PVC, emptyDir, secret, configMap). |
+| `source` | [VolumeSource](#volumesource) | 예 | — | 볼륨 소스 (PVC, emptyDir, secret, configMap, hostPath). |
 | `aerospike` | [AerospikeVolumeAttachment](#aerospikevolumeattachment) | 아니요 | — | Aerospike 컨테이너의 마운트 경로. |
 | `sidecars` | [][VolumeAttachment](#volumeattachment) | 아니요 | — | 사이드카 컨테이너의 볼륨 마운트. |
 | `initContainers` | [][VolumeAttachment](#volumeattachment) | 아니요 | — | 초기화 컨테이너의 볼륨 마운트. |
 | `initMethod` | string | 아니요 | `none` | 초기화 방법: `none`, `deleteFiles`, `dd`, `blkdiscard`, `headerCleanup`. |
-| `cascadeDelete` | bool | 아니요 | `false` | CR 삭제 시 PVC 삭제. |
+| `wipeMethod` | string | 아니요 | `none` | 더티 볼륨 와이프 방법: `none`, `deleteFiles`, `dd`, `blkdiscard`, `headerCleanup`, `blkdiscardWithHeaderCleanup`. |
+| `cascadeDelete` | *bool | 아니요 | `nil` | CR 삭제 시 PVC 삭제. `nil`이면 글로벌 볼륨 정책으로 폴백. |
 
 ---
 
@@ -168,6 +254,7 @@ Aerospike 파드의 스토리지 볼륨을 정의합니다.
 | `emptyDir` | [EmptyDirVolumeSource](https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/volume/#emptyDir) | emptyDir 사용. |
 | `secret` | [SecretVolumeSource](https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/volume/#secret) | Kubernetes Secret 사용. |
 | `configMap` | [ConfigMapVolumeSource](https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/volume/#configMap) | Kubernetes ConfigMap 사용. |
+| `hostPath` | [HostPathVolumeSource](https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/volume/#hostPath) | 호스트 노드의 경로 사용. |
 
 ---
 
@@ -182,6 +269,7 @@ PVC 템플릿을 정의합니다.
 | `size` | string | 예 | — | 스토리지 크기 (예: `10Gi`). |
 | `accessModes` | []string | 아니요 | — | 접근 모드 (예: `ReadWriteOnce`). |
 | `selector` | [LabelSelector](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/label-selector/) | 아니요 | — | PV 바인딩용 레이블 셀렉터. |
+| `metadata` | [AerospikeObjectMeta](#aerospikeobjectmeta) | 아니요 | — | PVC의 커스텀 레이블 및 어노테이션. |
 
 ---
 
@@ -192,6 +280,10 @@ PVC 템플릿을 정의합니다.
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
 | `path` | string | 예 | 컨테이너의 마운트 경로. |
+| `readOnly` | bool | 아니요 | 볼륨을 읽기 전용으로 마운트. |
+| `subPath` | string | 아니요 | 볼륨의 특정 하위 경로만 마운트. |
+| `subPathExpr` | string | 아니요 | 환경 변수를 사용한 확장 경로. `subPath`와 상호 배타적. |
+| `mountPropagation` | [MountPropagationMode](https://kubernetes.io/docs/concepts/storage/volumes/#mount-propagation) | 아니요 | 마운트 전파 방식: `None`, `HostToContainer`, `Bidirectional`. |
 
 ---
 
@@ -265,7 +357,10 @@ Aerospike 파드의 파드 레벨 커스터마이징입니다.
 | `hostNetwork` | bool | 호스트 네트워킹 활성화. |
 | `multiPodPerHost` | *bool | 같은 노드에 여러 파드 허용. |
 | `terminationGracePeriodSeconds` | *int64 | 파드 종료 유예 기간. |
+| `topologySpreadConstraints` | [][TopologySpreadConstraint](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#scheduling) | 토폴로지 도메인 간 파드 분산 방식. |
+| `podManagementPolicy` | string | StatefulSet 파드 관리: `OrderedReady` (기본) 또는 `Parallel`. |
 | `metadata` | [AerospikePodMetadata](#aerospikepodmetadata) | 추가 파드 레이블/어노테이션. |
+| `readinessGateEnabled` | *bool | 커스텀 readiness gate `acko.io/aerospike-ready` 활성화. Aerospike가 클러스터 mesh에 참여하고 마이그레이션이 완료될 때까지 Service 엔드포인트에서 제외. |
 
 ---
 
@@ -388,10 +483,13 @@ Prometheus 모니터링 설정입니다.
 | 필드 | 타입 | 기본값 | 설명 |
 |---|---|---|---|
 | `enabled` | bool | `false` | Prometheus 익스포터 사이드카 활성화. |
-| `exporterImage` | string | `aerospike/aerospike-prometheus-exporter:latest` | 익스포터 컨테이너 이미지. |
+| `exporterImage` | string | `aerospike/aerospike-prometheus-exporter:v1.16.1` | 익스포터 컨테이너 이미지. |
 | `port` | int32 | `9145` | 메트릭 포트. |
 | `resources` | [ResourceRequirements](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#resources) | — | 익스포터 리소스 제한. |
+| `env` | [][EnvVar](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#environment-variables) | — | 익스포터 컨테이너의 추가 환경 변수. |
+| `metricLabels` | map[string]string | — | 모든 익스포트 메트릭에 추가되는 커스텀 레이블. `METRIC_LABELS` 환경 변수로 전달. |
 | `serviceMonitor` | [ServiceMonitorSpec](#servicemonitorspec) | — | ServiceMonitor 설정. |
+| `prometheusRule` | [PrometheusRuleSpec](#prometheusrulespec) | — | 클러스터 알림을 위한 PrometheusRule 설정. |
 
 ---
 
@@ -404,6 +502,18 @@ Prometheus Operator를 위한 ServiceMonitor 설정입니다.
 | `enabled` | bool | `false` | ServiceMonitor 리소스 생성. |
 | `interval` | string | `30s` | 스크래핑 주기. |
 | `labels` | map[string]string | — | ServiceMonitor 디스커버리용 추가 레이블. |
+
+---
+
+## PrometheusRuleSpec
+
+Aerospike 클러스터 알림을 위한 PrometheusRule 설정입니다.
+
+| 필드 | 타입 | 기본값 | 설명 |
+|---|---|---|---|
+| `enabled` | bool | `false` | PrometheusRule 리소스 생성. |
+| `labels` | map[string]string | — | PrometheusRule 디스커버리용 추가 레이블. |
+| `customRules` | []JSON | — | 기본 알림(NodeDown, StopWrites, HighDiskUsage, HighMemoryUsage)을 대체하는 커스텀 규칙 그룹. 각 항목에 `name`과 `rules` 필드가 필수. |
 
 ---
 

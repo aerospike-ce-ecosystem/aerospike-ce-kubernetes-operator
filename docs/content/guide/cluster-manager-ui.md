@@ -117,6 +117,11 @@ When `ui.k8s.enabled=true` (the default), the UI provides Kubernetes-native clus
 - **Manage templates** -- Browse available AerospikeClusterTemplates
 - **Trigger operations** -- Initiate warm restarts and pod restarts
 - **Pause/Resume** -- Pause and resume reconciliation
+- **Configure ACL** -- Set up access control with roles, users, and K8s secret-based credentials during cluster creation
+- **Rolling update strategy** -- Configure batch size, max unavailable, and PDB settings
+- **Monitor operations** -- View active operation status, completed/failed pods in real-time
+- **Track reconciliation** -- See reconcile error counts and failure reasons
+- **View events** -- Browse K8s events timeline for each cluster
 
 :::info
 K8s cluster management requires the UI service account to have RBAC access to AerospikeCluster resources. This is configured automatically when `ui.rbac.create=true` (the default).

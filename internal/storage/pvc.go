@@ -2,12 +2,13 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
@@ -64,7 +65,7 @@ func DeleteOrphanedPVCs(ctx context.Context, c client.Client, namespace, stsName
 
 		if ordinal >= desiredReplicas {
 			if err := c.Delete(ctx, pvc); err != nil {
-				if !errors.IsNotFound(err) {
+				if !kerrors.IsNotFound(err) {
 					return fmt.Errorf("deleting orphaned PVC %s: %w", pvc.Name, err)
 				}
 			}
@@ -107,6 +108,7 @@ func DeleteOrphanedCascadeDeletePVCs(
 	}
 
 	deleted := 0
+	var deleteErrs []error
 	for i := range pvcs {
 		pvc := &pvcs[i]
 		ordinal, ok := extractOrdinal(pvc.Name, stsName)
@@ -128,14 +130,18 @@ func DeleteOrphanedCascadeDeletePVCs(
 		}
 
 		if err := c.Delete(ctx, pvc); err != nil {
-			if errors.IsNotFound(err) {
+			if kerrors.IsNotFound(err) {
 				continue
 			}
-			return deleted, fmt.Errorf("deleting orphaned cascade PVC %s: %w", pvc.Name, err)
+			deleteErrs = append(deleteErrs, fmt.Errorf("deleting orphaned cascade PVC %s: %w", pvc.Name, err))
+			continue
 		}
 		deleted++
 	}
 
+	if len(deleteErrs) > 0 {
+		return deleted, errors.Join(deleteErrs...)
+	}
 	return deleted, nil
 }
 
@@ -262,7 +268,7 @@ func DeleteCascadeDeletePVCs(
 		}
 
 		if err := c.Delete(ctx, pvc); err != nil {
-			if errors.IsNotFound(err) {
+			if kerrors.IsNotFound(err) {
 				continue
 			}
 			return fmt.Errorf("deleting cascade PVC %s: %w", pvc.Name, err)

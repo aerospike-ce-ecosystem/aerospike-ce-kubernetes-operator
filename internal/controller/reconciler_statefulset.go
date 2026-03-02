@@ -125,10 +125,6 @@ func (r *AerospikeClusterReconciler) reconcileStatefulSet(
 	// Cleanup orphaned PVCs after StatefulSet update so pods terminate first.
 	// Only delete PVCs for volumes with cascadeDelete enabled; preserve all others.
 	if scaleDown {
-		storageSpec := cluster.Spec.Storage
-		if rack.Storage != nil {
-			storageSpec = rack.Storage
-		}
 		log.Info("Scale-down detected, cleaning up orphaned cascade-delete PVCs",
 			"name", stsName, "old", oldReplicas, "new", targetReplicas)
 		deleted, err := storage.DeleteOrphanedCascadeDeletePVCs(
@@ -207,7 +203,8 @@ func (r *AerospikeClusterReconciler) cleanupRemovedRacks(
 		currentRackNames[utils.StatefulSetName(cluster.Name, rack.ID)] = true
 	}
 
-	// Resolve effective storage spec: per-rack storage overrides cluster-level.
+	// Note: when a rack is removed, its per-rack Storage spec is no longer in the CR.
+	// We fall back to the cluster-level storage spec for cascadeDelete resolution.
 	for i := range stsList.Items {
 		sts := &stsList.Items[i]
 		if !currentRackNames[sts.Name] {

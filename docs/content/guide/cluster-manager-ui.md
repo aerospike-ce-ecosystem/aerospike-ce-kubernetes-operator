@@ -70,7 +70,7 @@ helm install acko oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-ope
 | `ui.enabled` | Enable the Cluster Manager UI | `false` |
 | `ui.replicaCount` | Number of UI replicas | `1` |
 | `ui.image.repository` | UI container image | `ghcr.io/kimsoungryoul/aerospike-cluster-manager` |
-| `ui.image.tag` | Image tag | `latest` |
+| `ui.image.tag` | Image tag (defaults to Chart appVersion when empty) | `""` |
 | `ui.service.type` | Service type (`ClusterIP`, `NodePort`, `LoadBalancer`) | `ClusterIP` |
 | `ui.service.frontendPort` | Frontend (Next.js) port | `3000` |
 | `ui.service.backendPort` | Backend (FastAPI) port | `8000` |
@@ -138,6 +138,17 @@ When `ui.k8s.enabled=true` (the default), the UI provides Kubernetes-native clus
 K8s cluster management requires the UI service account to have RBAC access to AerospikeCluster resources. This is configured automatically when `ui.rbac.create=true` (the default).
 :::
 
+### Rack Configuration
+
+The wizard includes a **Rack Config** step for multi-rack, zone-aware deployments:
+
+- **Add/Remove Racks**: Configure multiple racks with unique IDs
+- **Zone Affinity**: Select K8s availability zones from live node data
+- **Pod Distribution**: Set max pods per node for each rack
+- **Distribution Preview**: See estimated pod distribution across racks
+
+Each rack creates a separate StatefulSet, enabling zone-aware high availability.
+
 ### Index Management
 
 Create, view, and delete secondary indexes. Monitor index build progress and view index statistics.
@@ -189,6 +200,7 @@ When `ui.rbac.create=true` (the default), the Helm chart creates a ClusterRole a
 - **Read-only** access to Pods, Services, Events, and Namespaces (for cluster monitoring, events timeline, and wizard dropdowns)
 - **List-only** access to Secrets (name enumeration for ACL credential selection — contents are never read)
 - **List-only** access to StorageClasses (for storage wizard dropdowns)
+- **Read-only** access to Nodes (`get`, `list`) for retrieving availability zone information used in rack configuration
 
 ### Pod Security
 

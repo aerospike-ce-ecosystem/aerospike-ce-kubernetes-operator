@@ -17267,6 +17267,7 @@ spec:
                     - Error
                     - ScalingUp
                     - ScalingDown
+                    - WaitingForMigration
                     - RollingRestart
                     - ACLSync
                     - Paused
@@ -17293,6 +17294,7 @@ spec:
                 - Error
                 - ScalingUp
                 - ScalingDown
+                - WaitingForMigration
                 - RollingRestart
                 - ACLSync
                 - Paused

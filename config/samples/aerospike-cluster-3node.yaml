@@ -1,10 +1,10 @@
 # 3-node Aerospike CE cluster with persistent volume storage.
 # Demonstrates resource limits, PV-backed data, and an ephemeral work directory.
-# Apply with: kubectl apply -f aerospike-ce-cluster-3node.yaml
+# Apply with: kubectl apply -f aerospike-cluster-3node.yaml
 apiVersion: acko.io/v1alpha1
-kind: AerospikeCECluster
+kind: AerospikeCluster
 metadata:
-  name: aerospike-ce-3node
+  name: aerospike-3node
   namespace: aerospike  # Create namespace first: kubectl create namespace aerospike
 spec:
   size: 3  # 3 Aerospike server pods
@@ -33,7 +33,7 @@ spec:
             volumeMode: Filesystem
         aerospike:
           path: /opt/aerospike/data  # Mount path inside the container
-        cascadeDelete: true  # PVCs are deleted when the AerospikeCECluster CR is deleted
+        cascadeDelete: true  # PVCs are deleted when the AerospikeCluster CR is deleted
 
       # Ephemeral volume for temporary work files (logs, scratch).
       # emptyDir is wiped when the pod restarts -- do not store data here.
@@ -45,7 +45,7 @@ spec:
 
   aerospikeConfig:
     service:
-      cluster-name: aerospike-ce-3node
+      cluster-name: aerospike-3node
       proto-fd-max: 15000
 
     network:

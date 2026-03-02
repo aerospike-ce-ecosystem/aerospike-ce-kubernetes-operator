@@ -12,7 +12,7 @@ title: 클러스터 관리
 `spec.size`를 변경하여 클러스터를 스케일 업/다운합니다.
 
 ```bash
-kubectl -n aerospike patch asce aerospike-ce-3node --type merge -p '{"spec":{"size":5}}'
+kubectl -n aerospike patch asc aerospike-ce-3node --type merge -p '{"spec":{"size":5}}'
 ```
 
 오퍼레이터가 원하는 크기에 맞게 파드를 생성하거나 제거합니다. 멀티랙 배포의 경우, 파드가 랙 간에 균등하게 분배됩니다.
@@ -155,7 +155,7 @@ kubectl -n aerospike get pod aerospike-ce-3node-0 \
 오퍼레이터는 클러스터의 파드 상태에 게이트 상태를 반영합니다:
 
 ```bash
-kubectl -n aerospike get asce aerospike-ce-3node \
+kubectl -n aerospike get asc aerospike-ce-3node \
   -o jsonpath='{.status.pods}' | jq 'to_entries[] | {pod: .key, gateOk: .value.readinessGateSatisfied}'
 ```
 
@@ -190,10 +190,10 @@ spec:
 
 ```bash
 # 일시 중지
-kubectl -n aerospike patch asce aerospike-ce-3node --type merge -p '{"spec":{"paused":true}}'
+kubectl -n aerospike patch asc aerospike-ce-3node --type merge -p '{"spec":{"paused":true}}'
 
 # 재개
-kubectl -n aerospike patch asce aerospike-ce-3node --type merge -p '{"spec":{"paused":null}}'
+kubectl -n aerospike patch asc aerospike-ce-3node --type merge -p '{"spec":{"paused":null}}'
 ```
 
 ## 온디맨드 오퍼레이션
@@ -230,7 +230,7 @@ spec:
 ### 오퍼레이션 상태 확인
 
 ```bash
-kubectl -n aerospike get asce aerospike-ce-3node -o jsonpath='{.status.operationStatus}' | jq .
+kubectl -n aerospike get asc aerospike-ce-3node -o jsonpath='{.status.operationStatus}' | jq .
 ```
 
 상태에는 `phase` (`InProgress`, `Completed`, `Error`), `completedPods`, `failedPods`가 포함됩니다.
@@ -335,7 +335,7 @@ storage:
 
 ### Cascade Delete
 
-`cascadeDelete: true`이면 AerospikeCECluster CR 삭제 시 PVC가 자동으로 삭제됩니다. 볼륨별 또는 글로벌 정책으로 설정할 수 있습니다.
+`cascadeDelete: true`이면 AerospikeCluster CR 삭제 시 PVC가 자동으로 삭제됩니다. 볼륨별 또는 글로벌 정책으로 설정할 수 있습니다.
 
 ```yaml
 storage:
@@ -631,7 +631,7 @@ spec:
 ### 클러스터 Phase 확인
 
 ```bash
-kubectl -n aerospike get asce
+kubectl -n aerospike get asc
 ```
 
 | Phase | 의미 |
@@ -649,13 +649,13 @@ kubectl -n aerospike get asce
 ### Conditions 확인
 
 ```bash
-kubectl -n aerospike get asce aerospike-ce-3node -o jsonpath='{.status.conditions}' | jq .
+kubectl -n aerospike get asc aerospike-ce-3node -o jsonpath='{.status.conditions}' | jq .
 ```
 
 ### 파드 상태 확인
 
 ```bash
-kubectl -n aerospike get asce aerospike-ce-3node -o jsonpath='{.status.pods}' | jq .
+kubectl -n aerospike get asc aerospike-ce-3node -o jsonpath='{.status.pods}' | jq .
 ```
 
 각 파드 상태에 포함된 정보:
@@ -707,8 +707,8 @@ kubectl -n aerospike-operator logs -l control-plane=controller-manager -f
 # 특정 클러스터의 이벤트 감시
 kubectl get events --field-selector involvedObject.name=my-cluster -w
 
-# 네임스페이스의 모든 AerospikeCECluster 이벤트 조회
-kubectl get events --field-selector involvedObject.kind=AerospikeCECluster -n aerospike
+# 네임스페이스의 모든 AerospikeCluster 이벤트 조회
+kubectl get events --field-selector involvedObject.kind=AerospikeCluster -n aerospike
 ```
 
 ### 이벤트 레퍼런스

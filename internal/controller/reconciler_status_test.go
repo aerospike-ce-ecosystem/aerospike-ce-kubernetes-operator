@@ -8,7 +8,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
 func TestIsPodReady(t *testing.T) {
@@ -114,7 +114,7 @@ func TestIsPodReady(t *testing.T) {
 
 func TestSetCondition(t *testing.T) {
 	t.Run("new condition type is appended", func(t *testing.T) {
-		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+		cluster := &ackov1alpha1.AerospikeCluster{}
 
 		setCondition(cluster, "Available", true, "ClusterAvailable", "At least one pod is ready")
 
@@ -137,7 +137,7 @@ func TestSetCondition(t *testing.T) {
 	})
 
 	t.Run("multiple different condition types are appended", func(t *testing.T) {
-		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+		cluster := &ackov1alpha1.AerospikeCluster{}
 
 		setCondition(cluster, "Available", true, "ClusterAvailable", "At least one pod is ready")
 		setCondition(cluster, "Ready", false, "NotReady", "0/3 pods ready")
@@ -154,7 +154,7 @@ func TestSetCondition(t *testing.T) {
 	})
 
 	t.Run("existing condition with same status is NOT updated (idempotent)", func(t *testing.T) {
-		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+		cluster := &ackov1alpha1.AerospikeCluster{}
 
 		setCondition(cluster, "Available", true, "ClusterAvailable", "At least one pod is ready")
 		originalTime := cluster.Status.Conditions[0].LastTransitionTime
@@ -175,7 +175,7 @@ func TestSetCondition(t *testing.T) {
 	})
 
 	t.Run("existing condition with changed status IS updated", func(t *testing.T) {
-		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+		cluster := &ackov1alpha1.AerospikeCluster{}
 
 		setCondition(cluster, "Available", false, "ClusterUnavailable", "No pods ready")
 		originalTime := cluster.Status.Conditions[0].LastTransitionTime
@@ -206,7 +206,7 @@ func TestSetCondition(t *testing.T) {
 	})
 
 	t.Run("status=false produces ConditionFalse", func(t *testing.T) {
-		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+		cluster := &ackov1alpha1.AerospikeCluster{}
 
 		setCondition(cluster, "Ready", false, "NotReady", "0/3 pods ready")
 
@@ -286,7 +286,7 @@ func TestParseServiceEndpoints(t *testing.T) {
 }
 
 func TestSetFineGrainedConditions(t *testing.T) {
-	findCondition := func(cluster *asdbcev1alpha1.AerospikeCECluster, condType string) *metav1.Condition {
+	findCondition := func(cluster *ackov1alpha1.AerospikeCluster, condType string) *metav1.Condition {
 		for i := range cluster.Status.Conditions {
 			if cluster.Status.Conditions[i].Type == condType {
 				return &cluster.Status.Conditions[i]
@@ -296,10 +296,10 @@ func TestSetFineGrainedConditions(t *testing.T) {
 	}
 
 	t.Run("Paused=true sets ReconciliationPaused=True", func(t *testing.T) {
-		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+		cluster := &ackov1alpha1.AerospikeCluster{}
 		setFineGrainedConditions(cluster, StatusUpdateOpts{Paused: true})
 
-		cond := findCondition(cluster, asdbcev1alpha1.ConditionReconciliationPaused)
+		cond := findCondition(cluster, ackov1alpha1.ConditionReconciliationPaused)
 		if cond == nil {
 			t.Fatal("ReconciliationPaused condition not found")
 		}
@@ -309,10 +309,10 @@ func TestSetFineGrainedConditions(t *testing.T) {
 	})
 
 	t.Run("Paused=false sets ReconciliationPaused=False", func(t *testing.T) {
-		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+		cluster := &ackov1alpha1.AerospikeCluster{}
 		setFineGrainedConditions(cluster, StatusUpdateOpts{Paused: false})
 
-		cond := findCondition(cluster, asdbcev1alpha1.ConditionReconciliationPaused)
+		cond := findCondition(cluster, ackov1alpha1.ConditionReconciliationPaused)
 		if cond == nil {
 			t.Fatal("ReconciliationPaused condition not found")
 		}
@@ -322,22 +322,22 @@ func TestSetFineGrainedConditions(t *testing.T) {
 	})
 
 	t.Run("ACL spec nil: ACLSynced condition is not set", func(t *testing.T) {
-		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+		cluster := &ackov1alpha1.AerospikeCluster{}
 		// AerospikeAccessControl is nil by default
 		setFineGrainedConditions(cluster, StatusUpdateOpts{})
 
-		cond := findCondition(cluster, asdbcev1alpha1.ConditionACLSynced)
+		cond := findCondition(cluster, ackov1alpha1.ConditionACLSynced)
 		if cond != nil {
 			t.Errorf("ACLSynced should not be set when ACL spec is nil, got %q", cond.Status)
 		}
 	})
 
 	t.Run("ACL spec set and ACLSynced true: ACLSynced=True", func(t *testing.T) {
-		cluster := &asdbcev1alpha1.AerospikeCECluster{}
-		cluster.Spec.AerospikeAccessControl = &asdbcev1alpha1.AerospikeAccessControlSpec{}
+		cluster := &ackov1alpha1.AerospikeCluster{}
+		cluster.Spec.AerospikeAccessControl = &ackov1alpha1.AerospikeAccessControlSpec{}
 		setFineGrainedConditions(cluster, StatusUpdateOpts{ACLErr: nil, ACLSynced: true})
 
-		cond := findCondition(cluster, asdbcev1alpha1.ConditionACLSynced)
+		cond := findCondition(cluster, ackov1alpha1.ConditionACLSynced)
 		if cond == nil {
 			t.Fatal("ACLSynced condition not found")
 		}
@@ -347,11 +347,11 @@ func TestSetFineGrainedConditions(t *testing.T) {
 	})
 
 	t.Run("ACL spec set and ACL skipped (no ready pods): ACLSynced=False with pending reason", func(t *testing.T) {
-		cluster := &asdbcev1alpha1.AerospikeCECluster{}
-		cluster.Spec.AerospikeAccessControl = &asdbcev1alpha1.AerospikeAccessControlSpec{}
+		cluster := &ackov1alpha1.AerospikeCluster{}
+		cluster.Spec.AerospikeAccessControl = &ackov1alpha1.AerospikeAccessControlSpec{}
 		setFineGrainedConditions(cluster, StatusUpdateOpts{ACLErr: nil, ACLSynced: false})
 
-		cond := findCondition(cluster, asdbcev1alpha1.ConditionACLSynced)
+		cond := findCondition(cluster, ackov1alpha1.ConditionACLSynced)
 		if cond == nil {
 			t.Fatal("ACLSynced condition not found")
 		}
@@ -364,11 +364,11 @@ func TestSetFineGrainedConditions(t *testing.T) {
 	})
 
 	t.Run("ACL spec set and ACLErr non-nil: ACLSynced=False", func(t *testing.T) {
-		cluster := &asdbcev1alpha1.AerospikeCECluster{}
-		cluster.Spec.AerospikeAccessControl = &asdbcev1alpha1.AerospikeAccessControlSpec{}
+		cluster := &ackov1alpha1.AerospikeCluster{}
+		cluster.Spec.AerospikeAccessControl = &ackov1alpha1.AerospikeAccessControlSpec{}
 		setFineGrainedConditions(cluster, StatusUpdateOpts{ACLErr: errors.New("acl sync failed")})
 
-		cond := findCondition(cluster, asdbcev1alpha1.ConditionACLSynced)
+		cond := findCondition(cluster, ackov1alpha1.ConditionACLSynced)
 		if cond == nil {
 			t.Fatal("ACLSynced condition not found")
 		}
@@ -378,10 +378,10 @@ func TestSetFineGrainedConditions(t *testing.T) {
 	})
 
 	t.Run("RestartInProgress=true sets MigrationComplete=False", func(t *testing.T) {
-		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+		cluster := &ackov1alpha1.AerospikeCluster{}
 		setFineGrainedConditions(cluster, StatusUpdateOpts{RestartInProgress: true})
 
-		cond := findCondition(cluster, asdbcev1alpha1.ConditionMigrationComplete)
+		cond := findCondition(cluster, ackov1alpha1.ConditionMigrationComplete)
 		if cond == nil {
 			t.Fatal("MigrationComplete condition not found")
 		}
@@ -391,10 +391,10 @@ func TestSetFineGrainedConditions(t *testing.T) {
 	})
 
 	t.Run("RestartInProgress=false sets MigrationComplete=True", func(t *testing.T) {
-		cluster := &asdbcev1alpha1.AerospikeCECluster{}
+		cluster := &ackov1alpha1.AerospikeCluster{}
 		setFineGrainedConditions(cluster, StatusUpdateOpts{RestartInProgress: false})
 
-		cond := findCondition(cluster, asdbcev1alpha1.ConditionMigrationComplete)
+		cond := findCondition(cluster, ackov1alpha1.ConditionMigrationComplete)
 		if cond == nil {
 			t.Fatal("MigrationComplete condition not found")
 		}
@@ -581,9 +581,9 @@ func TestUnstableSince(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cluster := &asdbcev1alpha1.AerospikeCECluster{
-				Status: asdbcev1alpha1.AerospikeCEClusterStatus{
-					Pods: map[string]asdbcev1alpha1.AerospikePodStatus{
+			cluster := &ackov1alpha1.AerospikeCluster{
+				Status: ackov1alpha1.AerospikeClusterStatus{
+					Pods: map[string]ackov1alpha1.AerospikePodStatus{
 						"pod-0": {
 							UnstableSince: tc.prevUnstable,
 						},

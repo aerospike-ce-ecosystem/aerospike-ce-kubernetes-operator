@@ -41,7 +41,7 @@ The minimal ACL configuration requires at least one user with both `sys-admin` a
 
 ```yaml
 apiVersion: acko.io/v1alpha1
-kind: AerospikeCECluster
+kind: AerospikeCluster
 metadata:
   name: aerospike-acl
   namespace: aerospike

@@ -21,8 +21,8 @@ func boolPtr(b bool) *bool { return &b }
 // --- shouldInjectAntiAffinity tests ---
 
 func TestShouldInjectAntiAffinity_NilPodSpec(t *testing.T) {
-	cluster := &v1alpha1.AerospikeCECluster{
-		Spec: v1alpha1.AerospikeCEClusterSpec{
+	cluster := &v1alpha1.AerospikeCluster{
+		Spec: v1alpha1.AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 		},
@@ -33,8 +33,8 @@ func TestShouldInjectAntiAffinity_NilPodSpec(t *testing.T) {
 }
 
 func TestShouldInjectAntiAffinity_MultiPodPerHostNil(t *testing.T) {
-	cluster := &v1alpha1.AerospikeCECluster{
-		Spec: v1alpha1.AerospikeCEClusterSpec{
+	cluster := &v1alpha1.AerospikeCluster{
+		Spec: v1alpha1.AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			PodSpec: &v1alpha1.AerospikeCEPodSpec{
@@ -48,8 +48,8 @@ func TestShouldInjectAntiAffinity_MultiPodPerHostNil(t *testing.T) {
 }
 
 func TestShouldInjectAntiAffinity_MultiPodPerHostFalse(t *testing.T) {
-	cluster := &v1alpha1.AerospikeCECluster{
-		Spec: v1alpha1.AerospikeCEClusterSpec{
+	cluster := &v1alpha1.AerospikeCluster{
+		Spec: v1alpha1.AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			PodSpec: &v1alpha1.AerospikeCEPodSpec{
@@ -63,8 +63,8 @@ func TestShouldInjectAntiAffinity_MultiPodPerHostFalse(t *testing.T) {
 }
 
 func TestShouldInjectAntiAffinity_MultiPodPerHostTrue(t *testing.T) {
-	cluster := &v1alpha1.AerospikeCECluster{
-		Spec: v1alpha1.AerospikeCEClusterSpec{
+	cluster := &v1alpha1.AerospikeCluster{
+		Spec: v1alpha1.AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			PodSpec: &v1alpha1.AerospikeCEPodSpec{
@@ -404,9 +404,9 @@ func TestBuildExporterSidecar_CustomEnv(t *testing.T) {
 // --- BuildPodTemplateSpec integration tests ---
 
 func TestBuildPodTemplateSpec_MonitoringSidecarInjected(t *testing.T) {
-	cluster := &v1alpha1.AerospikeCECluster{
+	cluster := &v1alpha1.AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-cluster"},
-		Spec: v1alpha1.AerospikeCEClusterSpec{
+		Spec: v1alpha1.AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &v1alpha1.AerospikeMonitoringSpec{
@@ -432,9 +432,9 @@ func TestBuildPodTemplateSpec_MonitoringSidecarInjected(t *testing.T) {
 }
 
 func TestBuildPodTemplateSpec_NoMonitoringSidecarWhenDisabled(t *testing.T) {
-	cluster := &v1alpha1.AerospikeCECluster{
+	cluster := &v1alpha1.AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-cluster"},
-		Spec: v1alpha1.AerospikeCEClusterSpec{
+		Spec: v1alpha1.AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 		},
@@ -450,9 +450,9 @@ func TestBuildPodTemplateSpec_NoMonitoringSidecarWhenDisabled(t *testing.T) {
 }
 
 func TestBuildPodTemplateSpec_BandwidthAnnotations(t *testing.T) {
-	cluster := &v1alpha1.AerospikeCECluster{
+	cluster := &v1alpha1.AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-cluster"},
-		Spec: v1alpha1.AerospikeCEClusterSpec{
+		Spec: v1alpha1.AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			BandwidthConfig: &v1alpha1.BandwidthConfig{
@@ -474,9 +474,9 @@ func TestBuildPodTemplateSpec_BandwidthAnnotations(t *testing.T) {
 }
 
 func TestBuildPodTemplateSpec_NoBandwidthAnnotationsWhenNotSet(t *testing.T) {
-	cluster := &v1alpha1.AerospikeCECluster{
+	cluster := &v1alpha1.AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-cluster"},
-		Spec: v1alpha1.AerospikeCEClusterSpec{
+		Spec: v1alpha1.AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 		},
@@ -493,9 +493,9 @@ func TestBuildPodTemplateSpec_NoBandwidthAnnotationsWhenNotSet(t *testing.T) {
 }
 
 func TestBuildPodTemplateSpec_AntiAffinityInjectedWhenMultiPodPerHostFalse(t *testing.T) {
-	cluster := &v1alpha1.AerospikeCECluster{
+	cluster := &v1alpha1.AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-cluster"},
-		Spec: v1alpha1.AerospikeCEClusterSpec{
+		Spec: v1alpha1.AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			PodSpec: &v1alpha1.AerospikeCEPodSpec{
@@ -520,9 +520,9 @@ func TestBuildPodTemplateSpec_AntiAffinityInjectedWhenMultiPodPerHostFalse(t *te
 }
 
 func TestBuildPodTemplateSpec_NoAntiAffinityWhenMultiPodPerHostTrue(t *testing.T) {
-	cluster := &v1alpha1.AerospikeCECluster{
+	cluster := &v1alpha1.AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-cluster"},
-		Spec: v1alpha1.AerospikeCEClusterSpec{
+		Spec: v1alpha1.AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			PodSpec: &v1alpha1.AerospikeCEPodSpec{
@@ -750,9 +750,9 @@ func TestPodNameForIndex(t *testing.T) {
 }
 
 func TestBuildPodTemplateSpec_InitContainerUsesClusterImage(t *testing.T) {
-	cluster := &v1alpha1.AerospikeCECluster{
+	cluster := &v1alpha1.AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-cluster"},
-		Spec: v1alpha1.AerospikeCEClusterSpec{
+		Spec: v1alpha1.AerospikeClusterSpec{
 			Size:  1,
 			Image: "aerospike:ce-7.2.0.6",
 		},

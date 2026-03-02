@@ -26,7 +26,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/test/utils"
 )
 
@@ -45,7 +45,7 @@ var _ = Describe("Enhanced Features", Ordered, func() {
 			"e2e-metrics", "e2e-podstatus", "e2e-config-change",
 			"e2e-scale", "e2e-batch", "e2e-paused", "e2e-pdb",
 		} {
-			cmd := exec.Command("kubectl", "delete", "aerospikececluster", name,
+			cmd := exec.Command("kubectl", "delete", "aerospikecluster", name,
 				"-n", featuresNS, "--ignore-not-found", "--timeout=120s")
 			_, _ = utils.Run(cmd)
 		}
@@ -68,7 +68,7 @@ var _ = Describe("Enhanced Features", Ordered, func() {
 			Eventually(func(g Gomega) {
 				c, err := utils.GetCluster(ctx, k8sClient, clusterName, featuresNS)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(c.Status.Phase).To(Equal(asdbcev1alpha1.AerospikePhaseCompleted))
+				g.Expect(c.Status.Phase).To(Equal(ackov1alpha1.AerospikePhaseCompleted))
 			}, defaultTimeout, 2*time.Second).Should(Succeed())
 
 			By("fetching fresh metrics after cluster reconciliation")
@@ -77,11 +77,11 @@ var _ = Describe("Enhanced Features", Ordered, func() {
 			By("verifying custom metrics exist in the metrics endpoint")
 			metricsOutput, err := getMetricsOutput()
 			Expect(err).NotTo(HaveOccurred())
-			Expect(metricsOutput).To(ContainSubstring("aerospike_ce_cluster_phase"),
+			Expect(metricsOutput).To(ContainSubstring("acko_cluster_phase"),
 				"cluster phase metric should be present")
-			Expect(metricsOutput).To(ContainSubstring("aerospike_ce_cluster_ready_pods"),
+			Expect(metricsOutput).To(ContainSubstring("acko_cluster_ready_pods"),
 				"ready pods metric should be present")
-			Expect(metricsOutput).To(ContainSubstring("aerospike_ce_reconcile_duration_seconds"),
+			Expect(metricsOutput).To(ContainSubstring("acko_reconcile_duration_seconds"),
 				"reconcile duration metric should be present")
 		})
 	})
@@ -98,7 +98,7 @@ var _ = Describe("Enhanced Features", Ordered, func() {
 			Eventually(func(g Gomega) {
 				c, err := utils.GetCluster(ctx, k8sClient, clusterName, featuresNS)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(c.Status.Phase).To(Equal(asdbcev1alpha1.AerospikePhaseCompleted))
+				g.Expect(c.Status.Phase).To(Equal(ackov1alpha1.AerospikePhaseCompleted))
 			}, defaultTimeout, 2*time.Second).Should(Succeed())
 
 			By("verifying status.pods has configHash and podSpecHash")
@@ -149,7 +149,7 @@ var _ = Describe("Enhanced Features", Ordered, func() {
 			Eventually(func(g Gomega) {
 				c, err := utils.GetCluster(ctx, k8sClient, clusterName, featuresNS)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(c.Status.Phase).To(Equal(asdbcev1alpha1.AerospikePhaseCompleted))
+				g.Expect(c.Status.Phase).To(Equal(ackov1alpha1.AerospikePhaseCompleted))
 			}, multiNodeTimeout, 2*time.Second).Should(Succeed())
 
 			Eventually(func(g Gomega) {
@@ -175,7 +175,7 @@ var _ = Describe("Enhanced Features", Ordered, func() {
 			Eventually(func(g Gomega) {
 				c, err := utils.GetCluster(ctx, k8sClient, clusterName, featuresNS)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(c.Status.Phase).To(Equal(asdbcev1alpha1.AerospikePhaseCompleted))
+				g.Expect(c.Status.Phase).To(Equal(ackov1alpha1.AerospikePhaseCompleted))
 				// Verify configHash actually changed (not just Completed from before the patch)
 				for name, ps := range c.Status.Pods {
 					if oldHash, ok := oldHashes[name]; ok {
@@ -199,7 +199,7 @@ var _ = Describe("Enhanced Features", Ordered, func() {
 			Eventually(func(g Gomega) {
 				c, err := utils.GetCluster(ctx, k8sClient, clusterName, featuresNS)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(c.Status.Phase).To(Equal(asdbcev1alpha1.AerospikePhaseCompleted))
+				g.Expect(c.Status.Phase).To(Equal(ackov1alpha1.AerospikePhaseCompleted))
 			}, defaultTimeout, 2*time.Second).Should(Succeed())
 
 			Eventually(func(g Gomega) {
@@ -215,7 +215,7 @@ var _ = Describe("Enhanced Features", Ordered, func() {
 			Eventually(func(g Gomega) {
 				c, err := utils.GetCluster(ctx, k8sClient, clusterName, featuresNS)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(c.Status.Phase).To(Equal(asdbcev1alpha1.AerospikePhaseCompleted))
+				g.Expect(c.Status.Phase).To(Equal(ackov1alpha1.AerospikePhaseCompleted))
 			}, multiNodeTimeout, 2*time.Second).Should(Succeed())
 
 			Eventually(func(g Gomega) {
@@ -240,7 +240,7 @@ var _ = Describe("Enhanced Features", Ordered, func() {
 			Eventually(func(g Gomega) {
 				c, err := utils.GetCluster(ctx, k8sClient, clusterName, featuresNS)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(c.Status.Phase).To(Equal(asdbcev1alpha1.AerospikePhaseCompleted))
+				g.Expect(c.Status.Phase).To(Equal(ackov1alpha1.AerospikePhaseCompleted))
 			}, multiNodeTimeout, 2*time.Second).Should(Succeed())
 
 			Eventually(func(g Gomega) {
@@ -263,7 +263,7 @@ var _ = Describe("Enhanced Features", Ordered, func() {
 
 		It("should handle batch rolling restart without errors", func() {
 			By("creating a 2-node cluster with batchSize=2")
-			cluster := newTestCluster(clusterName, featuresNS, 2, func(c *asdbcev1alpha1.AerospikeCECluster) {
+			cluster := newTestCluster(clusterName, featuresNS, 2, func(c *ackov1alpha1.AerospikeCluster) {
 				batchSize := int32(2)
 				c.Spec.RollingUpdateBatchSize = &batchSize
 			})
@@ -273,7 +273,7 @@ var _ = Describe("Enhanced Features", Ordered, func() {
 			Eventually(func(g Gomega) {
 				c, err := utils.GetCluster(ctx, k8sClient, clusterName, featuresNS)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(c.Status.Phase).To(Equal(asdbcev1alpha1.AerospikePhaseCompleted))
+				g.Expect(c.Status.Phase).To(Equal(ackov1alpha1.AerospikePhaseCompleted))
 			}, multiNodeTimeout, 2*time.Second).Should(Succeed())
 
 			Eventually(func(g Gomega) {
@@ -290,7 +290,7 @@ var _ = Describe("Enhanced Features", Ordered, func() {
 			Eventually(func(g Gomega) {
 				c, err := utils.GetCluster(ctx, k8sClient, clusterName, featuresNS)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(c.Status.Phase).To(Equal(asdbcev1alpha1.AerospikePhaseCompleted))
+				g.Expect(c.Status.Phase).To(Equal(ackov1alpha1.AerospikePhaseCompleted))
 			}, multiNodeTimeout, 2*time.Second).Should(Succeed())
 
 			Eventually(func(g Gomega) {
@@ -313,7 +313,7 @@ var _ = Describe("Enhanced Features", Ordered, func() {
 			Eventually(func(g Gomega) {
 				c, err := utils.GetCluster(ctx, k8sClient, clusterName, featuresNS)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(c.Status.Phase).To(Equal(asdbcev1alpha1.AerospikePhaseCompleted))
+				g.Expect(c.Status.Phase).To(Equal(ackov1alpha1.AerospikePhaseCompleted))
 			}, defaultTimeout, 2*time.Second).Should(Succeed())
 
 			By("recording current configHash")
@@ -348,7 +348,7 @@ var _ = Describe("Enhanced Features", Ordered, func() {
 			Eventually(func(g Gomega) {
 				c, err := utils.GetCluster(ctx, k8sClient, clusterName, featuresNS)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(c.Status.Phase).To(Equal(asdbcev1alpha1.AerospikePhaseCompleted))
+				g.Expect(c.Status.Phase).To(Equal(ackov1alpha1.AerospikePhaseCompleted))
 			}, multiNodeTimeout, 2*time.Second).Should(Succeed())
 
 			By("verifying configHash has changed after unpause")
@@ -375,7 +375,7 @@ var _ = Describe("Enhanced Features", Ordered, func() {
 			Eventually(func(g Gomega) {
 				c, err := utils.GetCluster(ctx, k8sClient, clusterName, featuresNS)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(c.Status.Phase).To(Equal(asdbcev1alpha1.AerospikePhaseCompleted))
+				g.Expect(c.Status.Phase).To(Equal(ackov1alpha1.AerospikePhaseCompleted))
 			}, multiNodeTimeout, 2*time.Second).Should(Succeed())
 
 			By("verifying PDB exists")

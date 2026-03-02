@@ -11,7 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/configdiff"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/metrics"
 )
@@ -19,9 +19,9 @@ import (
 // tryDynamicConfigUpdate attempts to apply config changes dynamically without
 // restarting pods. Returns true if all changes were applied dynamically and
 // no restart is needed.
-func (r *AerospikeCEClusterReconciler) tryDynamicConfigUpdate(
+func (r *AerospikeClusterReconciler) tryDynamicConfigUpdate(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 	pod *corev1.Pod,
 	oldConfig, newConfig map[string]any,
 	aeroClient *aero.Client,
@@ -75,7 +75,7 @@ func (r *AerospikeCEClusterReconciler) tryDynamicConfigUpdate(
 
 	// All dynamic changes applied successfully — update the config hash annotation
 	// on the pod so that the rolling restart logic doesn't delete it.
-	desiredHash := configHash(&asdbcev1alpha1.AerospikeConfigSpec{Value: newConfig})
+	desiredHash := configHash(&ackov1alpha1.AerospikeConfigSpec{Value: newConfig})
 
 	if desiredHash != "" {
 		if err := r.updatePodConfigHash(ctx, pod, desiredHash); err != nil {
@@ -145,15 +145,15 @@ func findNodeForPod(aeroClient *aero.Client, pod *corev1.Pod) *aero.Node {
 // avoid race conditions with concurrent reconcile loops.
 // Failures are non-fatal: they are logged and reported as warning Events since
 // the caller cannot meaningfully retry.
-func (r *AerospikeCEClusterReconciler) updateDynamicConfigStatus(
+func (r *AerospikeClusterReconciler) updateDynamicConfigStatus(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 	podName, status string,
 ) {
 	log := logf.FromContext(ctx)
 
 	// Re-fetch the cluster to get the latest status
-	latest := &asdbcev1alpha1.AerospikeCECluster{}
+	latest := &ackov1alpha1.AerospikeCluster{}
 	if err := r.Get(ctx, types.NamespacedName{Name: cluster.Name, Namespace: cluster.Namespace}, latest); err != nil {
 		log.Error(err, "Failed to re-fetch cluster for dynamic config status update", "pod", podName)
 		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventDynamicConfigStatusFailed,
@@ -162,7 +162,7 @@ func (r *AerospikeCEClusterReconciler) updateDynamicConfigStatus(
 	}
 
 	if latest.Status.Pods == nil {
-		latest.Status.Pods = make(map[string]asdbcev1alpha1.AerospikePodStatus)
+		latest.Status.Pods = make(map[string]ackov1alpha1.AerospikePodStatus)
 	}
 
 	base := latest.DeepCopy()

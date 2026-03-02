@@ -9,7 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/metrics"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
@@ -29,9 +29,9 @@ var builtinRoles = map[string]bool{
 // reconcileACL synchronizes ACL roles and users with the Aerospike cluster.
 // Returns (synced bool, err error) where synced indicates whether ACL was
 // actually applied (false when skipped due to no ready pods or unchanged spec).
-func (r *AerospikeCEClusterReconciler) reconcileACL(
+func (r *AerospikeClusterReconciler) reconcileACL(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 ) (bool, error) {
 	log := logf.FromContext(ctx)
 
@@ -41,7 +41,7 @@ func (r *AerospikeCEClusterReconciler) reconcileACL(
 
 	// Skip if ACL spec hasn't changed since the last successful reconcile.
 	// Return true (synced) because ACL is already in sync from the previous reconcile.
-	if cluster.Status.Phase == asdbcev1alpha1.AerospikePhaseCompleted &&
+	if cluster.Status.Phase == ackov1alpha1.AerospikePhaseCompleted &&
 		cluster.Status.ObservedGeneration == cluster.Generation {
 		log.V(1).Info("ACL spec unchanged, skipping sync")
 		return true, nil
@@ -95,10 +95,10 @@ func (r *AerospikeCEClusterReconciler) reconcileACL(
 }
 
 // reconcileRoles synchronizes roles: create missing, grant/revoke privileges, drop orphaned.
-func (r *AerospikeCEClusterReconciler) reconcileRoles(
+func (r *AerospikeClusterReconciler) reconcileRoles(
 	ctx context.Context,
 	aeroClient *aero.Client,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 ) error {
 	log := logf.FromContext(ctx)
 
@@ -158,10 +158,10 @@ func (r *AerospikeCEClusterReconciler) reconcileRoles(
 }
 
 // reconcileUsers synchronizes users: create missing, grant/revoke roles, change passwords, drop orphaned.
-func (r *AerospikeCEClusterReconciler) reconcileUsers(
+func (r *AerospikeClusterReconciler) reconcileUsers(
 	ctx context.Context,
 	aeroClient *aero.Client,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 ) error {
 	log := logf.FromContext(ctx)
 
@@ -318,7 +318,7 @@ func syncUserRoles(
 }
 
 // roleParsedPrivileges converts the spec's privilege strings to aero.Privilege objects.
-func roleParsedPrivileges(roleSpec asdbcev1alpha1.AerospikeRoleSpec) ([]aero.Privilege, error) {
+func roleParsedPrivileges(roleSpec ackov1alpha1.AerospikeRoleSpec) ([]aero.Privilege, error) {
 	privileges := make([]aero.Privilege, 0, len(roleSpec.Privileges))
 	for _, privStr := range roleSpec.Privileges {
 		priv, err := parsePrivilege(privStr)

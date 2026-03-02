@@ -21,13 +21,13 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
 func TestTranslatePodAntiAffinity(t *testing.T) {
 	tests := []struct {
 		name        string
-		level       asdbcev1alpha1.PodAntiAffinityLevel
+		level       ackov1alpha1.PodAntiAffinityLevel
 		clusterName string
 		wantNil     bool
 		wantType    string // "required" or "preferred"
@@ -39,19 +39,19 @@ func TestTranslatePodAntiAffinity(t *testing.T) {
 		},
 		{
 			name:    "none returns nil",
-			level:   asdbcev1alpha1.PodAntiAffinityNone,
+			level:   ackov1alpha1.PodAntiAffinityNone,
 			wantNil: true,
 		},
 		{
 			name:        "required returns required anti-affinity",
-			level:       asdbcev1alpha1.PodAntiAffinityRequired,
+			level:       ackov1alpha1.PodAntiAffinityRequired,
 			clusterName: "test-cluster",
 			wantNil:     false,
 			wantType:    "required",
 		},
 		{
 			name:        "preferred returns preferred anti-affinity",
-			level:       asdbcev1alpha1.PodAntiAffinityPreferred,
+			level:       ackov1alpha1.PodAntiAffinityPreferred,
 			clusterName: "test-cluster",
 			wantNil:     false,
 			wantType:    "preferred",
@@ -108,8 +108,8 @@ func TestApplyScheduling_NodeAffinityDeepCopied(t *testing.T) {
 			},
 		},
 	}
-	scheduling := &asdbcev1alpha1.TemplateScheduling{NodeAffinity: nodeAffinity}
-	cluster := &asdbcev1alpha1.AerospikeCECluster{}
+	scheduling := &ackov1alpha1.TemplateScheduling{NodeAffinity: nodeAffinity}
+	cluster := &ackov1alpha1.AerospikeCluster{}
 
 	applyScheduling(scheduling, cluster)
 
@@ -123,12 +123,12 @@ func TestApplyScheduling_NodeAffinityDeepCopied(t *testing.T) {
 }
 
 func TestApplyScheduling_TolerationsDeepCopied(t *testing.T) {
-	scheduling := &asdbcev1alpha1.TemplateScheduling{
+	scheduling := &ackov1alpha1.TemplateScheduling{
 		Tolerations: []corev1.Toleration{
 			{Key: "original", Operator: corev1.TolerationOpExists},
 		},
 	}
-	cluster := &asdbcev1alpha1.AerospikeCECluster{}
+	cluster := &ackov1alpha1.AerospikeCluster{}
 
 	applyScheduling(scheduling, cluster)
 
@@ -140,12 +140,12 @@ func TestApplyScheduling_TolerationsDeepCopied(t *testing.T) {
 }
 
 func TestApplyScheduling_TopologySpreadConstraintsDeepCopied(t *testing.T) {
-	scheduling := &asdbcev1alpha1.TemplateScheduling{
+	scheduling := &ackov1alpha1.TemplateScheduling{
 		TopologySpreadConstraints: []corev1.TopologySpreadConstraint{
 			{MaxSkew: 1, TopologyKey: testTopologyZone, WhenUnsatisfiable: corev1.DoNotSchedule},
 		},
 	}
-	cluster := &asdbcev1alpha1.AerospikeCECluster{}
+	cluster := &ackov1alpha1.AerospikeCluster{}
 
 	applyScheduling(scheduling, cluster)
 

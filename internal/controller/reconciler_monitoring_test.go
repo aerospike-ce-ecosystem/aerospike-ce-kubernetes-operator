@@ -15,18 +15,18 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
 var _ = Describe("reconcileMonitoring", func() {
 	var (
-		reconciler *AerospikeCEClusterReconciler
+		reconciler *AerospikeClusterReconciler
 		ns         *corev1.Namespace
 	)
 
 	BeforeEach(func() {
-		reconciler = &AerospikeCEClusterReconciler{
+		reconciler = &AerospikeClusterReconciler{
 			Client: k8sClient,
 			Scheme: scheme.Scheme,
 		}
@@ -43,13 +43,13 @@ var _ = Describe("reconcileMonitoring", func() {
 		Expect(k8sClient.Delete(ctx, ns)).To(Succeed())
 	})
 
-	newCluster := func(name string, monitoring *asdbcev1alpha1.AerospikeMonitoringSpec) *asdbcev1alpha1.AerospikeCECluster {
-		return &asdbcev1alpha1.AerospikeCECluster{
+	newCluster := func(name string, monitoring *ackov1alpha1.AerospikeMonitoringSpec) *ackov1alpha1.AerospikeCluster {
+		return &ackov1alpha1.AerospikeCluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
 				Namespace: ns.Name,
 			},
-			Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+			Spec: ackov1alpha1.AerospikeClusterSpec{
 				Size:       3,
 				Image:      "aerospike:ce-8.1.1.1",
 				Monitoring: monitoring,
@@ -59,7 +59,7 @@ var _ = Describe("reconcileMonitoring", func() {
 
 	Describe("reconcileMetricsService", func() {
 		It("should create metrics service when monitoring is enabled", func() {
-			cluster := newCluster("test-metrics-create", &asdbcev1alpha1.AerospikeMonitoringSpec{
+			cluster := newCluster("test-metrics-create", &ackov1alpha1.AerospikeMonitoringSpec{
 				Enabled:       true,
 				ExporterImage: "exporter:v1",
 				Port:          9145,
@@ -80,7 +80,7 @@ var _ = Describe("reconcileMonitoring", func() {
 		})
 
 		It("should update metrics service when port changes", func() {
-			cluster := newCluster("test-metrics-update", &asdbcev1alpha1.AerospikeMonitoringSpec{
+			cluster := newCluster("test-metrics-update", &ackov1alpha1.AerospikeMonitoringSpec{
 				Enabled:       true,
 				ExporterImage: "exporter:v1",
 				Port:          9145,
@@ -105,7 +105,7 @@ var _ = Describe("reconcileMonitoring", func() {
 		})
 
 		It("should delete metrics service when monitoring is disabled", func() {
-			cluster := newCluster("test-metrics-delete", &asdbcev1alpha1.AerospikeMonitoringSpec{
+			cluster := newCluster("test-metrics-delete", &ackov1alpha1.AerospikeMonitoringSpec{
 				Enabled:       true,
 				ExporterImage: "exporter:v1",
 				Port:          9145,
@@ -138,11 +138,11 @@ var _ = Describe("reconcileMonitoring", func() {
 
 	Describe("reconcileServiceMonitor", func() {
 		It("should gracefully skip when ServiceMonitor CRD is not installed", func() {
-			cluster := newCluster("test-sm-nocrd", &asdbcev1alpha1.AerospikeMonitoringSpec{
+			cluster := newCluster("test-sm-nocrd", &ackov1alpha1.AerospikeMonitoringSpec{
 				Enabled:       true,
 				ExporterImage: "exporter:v1",
 				Port:          9145,
-				ServiceMonitor: &asdbcev1alpha1.ServiceMonitorSpec{
+				ServiceMonitor: &ackov1alpha1.ServiceMonitorSpec{
 					Enabled:  true,
 					Interval: "30s",
 				},
@@ -167,11 +167,11 @@ var _ = Describe("reconcileMonitoring", func() {
 
 	Describe("reconcilePrometheusRule", func() {
 		It("should gracefully skip when PrometheusRule CRD is not installed", func() {
-			cluster := newCluster("test-pr-nocrd", &asdbcev1alpha1.AerospikeMonitoringSpec{
+			cluster := newCluster("test-pr-nocrd", &ackov1alpha1.AerospikeMonitoringSpec{
 				Enabled:       true,
 				ExporterImage: "exporter:v1",
 				Port:          9145,
-				PrometheusRule: &asdbcev1alpha1.PrometheusRuleSpec{
+				PrometheusRule: &ackov1alpha1.PrometheusRuleSpec{
 					Enabled: true,
 				},
 			})
@@ -203,15 +203,15 @@ var _ = Describe("reconcileMonitoring", func() {
 
 	Describe("reconcileMonitoring (integration)", func() {
 		It("should create metrics service and skip CRD resources gracefully", func() {
-			cluster := newCluster("test-full-monitoring", &asdbcev1alpha1.AerospikeMonitoringSpec{
+			cluster := newCluster("test-full-monitoring", &ackov1alpha1.AerospikeMonitoringSpec{
 				Enabled:       true,
 				ExporterImage: "exporter:v1",
 				Port:          9145,
-				ServiceMonitor: &asdbcev1alpha1.ServiceMonitorSpec{
+				ServiceMonitor: &ackov1alpha1.ServiceMonitorSpec{
 					Enabled:  true,
 					Interval: "30s",
 				},
-				PrometheusRule: &asdbcev1alpha1.PrometheusRuleSpec{
+				PrometheusRule: &ackov1alpha1.PrometheusRuleSpec{
 					Enabled: true,
 				},
 			})
@@ -230,7 +230,7 @@ var _ = Describe("reconcileMonitoring", func() {
 		})
 
 		It("should clean up metrics service when monitoring is fully disabled", func() {
-			cluster := newCluster("test-full-cleanup", &asdbcev1alpha1.AerospikeMonitoringSpec{
+			cluster := newCluster("test-full-cleanup", &ackov1alpha1.AerospikeMonitoringSpec{
 				Enabled:       true,
 				ExporterImage: "exporter:v1",
 				Port:          9145,
@@ -309,12 +309,12 @@ var _ = Describe("reconcilePrometheusRule with CRD installed", func() {
 	// This test block verifies the create/update/delete flow by manually
 	// creating unstructured PrometheusRule objects to simulate CRD presence.
 	var (
-		reconciler *AerospikeCEClusterReconciler
+		reconciler *AerospikeClusterReconciler
 		ns         *corev1.Namespace
 	)
 
 	BeforeEach(func() {
-		reconciler = &AerospikeCEClusterReconciler{
+		reconciler = &AerospikeClusterReconciler{
 			Client: k8sClient,
 			Scheme: scheme.Scheme,
 		}
@@ -336,15 +336,15 @@ var _ = Describe("reconcilePrometheusRule with CRD installed", func() {
 		// (since the actual CRD isn't installed, we test via reconcileMetricsService
 		//  which uses native K8s resources)
 		clusterName := "test-pr-disable"
-		cluster := &asdbcev1alpha1.AerospikeCECluster{
+		cluster := &ackov1alpha1.AerospikeCluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      clusterName,
 				Namespace: ns.Name,
 			},
-			Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+			Spec: ackov1alpha1.AerospikeClusterSpec{
 				Size:  3,
 				Image: "aerospike:ce-8.1.1.1",
-				Monitoring: &asdbcev1alpha1.AerospikeMonitoringSpec{
+				Monitoring: &ackov1alpha1.AerospikeMonitoringSpec{
 					Enabled:       true,
 					ExporterImage: "exporter:v1",
 					Port:          9145,
@@ -435,12 +435,12 @@ var _ = Describe("PrometheusRule naming", func() {
 
 var _ = Describe("metrics service labels", func() {
 	var (
-		reconciler *AerospikeCEClusterReconciler
+		reconciler *AerospikeClusterReconciler
 		ns         *corev1.Namespace
 	)
 
 	BeforeEach(func() {
-		reconciler = &AerospikeCEClusterReconciler{
+		reconciler = &AerospikeClusterReconciler{
 			Client: k8sClient,
 			Scheme: scheme.Scheme,
 		}
@@ -458,15 +458,15 @@ var _ = Describe("metrics service labels", func() {
 	})
 
 	It("should set correct labels and selector on metrics service", func() {
-		cluster := &asdbcev1alpha1.AerospikeCECluster{
+		cluster := &ackov1alpha1.AerospikeCluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "label-test",
 				Namespace: ns.Name,
 			},
-			Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+			Spec: ackov1alpha1.AerospikeClusterSpec{
 				Size:  3,
 				Image: "aerospike:ce-8.1.1.1",
-				Monitoring: &asdbcev1alpha1.AerospikeMonitoringSpec{
+				Monitoring: &ackov1alpha1.AerospikeMonitoringSpec{
 					Enabled:       true,
 					ExporterImage: "exporter:v1",
 					Port:          9145,

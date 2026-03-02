@@ -85,9 +85,9 @@ func deepCopyValue(val any) any {
 	}
 }
 
-// TemplateRef is a reference to an AerospikeCEClusterTemplate in the same namespace.
+// TemplateRef is a reference to an AerospikeClusterTemplate in the same namespace.
 type TemplateRef struct {
-	// Name is the name of the AerospikeCEClusterTemplate resource.
+	// Name is the name of the AerospikeClusterTemplate resource.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
@@ -95,7 +95,7 @@ type TemplateRef struct {
 
 // TemplateSnapshotStatus records which template version was resolved and when.
 type TemplateSnapshotStatus struct {
-	// Name is the name of the referenced AerospikeCEClusterTemplate.
+	// Name is the name of the referenced AerospikeClusterTemplate.
 	Name string `json:"name"`
 
 	// ResourceVersion is the resourceVersion of the template at snapshot time.
@@ -112,7 +112,7 @@ type TemplateSnapshotStatus struct {
 
 	// Spec is the resolved template spec at snapshot time.
 	// +optional
-	Spec *AerospikeCEClusterTemplateSpec `json:"spec,omitempty"`
+	Spec *AerospikeClusterTemplateSpec `json:"spec,omitempty"`
 }
 
 // OperationKind defines the type of on-demand operation.
@@ -193,8 +193,8 @@ type AerospikeServiceSpec struct {
 	Metadata *AerospikeObjectMeta `json:"metadata,omitempty"`
 }
 
-// AerospikeCEClusterSpec defines the desired state of an Aerospike CE cluster.
-type AerospikeCEClusterSpec struct {
+// AerospikeClusterSpec defines the desired state of an Aerospike CE cluster.
+type AerospikeClusterSpec struct {
 	// Size is the number of Aerospike nodes (pods) in the cluster.
 	// CE limits this to a maximum of 8.
 	// When spec.templateRef is set, size may be omitted and the template's default will be used.
@@ -302,7 +302,7 @@ type AerospikeCEClusterSpec struct {
 	// +optional
 	EnableRackIDOverride *bool `json:"enableRackIDOverride,omitempty"`
 
-	// TemplateRef references an AerospikeCEClusterTemplate to use as a configuration base.
+	// TemplateRef references an AerospikeClusterTemplate to use as a configuration base.
 	// When set, the template's spec is resolved at creation time and stored as a snapshot
 	// in status.templateSnapshot. Template changes are not automatically propagated;
 	// use the annotation "acko.io/resync-template: true" to trigger a manual resync.
@@ -312,10 +312,10 @@ type AerospikeCEClusterSpec struct {
 	// Overrides contains fields that override the referenced template's spec.
 	// Merge priority: overrides > template.spec > operator defaults.
 	// +optional
-	Overrides *AerospikeCEClusterTemplateSpec `json:"overrides,omitempty"`
+	Overrides *AerospikeClusterTemplateSpec `json:"overrides,omitempty"`
 }
 
-// Condition type constants for AerospikeCECluster status conditions.
+// Condition type constants for AerospikeCluster status conditions.
 const (
 	// ConditionAvailable indicates at least one pod is ready to serve requests.
 	ConditionAvailable = "Available"
@@ -373,8 +373,8 @@ const (
 	RestartReasonWarmRestart RestartReason = "WarmRestart"
 )
 
-// AerospikeCEClusterStatus defines the observed state of the Aerospike CE cluster.
-type AerospikeCEClusterStatus struct {
+// AerospikeClusterStatus defines the observed state of the Aerospike CE cluster.
+type AerospikeClusterStatus struct {
 	// Phase indicates the overall cluster phase.
 	// +optional
 	Phase AerospikePhase `json:"phase,omitempty"`
@@ -418,7 +418,7 @@ type AerospikeCEClusterStatus struct {
 	// AppliedSpec is a copy of the last successfully reconciled spec.
 	// Use this to detect configuration drift or compare against the current spec.
 	// +optional
-	AppliedSpec *AerospikeCEClusterSpec `json:"appliedSpec,omitempty"`
+	AppliedSpec *AerospikeClusterSpec `json:"appliedSpec,omitempty"`
 
 	// AerospikeClusterSize is the Aerospike cluster-size as reported by asinfo.
 	// This may differ from the number of ready K8s pods during split-brain or rolling restarts.
@@ -511,7 +511,7 @@ type AerospikePodStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:subresource:scale:specpath=.spec.size,statuspath=.status.size,selectorpath=.status.selector
-// +kubebuilder:resource:shortName=asce;ascecluster
+// +kubebuilder:resource:shortName=asc
 // +kubebuilder:printcolumn:name="Size",type=integer,JSONPath=`.spec.size`
 // +kubebuilder:printcolumn:name="Ready",type=integer,JSONPath=`.status.size`
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
@@ -522,25 +522,25 @@ type AerospikePodStatus struct {
 // +kubebuilder:printcolumn:name="PhaseReason",type=string,JSONPath=`.status.phaseReason`,priority=1
 // +kubebuilder:printcolumn:name="AS-Size",type=integer,JSONPath=`.status.aerospikeClusterSize`,priority=1
 
-// AerospikeCECluster is the Schema for the aerospikececlusters API.
+// AerospikeCluster is the Schema for the aerospikeclusters API.
 // It manages the lifecycle of an Aerospike Community Edition cluster.
-type AerospikeCECluster struct {
+type AerospikeCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   AerospikeCEClusterSpec   `json:"spec"`
-	Status AerospikeCEClusterStatus `json:"status,omitempty"`
+	Spec   AerospikeClusterSpec   `json:"spec"`
+	Status AerospikeClusterStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// AerospikeCEClusterList contains a list of AerospikeCECluster.
-type AerospikeCEClusterList struct {
+// AerospikeClusterList contains a list of AerospikeCluster.
+type AerospikeClusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []AerospikeCECluster `json:"items"`
+	Items           []AerospikeCluster `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&AerospikeCECluster{}, &AerospikeCEClusterList{})
+	SchemeBuilder.Register(&AerospikeCluster{}, &AerospikeClusterList{})
 }

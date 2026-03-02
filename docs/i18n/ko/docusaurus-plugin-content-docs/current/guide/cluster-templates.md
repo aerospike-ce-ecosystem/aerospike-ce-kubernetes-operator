@@ -5,7 +5,7 @@ title: 클러스터 템플릿
 
 # 클러스터 템플릿
 
-`AerospikeCEClusterTemplate`을 사용하면 Aerospike 클러스터를 위한 재사용 가능한 설정 프로필을 정의할 수 있습니다. 모든 클러스터에 동일한 스케줄링, 스토리지, Aerospike 설정을 반복하는 대신, 템플릿에 한 번 정의하고 여러 클러스터에서 참조할 수 있습니다.
+`AerospikeClusterTemplate`을 사용하면 Aerospike 클러스터를 위한 재사용 가능한 설정 프로필을 정의할 수 있습니다. 모든 클러스터에 동일한 스케줄링, 스토리지, Aerospike 설정을 반복하는 대신, 템플릿에 한 번 정의하고 여러 클러스터에서 참조할 수 있습니다.
 
 ---
 
@@ -23,7 +23,7 @@ title: 클러스터 템플릿
 
 ```yaml
 apiVersion: acko.io/v1alpha1
-kind: AerospikeCEClusterTemplate
+kind: AerospikeClusterTemplate
 metadata:
   name: prod
   namespace: default
@@ -95,7 +95,7 @@ kubectl apply -f prod-template.yaml
 
 ```yaml
 apiVersion: acko.io/v1alpha1
-kind: AerospikeCECluster
+kind: AerospikeCluster
 metadata:
   name: prod-cluster
 spec:
@@ -157,7 +157,7 @@ spec:
 업데이트된 템플릿을 클러스터에 적용하려면:
 
 ```bash
-kubectl annotate aerospikececluster prod-cluster acko.io/resync-template=true
+kubectl annotate aerospikecluster prod-cluster acko.io/resync-template=true
 ```
 
 오퍼레이터가 수행하는 작업:
@@ -171,7 +171,7 @@ kubectl annotate aerospikececluster prod-cluster acko.io/resync-template=true
 ## 템플릿 스냅샷 상태 확인
 
 ```bash
-kubectl get aerospikececluster prod-cluster -o jsonpath='{.status.templateSnapshot}'
+kubectl get aerospikecluster prod-cluster -o jsonpath='{.status.templateSnapshot}'
 ```
 
 출력 예시:

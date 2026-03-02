@@ -27,7 +27,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/test/utils"
 )
 
@@ -37,7 +37,7 @@ const (
 	multiNodeTimeout = 5 * time.Minute
 )
 
-var _ = Describe("AerospikeCECluster Samples", Ordered, func() {
+var _ = Describe("AerospikeCluster Samples", Ordered, func() {
 	var projectDir string
 
 	BeforeAll(func() {
@@ -54,7 +54,7 @@ var _ = Describe("AerospikeCECluster Samples", Ordered, func() {
 		for _, name := range []string{"aerospike-ce-basic", "aerospike-ce-3node", "aerospike-ce-multirack", "aerospike-ce-acl"} {
 			// Use kubectl delete with timeout to wait for finalizer cleanup,
 			// ensuring the operator finishes reconciling before the next suite starts.
-			cmd := exec.Command("kubectl", "delete", "aerospikececluster", name,
+			cmd := exec.Command("kubectl", "delete", "aerospikecluster", name,
 				"-n", aerospikeNS, "--ignore-not-found", "--timeout=120s")
 			_, _ = utils.Run(cmd)
 		}
@@ -66,7 +66,7 @@ var _ = Describe("AerospikeCECluster Samples", Ordered, func() {
 		const clusterName = "aerospike-ce-basic"
 
 		It("should deploy and reach Completed phase", func() {
-			samplePath := filepath.Join(projectDir, "config", "samples", "acko_v1alpha1_aerospikececluster.yaml")
+			samplePath := filepath.Join(projectDir, "config", "samples", "acko_v1alpha1_aerospikecluster.yaml")
 
 			By("loading and creating the basic sample CR")
 			cluster, err := loadClusterFromFile(samplePath)
@@ -80,7 +80,7 @@ var _ = Describe("AerospikeCECluster Samples", Ordered, func() {
 			Eventually(func(g Gomega) {
 				c, err := utils.GetCluster(ctx, k8sClient, clusterName, aerospikeNS)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(c.Status.Phase).To(Equal(asdbcev1alpha1.AerospikePhaseCompleted))
+				g.Expect(c.Status.Phase).To(Equal(ackov1alpha1.AerospikePhaseCompleted))
 			}, defaultTimeout, 2*time.Second).Should(Succeed())
 
 			By("verifying 1 pod is running and ready")
@@ -143,7 +143,7 @@ var _ = Describe("AerospikeCECluster Samples", Ordered, func() {
 			Eventually(func(g Gomega) {
 				c, err := utils.GetCluster(ctx, k8sClient, clusterName, aerospikeNS)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(c.Status.Phase).To(Equal(asdbcev1alpha1.AerospikePhaseCompleted))
+				g.Expect(c.Status.Phase).To(Equal(ackov1alpha1.AerospikePhaseCompleted))
 			}, multiNodeTimeout, 2*time.Second).Should(Succeed())
 
 			By("verifying 3 pods are running and ready")
@@ -194,7 +194,7 @@ var _ = Describe("AerospikeCECluster Samples", Ordered, func() {
 			Eventually(func(g Gomega) {
 				c, err := utils.GetCluster(ctx, k8sClient, clusterName, aerospikeNS)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(c.Status.Phase).To(Equal(asdbcev1alpha1.AerospikePhaseCompleted))
+				g.Expect(c.Status.Phase).To(Equal(ackov1alpha1.AerospikePhaseCompleted))
 			}, multiNodeTimeout, 2*time.Second).Should(Succeed())
 
 			By("verifying 6 pods are running and ready")
@@ -271,7 +271,7 @@ var _ = Describe("AerospikeCECluster Samples", Ordered, func() {
 			Eventually(func(g Gomega) {
 				c, err := utils.GetCluster(ctx, k8sClient, clusterName, aerospikeNS)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(c.Status.Phase).To(Equal(asdbcev1alpha1.AerospikePhaseCompleted))
+				g.Expect(c.Status.Phase).To(Equal(ackov1alpha1.AerospikePhaseCompleted))
 			}, multiNodeTimeout, 2*time.Second).Should(Succeed())
 
 			By("verifying 3 pods are running and ready")

@@ -23,14 +23,14 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
 // ValidateResolvedSpec performs cross-field validation on the resolved spec.
 // It returns a list of warning messages (non-fatal).
 func ValidateResolvedSpec(
-	resolved *asdbcev1alpha1.AerospikeCEClusterSpec,
-	templateSpec *asdbcev1alpha1.AerospikeCEClusterTemplateSpec,
+	resolved *ackov1alpha1.AerospikeClusterSpec,
+	templateSpec *ackov1alpha1.AerospikeClusterTemplateSpec,
 ) []string {
 	if templateSpec == nil {
 		return nil
@@ -43,7 +43,7 @@ func ValidateResolvedSpec(
 
 	// maxRacksPerNode=1 implies strict anti-affinity and local PV.
 	if rackConfig != nil && rackConfig.MaxRacksPerNode == 1 {
-		if scheduling == nil || scheduling.PodAntiAffinityLevel != asdbcev1alpha1.PodAntiAffinityRequired {
+		if scheduling == nil || scheduling.PodAntiAffinityLevel != ackov1alpha1.PodAntiAffinityRequired {
 			warnings = append(warnings, "maxRacksPerNode=1 requires podAntiAffinityLevel=required to ensure one rack per node")
 		}
 		if templateSpec.Storage == nil || !templateSpec.Storage.LocalPVRequired {
@@ -83,7 +83,7 @@ func resourceRequestsEqualLimits(r *corev1.ResourceRequirements) bool {
 
 // ValidateTemplateSpec validates the template spec for correctness.
 // Returns errors (fatal) and warnings (non-fatal).
-func ValidateTemplateSpec(spec *asdbcev1alpha1.AerospikeCEClusterTemplateSpec) ([]string, []string) {
+func ValidateTemplateSpec(spec *ackov1alpha1.AerospikeClusterTemplateSpec) ([]string, []string) {
 	var errs []string
 	var warnings []string
 
@@ -95,9 +95,9 @@ func ValidateTemplateSpec(spec *asdbcev1alpha1.AerospikeCEClusterTemplateSpec) (
 	if spec.Scheduling != nil {
 		level := spec.Scheduling.PodAntiAffinityLevel
 		if level != "" &&
-			level != asdbcev1alpha1.PodAntiAffinityNone &&
-			level != asdbcev1alpha1.PodAntiAffinityPreferred &&
-			level != asdbcev1alpha1.PodAntiAffinityRequired {
+			level != ackov1alpha1.PodAntiAffinityNone &&
+			level != ackov1alpha1.PodAntiAffinityPreferred &&
+			level != ackov1alpha1.PodAntiAffinityRequired {
 			errs = append(errs, fmt.Sprintf("scheduling.podAntiAffinityLevel must be one of: none, preferred, required (got %q)", level))
 		}
 	}

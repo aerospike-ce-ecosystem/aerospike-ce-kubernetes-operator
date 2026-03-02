@@ -2,7 +2,7 @@
 
 Kubernetes Operator for managing [Aerospike Community Edition](https://aerospike.com/) clusters. Built with [Kubebuilder](https://book.kubebuilder.io/) and [controller-runtime](https://github.com/kubernetes-sigs/controller-runtime).
 
-Deploy, scale, and perform rolling updates of Aerospike CE clusters via a custom `AerospikeCECluster` CRD.
+Deploy, scale, and perform rolling updates of Aerospike CE clusters via a custom `AerospikeCluster` CRD.
 
 ## Features
 
@@ -23,6 +23,18 @@ Deploy, scale, and perform rolling updates of Aerospike CE clusters via a custom
 | XDR | Not supported |
 | TLS | Not supported |
 | Strong Consistency | Not supported |
+
+## Terminology
+
+| Term | Meaning in ACKO |
+|------|----------------|
+| **Rack** | Aerospike logical failure domain → one StatefulSet per rack |
+| **Aerospike Node** | Single `asd` process; maps 1:1 to a K8s Pod |
+| **Kubernetes Node** | Worker machine; distinct from Aerospike node |
+| **Namespace** | Dual meaning: Aerospike data partition OR K8s namespace |
+| **AerospikeCluster** | The CRD Kind for a cluster CR (`kubectl get asc`) |
+
+→ Full glossary: [docs/content/guide/glossary.md](docs/content/guide/glossary.md)
 
 ## Quick Start
 
@@ -103,14 +115,14 @@ kubectl -n aerospike-operator get pods
 
 ```sh
 kubectl create namespace aerospike
-kubectl apply -f config/samples/acko_v1alpha1_aerospikececluster.yaml
+kubectl apply -f config/samples/acko_v1alpha1_aerospikecluster.yaml
 ```
 
 Or apply inline:
 
 ```yaml
 apiVersion: acko.io/v1alpha1
-kind: AerospikeCECluster
+kind: AerospikeCluster
 metadata:
   name: aerospike-ce-basic
   namespace: aerospike
@@ -130,7 +142,7 @@ spec:
 
 ```sh
 # Check cluster status (Phase should be "Completed")
-kubectl -n aerospike get asce
+kubectl -n aerospike get asc
 
 # Check pods
 kubectl -n aerospike get pods
@@ -238,13 +250,13 @@ objects=3;sub_objects=0;...;memory_used_bytes=384;...
 
 | Sample | Description |
 |---|---|
-| [`acko_v1alpha1_aerospikececluster.yaml`](config/samples/acko_v1alpha1_aerospikececluster.yaml) | Minimal single-node in-memory |
-| [`aerospike-ce-cluster-3node.yaml`](config/samples/aerospike-ce-cluster-3node.yaml) | 3-node with persistent volume storage |
-| [`aerospike-ce-cluster-multirack.yaml`](config/samples/aerospike-ce-cluster-multirack.yaml) | 6-node multi-rack with zone affinity |
-| [`aerospike-ce-cluster-acl.yaml`](config/samples/aerospike-ce-cluster-acl.yaml) | 3-node with ACL (roles, users, K8s secrets) |
-| [`aerospike-ce-cluster-monitoring.yaml`](config/samples/aerospike-ce-cluster-monitoring.yaml) | Prometheus monitoring with exporter sidecar |
-| [`aerospike-ce-cluster-storage-advanced.yaml`](config/samples/aerospike-ce-cluster-storage-advanced.yaml) | Advanced storage policies and multiple volume types |
-| [`aerospike-ce-cluster-with-template.yaml`](config/samples/aerospike-ce-cluster-with-template.yaml) | Using AerospikeCEClusterTemplate for config profiles |
+| [`acko_v1alpha1_aerospikecluster.yaml`](config/samples/acko_v1alpha1_aerospikecluster.yaml) | Minimal single-node in-memory |
+| [`aerospike-cluster-3node.yaml`](config/samples/aerospike-cluster-3node.yaml) | 3-node with persistent volume storage |
+| [`aerospike-cluster-multirack.yaml`](config/samples/aerospike-cluster-multirack.yaml) | 6-node multi-rack with zone affinity |
+| [`aerospike-cluster-acl.yaml`](config/samples/aerospike-cluster-acl.yaml) | 3-node with ACL (roles, users, K8s secrets) |
+| [`aerospike-cluster-monitoring.yaml`](config/samples/aerospike-cluster-monitoring.yaml) | Prometheus monitoring with exporter sidecar |
+| [`aerospike-cluster-storage-advanced.yaml`](config/samples/aerospike-cluster-storage-advanced.yaml) | Advanced storage policies and multiple volume types |
+| [`aerospike-cluster-with-template.yaml`](config/samples/aerospike-cluster-with-template.yaml) | Using AerospikeClusterTemplate for config profiles |
 | [`acko_v1alpha1_template_dev.yaml`](config/samples/acko_v1alpha1_template_dev.yaml) | Dev template (minimal resources, no anti-affinity) |
 | [`acko_v1alpha1_template_stage.yaml`](config/samples/acko_v1alpha1_template_stage.yaml) | Stage template (moderate resources, soft anti-affinity) |
 | [`acko_v1alpha1_template_prod.yaml`](config/samples/acko_v1alpha1_template_prod.yaml) | Prod template (full resources, hard anti-affinity, local PV) |
@@ -253,7 +265,7 @@ objects=3;sub_objects=0;...;memory_used_bytes=384;...
 
 ```sh
 # Delete the Aerospike cluster
-kubectl -n aerospike delete asce aerospike-ce-basic
+kubectl -n aerospike delete asc aerospike-ce-basic
 
 # Uninstall the operator (Helm)
 helm uninstall aerospike-operator -n aerospike-operator

@@ -9,14 +9,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
 // reconcileOperations handles on-demand operations (WarmRestart, PodRestart).
 // Returns true if an operation is in progress and caller should requeue.
-func (r *AerospikeCEClusterReconciler) reconcileOperations(
+func (r *AerospikeClusterReconciler) reconcileOperations(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 ) (bool, error) {
 	// If no operations specified, clear status and return
 	if len(cluster.Spec.Operations) == 0 {
@@ -28,14 +28,14 @@ func (r *AerospikeCEClusterReconciler) reconcileOperations(
 	// Check if this operation was already completed
 	if cluster.Status.OperationStatus != nil &&
 		cluster.Status.OperationStatus.ID == op.ID &&
-		cluster.Status.OperationStatus.Phase == asdbcev1alpha1.AerospikePhaseCompleted {
+		cluster.Status.OperationStatus.Phase == ackov1alpha1.AerospikePhaseCompleted {
 		return false, nil
 	}
 
 	// Check if this operation already errored out
 	if cluster.Status.OperationStatus != nil &&
 		cluster.Status.OperationStatus.ID == op.ID &&
-		cluster.Status.OperationStatus.Phase == asdbcev1alpha1.AerospikePhaseError {
+		cluster.Status.OperationStatus.Phase == ackov1alpha1.AerospikePhaseError {
 		return false, nil
 	}
 
@@ -49,10 +49,10 @@ func (r *AerospikeCEClusterReconciler) reconcileOperations(
 	}
 
 	// Initialize or update operation status
-	opStatus := &asdbcev1alpha1.OperationStatus{
+	opStatus := &ackov1alpha1.OperationStatus{
 		ID:    op.ID,
 		Kind:  op.Kind,
-		Phase: asdbcev1alpha1.AerospikePhaseInProgress,
+		Phase: ackov1alpha1.AerospikePhaseInProgress,
 	}
 
 	// Get batch size
@@ -85,14 +85,14 @@ func (r *AerospikeCEClusterReconciler) reconcileOperations(
 		}
 
 		var opErr error
-		var restartReason asdbcev1alpha1.RestartReason
+		var restartReason ackov1alpha1.RestartReason
 		switch op.Kind {
-		case asdbcev1alpha1.OperationWarmRestart:
+		case ackov1alpha1.OperationWarmRestart:
 			opErr = r.warmRestartPod(ctx, pod)
-			restartReason = asdbcev1alpha1.RestartReasonWarmRestart
-		case asdbcev1alpha1.OperationPodRestart:
+			restartReason = ackov1alpha1.RestartReasonWarmRestart
+		case ackov1alpha1.OperationPodRestart:
 			opErr = r.coldRestartPod(ctx, cluster, pod)
-			restartReason = asdbcev1alpha1.RestartReasonManualRestart
+			restartReason = ackov1alpha1.RestartReasonManualRestart
 		}
 
 		if opErr == nil && restartReason != "" {
@@ -110,9 +110,9 @@ func (r *AerospikeCEClusterReconciler) reconcileOperations(
 	}
 
 	if allDone {
-		opStatus.Phase = asdbcev1alpha1.AerospikePhaseCompleted
+		opStatus.Phase = ackov1alpha1.AerospikePhaseCompleted
 		if len(opStatus.FailedPods) > 0 {
-			opStatus.Phase = asdbcev1alpha1.AerospikePhaseError
+			opStatus.Phase = ackov1alpha1.AerospikePhaseError
 		}
 	}
 
@@ -138,9 +138,9 @@ func (r *AerospikeCEClusterReconciler) reconcileOperations(
 }
 
 // getOperationTargetPods returns the pods targeted by an operation.
-func (r *AerospikeCEClusterReconciler) getOperationTargetPods(
+func (r *AerospikeClusterReconciler) getOperationTargetPods(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 	podList []string,
 ) ([]*corev1.Pod, error) {
 	allPods, err := r.listClusterPods(ctx, cluster)

@@ -16,9 +16,9 @@ webhooks:
       service:
         name: {{ include "acko.webhookServiceName" . }}
         namespace: {{ .Release.Namespace }}
-        path: /mutate-acko-io-v1alpha1-aerospikececluster
+        path: /mutate-acko-io-v1alpha1-aerospikecluster
     failurePolicy: Fail
-    name: maerospikececluster.kb.io
+    name: maerospikecluster.kb.io
     rules:
       - apiGroups:
           - acko.io
@@ -28,6 +28,6 @@ webhooks:
           - CREATE
           - UPDATE
         resources:
-          - aerospikececlusters
+          - aerospikeclusters
     sideEffects: None
 {{- end }}

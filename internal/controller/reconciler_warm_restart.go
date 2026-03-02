@@ -12,7 +12,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/podutil"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
@@ -22,8 +22,8 @@ import (
 // - Only config changed (same image, same pod template spec)
 // - The pod is currently running and ready
 // - RestConfig is available (for exec API)
-func (r *AerospikeCEClusterReconciler) shouldWarmRestart(
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+func (r *AerospikeClusterReconciler) shouldWarmRestart(
+	cluster *ackov1alpha1.AerospikeCluster,
 	pod *corev1.Pod,
 	sts *appsv1.StatefulSet,
 ) bool {
@@ -66,7 +66,7 @@ func (r *AerospikeCEClusterReconciler) shouldWarmRestart(
 // on first use. Uses sync.Mutex to ensure thread-safe initialization when
 // multiple reconcile goroutines run concurrently. Unlike sync.Once, the mutex
 // allows retrying if the initial creation fails (e.g., transient network error).
-func (r *AerospikeCEClusterReconciler) getOrCreateKubeClientset() (kubernetes.Interface, error) {
+func (r *AerospikeClusterReconciler) getOrCreateKubeClientset() (kubernetes.Interface, error) {
 	r.kubeClientMu.Lock()
 	defer r.kubeClientMu.Unlock()
 
@@ -87,7 +87,7 @@ func (r *AerospikeCEClusterReconciler) getOrCreateKubeClientset() (kubernetes.In
 // warmRestartPod sends SIGUSR1 to PID 1 in the Aerospike container to trigger
 // a warm restart. Does not block waiting for readiness — the caller should
 // requeue and check pod state on the next reconcile.
-func (r *AerospikeCEClusterReconciler) warmRestartPod(ctx context.Context, pod *corev1.Pod) error {
+func (r *AerospikeClusterReconciler) warmRestartPod(ctx context.Context, pod *corev1.Pod) error {
 	log := logf.FromContext(ctx)
 
 	clientset, err := r.getOrCreateKubeClientset()

@@ -16,7 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/metrics"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/podutil"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/storage"
@@ -28,10 +28,10 @@ import (
 // Supports batch restart via spec.rollingUpdateBatchSize.
 //
 // Precedence: dynamic config update > warm restart (SIGUSR1) > cold restart (pod delete).
-func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
+func (r *AerospikeClusterReconciler) reconcileRollingRestart(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
-	rack *asdbcev1alpha1.Rack,
+	cluster *ackov1alpha1.AerospikeCluster,
+	rack *ackov1alpha1.Rack,
 ) (bool, error) {
 	log := logf.FromContext(ctx)
 
@@ -184,9 +184,9 @@ func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
 }
 
 // restartPod attempts a warm restart first, falling back to cold restart.
-func (r *AerospikeCEClusterReconciler) restartPod(
+func (r *AerospikeClusterReconciler) restartPod(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 	pod *corev1.Pod,
 	sts *appsv1.StatefulSet,
 	desiredHash string,
@@ -212,7 +212,7 @@ func (r *AerospikeCEClusterReconciler) restartPod(
 	log.Info("Attempting warm restart (SIGUSR1)", "pod", pod.Name)
 	if err := r.warmRestartPod(ctx, pod); err != nil {
 		log.Info("Warm restart failed, falling back to cold restart", "pod", pod.Name, "error", err)
-		r.recordPodRestartStatus(ctx, cluster, pod.Name, asdbcev1alpha1.RestartReasonConfigChanged)
+		r.recordPodRestartStatus(ctx, cluster, pod.Name, ackov1alpha1.RestartReasonConfigChanged)
 		return r.coldRestartPod(ctx, cluster, pod)
 	}
 
@@ -234,12 +234,12 @@ func determineRestartReason(
 	desiredConfigHash string,
 	desiredPodSpecHash string,
 	isWarm bool,
-) asdbcev1alpha1.RestartReason {
+) ackov1alpha1.RestartReason {
 	// Check image
 	for _, c := range pod.Spec.Containers {
 		if c.Name == podutil.AerospikeContainerName {
 			if c.Image != desiredImage {
-				return asdbcev1alpha1.RestartReasonImageChanged
+				return ackov1alpha1.RestartReasonImageChanged
 			}
 			break
 		}
@@ -251,9 +251,9 @@ func determineRestartReason(
 	}
 	if currentConfigHash != desiredConfigHash {
 		if isWarm {
-			return asdbcev1alpha1.RestartReasonWarmRestart
+			return ackov1alpha1.RestartReasonWarmRestart
 		}
-		return asdbcev1alpha1.RestartReasonConfigChanged
+		return ackov1alpha1.RestartReasonConfigChanged
 	}
 	// Check pod spec hash
 	currentPodSpecHash := ""
@@ -261,25 +261,25 @@ func determineRestartReason(
 		currentPodSpecHash = pod.Annotations[utils.PodSpecHashAnnotation]
 	}
 	if desiredPodSpecHash != "" && currentPodSpecHash != desiredPodSpecHash {
-		return asdbcev1alpha1.RestartReasonPodSpecChanged
+		return ackov1alpha1.RestartReasonPodSpecChanged
 	}
-	return asdbcev1alpha1.RestartReasonConfigChanged
+	return ackov1alpha1.RestartReasonConfigChanged
 }
 
 // recordPodRestartStatus records the restart reason/time for the pod via a status patch.
 // Uses MergePatch instead of full Update to reduce conflict risk during concurrent operations.
-func (r *AerospikeCEClusterReconciler) recordPodRestartStatus(
+func (r *AerospikeClusterReconciler) recordPodRestartStatus(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 	podName string,
-	reason asdbcev1alpha1.RestartReason,
+	reason ackov1alpha1.RestartReason,
 ) {
 	log := logf.FromContext(ctx)
 	now := metav1.Now()
 
 	patch := client.MergeFrom(cluster.DeepCopy())
 	if cluster.Status.Pods == nil {
-		cluster.Status.Pods = make(map[string]asdbcev1alpha1.AerospikePodStatus)
+		cluster.Status.Pods = make(map[string]ackov1alpha1.AerospikePodStatus)
 	}
 	podStatus := cluster.Status.Pods[podName]
 	podStatus.LastRestartReason = &reason
@@ -292,7 +292,7 @@ func (r *AerospikeCEClusterReconciler) recordPodRestartStatus(
 }
 
 // updatePodConfigHash updates the config hash annotation on a pod after a warm restart.
-func (r *AerospikeCEClusterReconciler) updatePodConfigHash(ctx context.Context, pod *corev1.Pod, hash string) error {
+func (r *AerospikeClusterReconciler) updatePodConfigHash(ctx context.Context, pod *corev1.Pod, hash string) error {
 	podCopy := pod.DeepCopy()
 	if podCopy.Annotations == nil {
 		podCopy.Annotations = make(map[string]string)
@@ -304,9 +304,9 @@ func (r *AerospikeCEClusterReconciler) updatePodConfigHash(ctx context.Context, 
 // coldRestartPod deletes the pod to trigger a cold restart via StatefulSet.
 // It marks volumes that have a wipe method as dirty so the init container
 // can wipe them when the pod is recreated.
-func (r *AerospikeCEClusterReconciler) coldRestartPod(
+func (r *AerospikeClusterReconciler) coldRestartPod(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 	pod *corev1.Pod,
 ) error {
 	log := logf.FromContext(ctx)
@@ -348,7 +348,7 @@ func (r *AerospikeCEClusterReconciler) coldRestartPod(
 }
 
 // getDirtyVolumes returns the names of volumes that have a non-"none" wipe method.
-func getDirtyVolumes(storageSpec *asdbcev1alpha1.AerospikeStorageSpec) []string {
+func getDirtyVolumes(storageSpec *ackov1alpha1.AerospikeStorageSpec) []string {
 	if storageSpec == nil {
 		return nil
 	}
@@ -356,7 +356,7 @@ func getDirtyVolumes(storageSpec *asdbcev1alpha1.AerospikeStorageSpec) []string 
 	for i := range storageSpec.Volumes {
 		vol := &storageSpec.Volumes[i]
 		wm := storage.ResolveWipeMethod(vol, storageSpec)
-		if wm != "" && wm != asdbcev1alpha1.VolumeWipeMethodNone {
+		if wm != "" && wm != ackov1alpha1.VolumeWipeMethodNone {
 			dirty = append(dirty, vol.Name)
 		}
 	}
@@ -364,9 +364,9 @@ func getDirtyVolumes(storageSpec *asdbcev1alpha1.AerospikeStorageSpec) []string 
 }
 
 // markDirtyVolumes records dirty volumes in the cluster status for the given pod.
-func (r *AerospikeCEClusterReconciler) markDirtyVolumes(
+func (r *AerospikeClusterReconciler) markDirtyVolumes(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 	podName string,
 	dirtyVols []string,
 ) error {
@@ -376,7 +376,7 @@ func (r *AerospikeCEClusterReconciler) markDirtyVolumes(
 	}
 
 	if latest.Status.Pods == nil {
-		latest.Status.Pods = make(map[string]asdbcev1alpha1.AerospikePodStatus)
+		latest.Status.Pods = make(map[string]ackov1alpha1.AerospikePodStatus)
 	}
 
 	podStatus := latest.Status.Pods[podName]
@@ -387,7 +387,7 @@ func (r *AerospikeCEClusterReconciler) markDirtyVolumes(
 
 // getRollingUpdateBatchSize returns the effective rolling update batch size.
 // RackConfig-level setting takes precedence over spec-level setting.
-func (r *AerospikeCEClusterReconciler) getRollingUpdateBatchSize(cluster *asdbcev1alpha1.AerospikeCECluster, totalPods int32) int32 {
+func (r *AerospikeClusterReconciler) getRollingUpdateBatchSize(cluster *ackov1alpha1.AerospikeCluster, totalPods int32) int32 {
 	// RackConfig-level takes precedence
 	if cluster.Spec.RackConfig != nil && cluster.Spec.RackConfig.RollingUpdateBatchSize != nil {
 		return resolveIntOrPercent(cluster.Spec.RackConfig.RollingUpdateBatchSize, totalPods)
@@ -400,7 +400,7 @@ func (r *AerospikeCEClusterReconciler) getRollingUpdateBatchSize(cluster *asdbce
 }
 
 // getMaxIgnorablePods returns the number of pods that can be ignored.
-func (r *AerospikeCEClusterReconciler) getMaxIgnorablePods(cluster *asdbcev1alpha1.AerospikeCECluster, totalPods int32) int32 {
+func (r *AerospikeClusterReconciler) getMaxIgnorablePods(cluster *ackov1alpha1.AerospikeCluster, totalPods int32) int32 {
 	if cluster.Spec.RackConfig != nil && cluster.Spec.RackConfig.MaxIgnorablePods != nil {
 		return resolveIntOrPercent(cluster.Spec.RackConfig.MaxIgnorablePods, totalPods)
 	}
@@ -410,9 +410,9 @@ func (r *AerospikeCEClusterReconciler) getMaxIgnorablePods(cluster *asdbcev1alph
 // listRackPods fetches all pods for a specific rack in a single API call,
 // sorted by ordinal descending (highest ordinal first) to preserve the
 // rolling restart ordering semantics.
-func (r *AerospikeCEClusterReconciler) listRackPods(
+func (r *AerospikeClusterReconciler) listRackPods(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 	rackID int,
 ) ([]corev1.Pod, error) {
 	podList := &corev1.PodList{}

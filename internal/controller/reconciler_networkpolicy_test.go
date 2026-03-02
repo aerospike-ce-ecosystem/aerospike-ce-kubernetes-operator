@@ -3,19 +3,19 @@ package controller
 import (
 	"testing"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/podutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestBuildK8sNetworkPolicy_BasicPorts(t *testing.T) {
-	r := &AerospikeCEClusterReconciler{}
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
+	r := &AerospikeClusterReconciler{}
+	cluster := &ackov1alpha1.AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-cluster",
 			Namespace: "default",
 		},
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
 			Size: 3,
 		},
 	}
@@ -69,15 +69,15 @@ func TestBuildK8sNetworkPolicy_BasicPorts(t *testing.T) {
 }
 
 func TestBuildK8sNetworkPolicy_WithMonitoring(t *testing.T) {
-	r := &AerospikeCEClusterReconciler{}
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
+	r := &AerospikeClusterReconciler{}
+	cluster := &ackov1alpha1.AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-cluster",
 			Namespace: "default",
 		},
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
 			Size: 3,
-			Monitoring: &asdbcev1alpha1.AerospikeMonitoringSpec{
+			Monitoring: &ackov1alpha1.AerospikeMonitoringSpec{
 				Enabled: true,
 				Port:    9145,
 			},
@@ -101,15 +101,15 @@ func TestBuildK8sNetworkPolicy_WithMonitoring(t *testing.T) {
 }
 
 func TestBuildK8sNetworkPolicy_WithoutMonitoring(t *testing.T) {
-	r := &AerospikeCEClusterReconciler{}
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
+	r := &AerospikeClusterReconciler{}
+	cluster := &ackov1alpha1.AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-cluster",
 			Namespace: "default",
 		},
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
 			Size: 3,
-			Monitoring: &asdbcev1alpha1.AerospikeMonitoringSpec{
+			Monitoring: &ackov1alpha1.AerospikeMonitoringSpec{
 				Enabled: false,
 				Port:    9145,
 			},
@@ -125,13 +125,13 @@ func TestBuildK8sNetworkPolicy_WithoutMonitoring(t *testing.T) {
 }
 
 func TestBuildK8sNetworkPolicy_Labels(t *testing.T) {
-	r := &AerospikeCEClusterReconciler{}
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
+	r := &AerospikeClusterReconciler{}
+	cluster := &ackov1alpha1.AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "my-cluster",
 			Namespace: "ns1",
 		},
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
 			Size: 1,
 		},
 	}
@@ -149,13 +149,13 @@ func TestBuildK8sNetworkPolicy_Labels(t *testing.T) {
 }
 
 func TestBuildK8sNetworkPolicy_PolicyTypes(t *testing.T) {
-	r := &AerospikeCEClusterReconciler{}
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
+	r := &AerospikeClusterReconciler{}
+	cluster := &ackov1alpha1.AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-cluster",
 			Namespace: "default",
 		},
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
 			Size: 1,
 		},
 	}

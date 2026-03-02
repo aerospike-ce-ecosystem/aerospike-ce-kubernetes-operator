@@ -476,7 +476,7 @@ acko-controller-manager-xxxxx-yyyyy     1/1     Running   0          30s
 Check the CRD is registered:
 
 ```bash
-kubectl get crd aerospikececlusters.acko.io
+kubectl get crd aerospikeclusters.acko.io
 ```
 
 ## Quick Start: Full Installation Script
@@ -548,7 +548,7 @@ helm install grafana grafana/grafana \
 # 5. Deploy an Aerospike CE cluster
 # =============================================================================
 kubectl create namespace aerospike --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -f config/samples/acko_v1alpha1_aerospikececluster.yaml
+kubectl apply -f config/samples/acko_v1alpha1_aerospikecluster.yaml
 
 echo "Waiting for Aerospike pod to be ready..."
 kubectl -n aerospike wait --for=condition=Ready pod/aerospike-ce-basic-0-0 --timeout=120s
@@ -581,7 +581,7 @@ The script uses `--wait` on each Helm install so subsequent steps don't start un
 ## Uninstall
 
 :::warning
-Always delete AerospikeCECluster resources before uninstalling the operator. Removing the operator first will leave orphaned StatefulSets and PVCs.
+Always delete AerospikeCluster resources before uninstalling the operator. Removing the operator first will leave orphaned StatefulSets and PVCs.
 :::
 
 <Tabs groupId="install-method">
@@ -589,12 +589,12 @@ Always delete AerospikeCECluster resources before uninstalling the operator. Rem
 
 ```bash
 # Delete all Aerospike clusters first
-kubectl delete asce --all --all-namespaces
+kubectl delete asc --all --all-namespaces
 
 # Uninstall the operator
 helm uninstall acko -n aerospike-operator
 
-# (Optional) Uninstall CRDs — WARNING: this deletes all AerospikeCECluster data
+# (Optional) Uninstall CRDs — WARNING: this deletes all AerospikeCluster data
 # helm uninstall acko-crds
 
 # (Optional) Delete the namespace
@@ -606,7 +606,7 @@ kubectl delete namespace aerospike-operator
 
 ```bash
 # Delete all Aerospike clusters first
-kubectl delete asce --all --all-namespaces
+kubectl delete asc --all --all-namespaces
 
 # Remove the operator
 make undeploy

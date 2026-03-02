@@ -12,13 +12,13 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
-func (r *AerospikeCEClusterReconciler) reconcilePDB(
+func (r *AerospikeClusterReconciler) reconcilePDB(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 ) error {
 	log := logf.FromContext(ctx)
 

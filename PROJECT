@@ -15,7 +15,7 @@ resources:
   controller: true
   domain: acko.io
   group: acko
-  kind: AerospikeCECluster
+  kind: AerospikeCluster
   path: github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1
   version: v1alpha1
 - api:
@@ -24,7 +24,7 @@ resources:
   controller: false
   domain: acko.io
   group: acko
-  kind: AerospikeCEClusterTemplate
+  kind: AerospikeClusterTemplate
   path: github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1
   version: v1alpha1
   webhooks:

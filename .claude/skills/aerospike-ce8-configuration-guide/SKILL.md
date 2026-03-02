@@ -78,7 +78,7 @@ disable-model-invocation: false
 
 ```yaml
 apiVersion: acko.io/v1alpha1
-kind: AerospikeCECluster
+kind: AerospikeCluster
 metadata:
   name: aerospike-cluster
 spec:

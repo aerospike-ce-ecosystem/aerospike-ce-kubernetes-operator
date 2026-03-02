@@ -17,12 +17,12 @@ limitations under the License.
 package template
 
 import (
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
 // applyImage applies the template image default to the cluster.
 // Only applied when the cluster's spec.image is empty (not explicitly set).
-func applyImage(tmplImage string, cluster *asdbcev1alpha1.AerospikeCECluster) {
+func applyImage(tmplImage string, cluster *ackov1alpha1.AerospikeCluster) {
 	if tmplImage == "" {
 		return
 	}
@@ -34,7 +34,7 @@ func applyImage(tmplImage string, cluster *asdbcev1alpha1.AerospikeCECluster) {
 // applySize applies the template size default to the cluster.
 // Only applied when the cluster's spec.size is 0 (not explicitly set).
 // Valid cluster sizes are 1–8; zero is the zero value meaning "unset".
-func applySize(tmplSize *int32, cluster *asdbcev1alpha1.AerospikeCECluster) {
+func applySize(tmplSize *int32, cluster *ackov1alpha1.AerospikeCluster) {
 	if tmplSize == nil {
 		return
 	}
@@ -45,7 +45,7 @@ func applySize(tmplSize *int32, cluster *asdbcev1alpha1.AerospikeCECluster) {
 
 // applyMonitoring applies the template monitoring defaults to the cluster.
 // Only applied when the cluster does not already have monitoring configured.
-func applyMonitoring(tmplMonitoring *asdbcev1alpha1.AerospikeMonitoringSpec, cluster *asdbcev1alpha1.AerospikeCECluster) {
+func applyMonitoring(tmplMonitoring *ackov1alpha1.AerospikeMonitoringSpec, cluster *ackov1alpha1.AerospikeCluster) {
 	if tmplMonitoring == nil {
 		return
 	}
@@ -56,7 +56,7 @@ func applyMonitoring(tmplMonitoring *asdbcev1alpha1.AerospikeMonitoringSpec, clu
 
 // applyNetworkPolicy applies the template network policy defaults to the cluster.
 // Only applied when the cluster does not already have a network policy configured.
-func applyNetworkPolicy(tmplPolicy *asdbcev1alpha1.AerospikeNetworkPolicy, cluster *asdbcev1alpha1.AerospikeCECluster) {
+func applyNetworkPolicy(tmplPolicy *ackov1alpha1.AerospikeNetworkPolicy, cluster *ackov1alpha1.AerospikeCluster) {
 	if tmplPolicy == nil {
 		return
 	}

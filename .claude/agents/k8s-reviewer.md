@@ -50,7 +50,7 @@ Check `internal/controller/reconciler.go` kubebuilder RBAC markers against `conf
 - Client access restricted to service port
 - Metrics port exposed only when monitoring enabled
 
-### 9. Webhook Validation (`api/v1alpha1/aerospikececluster_webhook.go`)
+### 9. Webhook Validation (`api/v1alpha1/aerospikecluster_webhook.go`)
 - CE constraints enforced: size<=8, namespaces<=2, no XDR/TLS/enterprise
 - ACL validation: admin user required when ACL enabled
 - Rack ID uniqueness

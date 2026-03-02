@@ -1,34 +1,34 @@
 ---
 sidebar_position: 1
-title: AerospikeCECluster API 레퍼런스
+title: AerospikeCluster API 레퍼런스
 ---
 
-# AerospikeCECluster API 레퍼런스
+# AerospikeCluster API 레퍼런스
 
-이 페이지는 `AerospikeCECluster` Custom Resource Definition(CRD) 타입을 문서화합니다.
+이 페이지는 `AerospikeCluster` Custom Resource Definition(CRD) 타입을 문서화합니다.
 
 **API Group:** `acko.io`
 **API Version:** `v1alpha1`
-**Kind:** `AerospikeCECluster`
-**Short Names:** `asce`, `ascecluster`
+**Kind:** `AerospikeCluster`
+**Short Names:** `asc`
 
 ---
 
-## AerospikeCECluster
+## AerospikeCluster
 
-AerospikeCECluster는 `aerospikececlusters` API의 스키마입니다. Aerospike Community Edition 클러스터의 라이프사이클을 관리합니다.
+AerospikeCluster는 `aerospikeclusters` API의 스키마입니다. Aerospike Community Edition 클러스터의 라이프사이클을 관리합니다.
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
 | `apiVersion` | string | `acko.io/v1alpha1` |
-| `kind` | string | `AerospikeCECluster` |
+| `kind` | string | `AerospikeCluster` |
 | `metadata` | [ObjectMeta](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/object-meta/) | 표준 객체 메타데이터 |
-| `spec` | [AerospikeCEClusterSpec](#aerospikececlusterspec) | 클러스터의 원하는 상태 |
-| `status` | [AerospikeCEClusterStatus](#aerospikececlusterstatus) | 클러스터의 관측된 상태 |
+| `spec` | [AerospikeClusterSpec](#aerospikeclusterspec) | 클러스터의 원하는 상태 |
+| `status` | [AerospikeClusterStatus](#aerospikeclusterstatus) | 클러스터의 관측된 상태 |
 
 ---
 
-## AerospikeCEClusterSpec
+## AerospikeClusterSpec
 
 Aerospike CE 클러스터의 원하는 상태를 정의합니다.
 
@@ -40,7 +40,7 @@ Aerospike CE 클러스터의 원하는 상태를 정의합니다.
 | `storage` | [AerospikeStorageSpec](#aerospikestoragespec) | 아니요 | — | Aerospike 파드의 볼륨 정의. |
 | `rackConfig` | [RackConfig](#rackconfig) | 아니요 | — | 랙 인식 배포 토폴로지. |
 | `aerospikeNetworkPolicy` | [AerospikeNetworkPolicy](#aerospikenetworkpolicy) | 아니요 | — | 클라이언트 접근 네트워크 설정. |
-| `podSpec` | [AerospikeCEPodSpec](#aerospikecepodspec) | 아니요 | — | 파드 레벨 설정. |
+| `podSpec` | [AerospikePodSpec](#aerospikecepodspec) | 아니요 | — | 파드 레벨 설정. |
 | `aerospikeAccessControl` | [AerospikeAccessControlSpec](#aerospikeaccesscontrolspec) | 아니요 | — | ACL 역할 및 사용자. |
 | `monitoring` | [AerospikeMonitoringSpec](#aerospikemonitoringspec) | 아니요 | — | Prometheus 모니터링 설정. |
 | `networkPolicyConfig` | [NetworkPolicyConfig](#networkpolicyconfig) | 아니요 | — | 자동 NetworkPolicy 생성. |
@@ -57,18 +57,18 @@ Aerospike CE 클러스터의 원하는 상태를 정의합니다.
 | `headlessService` | [AerospikeServiceSpec](#aerospikeservicespec) | 아니요 | — | Headless 서비스 커스텀 메타데이터. |
 | `podService` | [AerospikeServiceSpec](#aerospikeservicespec) | 아니요 | — | Pod별 서비스 커스텀 메타데이터. 설정 시 파드마다 개별 Service 생성. |
 | `enableRackIDOverride` | *bool | 아니요 | `false` | 파드 어노테이션을 통한 동적 랙 ID 할당 활성화. |
-| `templateRef` | [TemplateRef](#templateref) | 아니요 | — | `AerospikeCEClusterTemplate` 참조. 설정 시 템플릿 스펙이 생성 시점에 스냅샷으로 저장됨. |
-| `overrides` | [AerospikeCEClusterTemplateSpec](./aerospikececlustertemplate#aerospikececlustertemplatespec) | 아니요 | — | 참조된 템플릿을 오버라이드하는 필드. 병합 우선순위: overrides > template > 오퍼레이터 기본값. |
+| `templateRef` | [TemplateRef](#templateref) | 아니요 | — | `AerospikeClusterTemplate` 참조. 설정 시 템플릿 스펙이 생성 시점에 스냅샷으로 저장됨. |
+| `overrides` | [AerospikeClusterTemplateSpec](./aerospikeclustertemplate#aerospikeclustertemplatespec) | 아니요 | — | 참조된 템플릿을 오버라이드하는 필드. 병합 우선순위: overrides > template > 오퍼레이터 기본값. |
 
 ---
 
 ## TemplateRef
 
-같은 네임스페이스의 `AerospikeCEClusterTemplate` 참조입니다.
+같은 네임스페이스의 `AerospikeClusterTemplate` 참조입니다.
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
-| `name` | string | 예 | `AerospikeCEClusterTemplate` 리소스 이름 |
+| `name` | string | 예 | `AerospikeClusterTemplate` 리소스 이름 |
 
 ---
 
@@ -82,7 +82,7 @@ Aerospike CE 클러스터의 원하는 상태를 정의합니다.
 | `resourceVersion` | string | 스냅샷 시점의 템플릿 ResourceVersion |
 | `snapshotTimestamp` | Time | 스냅샷이 촬영된 시점 |
 | `synced` | bool | 클러스터가 최신 템플릿 버전을 사용하는지 여부. 스냅샷 이후 템플릿 변경 시 `false`로 설정. |
-| `spec` | [AerospikeCEClusterTemplateSpec](./aerospikececlustertemplate#aerospikececlustertemplatespec) | 스냅샷 시점의 해결된 템플릿 스펙. |
+| `spec` | [AerospikeClusterTemplateSpec](./aerospikeclustertemplate#aerospikeclustertemplatespec) | 스냅샷 시점의 해결된 템플릿 스펙. |
 
 ---
 
@@ -119,7 +119,7 @@ aerospikeConfig:
 
 ---
 
-## AerospikeCEClusterStatus
+## AerospikeClusterStatus
 
 Aerospike CE 클러스터의 관측된 상태입니다.
 
@@ -134,7 +134,7 @@ Aerospike CE 클러스터의 관측된 상태입니다.
 | `aerospikeConfig` | [AerospikeConfigSpec](#aerospikeconfigspec) | 마지막으로 적용된 Aerospike 설정. |
 | `operationStatus` | [OperationStatus](#operationstatus) | 현재 온디맨드 오퍼레이션 상태. |
 | `phaseReason` | string | 현재 단계의 사람이 읽을 수 있는 설명 (예: "Rolling restart in progress for rack 1"). |
-| `appliedSpec` | [AerospikeCEClusterSpec](#aerospikececlusterspec) | 마지막으로 성공적으로 재조정된 스펙의 사본. 설정 드리프트 감지용. |
+| `appliedSpec` | [AerospikeClusterSpec](#aerospikeclusterspec) | 마지막으로 성공적으로 재조정된 스펙의 사본. 설정 드리프트 감지용. |
 | `aerospikeClusterSize` | int32 | `asinfo`로 보고된 Aerospike 클러스터 크기. 스플릿 브레인이나 롤링 리스타트 중 K8s 파드 수와 다를 수 있음. |
 | `operatorVersion` | string | 이 클러스터를 마지막으로 재조정한 오퍼레이터 버전. |
 | `pendingRestartPods` | []string | 현재 롤링 리스타트에서 재시작 대기 중인 파드. 완료 시 비워짐. |
@@ -342,7 +342,7 @@ LoadBalancer 서비스를 정의합니다.
 
 ---
 
-## AerospikeCEPodSpec
+## AerospikePodSpec
 
 Aerospike 파드의 파드 레벨 커스터마이징입니다.
 

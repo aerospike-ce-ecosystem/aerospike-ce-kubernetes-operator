@@ -46,7 +46,7 @@ rules:
   - apiGroups:
       - acko.io
     resources:
-      - aerospikececlusters
+      - aerospikeclusters
     verbs:
       - create
       - delete
@@ -58,13 +58,13 @@ rules:
   - apiGroups:
       - acko.io
     resources:
-      - aerospikececlusters/finalizers
+      - aerospikeclusters/finalizers
     verbs:
       - update
   - apiGroups:
       - acko.io
     resources:
-      - aerospikececlusters/status
+      - aerospikeclusters/status
     verbs:
       - get
       - patch

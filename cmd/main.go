@@ -35,7 +35,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/controller"
 	// +kubebuilder:scaffold:imports
 )
@@ -48,7 +48,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(asdbcev1alpha1.AddToScheme(scheme))
+	utilruntime.Must(ackov1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -160,22 +160,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := (&controller.AerospikeCEClusterReconciler{
+	if err := (&controller.AerospikeClusterReconciler{
 		Client:     mgr.GetClient(),
 		Scheme:     mgr.GetScheme(),
 		RestConfig: mgr.GetConfig(),
 		//nolint:staticcheck // GetEventRecorder returns incompatible interface
-		Recorder: mgr.GetEventRecorderFor("aerospikececluster-controller"),
+		Recorder: mgr.GetEventRecorderFor("aerospikecluster-controller"),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "Failed to create controller", "controller", "AerospikeCECluster")
+		setupLog.Error(err, "Failed to create controller", "controller", "AerospikeCluster")
 		os.Exit(1)
 	}
-	if err := (&asdbcev1alpha1.AerospikeCECluster{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "AerospikeCECluster")
+	if err := (&ackov1alpha1.AerospikeCluster{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "AerospikeCluster")
 		os.Exit(1)
 	}
-	if err := (&asdbcev1alpha1.AerospikeCEClusterTemplate{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "AerospikeCEClusterTemplate")
+	if err := (&ackov1alpha1.AerospikeClusterTemplate{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "AerospikeClusterTemplate")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder

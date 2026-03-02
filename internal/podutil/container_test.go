@@ -14,9 +14,9 @@ const (
 	deleteFilesDataEnv = "deleteFiles:/data"
 )
 
-func newTestCluster() *v1alpha1.AerospikeCECluster {
-	return &v1alpha1.AerospikeCECluster{
-		Spec: v1alpha1.AerospikeCEClusterSpec{
+func newTestCluster() *v1alpha1.AerospikeCluster {
+	return &v1alpha1.AerospikeCluster{
+		Spec: v1alpha1.AerospikeClusterSpec{
 			Size:  3,
 			Image: testImage,
 		},

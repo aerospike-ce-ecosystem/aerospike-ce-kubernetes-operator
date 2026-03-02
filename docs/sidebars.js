@@ -13,13 +13,16 @@ const sidebars = {
         'guide/create-cluster',
         'guide/manage-cluster',
         'guide/access-control',
+        'guide/cluster-templates',
+        'guide/glossary',
       ],
     },
     {
       type: 'category',
       label: 'API Reference',
       items: [
-        'api-reference/aerospikececluster',
+        'api-reference/aerospikecluster',
+        'api-reference/aerospikeclustertemplate',
       ],
     },
   ],

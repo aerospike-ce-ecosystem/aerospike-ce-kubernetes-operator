@@ -3,16 +3,16 @@ package controller
 import (
 	"testing"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
 func TestGetEffectiveConfig(t *testing.T) {
-	r := &AerospikeCEClusterReconciler{}
+	r := &AerospikeClusterReconciler{}
 
 	tests := []struct {
 		name          string
-		clusterConfig *asdbcev1alpha1.AerospikeConfigSpec
-		rackConfig    *asdbcev1alpha1.AerospikeConfigSpec
+		clusterConfig *ackov1alpha1.AerospikeConfigSpec
+		rackConfig    *ackov1alpha1.AerospikeConfigSpec
 		wantNil       bool
 		// checkKey and checkVal are used for non-nil results to verify a specific top-level key.
 		checkKey string
@@ -26,7 +26,7 @@ func TestGetEffectiveConfig(t *testing.T) {
 		},
 		{
 			name: "cluster config set, rack nil returns cluster config",
-			clusterConfig: &asdbcev1alpha1.AerospikeConfigSpec{
+			clusterConfig: &ackov1alpha1.AerospikeConfigSpec{
 				Value: map[string]any{
 					"service": map[string]any{
 						"cluster-name": "test-cluster",
@@ -40,7 +40,7 @@ func TestGetEffectiveConfig(t *testing.T) {
 		{
 			name:          "cluster config nil, rack config set returns rack config",
 			clusterConfig: nil,
-			rackConfig: &asdbcev1alpha1.AerospikeConfigSpec{
+			rackConfig: &ackov1alpha1.AerospikeConfigSpec{
 				Value: map[string]any{
 					"service": map[string]any{
 						"proto-fd-max": 10000,
@@ -52,7 +52,7 @@ func TestGetEffectiveConfig(t *testing.T) {
 		},
 		{
 			name: "both set returns deep merge with rack overriding cluster",
-			clusterConfig: &asdbcev1alpha1.AerospikeConfigSpec{
+			clusterConfig: &ackov1alpha1.AerospikeConfigSpec{
 				Value: map[string]any{
 					"service": map[string]any{
 						"cluster-name": "test-cluster",
@@ -65,7 +65,7 @@ func TestGetEffectiveConfig(t *testing.T) {
 					},
 				},
 			},
-			rackConfig: &asdbcev1alpha1.AerospikeConfigSpec{
+			rackConfig: &ackov1alpha1.AerospikeConfigSpec{
 				Value: map[string]any{
 					"service": map[string]any{
 						"proto-fd-max": 20000,
@@ -79,12 +79,12 @@ func TestGetEffectiveConfig(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cluster := &asdbcev1alpha1.AerospikeCECluster{
-				Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+			cluster := &ackov1alpha1.AerospikeCluster{
+				Spec: ackov1alpha1.AerospikeClusterSpec{
 					AerospikeConfig: tc.clusterConfig,
 				},
 			}
-			rack := &asdbcev1alpha1.Rack{
+			rack := &ackov1alpha1.Rack{
 				ID:              0,
 				AerospikeConfig: tc.rackConfig,
 			}
@@ -112,11 +112,11 @@ func TestGetEffectiveConfig(t *testing.T) {
 }
 
 func TestGetEffectiveConfig_MergeOverride(t *testing.T) {
-	r := &AerospikeCEClusterReconciler{}
+	r := &AerospikeClusterReconciler{}
 
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
-			AerospikeConfig: &asdbcev1alpha1.AerospikeConfigSpec{
+	cluster := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
+			AerospikeConfig: &ackov1alpha1.AerospikeConfigSpec{
 				Value: map[string]any{
 					"service": map[string]any{
 						"cluster-name": "test-cluster",
@@ -131,9 +131,9 @@ func TestGetEffectiveConfig_MergeOverride(t *testing.T) {
 			},
 		},
 	}
-	rack := &asdbcev1alpha1.Rack{
+	rack := &ackov1alpha1.Rack{
 		ID: 1,
-		AerospikeConfig: &asdbcev1alpha1.AerospikeConfigSpec{
+		AerospikeConfig: &ackov1alpha1.AerospikeConfigSpec{
 			Value: map[string]any{
 				"service": map[string]any{
 					"proto-fd-max": 20000,
@@ -176,21 +176,21 @@ func TestGetEffectiveConfig_MergeOverride(t *testing.T) {
 }
 
 func TestGetEffectiveConfig_ClusterConfigOnly(t *testing.T) {
-	r := &AerospikeCEClusterReconciler{}
+	r := &AerospikeClusterReconciler{}
 
-	clusterConfig := &asdbcev1alpha1.AerospikeConfigSpec{
+	clusterConfig := &ackov1alpha1.AerospikeConfigSpec{
 		Value: map[string]any{
 			"service": map[string]any{
 				"cluster-name": "my-cluster",
 			},
 		},
 	}
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+	cluster := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
 			AerospikeConfig: clusterConfig,
 		},
 	}
-	rack := &asdbcev1alpha1.Rack{ID: 0}
+	rack := &ackov1alpha1.Rack{ID: 0}
 
 	got := r.getEffectiveConfig(cluster, rack)
 	if got != clusterConfig {
@@ -199,21 +199,21 @@ func TestGetEffectiveConfig_ClusterConfigOnly(t *testing.T) {
 }
 
 func TestGetEffectiveConfig_RackConfigOnly(t *testing.T) {
-	r := &AerospikeCEClusterReconciler{}
+	r := &AerospikeClusterReconciler{}
 
-	rackConfig := &asdbcev1alpha1.AerospikeConfigSpec{
+	rackConfig := &ackov1alpha1.AerospikeConfigSpec{
 		Value: map[string]any{
 			"service": map[string]any{
 				"proto-fd-max": 10000,
 			},
 		},
 	}
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+	cluster := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
 			AerospikeConfig: nil,
 		},
 	}
-	rack := &asdbcev1alpha1.Rack{
+	rack := &ackov1alpha1.Rack{
 		ID:              0,
 		AerospikeConfig: rackConfig,
 	}

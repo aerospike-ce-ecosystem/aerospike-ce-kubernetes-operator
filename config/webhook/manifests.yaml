@@ -10,9 +10,9 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-acko-io-v1alpha1-aerospikececluster
+      path: /mutate-acko-io-v1alpha1-aerospikecluster
   failurePolicy: Fail
-  name: maerospikececluster.kb.io
+  name: maerospikecluster.kb.io
   rules:
   - apiGroups:
     - acko.io
@@ -22,7 +22,7 @@ webhooks:
     - CREATE
     - UPDATE
     resources:
-    - aerospikececlusters
+    - aerospikeclusters
   sideEffects: None
 - admissionReviewVersions:
   - v1
@@ -30,9 +30,9 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-acko-io-v1alpha1-aerospikececlustertemplate
+      path: /mutate-acko-io-v1alpha1-aerospikeclustertemplate
   failurePolicy: Fail
-  name: maerospikececlustertemplate.kb.io
+  name: maerospikeclustertemplate.kb.io
   rules:
   - apiGroups:
     - acko.io
@@ -42,7 +42,7 @@ webhooks:
     - CREATE
     - UPDATE
     resources:
-    - aerospikececlustertemplates
+    - aerospikeclustertemplates
   sideEffects: None
 ---
 apiVersion: admissionregistration.k8s.io/v1
@@ -56,9 +56,9 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-acko-io-v1alpha1-aerospikececluster
+      path: /validate-acko-io-v1alpha1-aerospikecluster
   failurePolicy: Fail
-  name: vaerospikececluster.kb.io
+  name: vaerospikecluster.kb.io
   rules:
   - apiGroups:
     - acko.io
@@ -68,7 +68,7 @@ webhooks:
     - CREATE
     - UPDATE
     resources:
-    - aerospikececlusters
+    - aerospikeclusters
   sideEffects: None
 - admissionReviewVersions:
   - v1
@@ -76,9 +76,9 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-acko-io-v1alpha1-aerospikececlustertemplate
+      path: /validate-acko-io-v1alpha1-aerospikeclustertemplate
   failurePolicy: Fail
-  name: vaerospikececlustertemplate.kb.io
+  name: vaerospikeclustertemplate.kb.io
   rules:
   - apiGroups:
     - acko.io
@@ -88,5 +88,5 @@ webhooks:
     - CREATE
     - UPDATE
     resources:
-    - aerospikececlustertemplates
+    - aerospikeclustertemplates
   sideEffects: None

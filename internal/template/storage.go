@@ -25,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
 const (
@@ -37,7 +37,7 @@ const (
 
 // applyStorage merges template storage defaults into the cluster's storage spec.
 // If the cluster already has storage volumes configured, the template storage is not applied.
-func applyStorage(tmplStorage *asdbcev1alpha1.TemplateStorage, cluster *asdbcev1alpha1.AerospikeCECluster) {
+func applyStorage(tmplStorage *ackov1alpha1.TemplateStorage, cluster *ackov1alpha1.AerospikeCluster) {
 	if tmplStorage == nil {
 		return
 	}
@@ -56,7 +56,7 @@ func applyStorage(tmplStorage *asdbcev1alpha1.TemplateStorage, cluster *asdbcev1
 	}
 
 	// Build a PVC-backed volume from template storage settings using the operator's PersistentVolumeSpec.
-	pvSpec := &asdbcev1alpha1.PersistentVolumeSpec{
+	pvSpec := &ackov1alpha1.PersistentVolumeSpec{
 		StorageClass: tmplStorage.StorageClassName,
 		VolumeMode:   tmplStorage.VolumeMode,
 		Size:         size,
@@ -70,18 +70,18 @@ func applyStorage(tmplStorage *asdbcev1alpha1.TemplateStorage, cluster *asdbcev1
 		pvSpec.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
 	}
 
-	vol := asdbcev1alpha1.VolumeSpec{
+	vol := ackov1alpha1.VolumeSpec{
 		Name: defaultDataVolumeName,
-		Source: asdbcev1alpha1.VolumeSource{
+		Source: ackov1alpha1.VolumeSource{
 			PersistentVolume: pvSpec,
 		},
-		Aerospike: &asdbcev1alpha1.AerospikeVolumeAttachment{
+		Aerospike: &ackov1alpha1.AerospikeVolumeAttachment{
 			Path: defaultDataMountPath,
 		},
 	}
 
 	if cluster.Spec.Storage == nil {
-		cluster.Spec.Storage = &asdbcev1alpha1.AerospikeStorageSpec{}
+		cluster.Spec.Storage = &ackov1alpha1.AerospikeStorageSpec{}
 	}
 	cluster.Spec.Storage.Volumes = append(cluster.Spec.Storage.Volumes, vol)
 }

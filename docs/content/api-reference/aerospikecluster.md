@@ -1,34 +1,34 @@
 ---
 sidebar_position: 1
-title: AerospikeCECluster API Reference
+title: AerospikeCluster API Reference
 ---
 
-# AerospikeCECluster API Reference
+# AerospikeCluster API Reference
 
-This page documents the `AerospikeCECluster` Custom Resource Definition (CRD) types.
+This page documents the `AerospikeCluster` Custom Resource Definition (CRD) types.
 
 **API Group:** `acko.io`
 **API Version:** `v1alpha1`
-**Kind:** `AerospikeCECluster`
-**Short Names:** `asce`, `ascecluster`
+**Kind:** `AerospikeCluster`
+**Short Names:** `asc`
 
 ---
 
-## AerospikeCECluster
+## AerospikeCluster
 
-AerospikeCECluster is the Schema for the `aerospikececlusters` API. It manages the lifecycle of an Aerospike Community Edition cluster.
+AerospikeCluster is the Schema for the `aerospikeclusters` API. It manages the lifecycle of an Aerospike Community Edition cluster.
 
 | Field | Type | Description |
 |---|---|---|
 | `apiVersion` | string | `acko.io/v1alpha1` |
-| `kind` | string | `AerospikeCECluster` |
+| `kind` | string | `AerospikeCluster` |
 | `metadata` | [ObjectMeta](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/object-meta/) | Standard object metadata |
-| `spec` | [AerospikeCEClusterSpec](#aerospikececlusterspec) | Desired state of the cluster |
-| `status` | [AerospikeCEClusterStatus](#aerospikececlusterstatus) | Observed state of the cluster |
+| `spec` | [AerospikeClusterSpec](#aerospikeclusterspec) | Desired state of the cluster |
+| `status` | [AerospikeClusterStatus](#aerospikeclusterstatus) | Observed state of the cluster |
 
 ---
 
-## AerospikeCEClusterSpec
+## AerospikeClusterSpec
 
 Defines the desired state of an Aerospike CE cluster.
 
@@ -40,7 +40,7 @@ Defines the desired state of an Aerospike CE cluster.
 | `storage` | [AerospikeStorageSpec](#aerospikestoragespec) | No | — | Volume definitions for Aerospike pods. |
 | `rackConfig` | [RackConfig](#rackconfig) | No | — | Rack-aware deployment topology. |
 | `aerospikeNetworkPolicy` | [AerospikeNetworkPolicy](#aerospikenetworkpolicy) | No | — | Client access network configuration. |
-| `podSpec` | [AerospikeCEPodSpec](#aerospikecepodspec) | No | — | Pod-level configuration. |
+| `podSpec` | [AerospikePodSpec](#aerospikepodspec) | No | — | Pod-level configuration. |
 | `aerospikeAccessControl` | [AerospikeAccessControlSpec](#aerospikeaccesscontrolspec) | No | — | ACL roles and users. |
 | `monitoring` | [AerospikeMonitoringSpec](#aerospikemonitoringspec) | No | — | Prometheus monitoring configuration. |
 | `networkPolicyConfig` | [NetworkPolicyConfig](#networkpolicyconfig) | No | — | Automatic NetworkPolicy creation. |
@@ -57,18 +57,18 @@ Defines the desired state of an Aerospike CE cluster.
 | `headlessService` | [AerospikeServiceSpec](#aerospikeservicespec) | No | — | Custom metadata for the headless service. |
 | `podService` | [AerospikeServiceSpec](#aerospikeservicespec) | No | — | Custom metadata for per-pod services. Creates individual Service per pod when set. |
 | `enableRackIDOverride` | *bool | No | `false` | Enable dynamic rack ID assignment via pod annotations. |
-| `templateRef` | [TemplateRef](#templateref) | No | — | Reference to an `AerospikeCEClusterTemplate`. When set, the template spec is resolved and stored as a snapshot at creation time. |
-| `overrides` | [AerospikeCEClusterTemplateSpec](./aerospikececlustertemplate#aerospikececlustertemplatespec) | No | — | Fields that override the referenced template. Merge priority: overrides > template > operator defaults. |
+| `templateRef` | [TemplateRef](#templateref) | No | — | Reference to an `AerospikeClusterTemplate`. When set, the template spec is resolved and stored as a snapshot at creation time. |
+| `overrides` | [AerospikeClusterTemplateSpec](./aerospikeclustertemplate#aerospikeclustertemplatespec) | No | — | Fields that override the referenced template. Merge priority: overrides > template > operator defaults. |
 
 ---
 
 ## TemplateRef
 
-Reference to an `AerospikeCEClusterTemplate` in the same namespace.
+Reference to an `AerospikeClusterTemplate` in the same namespace.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `name` | string | Yes | Name of the `AerospikeCEClusterTemplate` resource |
+| `name` | string | Yes | Name of the `AerospikeClusterTemplate` resource |
 
 ---
 
@@ -82,7 +82,7 @@ Recorded in `status.templateSnapshot` after a template is resolved.
 | `resourceVersion` | string | ResourceVersion of the template at snapshot time |
 | `snapshotTimestamp` | Time | When the snapshot was taken |
 | `synced` | bool | Whether the cluster uses the latest template version. Set to `false` when the template changes after the snapshot. |
-| `spec` | [AerospikeCEClusterTemplateSpec](./aerospikececlustertemplate#aerospikececlustertemplatespec) | Resolved template spec at snapshot time. |
+| `spec` | [AerospikeClusterTemplateSpec](./aerospikeclustertemplate#aerospikeclustertemplatespec) | Resolved template spec at snapshot time. |
 
 ---
 
@@ -119,7 +119,7 @@ aerospikeConfig:
 
 ---
 
-## AerospikeCEClusterStatus
+## AerospikeClusterStatus
 
 Observed state of the Aerospike CE cluster.
 
@@ -134,7 +134,7 @@ Observed state of the Aerospike CE cluster.
 | `aerospikeConfig` | [AerospikeConfigSpec](#aerospikeconfigspec) | Last applied Aerospike configuration. |
 | `operationStatus` | [OperationStatus](#operationstatus) | Current on-demand operation status. |
 | `phaseReason` | string | Human-readable explanation of the current phase (e.g., "Rolling restart in progress for rack 1"). |
-| `appliedSpec` | [AerospikeCEClusterSpec](#aerospikececlusterspec) | Copy of the last successfully reconciled spec. Used to detect configuration drift. |
+| `appliedSpec` | [AerospikeClusterSpec](#aerospikeclusterspec) | Copy of the last successfully reconciled spec. Used to detect configuration drift. |
 | `aerospikeClusterSize` | int32 | Aerospike cluster-size as reported by `asinfo`. May differ from K8s pod count during split-brain or rolling restarts. |
 | `operatorVersion` | string | Version of the operator that last reconciled this cluster. |
 | `pendingRestartPods` | []string | Pods queued for restart in the current rolling restart. Cleared when complete. |
@@ -342,7 +342,7 @@ Defines a LoadBalancer service.
 
 ---
 
-## AerospikeCEPodSpec
+## AerospikePodSpec
 
 Pod-level customization for Aerospike pods.
 

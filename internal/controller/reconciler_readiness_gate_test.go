@@ -7,7 +7,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/podutil"
 )
 
@@ -161,19 +161,19 @@ func TestIsReadinessGateEnabled(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		podSpec *asdbcev1alpha1.AerospikeCEPodSpec
+		podSpec *ackov1alpha1.AerospikeCEPodSpec
 		want    bool
 	}{
 		{"nil podSpec", nil, false},
-		{"nil ReadinessGateEnabled", &asdbcev1alpha1.AerospikeCEPodSpec{}, false},
-		{"ReadinessGateEnabled=false", &asdbcev1alpha1.AerospikeCEPodSpec{ReadinessGateEnabled: &falseVal}, false},
-		{"ReadinessGateEnabled=true", &asdbcev1alpha1.AerospikeCEPodSpec{ReadinessGateEnabled: &trueVal}, true},
+		{"nil ReadinessGateEnabled", &ackov1alpha1.AerospikeCEPodSpec{}, false},
+		{"ReadinessGateEnabled=false", &ackov1alpha1.AerospikeCEPodSpec{ReadinessGateEnabled: &falseVal}, false},
+		{"ReadinessGateEnabled=true", &ackov1alpha1.AerospikeCEPodSpec{ReadinessGateEnabled: &trueVal}, true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cluster := &asdbcev1alpha1.AerospikeCECluster{
-				Spec: asdbcev1alpha1.AerospikeCEClusterSpec{PodSpec: tt.podSpec},
+			cluster := &ackov1alpha1.AerospikeCluster{
+				Spec: ackov1alpha1.AerospikeClusterSpec{PodSpec: tt.podSpec},
 			}
 			if got := isReadinessGateEnabled(cluster); got != tt.want {
 				t.Errorf("isReadinessGateEnabled() = %v, want %v", got, tt.want)
@@ -187,12 +187,12 @@ func TestIsReadinessGateEnabled(t *testing.T) {
 func TestIsPodReadinessGateSatisfied(t *testing.T) {
 	trueVal := true
 
-	clusterEnabled := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
-			PodSpec: &asdbcev1alpha1.AerospikeCEPodSpec{ReadinessGateEnabled: &trueVal},
+	clusterEnabled := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
+			PodSpec: &ackov1alpha1.AerospikeCEPodSpec{ReadinessGateEnabled: &trueVal},
 		},
 	}
-	clusterDisabled := &asdbcev1alpha1.AerospikeCECluster{}
+	clusterDisabled := &ackov1alpha1.AerospikeCluster{}
 
 	podWithGateTrue := &corev1.Pod{
 		Spec: corev1.PodSpec{
@@ -229,7 +229,7 @@ func TestIsPodReadinessGateSatisfied(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		cluster *asdbcev1alpha1.AerospikeCECluster
+		cluster *ackov1alpha1.AerospikeCluster
 		pod     *corev1.Pod
 		want    bool
 	}{
@@ -253,9 +253,9 @@ func TestIsPodReadinessGateSatisfied(t *testing.T) {
 
 func TestAnyPodGateUnsatisfied(t *testing.T) {
 	trueVal := true
-	clusterEnabled := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
-			PodSpec: &asdbcev1alpha1.AerospikeCEPodSpec{ReadinessGateEnabled: &trueVal},
+	clusterEnabled := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
+			PodSpec: &ackov1alpha1.AerospikeCEPodSpec{ReadinessGateEnabled: &trueVal},
 		},
 	}
 

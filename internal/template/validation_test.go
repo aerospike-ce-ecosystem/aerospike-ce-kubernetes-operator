@@ -20,13 +20,13 @@ import (
 	"strings"
 	"testing"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
 // --- V-T06: Image CE-tag warning ---
 
 func TestValidateTemplateSpec_V_T06_NoWarningForCEImage(t *testing.T) {
-	spec := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
+	spec := &ackov1alpha1.AerospikeClusterTemplateSpec{
 		Image: testImageCE8,
 	}
 	errs, warnings := ValidateTemplateSpec(spec)
@@ -41,7 +41,7 @@ func TestValidateTemplateSpec_V_T06_NoWarningForCEImage(t *testing.T) {
 }
 
 func TestValidateTemplateSpec_V_T06_WarningForNonCEImage(t *testing.T) {
-	spec := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
+	spec := &ackov1alpha1.AerospikeClusterTemplateSpec{
 		Image: "myregistry.io/aerospike:8.1.1.1",
 	}
 	errs, warnings := ValidateTemplateSpec(spec)
@@ -60,7 +60,7 @@ func TestValidateTemplateSpec_V_T06_WarningForNonCEImage(t *testing.T) {
 }
 
 func TestValidateTemplateSpec_V_T06_NoWarningWhenImageEmpty(t *testing.T) {
-	spec := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{}
+	spec := &ackov1alpha1.AerospikeClusterTemplateSpec{}
 	_, warnings := ValidateTemplateSpec(spec)
 	for _, w := range warnings {
 		if strings.Contains(w, "may not be a CE image") {
@@ -73,7 +73,7 @@ func TestValidateTemplateSpec_V_T06_NoWarningWhenImageEmpty(t *testing.T) {
 
 func TestValidateTemplateSpec_V_T07_SizeBelowMinIsError(t *testing.T) {
 	size := int32(0)
-	spec := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{Size: &size}
+	spec := &ackov1alpha1.AerospikeClusterTemplateSpec{Size: &size}
 	errs, _ := ValidateTemplateSpec(spec)
 	if len(errs) == 0 {
 		t.Errorf("expected error for size=0")
@@ -82,7 +82,7 @@ func TestValidateTemplateSpec_V_T07_SizeBelowMinIsError(t *testing.T) {
 
 func TestValidateTemplateSpec_V_T07_SizeAboveMaxIsError(t *testing.T) {
 	size := int32(9)
-	spec := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{Size: &size}
+	spec := &ackov1alpha1.AerospikeClusterTemplateSpec{Size: &size}
 	errs, _ := ValidateTemplateSpec(spec)
 	if len(errs) == 0 {
 		t.Errorf("expected error for size=9")
@@ -92,7 +92,7 @@ func TestValidateTemplateSpec_V_T07_SizeAboveMaxIsError(t *testing.T) {
 func TestValidateTemplateSpec_V_T07_SizeBoundariesAreValid(t *testing.T) {
 	for _, s := range []int32{1, 4, 8} {
 		size := s
-		spec := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{Size: &size}
+		spec := &ackov1alpha1.AerospikeClusterTemplateSpec{Size: &size}
 		errs, _ := ValidateTemplateSpec(spec)
 		if len(errs) != 0 {
 			t.Errorf("expected no error for size=%d, got %v", s, errs)
@@ -101,7 +101,7 @@ func TestValidateTemplateSpec_V_T07_SizeBoundariesAreValid(t *testing.T) {
 }
 
 func TestValidateTemplateSpec_V_T07_SizeNilNoError(t *testing.T) {
-	spec := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{}
+	spec := &ackov1alpha1.AerospikeClusterTemplateSpec{}
 	errs, _ := ValidateTemplateSpec(spec)
 	if len(errs) != 0 {
 		t.Errorf("expected no error when size is nil, got %v", errs)
@@ -112,8 +112,8 @@ func TestValidateTemplateSpec_V_T07_SizeNilNoError(t *testing.T) {
 
 func TestValidateTemplateSpec_V_T08_PortZeroNoError(t *testing.T) {
 	// Port=0 means "not set"; should not trigger validation.
-	spec := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		Monitoring: &asdbcev1alpha1.AerospikeMonitoringSpec{Port: 0},
+	spec := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		Monitoring: &ackov1alpha1.AerospikeMonitoringSpec{Port: 0},
 	}
 	errs, _ := ValidateTemplateSpec(spec)
 	if len(errs) != 0 {
@@ -122,8 +122,8 @@ func TestValidateTemplateSpec_V_T08_PortZeroNoError(t *testing.T) {
 }
 
 func TestValidateTemplateSpec_V_T08_ValidPortNoError(t *testing.T) {
-	spec := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		Monitoring: &asdbcev1alpha1.AerospikeMonitoringSpec{Port: 9145},
+	spec := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		Monitoring: &ackov1alpha1.AerospikeMonitoringSpec{Port: 9145},
 	}
 	errs, _ := ValidateTemplateSpec(spec)
 	if len(errs) != 0 {
@@ -132,8 +132,8 @@ func TestValidateTemplateSpec_V_T08_ValidPortNoError(t *testing.T) {
 }
 
 func TestValidateTemplateSpec_V_T08_PortAboveMaxIsError(t *testing.T) {
-	spec := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		Monitoring: &asdbcev1alpha1.AerospikeMonitoringSpec{Port: 65536},
+	spec := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		Monitoring: &ackov1alpha1.AerospikeMonitoringSpec{Port: 65536},
 	}
 	errs, _ := ValidateTemplateSpec(spec)
 	if len(errs) == 0 {
@@ -142,7 +142,7 @@ func TestValidateTemplateSpec_V_T08_PortAboveMaxIsError(t *testing.T) {
 }
 
 func TestValidateTemplateSpec_V_T08_MonitoringNilNoError(t *testing.T) {
-	spec := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{}
+	spec := &ackov1alpha1.AerospikeClusterTemplateSpec{}
 	errs, _ := ValidateTemplateSpec(spec)
 	if len(errs) != 0 {
 		t.Errorf("expected no error when monitoring is nil, got %v", errs)

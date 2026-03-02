@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Aerospike Community Edition Kubernetes Operator — manages Aerospike CE cluster lifecycle (deploy, scale, rolling update, config management) via a custom `AerospikeCECluster` CRD. Built with kubebuilder v4.12, controller-runtime v0.23.1, Go 1.25.
+Aerospike Community Edition Kubernetes Operator — manages Aerospike CE cluster lifecycle (deploy, scale, rolling update, config management) via a custom `AerospikeCluster` CRD. Built with kubebuilder v4.12, controller-runtime v0.23.1, Go 1.25.
 
 ## Build & Development Commands
 
@@ -47,9 +47,9 @@ Test framework: Ginkgo v2 + Gomega. E2E tests are in `test/e2e/`, helpers in `te
 ## Architecture
 
 ### CRD
-- **Group/Version/Kind**: `acko.io/v1alpha1/AerospikeCECluster`
-- Short names: `asce`, `ascecluster`
-- Types split across `api/v1alpha1/`: `aerospikececluster_types.go` (main spec/status), `types_storage.go`, `types_network.go`, `types_pod.go`, `types_rack.go`
+- **Group/Version/Kind**: `acko.io/v1alpha1/AerospikeCluster`
+- Short names: `asc`
+- Types split across `api/v1alpha1/`: `aerospikecluster_types.go` (main spec/status), `types_storage.go`, `types_network.go`, `types_pod.go`, `types_rack.go`
 
 ### AerospikeConfigSpec Pattern
 `AerospikeConfigSpec` wraps `map[string]interface{}` in a struct with custom JSON marshaling to work around controller-gen's lack of support for `map[string]interface{}` directly. Always access the map via `.Value`:
@@ -59,7 +59,7 @@ config := cluster.Spec.AerospikeConfig.Value  // map[string]interface{}
 The type has `+kubebuilder:object:generate=false` and provides manual DeepCopy.
 
 ### Controller (internal/controller/)
-- **Reconciler pattern**: Single `AerospikeCEClusterReconciler` struct in `reconciler.go`
+- **Reconciler pattern**: Single `AerospikeClusterReconciler` struct in `reconciler.go`
 - **Rack-per-StatefulSet**: Each rack ID gets its own StatefulSet (`<name>-<rackID>`) and ConfigMap (`<name>-<rackID>-config`)
 - **UpdateStrategy**: `OnDelete` — operator manages pod deletion/recreation for rolling restarts
 - **Reconciliation flow**: Fetch CR → finalizer → paused check → headless service → per-rack ConfigMap + StatefulSet → cleanup removed racks → PDB → rolling restart → status update
@@ -68,7 +68,7 @@ The type has `+kubebuilder:object:generate=false` and provides manual DeepCopy.
 ### Config Generation (internal/configgen/)
 Converts unstructured `map[string]interface{}` to aerospike.conf text format. Handles special sections: `namespaces` (array→named blocks), `logging`, `security`, `network` (mesh seed injection).
 
-### Webhooks (api/v1alpha1/aerospikececluster_webhook.go)
+### Webhooks (api/v1alpha1/aerospikecluster_webhook.go)
 - **Defaulter**: Auto-sets cluster-name, network ports (3000/3001/3002), heartbeat mode (mesh), proto-fd-max (15000)
 - **Validator**: CE constraints — size<=8, namespaces<=2, no `xdr`/`tls` sections, no enterprise images, admin user required when ACL enabled, unique rack IDs
 
@@ -76,14 +76,15 @@ Converts unstructured `map[string]interface{}` to aerospike.conf text format. Ha
 ## Aerospike Configuration Guide (Skills)
 - `/aerospike-ce-8-guide` — CE 8.1 파라미터 레퍼런스 (7.x→8.1 breaking changes, 버전별 기본값, 동적 설정 명령)
 - `/aerospike-ce8-configuration-guide` — CE 8.1 K8s Operator 가이드 (배포 체크리스트, CRD 매핑, Webhook 검증, 설정 예제)
+- `/acko-aerospikecluster-customresource` — AerospikeCluster CR 전체 필드 참조 YAML
 
 ## Sample CRs
 
 Located in `config/samples/`:
-- `acko_v1alpha1_aerospikececluster.yaml` — Minimal single-node in-memory
-- `aerospike-ce-cluster-3node.yaml` — 3-node with PV storage
-- `aerospike-ce-cluster-multirack.yaml` — 6-node multi-rack with zone affinity
-- `aerospike-ce-cluster-acl.yaml` — 3-node with ACL (roles, users, K8s secrets)
+- `acko_v1alpha1_aerospikecluster.yaml` — Minimal single-node in-memory
+- `aerospike-cluster-3node.yaml` — 3-node with PV storage
+- `aerospike-cluster-multirack.yaml` — 6-node multi-rack with zone affinity
+- `aerospike-cluster-acl.yaml` — 3-node with ACL (roles, users, K8s secrets)
 
 
 ## image registry

@@ -1,10 +1,10 @@
 # Minimal single-node in-memory Aerospike CE cluster.
 # This is the simplest possible deployment -- a single pod with no persistent storage.
-# Apply with: kubectl apply -f acko_v1alpha1_aerospikececluster.yaml
+# Apply with: kubectl apply -f acko_v1alpha1_aerospikecluster.yaml
 apiVersion: acko.io/v1alpha1
-kind: AerospikeCECluster
+kind: AerospikeCluster
 metadata:
-  name: aerospike-ce-basic
+  name: aerospike-basic
   namespace: aerospike  # Create namespace first: kubectl create namespace aerospike
 spec:
   size: 1  # Number of Aerospike server pods (CE max: 8)
@@ -14,7 +14,7 @@ spec:
   aerospikeConfig:
     # Service-level settings for the Aerospike daemon.
     service:
-      cluster-name: aerospike-ce-basic  # Must match the CR name for mesh discovery
+      cluster-name: aerospike-basic  # Must match the CR name for mesh discovery
       proto-fd-max: 15000  # Max client file descriptors (connections)
 
     # Network configuration -- the operator auto-injects mesh seed addresses.

@@ -19,11 +19,11 @@ maintainers:
     url: https://github.com/kimsoungryoul
 annotations:
   artifacthub.io/crds: |
-    - kind: AerospikeCECluster
+    - kind: AerospikeCluster
       version: v1alpha1
-      name: aerospikececlusters.acko.io
-      displayName: Aerospike CE Cluster
-    - kind: AerospikeCEClusterTemplate
+      name: aerospikeclusters.acko.io
+      displayName: Aerospike Cluster
+    - kind: AerospikeClusterTemplate
       version: v1alpha1
-      name: aerospikececlustertemplates.acko.io
-      displayName: Aerospike CE Cluster Template
+      name: aerospikeclustertemplates.acko.io
+      displayName: Aerospike Cluster Template

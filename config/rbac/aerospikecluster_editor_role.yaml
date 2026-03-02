@@ -11,12 +11,12 @@ metadata:
   labels:
     app.kubernetes.io/name: aerospike-ce-operator
     app.kubernetes.io/managed-by: kustomize
-  name: aerospikececluster-editor-role
+  name: aerospikecluster-editor-role
 rules:
 - apiGroups:
   - acko.io
   resources:
-  - aerospikececlusters
+  - aerospikeclusters
   verbs:
   - create
   - delete
@@ -28,6 +28,6 @@ rules:
 - apiGroups:
   - acko.io
   resources:
-  - aerospikececlusters/status
+  - aerospikeclusters/status
   verbs:
   - get

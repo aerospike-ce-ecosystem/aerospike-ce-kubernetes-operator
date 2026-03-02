@@ -12,14 +12,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/storage"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
-func (r *AerospikeCEClusterReconciler) handleDeletion(
+func (r *AerospikeClusterReconciler) handleDeletion(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 ) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
@@ -32,7 +32,7 @@ func (r *AerospikeCEClusterReconciler) handleDeletion(
 		"Cluster deletion started, cleaning up resources")
 
 	// Set Deleting phase so observers know the cluster is being removed.
-	if err := r.setPhase(ctx, cluster, asdbcev1alpha1.AerospikePhaseDeleting, "Cluster is being deleted"); err != nil {
+	if err := r.setPhase(ctx, cluster, ackov1alpha1.AerospikePhaseDeleting, "Cluster is being deleted"); err != nil {
 		if !k8serrors.IsConflict(err) {
 			return ctrl.Result{}, err
 		}

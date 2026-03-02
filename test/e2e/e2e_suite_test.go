@@ -37,7 +37,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/test/utils"
 )
 
@@ -102,7 +102,7 @@ var _ = BeforeSuite(func() {
 
 	By("setting up controller-runtime client")
 	ctx = context.Background()
-	err = asdbcev1alpha1.AddToScheme(scheme.Scheme)
+	err = ackov1alpha1.AddToScheme(scheme.Scheme)
 	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to register CRD scheme")
 
 	restConfig, err = clientcmd.NewNonInteractiveDeferredLoadingClientConfig(

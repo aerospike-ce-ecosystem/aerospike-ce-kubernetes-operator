@@ -17,7 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
@@ -33,9 +33,9 @@ var prometheusRuleGVK = schema.GroupVersionKind{
 	Kind:    "PrometheusRule",
 }
 
-func (r *AerospikeCEClusterReconciler) reconcileMonitoring(
+func (r *AerospikeClusterReconciler) reconcileMonitoring(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 ) error {
 	log := logf.FromContext(ctx)
 
@@ -76,9 +76,9 @@ func (r *AerospikeCEClusterReconciler) reconcileMonitoring(
 	return nil
 }
 
-func (r *AerospikeCEClusterReconciler) reconcileMetricsService(
+func (r *AerospikeClusterReconciler) reconcileMetricsService(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 	enabled bool,
 ) error {
 	log := logf.FromContext(ctx)
@@ -152,9 +152,9 @@ func (r *AerospikeCEClusterReconciler) reconcileMetricsService(
 	return nil
 }
 
-func (r *AerospikeCEClusterReconciler) reconcileServiceMonitor(
+func (r *AerospikeClusterReconciler) reconcileServiceMonitor(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 	enabled bool,
 ) error {
 	log := logf.FromContext(ctx)
@@ -238,9 +238,9 @@ func toStringMap(m map[string]string) map[string]any {
 	return out
 }
 
-func (r *AerospikeCEClusterReconciler) reconcilePrometheusRule(
+func (r *AerospikeClusterReconciler) reconcilePrometheusRule(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 	enabled bool,
 ) error {
 	log := logf.FromContext(ctx)
@@ -376,7 +376,7 @@ func defaultAlertRules(clusterName, namespace string) []any {
 				},
 				map[string]any{
 					"alert": "AerospikeReconcileStale",
-					"expr":  fmt.Sprintf(`time() - aerospike_ce_last_reconcile_timestamp_seconds{namespace="%s",name="%s"} > 300`, namespace, clusterName),
+					"expr":  fmt.Sprintf(`time() - acko_last_reconcile_timestamp_seconds{namespace="%s",name="%s"} > 300`, namespace, clusterName),
 					"for":   "5m",
 					"labels": map[string]any{
 						"severity": "warning",
@@ -389,7 +389,7 @@ func defaultAlertRules(clusterName, namespace string) []any {
 				},
 				map[string]any{
 					"alert": "AerospikeClusterSizeMismatch",
-					"expr":  fmt.Sprintf(`aerospike_ce_cluster_ready_pods{namespace="%s",name="%s"} != aerospike_ce_cluster_as_size{namespace="%s",name="%s"}`, namespace, clusterName, namespace, clusterName),
+					"expr":  fmt.Sprintf(`acko_cluster_ready_pods{namespace="%s",name="%s"} != acko_cluster_as_size{namespace="%s",name="%s"}`, namespace, clusterName, namespace, clusterName),
 					"for":   "2m",
 					"labels": map[string]any{
 						"severity": "warning",

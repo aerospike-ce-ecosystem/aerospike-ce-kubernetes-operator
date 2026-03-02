@@ -11,7 +11,7 @@ import (
 
 	aero "github.com/aerospike/aerospike-client-go/v8"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
@@ -24,7 +24,7 @@ const (
 
 // getServicePort returns the configured Aerospike service port from the cluster
 // config, falling back to the default port.
-func getServicePort(cluster *asdbcev1alpha1.AerospikeCECluster) int {
+func getServicePort(cluster *ackov1alpha1.AerospikeCluster) int {
 	if cluster.Spec.AerospikeConfig != nil {
 		if netCfg, ok := cluster.Spec.AerospikeConfig.Value["network"].(map[string]any); ok {
 			if svcCfg, ok := netCfg["service"].(map[string]any); ok {
@@ -38,9 +38,9 @@ func getServicePort(cluster *asdbcev1alpha1.AerospikeCECluster) int {
 }
 
 // getAerospikeClient creates an Aerospike client connected to the cluster.
-func (r *AerospikeCEClusterReconciler) getAerospikeClient(
+func (r *AerospikeClusterReconciler) getAerospikeClient(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 ) (*aero.Client, error) {
 	log := logf.FromContext(ctx)
 
@@ -79,7 +79,7 @@ func closeAerospikeClient(client *aero.Client) {
 }
 
 // getPasswordFromSecret reads a password from a Kubernetes Secret.
-func (r *AerospikeCEClusterReconciler) getPasswordFromSecret(
+func (r *AerospikeClusterReconciler) getPasswordFromSecret(
 	ctx context.Context,
 	namespace, secretName string,
 ) (string, error) {

@@ -4,18 +4,18 @@ import (
 	"maps"
 	"testing"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
 // --- computePodSpecHash tests ---
 
 func TestComputePodSpecHash_Deterministic(t *testing.T) {
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+	cluster := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
 			Image: "aerospike:ce-8.1.1.1",
 		},
 	}
-	rack := &asdbcev1alpha1.Rack{ID: 0}
+	rack := &ackov1alpha1.Rack{ID: 0}
 
 	hash1 := computePodSpecHash(cluster, rack)
 	hash2 := computePodSpecHash(cluster, rack)
@@ -26,17 +26,17 @@ func TestComputePodSpecHash_Deterministic(t *testing.T) {
 }
 
 func TestComputePodSpecHash_ChangesWithImage(t *testing.T) {
-	cluster1 := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+	cluster1 := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
 			Image: "aerospike:ce-8.1.1.1",
 		},
 	}
-	cluster2 := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+	cluster2 := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
 			Image: "aerospike:ce-8.2.0.0",
 		},
 	}
-	rack := &asdbcev1alpha1.Rack{ID: 0}
+	rack := &ackov1alpha1.Rack{ID: 0}
 
 	hash1 := computePodSpecHash(cluster1, rack)
 	hash2 := computePodSpecHash(cluster2, rack)
@@ -47,14 +47,14 @@ func TestComputePodSpecHash_ChangesWithImage(t *testing.T) {
 }
 
 func TestComputePodSpecHash_ChangesWithRackID(t *testing.T) {
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+	cluster := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
 			Image: "aerospike:ce-8.1.1.1",
 		},
 	}
 
-	hash1 := computePodSpecHash(cluster, &asdbcev1alpha1.Rack{ID: 0})
-	hash2 := computePodSpecHash(cluster, &asdbcev1alpha1.Rack{ID: 1})
+	hash1 := computePodSpecHash(cluster, &ackov1alpha1.Rack{ID: 0})
+	hash2 := computePodSpecHash(cluster, &ackov1alpha1.Rack{ID: 1})
 
 	if hash1 == hash2 {
 		t.Error("hash should change with different rack IDs")
@@ -62,20 +62,20 @@ func TestComputePodSpecHash_ChangesWithRackID(t *testing.T) {
 }
 
 func TestComputePodSpecHash_ChangesWithPodSpec(t *testing.T) {
-	cluster1 := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+	cluster1 := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
 			Image: "aerospike:ce-8.1.1.1",
 		},
 	}
-	cluster2 := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+	cluster2 := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
 			Image: "aerospike:ce-8.1.1.1",
-			PodSpec: &asdbcev1alpha1.AerospikeCEPodSpec{
+			PodSpec: &ackov1alpha1.AerospikeCEPodSpec{
 				HostNetwork: true,
 			},
 		},
 	}
-	rack := &asdbcev1alpha1.Rack{ID: 0}
+	rack := &ackov1alpha1.Rack{ID: 0}
 
 	hash1 := computePodSpecHash(cluster1, rack)
 	hash2 := computePodSpecHash(cluster2, rack)
@@ -86,22 +86,22 @@ func TestComputePodSpecHash_ChangesWithPodSpec(t *testing.T) {
 }
 
 func TestComputePodSpecHash_ChangesWithMonitoring(t *testing.T) {
-	cluster1 := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+	cluster1 := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
 			Image: "aerospike:ce-8.1.1.1",
 		},
 	}
-	cluster2 := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+	cluster2 := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
 			Image: "aerospike:ce-8.1.1.1",
-			Monitoring: &asdbcev1alpha1.AerospikeMonitoringSpec{
+			Monitoring: &ackov1alpha1.AerospikeMonitoringSpec{
 				Enabled:       true,
 				ExporterImage: "exporter:v1",
 				Port:          9145,
 			},
 		},
 	}
-	rack := &asdbcev1alpha1.Rack{ID: 0}
+	rack := &ackov1alpha1.Rack{ID: 0}
 
 	hash1 := computePodSpecHash(cluster1, rack)
 	hash2 := computePodSpecHash(cluster2, rack)
@@ -114,23 +114,23 @@ func TestComputePodSpecHash_ChangesWithMonitoring(t *testing.T) {
 func TestComputePodSpecHash_SameWithDifferentConfig(t *testing.T) {
 	// PodSpecHash should NOT change when only aerospikeConfig changes
 	// (that's what configHash is for)
-	cluster1 := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+	cluster1 := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
 			Image: "aerospike:ce-8.1.1.1",
-			AerospikeConfig: &asdbcev1alpha1.AerospikeConfigSpec{
+			AerospikeConfig: &ackov1alpha1.AerospikeConfigSpec{
 				Value: map[string]any{"service": map[string]any{"proto-fd-max": 15000}},
 			},
 		},
 	}
-	cluster2 := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+	cluster2 := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
 			Image: "aerospike:ce-8.1.1.1",
-			AerospikeConfig: &asdbcev1alpha1.AerospikeConfigSpec{
+			AerospikeConfig: &ackov1alpha1.AerospikeConfigSpec{
 				Value: map[string]any{"service": map[string]any{"proto-fd-max": 20000}},
 			},
 		},
 	}
-	rack := &asdbcev1alpha1.Rack{ID: 0}
+	rack := &ackov1alpha1.Rack{ID: 0}
 
 	hash1 := computePodSpecHash(cluster1, rack)
 	hash2 := computePodSpecHash(cluster2, rack)
@@ -141,12 +141,12 @@ func TestComputePodSpecHash_SameWithDifferentConfig(t *testing.T) {
 }
 
 func TestComputePodSpecHash_Format(t *testing.T) {
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+	cluster := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
 			Image: "aerospike:ce-8.1.1.1",
 		},
 	}
-	rack := &asdbcev1alpha1.Rack{ID: 0}
+	rack := &ackov1alpha1.Rack{ID: 0}
 
 	hash := computePodSpecHash(cluster, rack)
 
@@ -159,7 +159,7 @@ func TestComputePodSpecHash_Format(t *testing.T) {
 // --- configHash tests ---
 
 func TestConfigHash_Deterministic(t *testing.T) {
-	config := &asdbcev1alpha1.AerospikeConfigSpec{
+	config := &ackov1alpha1.AerospikeConfigSpec{
 		Value: map[string]any{"service": map[string]any{"proto-fd-max": 15000}},
 	}
 
@@ -178,10 +178,10 @@ func TestConfigHash_NilReturnsEmpty(t *testing.T) {
 }
 
 func TestConfigHash_DifferentConfigs(t *testing.T) {
-	config1 := &asdbcev1alpha1.AerospikeConfigSpec{
+	config1 := &ackov1alpha1.AerospikeConfigSpec{
 		Value: map[string]any{"service": map[string]any{"proto-fd-max": 15000}},
 	}
-	config2 := &asdbcev1alpha1.AerospikeConfigSpec{
+	config2 := &ackov1alpha1.AerospikeConfigSpec{
 		Value: map[string]any{"service": map[string]any{"proto-fd-max": 20000}},
 	}
 

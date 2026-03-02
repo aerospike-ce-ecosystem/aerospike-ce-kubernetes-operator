@@ -6,12 +6,12 @@ import (
 )
 
 var (
-	// ClusterPhase reports the current phase of each AerospikeCECluster.
+	// ClusterPhase reports the current phase of each AerospikeCluster.
 	// Values: 0=Unknown, 1=InProgress, 2=Completed, 3=Error
 	ClusterPhase = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "aerospike_ce_cluster_phase",
-			Help: "Current phase of the AerospikeCECluster (0=Unknown, 1=InProgress, 2=Completed, 3=Error)",
+			Name: "acko_cluster_phase",
+			Help: "Current phase of the AerospikeCluster (0=Unknown, 1=InProgress, 2=Completed, 3=Error)",
 		},
 		[]string{"namespace", "name"},
 	)
@@ -19,8 +19,8 @@ var (
 	// ClusterReadyPods reports the number of ready pods per cluster.
 	ClusterReadyPods = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "aerospike_ce_cluster_ready_pods",
-			Help: "Number of ready pods in the AerospikeCECluster",
+			Name: "acko_cluster_ready_pods",
+			Help: "Number of ready pods in the AerospikeCluster",
 		},
 		[]string{"namespace", "name"},
 	)
@@ -28,8 +28,8 @@ var (
 	// ReconcileDuration tracks the duration of reconciliation loops.
 	ReconcileDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "aerospike_ce_reconcile_duration_seconds",
-			Help:    "Duration of AerospikeCECluster reconciliation in seconds",
+			Name:    "acko_reconcile_duration_seconds",
+			Help:    "Duration of AerospikeCluster reconciliation in seconds",
 			Buckets: prometheus.ExponentialBuckets(0.1, 2, 10), // 0.1s to ~51.2s
 		},
 		[]string{"namespace", "name"},
@@ -38,7 +38,7 @@ var (
 	// WarmRestartsTotal counts the number of warm restarts (SIGUSR1) performed.
 	WarmRestartsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "aerospike_ce_warm_restarts_total",
+			Name: "acko_warm_restarts_total",
 			Help: "Total number of warm restarts (SIGUSR1) performed",
 		},
 		[]string{"namespace", "name"},
@@ -47,7 +47,7 @@ var (
 	// ColdRestartsTotal counts the number of cold restarts (pod delete) performed.
 	ColdRestartsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "aerospike_ce_cold_restarts_total",
+			Name: "acko_cold_restarts_total",
 			Help: "Total number of cold restarts (pod delete) performed",
 		},
 		[]string{"namespace", "name"},
@@ -56,7 +56,7 @@ var (
 	// DynamicConfigUpdatesTotal counts successful dynamic config updates.
 	DynamicConfigUpdatesTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "aerospike_ce_dynamic_config_updates_total",
+			Name: "acko_dynamic_config_updates_total",
 			Help: "Total number of successful dynamic config updates via set-config",
 		},
 		[]string{"namespace", "name"},
@@ -65,7 +65,7 @@ var (
 	// ACLSyncTotal counts the number of ACL synchronizations performed.
 	ACLSyncTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "aerospike_ce_acl_sync_total",
+			Name: "acko_acl_sync_total",
 			Help: "Total number of ACL synchronization operations performed",
 		},
 		[]string{"namespace", "name", "result"},
@@ -75,27 +75,27 @@ var (
 	// Reason labels are a bounded set of constants (see ReconcileErrorReason* consts).
 	ReconcileErrorsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "aerospike_ce_reconcile_errors_total",
+			Name: "acko_reconcile_errors_total",
 			Help: "Total number of reconciliation errors by reason",
 		},
 		[]string{"namespace", "name", "reason"},
 	)
 
 	// LastReconcileTimestamp reports the Unix timestamp of the last successful reconciliation.
-	// Use with time() to detect staleness: time() - aerospike_ce_last_reconcile_timestamp_seconds > 300
+	// Use with time() to detect staleness: time() - acko_last_reconcile_timestamp_seconds > 300
 	LastReconcileTimestamp = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "aerospike_ce_last_reconcile_timestamp_seconds",
-			Help: "Unix timestamp of the last successful reconciliation for each AerospikeCECluster",
+			Name: "acko_last_reconcile_timestamp_seconds",
+			Help: "Unix timestamp of the last successful reconciliation for each AerospikeCluster",
 		},
 		[]string{"namespace", "name"},
 	)
 
 	// ClusterASSize reports the Aerospike cluster-size as reported by asinfo.
-	// This may differ from aerospike_ce_cluster_ready_pods during split-brain or rolling restarts.
+	// This may differ from acko_cluster_ready_pods during split-brain or rolling restarts.
 	ClusterASSize = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "aerospike_ce_cluster_as_size",
+			Name: "acko_cluster_as_size",
 			Help: "Aerospike cluster-size reported by asinfo (may differ from K8s pod count)",
 		},
 		[]string{"namespace", "name"},

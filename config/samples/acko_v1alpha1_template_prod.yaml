@@ -1,5 +1,5 @@
 apiVersion: acko.io/v1alpha1
-kind: AerospikeCEClusterTemplate
+kind: AerospikeClusterTemplate
 metadata:
   name: prod
   namespace: default

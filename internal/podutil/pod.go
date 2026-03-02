@@ -29,7 +29,7 @@ const (
 // BuildPodTemplateSpec builds the complete PodTemplateSpec for a StatefulSet
 // managing Aerospike pods in the given rack.
 func BuildPodTemplateSpec(
-	cluster *v1alpha1.AerospikeCECluster,
+	cluster *v1alpha1.AerospikeCluster,
 	rack *v1alpha1.Rack,
 	rackID int,
 	configMapName string,
@@ -285,7 +285,7 @@ func applyRackAffinity(podSpec *corev1.PodSpec, rack *v1alpha1.Rack) {
 
 // shouldInjectAntiAffinity returns true if pod anti-affinity should be injected
 // to prevent multiple Aerospike pods from scheduling on the same node.
-func shouldInjectAntiAffinity(cluster *v1alpha1.AerospikeCECluster) bool {
+func shouldInjectAntiAffinity(cluster *v1alpha1.AerospikeCluster) bool {
 	if cluster.Spec.PodSpec == nil {
 		return false
 	}

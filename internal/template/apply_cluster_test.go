@@ -21,7 +21,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
 const (
@@ -31,11 +31,11 @@ const (
 	testMutatedValue = "mutated"
 )
 
-// newCluster returns a minimal AerospikeCECluster for testing.
+// newCluster returns a minimal AerospikeCluster for testing.
 // This helper is shared across apply_cluster_test.go and resolver_test.go
 // (both in package template), so it is defined once here.
-func newCluster() *asdbcev1alpha1.AerospikeCECluster {
-	return &asdbcev1alpha1.AerospikeCECluster{
+func newCluster() *ackov1alpha1.AerospikeCluster {
+	return &ackov1alpha1.AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
 	}
 }
@@ -100,7 +100,7 @@ func TestApplySize_NoopWhenTemplateSizeNil(t *testing.T) {
 
 func TestApplyMonitoring_AppliedWhenClusterMonitoringNil(t *testing.T) {
 	cluster := newCluster()
-	tmpl := &asdbcev1alpha1.AerospikeMonitoringSpec{
+	tmpl := &ackov1alpha1.AerospikeMonitoringSpec{
 		Enabled: true,
 		Port:    9145,
 	}
@@ -118,11 +118,11 @@ func TestApplyMonitoring_AppliedWhenClusterMonitoringNil(t *testing.T) {
 
 func TestApplyMonitoring_NotOverriddenWhenClusterMonitoringSet(t *testing.T) {
 	cluster := newCluster()
-	cluster.Spec.Monitoring = &asdbcev1alpha1.AerospikeMonitoringSpec{
+	cluster.Spec.Monitoring = &ackov1alpha1.AerospikeMonitoringSpec{
 		Enabled: false,
 		Port:    9200,
 	}
-	tmpl := &asdbcev1alpha1.AerospikeMonitoringSpec{
+	tmpl := &ackov1alpha1.AerospikeMonitoringSpec{
 		Enabled: true,
 		Port:    9145,
 	}
@@ -142,7 +142,7 @@ func TestApplyMonitoring_NoopWhenTemplateMonitoringNil(t *testing.T) {
 
 func TestApplyMonitoring_DeepCopied(t *testing.T) {
 	cluster := newCluster()
-	tmpl := &asdbcev1alpha1.AerospikeMonitoringSpec{Enabled: true, Port: 9145}
+	tmpl := &ackov1alpha1.AerospikeMonitoringSpec{Enabled: true, Port: 9145}
 	applyMonitoring(tmpl, cluster)
 
 	// Mutating the template should not affect the applied value.
@@ -156,28 +156,28 @@ func TestApplyMonitoring_DeepCopied(t *testing.T) {
 
 func TestApplyNetworkPolicy_AppliedWhenClusterPolicyNil(t *testing.T) {
 	cluster := newCluster()
-	tmpl := &asdbcev1alpha1.AerospikeNetworkPolicy{
-		AccessType: asdbcev1alpha1.AerospikeNetworkTypePod,
+	tmpl := &ackov1alpha1.AerospikeNetworkPolicy{
+		AccessType: ackov1alpha1.AerospikeNetworkTypePod,
 	}
 	applyNetworkPolicy(tmpl, cluster)
 	if cluster.Spec.AerospikeNetworkPolicy == nil {
 		t.Fatal("expected network policy to be applied")
 	}
-	if cluster.Spec.AerospikeNetworkPolicy.AccessType != asdbcev1alpha1.AerospikeNetworkTypePod {
+	if cluster.Spec.AerospikeNetworkPolicy.AccessType != ackov1alpha1.AerospikeNetworkTypePod {
 		t.Errorf("expected AccessType=pod, got %q", cluster.Spec.AerospikeNetworkPolicy.AccessType)
 	}
 }
 
 func TestApplyNetworkPolicy_NotOverriddenWhenClusterPolicySet(t *testing.T) {
 	cluster := newCluster()
-	cluster.Spec.AerospikeNetworkPolicy = &asdbcev1alpha1.AerospikeNetworkPolicy{
-		AccessType: asdbcev1alpha1.AerospikeNetworkTypeHostInternal,
+	cluster.Spec.AerospikeNetworkPolicy = &ackov1alpha1.AerospikeNetworkPolicy{
+		AccessType: ackov1alpha1.AerospikeNetworkTypeHostInternal,
 	}
-	tmpl := &asdbcev1alpha1.AerospikeNetworkPolicy{
-		AccessType: asdbcev1alpha1.AerospikeNetworkTypePod,
+	tmpl := &ackov1alpha1.AerospikeNetworkPolicy{
+		AccessType: ackov1alpha1.AerospikeNetworkTypePod,
 	}
 	applyNetworkPolicy(tmpl, cluster)
-	if cluster.Spec.AerospikeNetworkPolicy.AccessType != asdbcev1alpha1.AerospikeNetworkTypeHostInternal {
+	if cluster.Spec.AerospikeNetworkPolicy.AccessType != ackov1alpha1.AerospikeNetworkTypeHostInternal {
 		t.Errorf("expected cluster policy to be preserved (hostInternal), got %q", cluster.Spec.AerospikeNetworkPolicy.AccessType)
 	}
 }
@@ -192,12 +192,12 @@ func TestApplyNetworkPolicy_NoopWhenTemplateNil(t *testing.T) {
 
 func TestApplyNetworkPolicy_DeepCopied(t *testing.T) {
 	cluster := newCluster()
-	tmpl := &asdbcev1alpha1.AerospikeNetworkPolicy{AccessType: asdbcev1alpha1.AerospikeNetworkTypePod}
+	tmpl := &ackov1alpha1.AerospikeNetworkPolicy{AccessType: ackov1alpha1.AerospikeNetworkTypePod}
 	applyNetworkPolicy(tmpl, cluster)
 
 	// Mutating the template should not affect the applied value.
-	tmpl.AccessType = asdbcev1alpha1.AerospikeNetworkTypeHostExternal
-	if cluster.Spec.AerospikeNetworkPolicy.AccessType != asdbcev1alpha1.AerospikeNetworkTypePod {
+	tmpl.AccessType = ackov1alpha1.AerospikeNetworkTypeHostExternal
+	if cluster.Spec.AerospikeNetworkPolicy.AccessType != ackov1alpha1.AerospikeNetworkTypePod {
 		t.Errorf("expected deep copy: cluster access type should remain pod")
 	}
 }

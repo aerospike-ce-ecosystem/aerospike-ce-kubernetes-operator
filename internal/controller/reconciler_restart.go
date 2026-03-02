@@ -366,6 +366,11 @@ func (r *AerospikeClusterReconciler) quiesceNodeBeforeDeletion(
 ) {
 	log := logf.FromContext(ctx)
 
+	if !isPodReady(pod) {
+		log.V(1).Info("Pod not ready, skipping quiesce", "pod", pod.Name)
+		return
+	}
+
 	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventNodeQuiesceStarted,
 		"Quiescing Aerospike node on pod %s before deletion", pod.Name)
 

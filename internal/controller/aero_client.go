@@ -116,11 +116,6 @@ func (r *AerospikeClusterReconciler) quiesceNode(
 ) error {
 	log := logf.FromContext(ctx)
 
-	if !isPodReady(pod) {
-		log.V(1).Info("Pod not ready, skipping quiesce", "pod", pod.Name)
-		return nil
-	}
-
 	if r.RestConfig == nil {
 		return fmt.Errorf("RestConfig not available for exec")
 	}
@@ -168,9 +163,9 @@ func (r *AerospikeClusterReconciler) quiesceNode(
 	output := strings.TrimSpace(stdout.String())
 	log.Info("Quiesce command completed", "pod", pod.Name, "output", output)
 
-	// Aerospike returns "ok" on success. Any other response indicates a problem.
-	if output != "ok" && output != "" {
-		return fmt.Errorf("quiesce returned unexpected response: %s", output)
+	// Aerospike returns "ok" on success. Any other response (including empty) indicates a problem.
+	if output != "ok" {
+		return fmt.Errorf("quiesce returned unexpected response: %q", output)
 	}
 
 	return nil

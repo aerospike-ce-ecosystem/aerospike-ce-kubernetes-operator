@@ -689,7 +689,7 @@ func TestValidate_SecurityDefaultPasswordFileAllowed(t *testing.T) {
 }
 
 // TestValidate_SecurityEnterpriseOnlyKeysRejected verifies that enterprise-only
-// security sub-keys (tls, ldap, log) are rejected.
+// security sub-keys (tls, ldap, log, syslog) are rejected.
 func TestValidate_SecurityEnterpriseOnlyKeysRejected(t *testing.T) {
 	v := &AerospikeClusterValidator{}
 
@@ -700,6 +700,7 @@ func TestValidate_SecurityEnterpriseOnlyKeysRejected(t *testing.T) {
 		{"tls", "TLS within security"},
 		{"ldap", "LDAP within security"},
 		{"log", "security audit log"},
+		{"syslog", "security syslog sink"},
 	}
 
 	for _, tc := range enterpriseKeys {

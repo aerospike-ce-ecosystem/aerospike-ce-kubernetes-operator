@@ -26,6 +26,7 @@ const (
 	EventStatefulSetCreated = "StatefulSetCreated"
 	EventStatefulSetUpdated = "StatefulSetUpdated"
 	EventRackScaled         = "RackScaled"
+	EventScaleDownDeferred  = "ScaleDownDeferred"
 
 	// ACL synchronization
 	EventACLSyncStarted   = "ACLSyncStarted"

@@ -31,6 +31,7 @@ func TestEventConstants(t *testing.T) {
 		{"StatefulSetCreated", EventStatefulSetCreated, "StatefulSetCreated"},
 		{"StatefulSetUpdated", EventStatefulSetUpdated, "StatefulSetUpdated"},
 		{"RackScaled", EventRackScaled, "RackScaled"},
+		{"ScaleDownDeferred", EventScaleDownDeferred, "ScaleDownDeferred"},
 		// ACL synchronization
 		{"ACLSyncStarted", EventACLSyncStarted, "ACLSyncStarted"},
 		{"ACLSyncCompleted", EventACLSyncCompleted, "ACLSyncCompleted"},

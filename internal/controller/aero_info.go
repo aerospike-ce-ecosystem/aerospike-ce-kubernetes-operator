@@ -62,6 +62,53 @@ func IsMigrating(client *aero.Client) (bool, error) {
 	return strings.TrimSpace(result) == "", nil
 }
 
+// IsMigratingOnAnyNode checks all cluster nodes for in-progress data
+// migrations. A node is considered migrating when either
+// migrate_progress_send or migrate_progress_recv is non-zero. Returns true
+// if any node has pending migrations.
+func IsMigratingOnAnyNode(client *aero.Client) (bool, error) {
+	nodes := client.GetNodes()
+	if len(nodes) == 0 {
+		return false, fmt.Errorf("no nodes available")
+	}
+
+	for _, node := range nodes {
+		if node == nil {
+			continue
+		}
+		stats, err := asinfoCommandOnNode(node, "statistics")
+		if err != nil {
+			return true, fmt.Errorf("statistics command on node %s failed: %w", node.GetName(), err)
+		}
+		send := parseMigrateStat(stats, "migrate_progress_send")
+		recv := parseMigrateStat(stats, "migrate_progress_recv")
+		if send > 0 || recv > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// parseMigrateStat extracts a numeric migration statistic from the asinfo
+// "statistics" response. The response is semicolon-delimited key=value pairs.
+// Returns 0 if the key is not found or cannot be parsed.
+func parseMigrateStat(stats, key string) int64 {
+	for pair := range strings.SplitSeq(stats, ";") {
+		k, v, ok := strings.Cut(pair, "=")
+		if !ok {
+			continue
+		}
+		if strings.TrimSpace(k) == key {
+			n, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+			if err != nil {
+				return 0
+			}
+			return n
+		}
+	}
+	return 0
+}
+
 // Recluster sends the recluster command to the cluster.
 func Recluster(client *aero.Client) error {
 	_, err := AsinfoCommand(client, "recluster:")

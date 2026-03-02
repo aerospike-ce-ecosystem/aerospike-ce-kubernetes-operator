@@ -100,6 +100,16 @@ var (
 		},
 		[]string{"namespace", "name"},
 	)
+
+	// ScaleDownDeferralsTotal counts the number of scale-down operations
+	// deferred due to in-progress data migrations.
+	ScaleDownDeferralsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "acko_scaledown_deferrals_total",
+			Help: "Total number of scale-down operations deferred due to data migration in progress",
+		},
+		[]string{"namespace", "name"},
+	)
 )
 
 // ReconcileErrorReason constants define bounded labels for ReconcileErrorsTotal.
@@ -130,6 +140,8 @@ func PhaseToFloat(phase string) float64 {
 		return 4
 	case "ScalingDown":
 		return 5
+	case "WaitingForMigration":
+		return 10
 	case "RollingRestart":
 		return 6
 	case "ACLSync":
@@ -154,6 +166,7 @@ func CleanupClusterMetrics(namespace, name string) {
 	DynamicConfigUpdatesTotal.Delete(labels)
 	LastReconcileTimestamp.Delete(labels)
 	ClusterASSize.Delete(labels)
+	ScaleDownDeferralsTotal.Delete(labels)
 
 	for _, result := range []string{"success", "error"} {
 		ACLSyncTotal.Delete(prometheus.Labels{"namespace": namespace, "name": name, "result": result})
@@ -180,5 +193,6 @@ func init() {
 		ReconcileErrorsTotal,
 		LastReconcileTimestamp,
 		ClusterASSize,
+		ScaleDownDeferralsTotal,
 	)
 }

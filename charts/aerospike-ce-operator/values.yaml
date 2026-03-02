@@ -505,12 +505,21 @@ ui:
 # =============================================================================
 # cert-manager subchart (optional bundled install)
 # =============================================================================
-cert-manager:
-  # -- Install cert-manager as a subchart alongside the operator.
-  # When true, cert-manager v1.17.2 is deployed automatically.
+
+# -- Controls whether cert-manager is installed as a subchart.
+# Kept separate from the `cert-manager:` key to avoid passing unknown properties
+# to cert-manager's strict values schema, which causes schema validation errors.
+# Usage: --set certManagerSubchart.enabled=true
+certManagerSubchart:
+  # -- Install cert-manager v1.17.2 as a subchart alongside the operator.
   # Recommended for quick-start and single-command installs.
   # Set to false (default) if cert-manager is already installed in the cluster.
-  install: false
+  enabled: false
+
+# -- cert-manager subchart values (passed directly to the cert-manager chart).
+# Do NOT add custom keys here — cert-manager enforces a strict JSON schema.
+# See: https://cert-manager.io/docs/installation/helm/#customizing-the-chart-before-installing
+cert-manager:
   crds:
     enabled: true
 

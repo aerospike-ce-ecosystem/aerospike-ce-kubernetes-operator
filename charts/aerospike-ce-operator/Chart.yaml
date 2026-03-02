@@ -26,4 +26,4 @@ dependencies:
   - name: cert-manager
     version: 1.17.2
     repository: https://charts.jetstack.io
-    condition: cert-manager.install
+    condition: certManagerSubchart.enabled

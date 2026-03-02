@@ -221,7 +221,7 @@ Use the `defaultTemplates.enabled=true` option to automatically create all three
 ```bash
 helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   -n aerospike-operator --create-namespace \
-  --set cert-manager.install=true \
+  --set certManagerSubchart.enabled=true \
   --set defaultTemplates.enabled=true
 ```
 

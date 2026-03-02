@@ -221,7 +221,7 @@ kubectl apply -f config/samples/aerospike-cluster-with-template.yaml
 ```bash
 helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   -n aerospike-operator --create-namespace \
-  --set cert-manager.install=true \
+  --set certManagerSubchart.enabled=true \
   --set defaultTemplates.enabled=true
 ```
 

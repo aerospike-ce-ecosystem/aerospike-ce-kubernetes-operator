@@ -53,7 +53,7 @@ func BuildAerospikeContainer(cluster *v1alpha1.AerospikeCluster, volumeMounts []
 		Lifecycle: &corev1.Lifecycle{
 			PreStop: &corev1.LifecycleHandler{
 				Exec: &corev1.ExecAction{
-					Command: []string{"/bin/sh", "-c", fmt.Sprintf("sleep %d", PreStopSleepSeconds)},
+					Command: []string{"sleep", fmt.Sprintf("%d", PreStopSleepSeconds)},
 				},
 			},
 		},

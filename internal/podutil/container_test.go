@@ -1,6 +1,7 @@
 package podutil
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -537,15 +538,15 @@ func TestBuildAerospikeContainer_HasPreStopHook(t *testing.T) {
 	}
 
 	cmd := c.Lifecycle.PreStop.Exec.Command
-	if len(cmd) != 3 {
-		t.Fatalf("expected 3 command parts, got %d: %v", len(cmd), cmd)
+	if len(cmd) != 2 {
+		t.Fatalf("expected 2 command parts, got %d: %v", len(cmd), cmd)
 	}
-	if cmd[0] != "/bin/sh" || cmd[1] != "-c" {
-		t.Errorf("expected command prefix [/bin/sh -c], got %v", cmd[:2])
+	if cmd[0] != "sleep" {
+		t.Errorf("expected sleep, got %q", cmd[0])
 	}
-	expectedSleep := "sleep 15"
-	if cmd[2] != expectedSleep {
-		t.Errorf("preStop command = %q, want %q", cmd[2], expectedSleep)
+	expectedArg := fmt.Sprintf("%d", PreStopSleepSeconds)
+	if cmd[1] != expectedArg {
+		t.Errorf("sleep arg = %q, want %q", cmd[1], expectedArg)
 	}
 }
 

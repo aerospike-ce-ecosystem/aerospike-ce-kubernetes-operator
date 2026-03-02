@@ -1,6 +1,7 @@
 package podutil
 
 import (
+	"fmt"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -823,8 +824,15 @@ func TestBuildPodTemplateSpec_AerospikeContainerHasPreStopHook(t *testing.T) {
 		t.Fatal("expected preStop to use exec handler")
 	}
 	cmd := aerospikeContainer.Lifecycle.PreStop.Exec.Command
-	if len(cmd) != 3 || cmd[2] != "sleep 15" {
-		t.Errorf("preStop command = %v, want [/bin/sh -c sleep 15]", cmd)
+	if len(cmd) != 2 {
+		t.Fatalf("expected 2 command parts, got %d: %v", len(cmd), cmd)
+	}
+	if cmd[0] != "sleep" {
+		t.Errorf("expected sleep, got %q", cmd[0])
+	}
+	expectedArg := fmt.Sprintf("%d", PreStopSleepSeconds)
+	if cmd[1] != expectedArg {
+		t.Errorf("sleep arg = %q, want %q", cmd[1], expectedArg)
 	}
 }
 

@@ -12,10 +12,10 @@ const (
 	EventLocalPVCDeleteFailed    = "LocalPVCDeleteFailed"
 
 	// Config management
-	EventConfigMapCreated     = "ConfigMapCreated"
-	EventConfigMapUpdated     = "ConfigMapUpdated"
-	EventDynamicConfigApplied = "DynamicConfigApplied"
-	EventDynamicConfigFailed  = "DynamicConfigStatusFailed"
+	EventConfigMapCreated          = "ConfigMapCreated"
+	EventConfigMapUpdated          = "ConfigMapUpdated"
+	EventDynamicConfigApplied      = "DynamicConfigApplied"
+	EventDynamicConfigStatusFailed = "DynamicConfigStatusFailed"
 
 	// StatefulSet / Rack management
 	EventStatefulSetCreated = "StatefulSetCreated"

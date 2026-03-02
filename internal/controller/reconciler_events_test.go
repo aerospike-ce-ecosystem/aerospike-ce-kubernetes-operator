@@ -18,6 +18,10 @@ func TestEventConstants(t *testing.T) {
 		{"PodWarmRestarted", EventPodWarmRestarted, "PodWarmRestarted"},
 		{"PodColdRestarted", EventPodColdRestarted, "PodColdRestarted"},
 		{"LocalPVCDeleteFailed", EventLocalPVCDeleteFailed, "LocalPVCDeleteFailed"},
+		// Quiesce lifecycle
+		{"NodeQuiesceStarted", EventNodeQuiesceStarted, "NodeQuiesceStarted"},
+		{"NodeQuiesced", EventNodeQuiesced, "NodeQuiesced"},
+		{"NodeQuiesceFailed", EventNodeQuiesceFailed, "NodeQuiesceFailed"},
 		// Config management
 		{"ConfigMapCreated", EventConfigMapCreated, "ConfigMapCreated"},
 		{"ConfigMapUpdated", EventConfigMapUpdated, "ConfigMapUpdated"},

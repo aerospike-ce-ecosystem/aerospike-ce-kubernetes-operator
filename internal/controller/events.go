@@ -11,6 +11,11 @@ const (
 	EventPodColdRestarted        = "PodColdRestarted"
 	EventLocalPVCDeleteFailed    = "LocalPVCDeleteFailed"
 
+	// Quiesce lifecycle
+	EventNodeQuiesceStarted = "NodeQuiesceStarted"
+	EventNodeQuiesced       = "NodeQuiesced"
+	EventNodeQuiesceFailed  = "NodeQuiesceFailed"
+
 	// Config management
 	EventConfigMapCreated          = "ConfigMapCreated"
 	EventConfigMapUpdated          = "ConfigMapUpdated"

@@ -304,12 +304,20 @@ func (r *AerospikeClusterReconciler) updatePodConfigHash(ctx context.Context, po
 // coldRestartPod deletes the pod to trigger a cold restart via StatefulSet.
 // It marks volumes that have a wipe method as dirty so the init container
 // can wipe them when the pod is recreated.
+// Before deletion, it attempts to quiesce the Aerospike node so it can
+// gracefully stop accepting new transactions and complete in-flight ones.
 func (r *AerospikeClusterReconciler) coldRestartPod(
 	ctx context.Context,
 	cluster *ackov1alpha1.AerospikeCluster,
 	pod *corev1.Pod,
 ) error {
 	log := logf.FromContext(ctx)
+
+	// Quiesce the Aerospike node before deletion (best-effort).
+	// This tells the node to stop accepting new client connections and
+	// complete in-flight transactions, allowing clients to smoothly
+	// failover to other nodes.
+	r.quiesceNodeBeforeDeletion(ctx, cluster, pod)
 
 	// Mark dirty volumes in pod status before deletion.
 	// The init container will read these via WIPE_VOLUMES env and wipe them on restart.
@@ -345,6 +353,32 @@ func (r *AerospikeClusterReconciler) coldRestartPod(
 	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventPodColdRestarted,
 		"Pod %s deleted for cold restart", pod.Name)
 	return nil
+}
+
+// quiesceNodeBeforeDeletion attempts to quiesce an Aerospike node before
+// deleting its pod. This is best-effort: if quiesce fails, pod deletion
+// still proceeds. The function emits Kubernetes events to track the
+// quiesce lifecycle.
+func (r *AerospikeClusterReconciler) quiesceNodeBeforeDeletion(
+	ctx context.Context,
+	cluster *ackov1alpha1.AerospikeCluster,
+	pod *corev1.Pod,
+) {
+	log := logf.FromContext(ctx)
+
+	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventNodeQuiesceStarted,
+		"Quiescing Aerospike node on pod %s before deletion", pod.Name)
+
+	if err := r.quiesceNode(ctx, pod, cluster); err != nil {
+		log.Error(err, "Failed to quiesce node, proceeding with deletion", "pod", pod.Name)
+		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventNodeQuiesceFailed,
+			"Failed to quiesce node on pod %s: %v", pod.Name, err)
+		return
+	}
+
+	log.Info("Node quiesced successfully before deletion", "pod", pod.Name)
+	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventNodeQuiesced,
+		"Node on pod %s quiesced successfully", pod.Name)
 }
 
 // getDirtyVolumes returns the names of volumes that have a non-"none" wipe method.

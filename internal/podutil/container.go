@@ -83,14 +83,14 @@ func buildLivenessProbe() *corev1.Probe {
 			Exec: &corev1.ExecAction{
 				Command: []string{
 					"/bin/sh", "-c",
-					fmt.Sprintf("asinfo -v 'build' -h 127.0.0.1 -p %d", ServicePort),
+					fmt.Sprintf("/usr/bin/asinfo -v 'build' -h 127.0.0.1 -p %d", ServicePort),
 				},
 			},
 		},
 		InitialDelaySeconds: 30,
 		PeriodSeconds:       30,
 		TimeoutSeconds:      5,
-		FailureThreshold:    3,
+		FailureThreshold:    5,
 	}
 }
 
@@ -104,7 +104,7 @@ func buildReadinessProbe() *corev1.Probe {
 			Exec: &corev1.ExecAction{
 				Command: []string{
 					"/bin/sh", "-c",
-					fmt.Sprintf("asinfo -v 'statistics' -h 127.0.0.1 -p %d 2>&1 | grep -q 'cluster_size'", ServicePort),
+					fmt.Sprintf("/usr/bin/asinfo -v 'statistics' -h 127.0.0.1 -p %d 2>&1 | grep -q 'cluster_size'", ServicePort),
 				},
 			},
 		},

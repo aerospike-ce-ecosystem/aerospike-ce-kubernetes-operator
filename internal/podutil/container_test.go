@@ -585,14 +585,14 @@ func TestBuildAerospikeContainer_HasLivenessProbe(t *testing.T) {
 		t.Fatal("liveness probe should use Exec handler")
 	}
 	cmd := strings.Join(c.LivenessProbe.Exec.Command, " ")
-	if !strings.Contains(cmd, "asinfo") {
-		t.Errorf("liveness probe command should contain 'asinfo', got %q", cmd)
+	if !strings.Contains(cmd, "/usr/bin/asinfo") {
+		t.Errorf("liveness probe command should contain '/usr/bin/asinfo', got %q", cmd)
 	}
 	if !strings.Contains(cmd, "build") {
 		t.Errorf("liveness probe command should query 'build', got %q", cmd)
 	}
-	if !strings.Contains(cmd, "3000") {
-		t.Errorf("liveness probe command should reference port 3000, got %q", cmd)
+	if !strings.Contains(cmd, fmt.Sprintf("%d", ServicePort)) {
+		t.Errorf("liveness probe command should reference port %d, got %q", ServicePort, cmd)
 	}
 	// Liveness probe should have more generous timing than readiness
 	if c.LivenessProbe.InitialDelaySeconds < c.ReadinessProbe.InitialDelaySeconds {
@@ -607,8 +607,8 @@ func TestBuildAerospikeContainer_HasLivenessProbe(t *testing.T) {
 	if c.LivenessProbe.TimeoutSeconds != 5 {
 		t.Errorf("liveness TimeoutSeconds = %d, want 5", c.LivenessProbe.TimeoutSeconds)
 	}
-	if c.LivenessProbe.FailureThreshold != 3 {
-		t.Errorf("liveness FailureThreshold = %d, want 3", c.LivenessProbe.FailureThreshold)
+	if c.LivenessProbe.FailureThreshold != 5 {
+		t.Errorf("liveness FailureThreshold = %d, want 5", c.LivenessProbe.FailureThreshold)
 	}
 }
 
@@ -623,8 +623,8 @@ func TestBuildAerospikeContainer_HasReadinessProbe(t *testing.T) {
 		t.Fatal("readiness probe should use Exec handler")
 	}
 	cmd := strings.Join(c.ReadinessProbe.Exec.Command, " ")
-	if !strings.Contains(cmd, "asinfo") {
-		t.Errorf("readiness probe command should contain 'asinfo', got %q", cmd)
+	if !strings.Contains(cmd, "/usr/bin/asinfo") {
+		t.Errorf("readiness probe command should contain '/usr/bin/asinfo', got %q", cmd)
 	}
 	if !strings.Contains(cmd, "statistics") {
 		t.Errorf("readiness probe command should query 'statistics', got %q", cmd)
@@ -632,8 +632,8 @@ func TestBuildAerospikeContainer_HasReadinessProbe(t *testing.T) {
 	if !strings.Contains(cmd, "cluster_size") {
 		t.Errorf("readiness probe command should check 'cluster_size', got %q", cmd)
 	}
-	if !strings.Contains(cmd, "3000") {
-		t.Errorf("readiness probe command should reference port 3000, got %q", cmd)
+	if !strings.Contains(cmd, fmt.Sprintf("%d", ServicePort)) {
+		t.Errorf("readiness probe command should reference port %d, got %q", ServicePort, cmd)
 	}
 	if c.ReadinessProbe.InitialDelaySeconds != 15 {
 		t.Errorf("readiness InitialDelaySeconds = %d, want 15", c.ReadinessProbe.InitialDelaySeconds)

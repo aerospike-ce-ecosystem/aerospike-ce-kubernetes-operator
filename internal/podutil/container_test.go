@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	v1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
@@ -516,6 +517,57 @@ func TestBuildInitVolumesEnv_MixedVolumesWithPolicy(t *testing.T) {
 	expected := "dd:/data,headerCleanup:/index"
 	if result != expected {
 		t.Errorf("expected %q, got %q", expected, result)
+	}
+}
+
+// --- PreStop lifecycle hook tests ---
+
+func TestBuildAerospikeContainer_HasPreStopHook(t *testing.T) {
+	cluster := newTestCluster()
+	c := BuildAerospikeContainer(cluster, nil)
+
+	if c.Lifecycle == nil {
+		t.Fatal("expected lifecycle to be set")
+	}
+	if c.Lifecycle.PreStop == nil {
+		t.Fatal("expected preStop hook to be set")
+	}
+	if c.Lifecycle.PreStop.Exec == nil {
+		t.Fatal("expected preStop hook to use exec handler")
+	}
+
+	cmd := c.Lifecycle.PreStop.Exec.Command
+	if len(cmd) != 3 {
+		t.Fatalf("expected 3 command parts, got %d: %v", len(cmd), cmd)
+	}
+	if cmd[0] != "/bin/sh" || cmd[1] != "-c" {
+		t.Errorf("expected command prefix [/bin/sh -c], got %v", cmd[:2])
+	}
+	expectedSleep := "sleep 15"
+	if cmd[2] != expectedSleep {
+		t.Errorf("preStop command = %q, want %q", cmd[2], expectedSleep)
+	}
+}
+
+func TestBuildAerospikeContainer_PreStopHookWithCustomResources(t *testing.T) {
+	// Verify that setting custom resources does not affect the PreStop hook
+	cluster := newTestCluster()
+	cluster.Spec.PodSpec = &v1alpha1.AerospikeCEPodSpec{
+		AerospikeContainerSpec: &v1alpha1.AerospikeContainerSpec{
+			Resources: &corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU: resource.MustParse("500m"),
+				},
+			},
+		},
+	}
+	c := BuildAerospikeContainer(cluster, nil)
+
+	if c.Lifecycle == nil || c.Lifecycle.PreStop == nil {
+		t.Fatal("expected preStop hook to be set even with custom resources")
+	}
+	if c.Lifecycle.PreStop.Exec == nil {
+		t.Fatal("expected preStop exec handler")
 	}
 }
 

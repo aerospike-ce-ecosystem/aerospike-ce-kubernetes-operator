@@ -172,9 +172,12 @@ func (r *AerospikeCEClusterReconciler) reconcileRollingRestart(
 		restarted++
 	}
 
-	if restarted > 0 {
+	// Emit RollingRestartCompleted only when the batch covered all remaining pods.
+	// In batch-mode restarts this fires on the last batch; intermediate batches skip it.
+	// len(podsToRestart) > 0 is guaranteed by the early-return above.
+	if restarted >= int32(len(podsToRestart)) {
 		r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventRollingRestartCompleted,
-			"Rolling restart completed for rack %d", rack.ID)
+			"Rolling restart completed for rack %d: all %d pods restarted", rack.ID, restarted)
 	}
 
 	return restarted > 0, nil

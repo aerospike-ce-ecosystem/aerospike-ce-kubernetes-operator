@@ -156,7 +156,7 @@ func (r *AerospikeCEClusterReconciler) updateDynamicConfigStatus(
 	latest := &asdbcev1alpha1.AerospikeCECluster{}
 	if err := r.Get(ctx, types.NamespacedName{Name: cluster.Name, Namespace: cluster.Namespace}, latest); err != nil {
 		log.Error(err, "Failed to re-fetch cluster for dynamic config status update", "pod", podName)
-		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventDynamicConfigFailed,
+		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventDynamicConfigStatusFailed,
 			"Failed to update dynamic config status for pod %s: %v", podName, err)
 		return
 	}
@@ -171,7 +171,7 @@ func (r *AerospikeCEClusterReconciler) updateDynamicConfigStatus(
 	latest.Status.Pods[podName] = podStatus
 	if err := r.Status().Patch(ctx, latest, client.MergeFrom(base)); err != nil {
 		log.Error(err, "Failed to patch dynamic config status", "pod", podName)
-		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventDynamicConfigFailed,
+		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventDynamicConfigStatusFailed,
 			"Failed to update dynamic config status for pod %s: %v", podName, err)
 	}
 }

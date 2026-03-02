@@ -22,7 +22,7 @@ func TestEventConstants(t *testing.T) {
 		{"ConfigMapCreated", EventConfigMapCreated, "ConfigMapCreated"},
 		{"ConfigMapUpdated", EventConfigMapUpdated, "ConfigMapUpdated"},
 		{"DynamicConfigApplied", EventDynamicConfigApplied, "DynamicConfigApplied"},
-		{"DynamicConfigFailed", EventDynamicConfigFailed, "DynamicConfigStatusFailed"},
+		{"DynamicConfigStatusFailed", EventDynamicConfigStatusFailed, "DynamicConfigStatusFailed"},
 		// StatefulSet / Rack management
 		{"StatefulSetCreated", EventStatefulSetCreated, "StatefulSetCreated"},
 		{"StatefulSetUpdated", EventStatefulSetUpdated, "StatefulSetUpdated"},

@@ -136,6 +136,9 @@ When `ui.k8s.enabled=true` (the default), the UI provides Kubernetes-native clus
 - **Pod logs** -- View container logs directly from the pod table with tail lines selection, copy, and download
 - **Export CR YAML** -- Copy the cluster's AerospikeCluster CR as clean YAML for debugging or migration
 - **Health dashboard** -- At-a-glance cluster health: pod readiness, migration status, config state, availability, and rack distribution
+- **Storage policies** -- Configure volume init method (deleteFiles/dd/blkdiscard/headerCleanup), wipe method, and cascade delete behavior for PVCs
+- **Network access type** -- Choose how clients access the cluster: Pod IP (default), Host Internal, Host External, or Configured IP; configure fabric type for inter-node communication
+- **Node block list** -- Specify Kubernetes nodes where Aerospike pods should not be scheduled (via the edit dialog)
 
 :::info
 K8s cluster management requires the UI service account to have RBAC access to AerospikeCluster resources. This is configured automatically when `ui.rbac.create=true` (the default).
@@ -151,6 +154,21 @@ The wizard includes a **Rack Config** step for multi-rack, zone-aware deployment
 - **Distribution Preview**: See estimated pod distribution across racks
 
 Each rack creates a separate StatefulSet, enabling zone-aware high availability.
+
+### Storage Policies
+
+When using persistent storage (device mode), the wizard lets you configure:
+
+- **Init Method**: How volumes are prepared on first use (`none`, `deleteFiles`, `dd`, `blkdiscard`, `headerCleanup`)
+- **Wipe Method**: How dirty volumes are cleaned on pod restart (`none`, `deleteFiles`, `dd`, `blkdiscard`, `headerCleanup`, `blkdiscardWithHeaderCleanup`)
+- **Cascade Delete**: Whether PVCs are automatically deleted when the cluster CR is deleted (default: enabled)
+
+### Network Access
+
+Configure client-to-cluster and node-to-node communication:
+
+- **Client Access Type**: `pod` (default — uses Pod IP), `hostInternal` (node internal IP), `hostExternal` (node external IP), or `configuredIP` (annotation-based)
+- **Fabric Type**: Network type for inter-node fabric communication (defaults to `pod`)
 
 ### Index Management
 

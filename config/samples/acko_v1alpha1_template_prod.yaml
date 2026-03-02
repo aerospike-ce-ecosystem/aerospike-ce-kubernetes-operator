@@ -69,7 +69,7 @@ spec:
     service:
       proto-fd-max: 15000
     namespaceDefaults:
-      memory-size: 2147483648   # 2GiB default per namespace
+      data-size: 2147483648   # 2GiB default per namespace
       replication-factor: 2
     network:
       heartbeat:

@@ -80,7 +80,7 @@ spec:
       proto-fd-max: 15000
     namespaceDefaults:
       replication-factor: 2
-      memory-size: 2147483648   # 2 GiB
+      data-size: 2147483648   # 2 GiB
 ```
 
 ```bash

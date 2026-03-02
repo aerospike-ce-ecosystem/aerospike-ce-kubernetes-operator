@@ -25,10 +25,10 @@ title: 클러스터 템플릿
 apiVersion: acko.io/v1alpha1
 kind: AerospikeClusterTemplate
 metadata:
-  name: prod
+  name: hard-rack
   namespace: default
 spec:
-  # 모든 prod 클러스터에 걸쳐 Aerospike 이미지와 기본 클러스터 크기를 표준화
+  # 모든 hard-rack 클러스터에 걸쳐 Aerospike 이미지와 기본 클러스터 크기를 표준화
   image: aerospike:ce-8.1.1.1
   size: 6
 
@@ -84,7 +84,7 @@ spec:
 ```
 
 ```bash
-kubectl apply -f prod-template.yaml
+kubectl apply -f hard-rack-template.yaml
 ```
 
 ---
@@ -97,11 +97,11 @@ kubectl apply -f prod-template.yaml
 apiVersion: acko.io/v1alpha1
 kind: AerospikeCluster
 metadata:
-  name: prod-cluster
+  name: hard-rack-cluster
 spec:
-  # image와 size는 "prod" 템플릿에서 제공됨 (image: aerospike:ce-8.1.1.1, size: 6)
+  # image와 size는 "hard-rack" 템플릿에서 제공됨 (image: aerospike:ce-8.1.1.1, size: 6)
   templateRef:
-    name: prod
+    name: hard-rack
 
   aerospikeConfig:
     namespaces:
@@ -117,7 +117,7 @@ spec:
   image: aerospike:ce-8.1.1.1   # 오버라이드: 특정 이미지를 고정
   size: 3                         # 오버라이드: 템플릿의 6 대신 3개 노드 사용
   templateRef:
-    name: prod
+    name: hard-rack
 ```
 
 오퍼레이터는 생성 시 템플릿을 해석하고 spec을 `status.templateSnapshot`에 저장합니다. 그 시점부터 클러스터는 독립적으로 운영됩니다 — 템플릿 변경 사항은 이 클러스터에 자동으로 영향을 미치지 않습니다.
@@ -131,7 +131,7 @@ spec:
 ```yaml
 spec:
   templateRef:
-    name: prod
+    name: hard-rack
   overrides:
     resources:
       requests:
@@ -157,7 +157,7 @@ spec:
 업데이트된 템플릿을 클러스터에 적용하려면:
 
 ```bash
-kubectl annotate aerospikecluster prod-cluster acko.io/resync-template=true
+kubectl annotate aerospikecluster hard-rack-cluster acko.io/resync-template=true
 ```
 
 오퍼레이터가 수행하는 작업:
@@ -171,13 +171,13 @@ kubectl annotate aerospikecluster prod-cluster acko.io/resync-template=true
 ## 템플릿 스냅샷 상태 확인
 
 ```bash
-kubectl get aerospikecluster prod-cluster -o jsonpath='{.status.templateSnapshot}'
+kubectl get aerospikecluster hard-rack-cluster -o jsonpath='{.status.templateSnapshot}'
 ```
 
 출력 예시:
 ```json
 {
-  "name": "prod",
+  "name": "hard-rack",
   "resourceVersion": "12345",
   "snapshotTimestamp": "2026-03-01T10:00:00Z",
   "synced": true
@@ -188,16 +188,66 @@ kubectl get aerospikecluster prod-cluster -o jsonpath='{.status.templateSnapshot
 
 ## 샘플 템플릿
 
-`config/samples/` 디렉토리에 바로 사용할 수 있는 템플릿이 포함되어 있습니다:
+`config/samples/` 디렉토리에 세 가지 티어의 기본 템플릿이 포함되어 있습니다:
 
-| 파일 | 프로필 |
-|------|---------|
-| `acko_v1alpha1_template_dev.yaml` | 최소 리소스, anti-affinity 없음 |
-| `acko_v1alpha1_template_stage.yaml` | 적정 리소스, preferred anti-affinity |
-| `acko_v1alpha1_template_prod.yaml` | 전체 리소스, required anti-affinity, 로컬 PV |
-| `aerospike-ce-cluster-with-template.yaml` | stage 템플릿을 사용하는 예제 클러스터 |
+| | `minimal` | `soft-rack` | `hard-rack` |
+|---|-----------|-------------|-------------|
+| **용도** | 개발 / 빠른 시작 | 스테이징 | 프로덕션 |
+| **size** | 1 | 3 (상속) | 6 |
+| **anti-affinity** | none | preferred | required |
+| **storage** | standard 1Gi | standard 10Gi | local-path 100Gi |
+| **rack 보장** | 없음 | soft (동일 노드 허용) | hard (노드당 1 rack) |
+| **resources** | 100m/256Mi | 500m/1Gi | 2/4Gi (Guaranteed QoS) |
+| **monitoring** | disabled | disabled | enabled |
+| **RF** | 1 | 2 | 2 |
+
+파일:
+- `acko_v1alpha1_template_dev.yaml` — `minimal`
+- `acko_v1alpha1_template_stage.yaml` — `soft-rack`
+- `acko_v1alpha1_template_prod.yaml` — `hard-rack`
+- `aerospike-cluster-with-template.yaml` — 템플릿을 사용하는 예제 클러스터
 
 ```bash
-kubectl apply -f config/samples/acko_v1alpha1_template_prod.yaml
-kubectl apply -f config/samples/aerospike-ce-cluster-with-template.yaml
+kubectl apply -f config/samples/acko_v1alpha1_template_prod.yaml   # hard-rack
+kubectl apply -f config/samples/aerospike-cluster-with-template.yaml
+```
+
+---
+
+## Helm으로 설치
+
+`defaultTemplates.enabled=true` 옵션을 사용하면 릴리스 네임스페이스에 세 가지 티어 템플릿이 자동으로 생성됩니다:
+
+```bash
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
+  -n aerospike-operator --create-namespace \
+  --set cert-manager.install=true \
+  --set defaultTemplates.enabled=true
+```
+
+템플릿이 생성되었는지 확인:
+
+```bash
+kubectl get aerospikeclustertemplate
+# NAME         AGE
+# minimal      10s
+# soft-rack    10s
+# hard-rack    10s
+```
+
+클러스터에서 템플릿 참조:
+
+```yaml
+apiVersion: acko.io/v1alpha1
+kind: AerospikeCluster
+metadata:
+  name: my-cluster
+spec:
+  templateRef:
+    name: soft-rack
+  aerospikeConfig:
+    namespaces:
+      - name: data
+        storage-engine:
+          type: memory
 ```

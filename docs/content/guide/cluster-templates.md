@@ -25,10 +25,10 @@ Templates can now supply the container **image**, cluster **size**, **monitoring
 apiVersion: acko.io/v1alpha1
 kind: AerospikeClusterTemplate
 metadata:
-  name: prod
+  name: hard-rack
   namespace: default
 spec:
-  # Standardize the Aerospike image and default cluster size across all prod clusters
+  # Standardize the Aerospike image and default cluster size across all hard-rack clusters
   image: aerospike:ce-8.1.1.1
   size: 6
 
@@ -84,7 +84,7 @@ spec:
 ```
 
 ```bash
-kubectl apply -f prod-template.yaml
+kubectl apply -f hard-rack-template.yaml
 ```
 
 ---
@@ -97,11 +97,11 @@ When a template supplies `image` and `size`, the cluster can omit those fields e
 apiVersion: acko.io/v1alpha1
 kind: AerospikeCluster
 metadata:
-  name: prod-cluster
+  name: hard-rack-cluster
 spec:
-  # image and size are supplied by the "prod" template (image: aerospike:ce-8.1.1.1, size: 6)
+  # image and size are supplied by the "hard-rack" template (image: aerospike:ce-8.1.1.1, size: 6)
   templateRef:
-    name: prod
+    name: hard-rack
 
   aerospikeConfig:
     namespaces:
@@ -117,7 +117,7 @@ spec:
   image: aerospike:ce-8.1.1.1   # override: pin a specific image
   size: 3                         # override: use 3 nodes instead of the template's 6
   templateRef:
-    name: prod
+    name: hard-rack
 ```
 
 The operator resolves the template at creation time and stores the spec in `status.templateSnapshot`. From that point the cluster operates independently — changes to the template do not automatically affect this cluster.
@@ -131,7 +131,7 @@ Use `spec.overrides` to change specific fields without creating a new template:
 ```yaml
 spec:
   templateRef:
-    name: prod
+    name: hard-rack
   overrides:
     resources:
       requests:
@@ -157,7 +157,7 @@ After updating a template, existing clusters show `status.templateSnapshot.synce
 To apply the updated template to a cluster:
 
 ```bash
-kubectl annotate aerospikecluster prod-cluster acko.io/resync-template=true
+kubectl annotate aerospikecluster hard-rack-cluster acko.io/resync-template=true
 ```
 
 The operator will:
@@ -171,13 +171,13 @@ The operator will:
 ## Check template snapshot status
 
 ```bash
-kubectl get aerospikecluster prod-cluster -o jsonpath='{.status.templateSnapshot}'
+kubectl get aerospikecluster hard-rack-cluster -o jsonpath='{.status.templateSnapshot}'
 ```
 
 Example output:
 ```json
 {
-  "name": "prod",
+  "name": "hard-rack",
   "resourceVersion": "12345",
   "snapshotTimestamp": "2026-03-01T10:00:00Z",
   "synced": true
@@ -188,16 +188,66 @@ Example output:
 
 ## Sample templates
 
-The `config/samples/` directory includes ready-to-use templates:
+The `config/samples/` directory includes three ready-to-use template tiers:
 
-| File | Profile |
-|------|---------|
-| `acko_v1alpha1_template_dev.yaml` | Minimal resources, no anti-affinity |
-| `acko_v1alpha1_template_stage.yaml` | Moderate resources, preferred anti-affinity |
-| `acko_v1alpha1_template_prod.yaml` | Full resources, required anti-affinity, local PV |
-| `aerospike-cluster-with-template.yaml` | Example cluster using stage template |
+| | `minimal` | `soft-rack` | `hard-rack` |
+|---|-----------|-------------|-------------|
+| **Purpose** | Dev / quick-start | Staging | Production |
+| **size** | 1 | 3 (inherits) | 6 |
+| **anti-affinity** | none | preferred | required |
+| **storage** | standard 1 Gi | standard 10 Gi | local-path 100 Gi |
+| **rack guarantee** | none | soft (same node OK) | hard (1 node : 1 rack) |
+| **resources** | 100 m / 256 Mi | 500 m / 1 Gi | 2 / 4 Gi (Guaranteed QoS) |
+| **monitoring** | disabled | disabled | enabled |
+| **RF** | 1 | 2 | 2 |
+
+Files:
+- `acko_v1alpha1_template_dev.yaml` — `minimal`
+- `acko_v1alpha1_template_stage.yaml` — `soft-rack`
+- `acko_v1alpha1_template_prod.yaml` — `hard-rack`
+- `aerospike-cluster-with-template.yaml` — example clusters using the templates
 
 ```bash
-kubectl apply -f config/samples/acko_v1alpha1_template_prod.yaml
+kubectl apply -f config/samples/acko_v1alpha1_template_prod.yaml   # hard-rack
 kubectl apply -f config/samples/aerospike-cluster-with-template.yaml
+```
+
+---
+
+## Install via Helm
+
+Use the `defaultTemplates.enabled=true` option to automatically create all three template tiers in the release namespace:
+
+```bash
+helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
+  -n aerospike-operator --create-namespace \
+  --set cert-manager.install=true \
+  --set defaultTemplates.enabled=true
+```
+
+Verify the templates are created:
+
+```bash
+kubectl get aerospikeclustertemplate
+# NAME         AGE
+# minimal      10s
+# soft-rack    10s
+# hard-rack    10s
+```
+
+Reference a template in your cluster:
+
+```yaml
+apiVersion: acko.io/v1alpha1
+kind: AerospikeCluster
+metadata:
+  name: my-cluster
+spec:
+  templateRef:
+    name: soft-rack
+  aerospikeConfig:
+    namespaces:
+      - name: data
+        storage-engine:
+          type: memory
 ```

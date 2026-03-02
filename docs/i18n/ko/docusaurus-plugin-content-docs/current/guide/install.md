@@ -20,7 +20,7 @@ import TabItem from '@theme/TabItem';
 
 cert-manager는 웹훅 TLS에 필요합니다. 아래 두 가지 방법 중 하나를 선택하세요:
 
-**방법 A — 오퍼레이터와 함께 설치 (권장):** 오퍼레이터 설치 시 `--set cert-manager.install=true`를 전달합니다. cert-manager가 자동으로 함께 배포됩니다. [오퍼레이터 설치](#오퍼레이터-설치)로 바로 건너뛰세요.
+**방법 A — 오퍼레이터와 함께 설치 (권장):** 오퍼레이터 설치 시 `--set certManagerSubchart.enabled=true`를 전달합니다. cert-manager가 자동으로 함께 배포됩니다. [오퍼레이터 설치](#오퍼레이터-설치)로 바로 건너뛰세요.
 
 **방법 B — 별도 설치:** GitOps 환경이나 cert-manager를 독립적으로 관리하는 경우.
 
@@ -51,7 +51,7 @@ kubectl -n cert-manager wait --for=condition=Available deployment/cert-manager-w
 # cert-manager 번들 설치 포함 (권장)
 helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   -n aerospike-operator --create-namespace \
-  --set cert-manager.install=true
+  --set certManagerSubchart.enabled=true
 ```
 
 ### Helm 값 커스터마이징
@@ -388,7 +388,7 @@ helm install prometheus prometheus-community/kube-prometheus-stack \
 # =============================================================================
 helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   -n aerospike-operator --create-namespace \
-  --set cert-manager.install=true \
+  --set certManagerSubchart.enabled=true \
   --set serviceMonitor.enabled=true \
   --set serviceMonitor.additionalLabels.release=prometheus \
   --set prometheusRule.enabled=true \

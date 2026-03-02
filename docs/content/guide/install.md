@@ -20,7 +20,7 @@ This guide covers two methods to install the ACKO operator.
 
 cert-manager is required for webhook TLS. Choose one of the following installation methods:
 
-**Option A — Bundle with operator (Recommended):** Pass `--set cert-manager.install=true` when installing the operator. cert-manager is deployed automatically. Skip to [Install the Operator](#install-the-operator).
+**Option A — Bundle with operator (Recommended):** Pass `--set certManagerSubchart.enabled=true` when installing the operator. cert-manager is deployed automatically. Skip to [Install the Operator](#install-the-operator).
 
 **Option B — Install separately:** For GitOps environments or when cert-manager is already managed independently.
 
@@ -51,7 +51,7 @@ The simplest installation method using the published OCI Helm chart.
 # Bundled cert-manager install (recommended)
 helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   -n aerospike-operator --create-namespace \
-  --set cert-manager.install=true
+  --set certManagerSubchart.enabled=true
 ```
 
 ### Customizing Helm Values
@@ -509,7 +509,7 @@ helm install prometheus prometheus-community/kube-prometheus-stack \
 # =============================================================================
 helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   -n aerospike-operator --create-namespace \
-  --set cert-manager.install=true \
+  --set certManagerSubchart.enabled=true \
   --set serviceMonitor.enabled=true \
   --set serviceMonitor.additionalLabels.release=prometheus \
   --set prometheusRule.enabled=true \

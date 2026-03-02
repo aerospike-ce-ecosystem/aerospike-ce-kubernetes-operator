@@ -75,7 +75,7 @@ kubectl -n cert-manager wait --for=condition=Available deployment/cert-manager -
 # cert-manager 번들 설치 포함 (Step 2를 건너뛴 경우 권장)
 helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
   -n aerospike-operator --create-namespace \
-  --set cert-manager.install=true
+  --set certManagerSubchart.enabled=true
 ```
 
 오퍼레이터가 실행 중인지 확인:

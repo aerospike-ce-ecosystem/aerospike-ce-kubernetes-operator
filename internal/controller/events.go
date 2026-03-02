@@ -1,6 +1,6 @@
 package controller
 
-// Event reason constants for Kubernetes Events recorded by the AerospikeCECluster controller.
+// Event reason constants for Kubernetes Events recorded by the AerospikeCluster controller.
 // Use these constants instead of hardcoded strings to avoid typos and enable consistent monitoring.
 const (
 	// Rolling restart lifecycle

@@ -1,40 +1,40 @@
 ---
 sidebar_position: 2
-title: AerospikeCEClusterTemplate API Reference
+title: AerospikeClusterTemplate API Reference
 ---
 
-# AerospikeCEClusterTemplate API Reference
+# AerospikeClusterTemplate API Reference
 
-This page documents the `AerospikeCEClusterTemplate` Custom Resource Definition (CRD) types.
+This page documents the `AerospikeClusterTemplate` Custom Resource Definition (CRD) types.
 
 **API Group:** `acko.io`
 **API Version:** `v1alpha1`
-**Kind:** `AerospikeCEClusterTemplate`
-**Short Names:** `ascet`, `ascetemplate`
+**Kind:** `AerospikeClusterTemplate`
+**Short Names:** `asct`
 
 ---
 
 ## Overview
 
-`AerospikeCEClusterTemplate` is a reusable configuration profile for `AerospikeCECluster`. It lets you define shared settings (scheduling, storage, resources, Aerospike config) once and reference them from multiple clusters via `spec.templateRef`.
+`AerospikeClusterTemplate` is a reusable configuration profile for `AerospikeCluster`. It lets you define shared settings (scheduling, storage, resources, Aerospike config) once and reference them from multiple clusters via `spec.templateRef`.
 
 **Snapshot strategy:** The template spec is copied into `status.templateSnapshot` at cluster creation time. Subsequent template changes are **not** automatically propagated. To resync, set the annotation `acko.io/resync-template: "true"` on the cluster object.
 
 ---
 
-## AerospikeCEClusterTemplate
+## AerospikeClusterTemplate
 
 | Field | Type | Description |
 |---|---|---|
 | `apiVersion` | string | `acko.io/v1alpha1` |
-| `kind` | string | `AerospikeCEClusterTemplate` |
+| `kind` | string | `AerospikeClusterTemplate` |
 | `metadata` | [ObjectMeta](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/object-meta/) | Standard object metadata |
-| `spec` | [AerospikeCEClusterTemplateSpec](#aerospikececlustertemplatespec) | Configuration profile |
-| `status` | [AerospikeCEClusterTemplateStatus](#aerospikececlustertemplatestatus) | Observed state |
+| `spec` | [AerospikeClusterTemplateSpec](#aerospikeclustertemplatespec) | Configuration profile |
+| `status` | [AerospikeClusterTemplateStatus](#aerospikeclustertemplatestatus) | Observed state |
 
 ---
 
-## AerospikeCEClusterTemplateSpec
+## AerospikeClusterTemplateSpec
 
 | Field | Type | Description |
 |---|---|---|
@@ -45,8 +45,8 @@ This page documents the `AerospikeCEClusterTemplate` Custom Resource Definition 
 | `rackConfig` | [TemplateRackConfig](#templaterackconfig) | Rack configuration defaults |
 | `image` | string | Default Aerospike CE container image (e.g. `aerospike:ce-8.1.1.1`). Applied when `spec.image` is not set in the cluster. |
 | `size` | integer | Default cluster size (1–8). Applied when `spec.size` is `0` (not set) in the cluster. |
-| `monitoring` | [AerospikeMonitoringSpec](./aerospikececluster.md#aerospikemonitoringspec) | Default Prometheus exporter sidecar configuration. Applied when `spec.monitoring` is not set in the cluster. |
-| `aerospikeNetworkPolicy` | [AerospikeNetworkPolicy](./aerospikececluster.md#aerospikenetworkpolicy) | Default network access configuration. Applied when `spec.aerospikeNetworkPolicy` is not set in the cluster. |
+| `monitoring` | [AerospikeMonitoringSpec](./aerospikecluster.md#aerospikemonitoringspec) | Default Prometheus exporter sidecar configuration. Applied when `spec.monitoring` is not set in the cluster. |
+| `aerospikeNetworkPolicy` | [AerospikeNetworkPolicy](./aerospikecluster.md#aerospikenetworkpolicy) | Default network access configuration. Applied when `spec.aerospikeNetworkPolicy` is not set in the cluster. |
 
 ---
 
@@ -118,28 +118,28 @@ This page documents the `AerospikeCEClusterTemplate` Custom Resource Definition 
 
 ---
 
-## AerospikeCEClusterTemplateStatus
+## AerospikeClusterTemplateStatus
 
 | Field | Type | Description |
 |---|---|---|
-| `usedBy` | []string | List of `AerospikeCECluster` names that reference this template |
+| `usedBy` | []string | List of `AerospikeCluster` names that reference this template |
 
 ---
 
 ## Using Templates in a Cluster
 
-Reference a template via `spec.templateRef` in `AerospikeCECluster`:
+Reference a template via `spec.templateRef` in `AerospikeCluster`:
 
 ```yaml
 apiVersion: acko.io/v1alpha1
-kind: AerospikeCECluster
+kind: AerospikeCluster
 metadata:
   name: my-cluster
 spec:
   size: 3
   image: aerospike:ce-8.1.1.1
   templateRef:
-    name: prod          # references AerospikeCEClusterTemplate named "prod"
+    name: prod          # references AerospikeClusterTemplate named "prod"
   overrides:            # optional: override specific fields from the template
     resources:
       requests:
@@ -155,7 +155,7 @@ spec:
 Template changes are not automatically applied to clusters. To resync:
 
 ```bash
-kubectl annotate aerospikececluster my-cluster acko.io/resync-template=true
+kubectl annotate aerospikecluster my-cluster acko.io/resync-template=true
 ```
 
 The operator will re-fetch the template, update `status.templateSnapshot`, emit a `TemplateApplied` event, and remove the annotation.

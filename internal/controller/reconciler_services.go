@@ -13,15 +13,15 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/podutil"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
 // reconcileHeadlessService creates or updates the headless service for the cluster.
-func (r *AerospikeCEClusterReconciler) reconcileHeadlessService(
+func (r *AerospikeClusterReconciler) reconcileHeadlessService(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 ) error {
 	log := logf.FromContext(ctx)
 	svcName := utils.HeadlessServiceName(cluster.Name)

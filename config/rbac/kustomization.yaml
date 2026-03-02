@@ -22,6 +22,6 @@ resources:
 # default, aiding admins in cluster management. Those roles are
 # not used by the aerospike-ce-operator itself. You can comment the following lines
 # if you do not want those helpers be installed with your Project.
-- aerospikececluster_admin_role.yaml
-- aerospikececluster_editor_role.yaml
-- aerospikececluster_viewer_role.yaml
+- aerospikecluster_admin_role.yaml
+- aerospikecluster_editor_role.yaml
+- aerospikecluster_viewer_role.yaml

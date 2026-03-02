@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/metrics"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/podutil"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
@@ -38,10 +38,10 @@ type StatusUpdateOpts struct {
 // updating status on a stale object.
 // If the status already matches the desired state, the update is skipped to avoid
 // triggering unnecessary reconciliation loops.
-func (r *AerospikeCEClusterReconciler) updateStatusAndPhase(
+func (r *AerospikeClusterReconciler) updateStatusAndPhase(
 	ctx context.Context,
 	namespacedName types.NamespacedName,
-	phase asdbcev1alpha1.AerospikePhase,
+	phase ackov1alpha1.AerospikePhase,
 	phaseReason string,
 	opts StatusUpdateOpts,
 ) error {
@@ -85,7 +85,7 @@ func (r *AerospikeCEClusterReconciler) updateStatusAndPhase(
 	log.Info("Updating status", "readyPods", readyCount, "desiredSize", latest.Spec.Size, "phase", phase, "phaseReason", phaseReason)
 
 	// On successful completion: record the full applied spec and refresh per-node info.
-	if phase == asdbcev1alpha1.AerospikePhaseCompleted {
+	if phase == ackov1alpha1.AerospikePhaseCompleted {
 		// AppliedSpec records the last successfully reconciled spec for drift detection.
 		latest.Status.AppliedSpec = latest.Spec.DeepCopy()
 
@@ -126,9 +126,9 @@ func (r *AerospikeCEClusterReconciler) updateStatusAndPhase(
 
 // updateAerospikeClusterSize queries asinfo for the Aerospike cluster-size and updates status.
 // Failure is non-fatal: the previous value is preserved.
-func (r *AerospikeCEClusterReconciler) updateAerospikeClusterSize(
+func (r *AerospikeClusterReconciler) updateAerospikeClusterSize(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 ) {
 	log := logf.FromContext(ctx)
 	aeroClient, err := r.getAerospikeClient(ctx, cluster)
@@ -147,9 +147,9 @@ func (r *AerospikeCEClusterReconciler) updateAerospikeClusterSize(
 }
 
 // populateStatus fills in the cluster's status fields and returns the ready pod count.
-func (r *AerospikeCEClusterReconciler) populateStatus(
+func (r *AerospikeClusterReconciler) populateStatus(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 ) (int32, error) {
 	log := logf.FromContext(ctx)
 
@@ -159,7 +159,7 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 		return 0, err
 	}
 
-	podStatuses := make(map[string]asdbcev1alpha1.AerospikePodStatus, len(podList.Items))
+	podStatuses := make(map[string]ackov1alpha1.AerospikePodStatus, len(podList.Items))
 	readyCount := int32(0)
 
 	for i := range podList.Items {
@@ -211,7 +211,7 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 		// These fields are refreshed via collectAerospikeInfo only when phase == Completed.
 		var nodeID, clusterName string
 		var accessEndpoints []string
-		var lastRestartReason *asdbcev1alpha1.RestartReason
+		var lastRestartReason *ackov1alpha1.RestartReason
 		var lastRestartTime *metav1.Time
 		var unstableSince *metav1.Time
 		if prev, exists := cluster.Status.Pods[pod.Name]; exists {
@@ -236,7 +236,7 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 
 		gateSatisfied, _ := findPodReadinessCondition(pod)
 
-		podStatuses[pod.Name] = asdbcev1alpha1.AerospikePodStatus{
+		podStatuses[pod.Name] = ackov1alpha1.AerospikePodStatus{
 			PodIP:                  pod.Status.PodIP,
 			HostIP:                 pod.Status.HostIP,
 			Image:                  podImage,
@@ -271,8 +271,8 @@ func (r *AerospikeCEClusterReconciler) populateStatus(
 	cluster.Status.Selector = strings.Join(selectorParts, ",")
 
 	// Update base conditions (Available, Ready).
-	setCondition(cluster, asdbcev1alpha1.ConditionAvailable, readyCount > 0, "ClusterAvailable", "At least one pod is ready")
-	setCondition(cluster, asdbcev1alpha1.ConditionReady, readyCount == cluster.Spec.Size, "AllPodsReady", fmt.Sprintf("%d/%d pods ready", readyCount, cluster.Spec.Size))
+	setCondition(cluster, ackov1alpha1.ConditionAvailable, readyCount > 0, "ClusterAvailable", "At least one pod is ready")
+	setCondition(cluster, ackov1alpha1.ConditionReady, readyCount == cluster.Spec.Size, "AllPodsReady", fmt.Sprintf("%d/%d pods ready", readyCount, cluster.Spec.Size))
 
 	return readyCount, nil
 }
@@ -289,7 +289,7 @@ func isPodReady(pod *corev1.Pod) bool {
 	return false
 }
 
-func setCondition(cluster *asdbcev1alpha1.AerospikeCECluster, condType string, status bool, reason, message string) {
+func setCondition(cluster *ackov1alpha1.AerospikeCluster, condType string, status bool, reason, message string) {
 	condStatus := metav1.ConditionFalse
 	if status {
 		condStatus = metav1.ConditionTrue
@@ -319,7 +319,7 @@ func setCondition(cluster *asdbcev1alpha1.AerospikeCECluster, condType string, s
 // setFineGrainedConditions sets all fine-grained status conditions:
 // ConfigApplied, ReconciliationPaused, ACLSynced, MigrationComplete.
 // Called from updateStatusAndPhase after populateStatus.
-func setFineGrainedConditions(cluster *asdbcev1alpha1.AerospikeCECluster, o StatusUpdateOpts) {
+func setFineGrainedConditions(cluster *ackov1alpha1.AerospikeCluster, o StatusUpdateOpts) {
 	// ConfigApplied: true when all pods carry the same config hash as the desired config.
 	desiredHash := configHash(cluster.Spec.AerospikeConfig)
 	allConfigApplied := len(cluster.Status.Pods) > 0
@@ -330,33 +330,33 @@ func setFineGrainedConditions(cluster *asdbcev1alpha1.AerospikeCECluster, o Stat
 		}
 	}
 	if allConfigApplied {
-		setCondition(cluster, asdbcev1alpha1.ConditionConfigApplied, true,
+		setCondition(cluster, ackov1alpha1.ConditionConfigApplied, true,
 			"ConfigApplied", "All pods have the desired Aerospike configuration")
 	} else {
-		setCondition(cluster, asdbcev1alpha1.ConditionConfigApplied, false,
+		setCondition(cluster, ackov1alpha1.ConditionConfigApplied, false,
 			"ConfigPending", "One or more pods do not yet have the desired configuration")
 	}
 
 	// ReconciliationPaused
-	setCondition(cluster, asdbcev1alpha1.ConditionReconciliationPaused, o.Paused,
+	setCondition(cluster, ackov1alpha1.ConditionReconciliationPaused, o.Paused,
 		"ReconciliationPaused", "Reconciliation is paused by user (spec.paused=true)")
 
 	// ACLSynced — only set if ACL is configured
 	if cluster.Spec.AerospikeAccessControl != nil {
 		if o.ACLErr != nil {
-			setCondition(cluster, asdbcev1alpha1.ConditionACLSynced, false,
+			setCondition(cluster, ackov1alpha1.ConditionACLSynced, false,
 				"ACLSyncFailed", o.ACLErr.Error())
 		} else if o.ACLSynced {
-			setCondition(cluster, asdbcev1alpha1.ConditionACLSynced, true,
+			setCondition(cluster, ackov1alpha1.ConditionACLSynced, true,
 				"ACLSyncSucceeded", "ACL roles and users are synchronized")
 		} else {
-			setCondition(cluster, asdbcev1alpha1.ConditionACLSynced, false,
+			setCondition(cluster, ackov1alpha1.ConditionACLSynced, false,
 				"ACLSyncPending", "ACL sync skipped: no ready pods available")
 		}
 	}
 
 	// MigrationComplete — False while rolling restart is in progress
-	setCondition(cluster, asdbcev1alpha1.ConditionMigrationComplete, !o.RestartInProgress,
+	setCondition(cluster, ackov1alpha1.ConditionMigrationComplete, !o.RestartInProgress,
 		"MigrationComplete", "No pending data migrations")
 }
 
@@ -394,9 +394,9 @@ type aeroPodInfo struct {
 // information (NodeID, ClusterName, AccessEndpoints) keyed by pod name.
 // Errors are logged at V(1) and the function returns nil rather than failing
 // so that status updates are never blocked by an unreachable cluster.
-func (r *AerospikeCEClusterReconciler) collectAerospikeInfo(
+func (r *AerospikeClusterReconciler) collectAerospikeInfo(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 ) map[string]aeroPodInfo {
 	log := logf.FromContext(ctx)
 

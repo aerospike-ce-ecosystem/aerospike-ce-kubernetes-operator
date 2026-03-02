@@ -8,7 +8,7 @@ import TabItem from '@theme/TabItem';
 
 # Create an Aerospike Cluster
 
-This guide explains how to deploy Aerospike CE clusters using the `AerospikeCECluster` CRD.
+This guide explains how to deploy Aerospike CE clusters using the `AerospikeCluster` CRD.
 
 ## Sample Configurations
 
@@ -19,7 +19,7 @@ The simplest cluster: a single-node in-memory deployment.
 
 ```yaml
 apiVersion: acko.io/v1alpha1
-kind: AerospikeCECluster
+kind: AerospikeCluster
 metadata:
   name: aerospike-ce-basic
   namespace: aerospike
@@ -39,7 +39,7 @@ spec:
 
 ```bash
 kubectl create namespace aerospike
-kubectl apply -f config/samples/acko_v1alpha1_aerospikececluster.yaml
+kubectl apply -f config/samples/acko_v1alpha1_aerospikecluster.yaml
 ```
 
 </TabItem>
@@ -49,7 +49,7 @@ A production-like setup with resource limits and persistent storage.
 
 ```yaml
 apiVersion: acko.io/v1alpha1
-kind: AerospikeCECluster
+kind: AerospikeCluster
 metadata:
   name: aerospike-ce-3node
   namespace: aerospike
@@ -115,7 +115,7 @@ spec:
 **Use case:** Production workloads with data persistence and replication.
 
 ```bash
-kubectl apply -f config/samples/aerospike-ce-cluster-3node.yaml
+kubectl apply -f config/samples/aerospike-cluster-3node.yaml
 ```
 
 </TabItem>
@@ -125,7 +125,7 @@ Spread pods across failure domains using rack-aware deployment.
 
 ```yaml
 apiVersion: acko.io/v1alpha1
-kind: AerospikeCECluster
+kind: AerospikeCluster
 metadata:
   name: aerospike-ce-multirack
   namespace: aerospike
@@ -185,7 +185,7 @@ spec:
 **Use case:** High availability across zones with rack-label-based scheduling. Each rack ID creates a separate StatefulSet (`<name>-<rackID>`) and ConfigMap.
 
 ```bash
-kubectl apply -f config/samples/aerospike-ce-cluster-multirack.yaml
+kubectl apply -f config/samples/aerospike-cluster-multirack.yaml
 ```
 
 </TabItem>
@@ -195,7 +195,7 @@ A 3-node cluster with Prometheus exporter sidecar and ServiceMonitor.
 
 ```yaml
 apiVersion: acko.io/v1alpha1
-kind: AerospikeCECluster
+kind: AerospikeCluster
 metadata:
   name: aerospike-ce-monitored
   namespace: aerospike

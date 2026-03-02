@@ -6,7 +6,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/podutil"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
@@ -19,8 +19,8 @@ func TestGetDirtyVolumes_NilStorage(t *testing.T) {
 }
 
 func TestGetDirtyVolumes_NoWipeMethod(t *testing.T) {
-	storage := &asdbcev1alpha1.AerospikeStorageSpec{
-		Volumes: []asdbcev1alpha1.VolumeSpec{
+	storage := &ackov1alpha1.AerospikeStorageSpec{
+		Volumes: []ackov1alpha1.VolumeSpec{
 			{Name: "data"},
 			{Name: "logs"},
 		},
@@ -32,11 +32,11 @@ func TestGetDirtyVolumes_NoWipeMethod(t *testing.T) {
 }
 
 func TestGetDirtyVolumes_WithWipeMethod(t *testing.T) {
-	storage := &asdbcev1alpha1.AerospikeStorageSpec{
-		Volumes: []asdbcev1alpha1.VolumeSpec{
-			{Name: "data", WipeMethod: asdbcev1alpha1.VolumeWipeMethodDeleteFiles},
+	storage := &ackov1alpha1.AerospikeStorageSpec{
+		Volumes: []ackov1alpha1.VolumeSpec{
+			{Name: "data", WipeMethod: ackov1alpha1.VolumeWipeMethodDeleteFiles},
 			{Name: "logs"},
-			{Name: "index", WipeMethod: asdbcev1alpha1.VolumeWipeMethodBlkdiscard},
+			{Name: "index", WipeMethod: ackov1alpha1.VolumeWipeMethodBlkdiscard},
 		},
 	}
 	result := getDirtyVolumes(storage)
@@ -49,9 +49,9 @@ func TestGetDirtyVolumes_WithWipeMethod(t *testing.T) {
 }
 
 func TestGetDirtyVolumes_WipeMethodNone(t *testing.T) {
-	storage := &asdbcev1alpha1.AerospikeStorageSpec{
-		Volumes: []asdbcev1alpha1.VolumeSpec{
-			{Name: "data", WipeMethod: asdbcev1alpha1.VolumeWipeMethodNone},
+	storage := &ackov1alpha1.AerospikeStorageSpec{
+		Volumes: []ackov1alpha1.VolumeSpec{
+			{Name: "data", WipeMethod: ackov1alpha1.VolumeWipeMethodNone},
 		},
 	}
 	result := getDirtyVolumes(storage)
@@ -61,15 +61,15 @@ func TestGetDirtyVolumes_WipeMethodNone(t *testing.T) {
 }
 
 func TestGetDirtyVolumes_GlobalPolicy(t *testing.T) {
-	storage := &asdbcev1alpha1.AerospikeStorageSpec{
-		FilesystemVolumePolicy: &asdbcev1alpha1.AerospikeVolumePolicy{
-			WipeMethod: asdbcev1alpha1.VolumeWipeMethodDeleteFiles,
+	storage := &ackov1alpha1.AerospikeStorageSpec{
+		FilesystemVolumePolicy: &ackov1alpha1.AerospikeVolumePolicy{
+			WipeMethod: ackov1alpha1.VolumeWipeMethodDeleteFiles,
 		},
-		Volumes: []asdbcev1alpha1.VolumeSpec{
+		Volumes: []ackov1alpha1.VolumeSpec{
 			{
 				Name: "data",
-				Source: asdbcev1alpha1.VolumeSource{
-					PersistentVolume: &asdbcev1alpha1.PersistentVolumeSpec{Size: "10Gi"},
+				Source: ackov1alpha1.VolumeSource{
+					PersistentVolume: &ackov1alpha1.PersistentVolumeSpec{Size: "10Gi"},
 				},
 			}, // should inherit global filesystem policy
 		},
@@ -119,13 +119,13 @@ func TestDetermineRestartReason(t *testing.T) {
 		podSpecHash        string
 		desiredPodSpecHash string
 		isWarm             bool
-		expected           asdbcev1alpha1.RestartReason
+		expected           ackov1alpha1.RestartReason
 	}{
 		{
 			name:         "image changed → ImageChanged",
 			podImage:     "aerospike:ce-7.2.0.6",
 			desiredImage: "aerospike:ce-8.1.1.1",
-			expected:     asdbcev1alpha1.RestartReasonImageChanged,
+			expected:     ackov1alpha1.RestartReasonImageChanged,
 		},
 		{
 			name:               "config hash changed, warm restart → WarmRestart",
@@ -136,7 +136,7 @@ func TestDetermineRestartReason(t *testing.T) {
 			podSpecHash:        "same",
 			desiredPodSpecHash: "same",
 			isWarm:             true,
-			expected:           asdbcev1alpha1.RestartReasonWarmRestart,
+			expected:           ackov1alpha1.RestartReasonWarmRestart,
 		},
 		{
 			name:               "config hash changed, cold restart → ConfigChanged",
@@ -147,7 +147,7 @@ func TestDetermineRestartReason(t *testing.T) {
 			podSpecHash:        "same",
 			desiredPodSpecHash: "same",
 			isWarm:             false,
-			expected:           asdbcev1alpha1.RestartReasonConfigChanged,
+			expected:           ackov1alpha1.RestartReasonConfigChanged,
 		},
 		{
 			name:               "pod spec hash changed (not image/config) → PodSpecChanged",
@@ -158,7 +158,7 @@ func TestDetermineRestartReason(t *testing.T) {
 			podSpecHash:        "old-spec",
 			desiredPodSpecHash: "new-spec",
 			isWarm:             false,
-			expected:           asdbcev1alpha1.RestartReasonPodSpecChanged,
+			expected:           ackov1alpha1.RestartReasonPodSpecChanged,
 		},
 		{
 			name:               "nothing differs → defaults to ConfigChanged",
@@ -169,7 +169,7 @@ func TestDetermineRestartReason(t *testing.T) {
 			podSpecHash:        "same",
 			desiredPodSpecHash: "same",
 			isWarm:             false,
-			expected:           asdbcev1alpha1.RestartReasonConfigChanged,
+			expected:           ackov1alpha1.RestartReasonConfigChanged,
 		},
 		{
 			name:               "image change takes priority over config change",
@@ -180,7 +180,7 @@ func TestDetermineRestartReason(t *testing.T) {
 			podSpecHash:        "old-spec",
 			desiredPodSpecHash: "new-spec",
 			isWarm:             true,
-			expected:           asdbcev1alpha1.RestartReasonImageChanged,
+			expected:           ackov1alpha1.RestartReasonImageChanged,
 		},
 	}
 

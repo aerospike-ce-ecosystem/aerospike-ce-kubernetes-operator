@@ -6,7 +6,7 @@ import (
 
 	aero "github.com/aerospike/aerospike-client-go/v8"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
 const (
@@ -263,7 +263,7 @@ func TestBuiltinRoles_CustomRolesAreNotProtected(t *testing.T) {
 // --- roleParsedPrivileges tests ---
 
 func TestRoleParsedPrivileges_MultiplePrivileges(t *testing.T) {
-	roleSpec := asdbcev1alpha1AerospikeRoleSpec("test-role",
+	roleSpec := ackov1alpha1AerospikeRoleSpec("test-role",
 		"read", "write.ns1", "read-write.ns1.set1")
 
 	privs, err := roleParsedPrivileges(roleSpec)
@@ -287,7 +287,7 @@ func TestRoleParsedPrivileges_MultiplePrivileges(t *testing.T) {
 }
 
 func TestRoleParsedPrivileges_EmptyPrivileges(t *testing.T) {
-	roleSpec := asdbcev1alpha1AerospikeRoleSpec("empty-role")
+	roleSpec := ackov1alpha1AerospikeRoleSpec("empty-role")
 	privs, err := roleParsedPrivileges(roleSpec)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -298,7 +298,7 @@ func TestRoleParsedPrivileges_EmptyPrivileges(t *testing.T) {
 }
 
 func TestRoleParsedPrivileges_UnknownCodeReturnsError(t *testing.T) {
-	roleSpec := asdbcev1alpha1AerospikeRoleSpec("bad-role", "read", "unknown-priv")
+	roleSpec := ackov1alpha1AerospikeRoleSpec("bad-role", "read", "unknown-priv")
 	_, err := roleParsedPrivileges(roleSpec)
 	if err == nil {
 		t.Error("expected error for role with unknown privilege code")
@@ -309,9 +309,9 @@ func TestRoleParsedPrivileges_UnknownCodeReturnsError(t *testing.T) {
 }
 
 // Helper to create an AerospikeRoleSpec without importing types directly
-// (since it's in the same binary via asdbcev1alpha1 import in reconciler_acl.go)
-func asdbcev1alpha1AerospikeRoleSpec(name string, privileges ...string) asdbcev1alpha1.AerospikeRoleSpec {
-	return asdbcev1alpha1.AerospikeRoleSpec{
+// (since it's in the same binary via ackov1alpha1 import in reconciler_acl.go)
+func ackov1alpha1AerospikeRoleSpec(name string, privileges ...string) ackov1alpha1.AerospikeRoleSpec {
+	return ackov1alpha1.AerospikeRoleSpec{
 		Name:       name,
 		Privileges: privileges,
 	}

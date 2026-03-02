@@ -23,7 +23,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
 func TestMergeTemplateSpec_NilInputs(t *testing.T) {
@@ -34,8 +34,8 @@ func TestMergeTemplateSpec_NilInputs(t *testing.T) {
 }
 
 func TestMergeTemplateSpec_NilBase(t *testing.T) {
-	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		RackConfig: &asdbcev1alpha1.TemplateRackConfig{MaxRacksPerNode: 2},
+	override := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		RackConfig: &ackov1alpha1.TemplateRackConfig{MaxRacksPerNode: 2},
 	}
 	result := MergeTemplateSpec(nil, override)
 	if result == nil {
@@ -47,8 +47,8 @@ func TestMergeTemplateSpec_NilBase(t *testing.T) {
 }
 
 func TestMergeTemplateSpec_NilOverride(t *testing.T) {
-	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		RackConfig: &asdbcev1alpha1.TemplateRackConfig{MaxRacksPerNode: 1},
+	base := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		RackConfig: &ackov1alpha1.TemplateRackConfig{MaxRacksPerNode: 1},
 	}
 	result := MergeTemplateSpec(base, nil)
 	if result == nil {
@@ -60,15 +60,15 @@ func TestMergeTemplateSpec_NilOverride(t *testing.T) {
 }
 
 func TestMergeTemplateSpec_OverrideTakesPrecedence(t *testing.T) {
-	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		RackConfig: &asdbcev1alpha1.TemplateRackConfig{MaxRacksPerNode: 1},
-		Scheduling: &asdbcev1alpha1.TemplateScheduling{
-			PodAntiAffinityLevel: asdbcev1alpha1.PodAntiAffinityPreferred,
+	base := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		RackConfig: &ackov1alpha1.TemplateRackConfig{MaxRacksPerNode: 1},
+		Scheduling: &ackov1alpha1.TemplateScheduling{
+			PodAntiAffinityLevel: ackov1alpha1.PodAntiAffinityPreferred,
 		},
 	}
-	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		Scheduling: &asdbcev1alpha1.TemplateScheduling{
-			PodAntiAffinityLevel: asdbcev1alpha1.PodAntiAffinityRequired,
+	override := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		Scheduling: &ackov1alpha1.TemplateScheduling{
+			PodAntiAffinityLevel: ackov1alpha1.PodAntiAffinityRequired,
 		},
 	}
 	result := MergeTemplateSpec(base, override)
@@ -76,15 +76,15 @@ func TestMergeTemplateSpec_OverrideTakesPrecedence(t *testing.T) {
 	if result.RackConfig == nil || result.RackConfig.MaxRacksPerNode != 1 {
 		t.Errorf("expected base RackConfig to be preserved")
 	}
-	if result.Scheduling == nil || result.Scheduling.PodAntiAffinityLevel != asdbcev1alpha1.PodAntiAffinityRequired {
+	if result.Scheduling == nil || result.Scheduling.PodAntiAffinityLevel != ackov1alpha1.PodAntiAffinityRequired {
 		t.Errorf("expected override scheduling to take precedence")
 	}
 }
 
 func TestMergeTemplateSpec_AerospikeConfigDeepMerge(t *testing.T) {
-	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		AerospikeConfig: &asdbcev1alpha1.TemplateAerospikeConfig{
-			Service: &asdbcev1alpha1.AerospikeConfigSpec{
+	base := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		AerospikeConfig: &ackov1alpha1.TemplateAerospikeConfig{
+			Service: &ackov1alpha1.AerospikeConfigSpec{
 				Value: map[string]any{
 					"proto-fd-max": 15000,
 					"base-key":     "base-value",
@@ -92,9 +92,9 @@ func TestMergeTemplateSpec_AerospikeConfigDeepMerge(t *testing.T) {
 			},
 		},
 	}
-	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		AerospikeConfig: &asdbcev1alpha1.TemplateAerospikeConfig{
-			Service: &asdbcev1alpha1.AerospikeConfigSpec{
+	override := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		AerospikeConfig: &ackov1alpha1.TemplateAerospikeConfig{
+			Service: &ackov1alpha1.AerospikeConfigSpec{
 				Value: map[string]any{
 					"proto-fd-max": 20000,
 					"override-key": "override-value",
@@ -122,8 +122,8 @@ func TestMergeTemplateSpec_AerospikeConfigDeepMerge(t *testing.T) {
 }
 
 func TestApplyAerospikeConfig_NamespaceDefaults(t *testing.T) {
-	cluster := &asdbcev1alpha1.AerospikeCECluster{}
-	cluster.Spec.AerospikeConfig = &asdbcev1alpha1.AerospikeConfigSpec{
+	cluster := &ackov1alpha1.AerospikeCluster{}
+	cluster.Spec.AerospikeConfig = &ackov1alpha1.AerospikeConfigSpec{
 		Value: map[string]any{
 			"namespaces": []any{
 				map[string]any{"name": "test", "replication-factor": 1},
@@ -131,8 +131,8 @@ func TestApplyAerospikeConfig_NamespaceDefaults(t *testing.T) {
 		},
 	}
 
-	tmplConfig := &asdbcev1alpha1.TemplateAerospikeConfig{
-		NamespaceDefaults: &asdbcev1alpha1.AerospikeConfigSpec{
+	tmplConfig := &ackov1alpha1.TemplateAerospikeConfig{
+		NamespaceDefaults: &ackov1alpha1.AerospikeConfigSpec{
 			Value: map[string]any{
 				"memory-size":        int64(1073741824),
 				"replication-factor": 2, // should be overridden by namespace's own value
@@ -164,43 +164,43 @@ func TestApplyAerospikeConfig_NamespaceDefaults(t *testing.T) {
 func TestNeedsResync(t *testing.T) {
 	tests := []struct {
 		name    string
-		cluster *asdbcev1alpha1.AerospikeCECluster
+		cluster *ackov1alpha1.AerospikeCluster
 		want    bool
 	}{
 		{
 			name:    "no templateRef",
-			cluster: &asdbcev1alpha1.AerospikeCECluster{},
+			cluster: &ackov1alpha1.AerospikeCluster{},
 			want:    false,
 		},
 		{
 			name: "templateRef set, no snapshot",
-			cluster: &asdbcev1alpha1.AerospikeCECluster{
-				Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
-					TemplateRef: &asdbcev1alpha1.TemplateRef{Name: "prod"},
+			cluster: &ackov1alpha1.AerospikeCluster{
+				Spec: ackov1alpha1.AerospikeClusterSpec{
+					TemplateRef: &ackov1alpha1.TemplateRef{Name: "prod"},
 				},
 			},
 			want: true,
 		},
 		{
 			name: "templateRef set, snapshot exists, no annotation",
-			cluster: &asdbcev1alpha1.AerospikeCECluster{
-				Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
-					TemplateRef: &asdbcev1alpha1.TemplateRef{Name: "prod"},
+			cluster: &ackov1alpha1.AerospikeCluster{
+				Spec: ackov1alpha1.AerospikeClusterSpec{
+					TemplateRef: &ackov1alpha1.TemplateRef{Name: "prod"},
 				},
-				Status: asdbcev1alpha1.AerospikeCEClusterStatus{
-					TemplateSnapshot: &asdbcev1alpha1.TemplateSnapshotStatus{Name: "prod"},
+				Status: ackov1alpha1.AerospikeClusterStatus{
+					TemplateSnapshot: &ackov1alpha1.TemplateSnapshotStatus{Name: "prod"},
 				},
 			},
 			want: false,
 		},
 		{
 			name: "templateRef set, snapshot exists, resync annotation",
-			cluster: &asdbcev1alpha1.AerospikeCECluster{
-				Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
-					TemplateRef: &asdbcev1alpha1.TemplateRef{Name: "prod"},
+			cluster: &ackov1alpha1.AerospikeCluster{
+				Spec: ackov1alpha1.AerospikeClusterSpec{
+					TemplateRef: &ackov1alpha1.TemplateRef{Name: "prod"},
 				},
-				Status: asdbcev1alpha1.AerospikeCEClusterStatus{
-					TemplateSnapshot: &asdbcev1alpha1.TemplateSnapshotStatus{Name: "prod"},
+				Status: ackov1alpha1.AerospikeClusterStatus{
+					TemplateSnapshot: &ackov1alpha1.TemplateSnapshotStatus{Name: "prod"},
 				},
 			},
 			want: true,
@@ -221,15 +221,15 @@ func TestNeedsResync(t *testing.T) {
 }
 
 func TestApplyTemplate_Resources(t *testing.T) {
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+	cluster := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
 			Size:  1,
 			Image: testImageCE8,
 		},
 	}
 
 	// Resources should be applied when not set in cluster spec.
-	templateSpec := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{}
+	templateSpec := &ackov1alpha1.AerospikeClusterTemplateSpec{}
 	ApplyTemplate(templateSpec, cluster)
 
 	// With nil resources in template, nothing should be set.
@@ -242,9 +242,9 @@ func TestApplyTemplate_Resources(t *testing.T) {
 // ---- applyStorage tests ----
 
 func TestApplyStorage_CreatesVolumeFromTemplate(t *testing.T) {
-	cluster := &asdbcev1alpha1.AerospikeCECluster{}
+	cluster := &ackov1alpha1.AerospikeCluster{}
 	qty := resource.MustParse("50Gi")
-	tmplStorage := &asdbcev1alpha1.TemplateStorage{
+	tmplStorage := &ackov1alpha1.TemplateStorage{
 		StorageClassName: "local-path",
 		Resources: corev1.VolumeResourceRequirements{
 			Requests: corev1.ResourceList{corev1.ResourceStorage: qty},
@@ -272,16 +272,16 @@ func TestApplyStorage_CreatesVolumeFromTemplate(t *testing.T) {
 }
 
 func TestApplyStorage_SkipsIfVolumeAlreadySet(t *testing.T) {
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
-			Storage: &asdbcev1alpha1.AerospikeStorageSpec{
-				Volumes: []asdbcev1alpha1.VolumeSpec{
+	cluster := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
+			Storage: &ackov1alpha1.AerospikeStorageSpec{
+				Volumes: []ackov1alpha1.VolumeSpec{
 					{Name: "existing"},
 				},
 			},
 		},
 	}
-	tmplStorage := &asdbcev1alpha1.TemplateStorage{StorageClassName: "other"}
+	tmplStorage := &ackov1alpha1.TemplateStorage{StorageClassName: "other"}
 
 	applyStorage(tmplStorage, cluster)
 
@@ -291,8 +291,8 @@ func TestApplyStorage_SkipsIfVolumeAlreadySet(t *testing.T) {
 }
 
 func TestApplyStorage_DefaultsApplied(t *testing.T) {
-	cluster := &asdbcev1alpha1.AerospikeCECluster{}
-	tmplStorage := &asdbcev1alpha1.TemplateStorage{StorageClassName: "standard"}
+	cluster := &ackov1alpha1.AerospikeCluster{}
+	tmplStorage := &ackov1alpha1.TemplateStorage{StorageClassName: "standard"}
 
 	applyStorage(tmplStorage, cluster)
 
@@ -314,8 +314,8 @@ func TestApplyStorage_DefaultsApplied(t *testing.T) {
 // ---- applyScheduling tests ----
 
 func TestApplyScheduling_Tolerations(t *testing.T) {
-	cluster := &asdbcev1alpha1.AerospikeCECluster{}
-	scheduling := &asdbcev1alpha1.TemplateScheduling{
+	cluster := &ackov1alpha1.AerospikeCluster{}
+	scheduling := &ackov1alpha1.TemplateScheduling{
 		Tolerations: []corev1.Toleration{
 			{Key: "aerospike", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
 		},
@@ -332,14 +332,14 @@ func TestApplyScheduling_Tolerations(t *testing.T) {
 }
 
 func TestApplyScheduling_TolerationsNotOverriddenIfAlreadySet(t *testing.T) {
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
-			PodSpec: &asdbcev1alpha1.AerospikeCEPodSpec{
+	cluster := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
+			PodSpec: &ackov1alpha1.AerospikeCEPodSpec{
 				Tolerations: []corev1.Toleration{{Key: "existing"}},
 			},
 		},
 	}
-	scheduling := &asdbcev1alpha1.TemplateScheduling{
+	scheduling := &ackov1alpha1.TemplateScheduling{
 		Tolerations: []corev1.Toleration{{Key: "from-template"}},
 	}
 
@@ -351,8 +351,8 @@ func TestApplyScheduling_TolerationsNotOverriddenIfAlreadySet(t *testing.T) {
 }
 
 func TestApplyScheduling_TopologySpreadConstraints(t *testing.T) {
-	cluster := &asdbcev1alpha1.AerospikeCECluster{}
-	scheduling := &asdbcev1alpha1.TemplateScheduling{
+	cluster := &ackov1alpha1.AerospikeCluster{}
+	scheduling := &ackov1alpha1.TemplateScheduling{
 		TopologySpreadConstraints: []corev1.TopologySpreadConstraint{
 			{MaxSkew: 1, TopologyKey: testTopologyZone, WhenUnsatisfiable: corev1.DoNotSchedule},
 		},
@@ -369,8 +369,8 @@ func TestApplyScheduling_TopologySpreadConstraints(t *testing.T) {
 }
 
 func TestApplyScheduling_PodManagementPolicy(t *testing.T) {
-	cluster := &asdbcev1alpha1.AerospikeCECluster{}
-	scheduling := &asdbcev1alpha1.TemplateScheduling{
+	cluster := &ackov1alpha1.AerospikeCluster{}
+	scheduling := &ackov1alpha1.TemplateScheduling{
 		PodManagementPolicy: appsv1.OrderedReadyPodManagement,
 	}
 
@@ -429,17 +429,17 @@ func TestDeepMergeMapBaseFirst(t *testing.T) {
 // --- MergeTemplateSpec: deep copy isolation ---
 
 func TestMergeTemplateSpec_AerospikeConfigIsolatedFromBase(t *testing.T) {
-	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		AerospikeConfig: &asdbcev1alpha1.TemplateAerospikeConfig{
-			NamespaceDefaults: &asdbcev1alpha1.AerospikeConfigSpec{
+	base := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		AerospikeConfig: &ackov1alpha1.TemplateAerospikeConfig{
+			NamespaceDefaults: &ackov1alpha1.AerospikeConfigSpec{
 				Value: map[string]any{"replication-factor": 2},
 			},
 		},
 	}
 	// override touches Service but NOT NamespaceDefaults
-	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		AerospikeConfig: &asdbcev1alpha1.TemplateAerospikeConfig{
-			Service: &asdbcev1alpha1.AerospikeConfigSpec{
+	override := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		AerospikeConfig: &ackov1alpha1.TemplateAerospikeConfig{
+			Service: &ackov1alpha1.AerospikeConfigSpec{
 				Value: map[string]any{"proto-fd-max": 20000},
 			},
 		},
@@ -454,10 +454,10 @@ func TestMergeTemplateSpec_AerospikeConfigIsolatedFromBase(t *testing.T) {
 }
 
 func TestMergeTemplateSpec_NetworkConfigIsolatedFromBase(t *testing.T) {
-	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		AerospikeConfig: &asdbcev1alpha1.TemplateAerospikeConfig{
-			Network: &asdbcev1alpha1.TemplateNetworkConfig{
-				Heartbeat: &asdbcev1alpha1.TemplateHeartbeatConfig{
+	base := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		AerospikeConfig: &ackov1alpha1.TemplateAerospikeConfig{
+			Network: &ackov1alpha1.TemplateNetworkConfig{
+				Heartbeat: &ackov1alpha1.TemplateHeartbeatConfig{
 					Mode:     "mesh",
 					Interval: 150,
 					Timeout:  10,
@@ -466,10 +466,10 @@ func TestMergeTemplateSpec_NetworkConfigIsolatedFromBase(t *testing.T) {
 		},
 	}
 	// override touches heartbeat partially
-	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		AerospikeConfig: &asdbcev1alpha1.TemplateAerospikeConfig{
-			Network: &asdbcev1alpha1.TemplateNetworkConfig{
-				Heartbeat: &asdbcev1alpha1.TemplateHeartbeatConfig{
+	override := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		AerospikeConfig: &ackov1alpha1.TemplateAerospikeConfig{
+			Network: &ackov1alpha1.TemplateNetworkConfig{
+				Heartbeat: &ackov1alpha1.TemplateHeartbeatConfig{
 					Interval: 250,
 				},
 			},
@@ -486,18 +486,18 @@ func TestMergeTemplateSpec_NetworkConfigIsolatedFromBase(t *testing.T) {
 }
 
 func TestMergeTemplateSpec_SchedulingIsolatedFromBase(t *testing.T) {
-	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		Scheduling: &asdbcev1alpha1.TemplateScheduling{
-			PodAntiAffinityLevel: asdbcev1alpha1.PodAntiAffinityPreferred,
+	base := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		Scheduling: &ackov1alpha1.TemplateScheduling{
+			PodAntiAffinityLevel: ackov1alpha1.PodAntiAffinityPreferred,
 			Tolerations: []corev1.Toleration{
 				{Key: "base-key", Operator: corev1.TolerationOpExists},
 			},
 		},
 	}
 	// override touches PodAntiAffinityLevel but NOT Tolerations
-	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		Scheduling: &asdbcev1alpha1.TemplateScheduling{
-			PodAntiAffinityLevel: asdbcev1alpha1.PodAntiAffinityRequired,
+	override := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		Scheduling: &ackov1alpha1.TemplateScheduling{
+			PodAntiAffinityLevel: ackov1alpha1.PodAntiAffinityRequired,
 		},
 	}
 	result := MergeTemplateSpec(base, override)
@@ -510,13 +510,13 @@ func TestMergeTemplateSpec_SchedulingIsolatedFromBase(t *testing.T) {
 }
 
 func TestMergeTemplateSpec_NodeAffinityIsolatedFromOverride(t *testing.T) {
-	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		Scheduling: &asdbcev1alpha1.TemplateScheduling{
-			PodAntiAffinityLevel: asdbcev1alpha1.PodAntiAffinityPreferred,
+	base := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		Scheduling: &ackov1alpha1.TemplateScheduling{
+			PodAntiAffinityLevel: ackov1alpha1.PodAntiAffinityPreferred,
 		},
 	}
-	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		Scheduling: &asdbcev1alpha1.TemplateScheduling{
+	override := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		Scheduling: &ackov1alpha1.TemplateScheduling{
 			NodeAffinity: &corev1.NodeAffinity{
 				RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
 					NodeSelectorTerms: []corev1.NodeSelectorTerm{
@@ -539,9 +539,9 @@ func TestMergeTemplateSpec_NodeAffinityIsolatedFromOverride(t *testing.T) {
 }
 
 func TestMergeTemplateSpec_TolerationsIsolatedFromOverride(t *testing.T) {
-	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{}
-	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		Scheduling: &asdbcev1alpha1.TemplateScheduling{
+	base := &ackov1alpha1.AerospikeClusterTemplateSpec{}
+	override := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		Scheduling: &ackov1alpha1.TemplateScheduling{
 			Tolerations: []corev1.Toleration{
 				{Key: "original", Operator: corev1.TolerationOpExists},
 			},
@@ -556,9 +556,9 @@ func TestMergeTemplateSpec_TolerationsIsolatedFromOverride(t *testing.T) {
 }
 
 func TestMergeTemplateSpec_TopologySpreadConstraintsIsolatedFromOverride(t *testing.T) {
-	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{}
-	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		Scheduling: &asdbcev1alpha1.TemplateScheduling{
+	base := &ackov1alpha1.AerospikeClusterTemplateSpec{}
+	override := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		Scheduling: &ackov1alpha1.TemplateScheduling{
 			TopologySpreadConstraints: []corev1.TopologySpreadConstraint{
 				{MaxSkew: 1, TopologyKey: testTopologyZone, WhenUnsatisfiable: corev1.DoNotSchedule},
 			},
@@ -575,8 +575,8 @@ func TestMergeTemplateSpec_TopologySpreadConstraintsIsolatedFromOverride(t *test
 // --- MergeTemplateSpec: Image ---
 
 func TestMergeTemplateSpec_ImageOverrideTakesPrecedence(t *testing.T) {
-	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{Image: testImageCE7}
-	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{Image: testImageCE8}
+	base := &ackov1alpha1.AerospikeClusterTemplateSpec{Image: testImageCE7}
+	override := &ackov1alpha1.AerospikeClusterTemplateSpec{Image: testImageCE8}
 	result := MergeTemplateSpec(base, override)
 	if result.Image != testImageCE8 {
 		t.Errorf("expected override image, got %q", result.Image)
@@ -584,8 +584,8 @@ func TestMergeTemplateSpec_ImageOverrideTakesPrecedence(t *testing.T) {
 }
 
 func TestMergeTemplateSpec_ImageBasePreservedWhenOverrideEmpty(t *testing.T) {
-	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{Image: testImageCE8}
-	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{}
+	base := &ackov1alpha1.AerospikeClusterTemplateSpec{Image: testImageCE8}
+	override := &ackov1alpha1.AerospikeClusterTemplateSpec{}
 	result := MergeTemplateSpec(base, override)
 	if result.Image != testImageCE8 {
 		t.Errorf("expected base image to be preserved, got %q", result.Image)
@@ -597,8 +597,8 @@ func TestMergeTemplateSpec_ImageBasePreservedWhenOverrideEmpty(t *testing.T) {
 func TestMergeTemplateSpec_SizeOverrideTakesPrecedence(t *testing.T) {
 	baseSize := int32(1)
 	overrideSize := int32(6)
-	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{Size: &baseSize}
-	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{Size: &overrideSize}
+	base := &ackov1alpha1.AerospikeClusterTemplateSpec{Size: &baseSize}
+	override := &ackov1alpha1.AerospikeClusterTemplateSpec{Size: &overrideSize}
 	result := MergeTemplateSpec(base, override)
 	if result.Size == nil || *result.Size != 6 {
 		t.Errorf("expected override size=6")
@@ -607,8 +607,8 @@ func TestMergeTemplateSpec_SizeOverrideTakesPrecedence(t *testing.T) {
 
 func TestMergeTemplateSpec_SizeBasePreservedWhenOverrideNil(t *testing.T) {
 	baseSize := int32(6)
-	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{Size: &baseSize}
-	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{}
+	base := &ackov1alpha1.AerospikeClusterTemplateSpec{Size: &baseSize}
+	override := &ackov1alpha1.AerospikeClusterTemplateSpec{}
 	result := MergeTemplateSpec(base, override)
 	if result.Size == nil || *result.Size != 6 {
 		t.Errorf("expected base size=6 to be preserved")
@@ -617,7 +617,7 @@ func TestMergeTemplateSpec_SizeBasePreservedWhenOverrideNil(t *testing.T) {
 
 func TestMergeTemplateSpec_SizeDeepCopied(t *testing.T) {
 	baseSize := int32(3)
-	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{Size: &baseSize}
+	base := &ackov1alpha1.AerospikeClusterTemplateSpec{Size: &baseSize}
 	result := MergeTemplateSpec(base, nil)
 	// Mutating baseSize should not affect the result.
 	baseSize = 99
@@ -629,11 +629,11 @@ func TestMergeTemplateSpec_SizeDeepCopied(t *testing.T) {
 // --- MergeTemplateSpec: Monitoring ---
 
 func TestMergeTemplateSpec_MonitoringOverrideReplaces(t *testing.T) {
-	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		Monitoring: &asdbcev1alpha1.AerospikeMonitoringSpec{Port: 9145},
+	base := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		Monitoring: &ackov1alpha1.AerospikeMonitoringSpec{Port: 9145},
 	}
-	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		Monitoring: &asdbcev1alpha1.AerospikeMonitoringSpec{Port: 9200},
+	override := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		Monitoring: &ackov1alpha1.AerospikeMonitoringSpec{Port: 9200},
 	}
 	result := MergeTemplateSpec(base, override)
 	if result.Monitoring == nil || result.Monitoring.Port != 9200 {
@@ -642,10 +642,10 @@ func TestMergeTemplateSpec_MonitoringOverrideReplaces(t *testing.T) {
 }
 
 func TestMergeTemplateSpec_MonitoringBasePreservedWhenOverrideNil(t *testing.T) {
-	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		Monitoring: &asdbcev1alpha1.AerospikeMonitoringSpec{Enabled: true, Port: 9145},
+	base := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		Monitoring: &ackov1alpha1.AerospikeMonitoringSpec{Enabled: true, Port: 9145},
 	}
-	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{}
+	override := &ackov1alpha1.AerospikeClusterTemplateSpec{}
 	result := MergeTemplateSpec(base, override)
 	if result.Monitoring == nil || !result.Monitoring.Enabled || result.Monitoring.Port != 9145 {
 		t.Errorf("expected base monitoring to be preserved")
@@ -655,31 +655,31 @@ func TestMergeTemplateSpec_MonitoringBasePreservedWhenOverrideNil(t *testing.T) 
 // --- MergeTemplateSpec: AerospikeNetworkPolicy ---
 
 func TestMergeTemplateSpec_NetworkPolicyOverrideReplaces(t *testing.T) {
-	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		AerospikeNetworkPolicy: &asdbcev1alpha1.AerospikeNetworkPolicy{
-			AccessType: asdbcev1alpha1.AerospikeNetworkTypePod,
+	base := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		AerospikeNetworkPolicy: &ackov1alpha1.AerospikeNetworkPolicy{
+			AccessType: ackov1alpha1.AerospikeNetworkTypePod,
 		},
 	}
-	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		AerospikeNetworkPolicy: &asdbcev1alpha1.AerospikeNetworkPolicy{
-			AccessType: asdbcev1alpha1.AerospikeNetworkTypeHostExternal,
+	override := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		AerospikeNetworkPolicy: &ackov1alpha1.AerospikeNetworkPolicy{
+			AccessType: ackov1alpha1.AerospikeNetworkTypeHostExternal,
 		},
 	}
 	result := MergeTemplateSpec(base, override)
-	if result.AerospikeNetworkPolicy == nil || result.AerospikeNetworkPolicy.AccessType != asdbcev1alpha1.AerospikeNetworkTypeHostExternal {
+	if result.AerospikeNetworkPolicy == nil || result.AerospikeNetworkPolicy.AccessType != ackov1alpha1.AerospikeNetworkTypeHostExternal {
 		t.Errorf("expected override network policy access type=hostExternal")
 	}
 }
 
 func TestMergeTemplateSpec_NetworkPolicyBasePreservedWhenOverrideNil(t *testing.T) {
-	base := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
-		AerospikeNetworkPolicy: &asdbcev1alpha1.AerospikeNetworkPolicy{
-			AccessType: asdbcev1alpha1.AerospikeNetworkTypePod,
+	base := &ackov1alpha1.AerospikeClusterTemplateSpec{
+		AerospikeNetworkPolicy: &ackov1alpha1.AerospikeNetworkPolicy{
+			AccessType: ackov1alpha1.AerospikeNetworkTypePod,
 		},
 	}
-	override := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{}
+	override := &ackov1alpha1.AerospikeClusterTemplateSpec{}
 	result := MergeTemplateSpec(base, override)
-	if result.AerospikeNetworkPolicy == nil || result.AerospikeNetworkPolicy.AccessType != asdbcev1alpha1.AerospikeNetworkTypePod {
+	if result.AerospikeNetworkPolicy == nil || result.AerospikeNetworkPolicy.AccessType != ackov1alpha1.AerospikeNetworkTypePod {
 		t.Errorf("expected base network policy to be preserved")
 	}
 }
@@ -688,7 +688,7 @@ func TestMergeTemplateSpec_NetworkPolicyBasePreservedWhenOverrideNil(t *testing.
 
 func TestApplyTemplate_ImageAndSizeApplied(t *testing.T) {
 	size := int32(3)
-	tmplSpec := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
+	tmplSpec := &ackov1alpha1.AerospikeClusterTemplateSpec{
 		Image: testImageCE8,
 		Size:  &size,
 	}
@@ -705,22 +705,22 @@ func TestApplyTemplate_ImageAndSizeApplied(t *testing.T) {
 
 func TestApplyTemplate_ClusterValuesTakePrecedenceOverTemplate(t *testing.T) {
 	size := int32(6)
-	tmplSpec := &asdbcev1alpha1.AerospikeCEClusterTemplateSpec{
+	tmplSpec := &ackov1alpha1.AerospikeClusterTemplateSpec{
 		Image: testImageCE8,
 		Size:  &size,
-		Monitoring: &asdbcev1alpha1.AerospikeMonitoringSpec{
+		Monitoring: &ackov1alpha1.AerospikeMonitoringSpec{
 			Port: 9145,
 		},
-		AerospikeNetworkPolicy: &asdbcev1alpha1.AerospikeNetworkPolicy{
-			AccessType: asdbcev1alpha1.AerospikeNetworkTypePod,
+		AerospikeNetworkPolicy: &ackov1alpha1.AerospikeNetworkPolicy{
+			AccessType: ackov1alpha1.AerospikeNetworkTypePod,
 		},
 	}
 	cluster := newCluster()
 	cluster.Spec.Image = testImageCE7
 	cluster.Spec.Size = 1
-	cluster.Spec.Monitoring = &asdbcev1alpha1.AerospikeMonitoringSpec{Port: 9200}
-	cluster.Spec.AerospikeNetworkPolicy = &asdbcev1alpha1.AerospikeNetworkPolicy{
-		AccessType: asdbcev1alpha1.AerospikeNetworkTypeHostInternal,
+	cluster.Spec.Monitoring = &ackov1alpha1.AerospikeMonitoringSpec{Port: 9200}
+	cluster.Spec.AerospikeNetworkPolicy = &ackov1alpha1.AerospikeNetworkPolicy{
+		AccessType: ackov1alpha1.AerospikeNetworkTypeHostInternal,
 	}
 
 	ApplyTemplate(tmplSpec, cluster)
@@ -734,7 +734,7 @@ func TestApplyTemplate_ClusterValuesTakePrecedenceOverTemplate(t *testing.T) {
 	if cluster.Spec.Monitoring.Port != 9200 {
 		t.Errorf("expected cluster monitoring port to be preserved (9200), got %d", cluster.Spec.Monitoring.Port)
 	}
-	if cluster.Spec.AerospikeNetworkPolicy.AccessType != asdbcev1alpha1.AerospikeNetworkTypeHostInternal {
+	if cluster.Spec.AerospikeNetworkPolicy.AccessType != ackov1alpha1.AerospikeNetworkTypeHostInternal {
 		t.Errorf("expected cluster network policy to be preserved")
 	}
 }

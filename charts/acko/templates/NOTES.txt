@@ -2,7 +2,7 @@ Aerospike CE Kubernetes Operator has been installed.
 {{- if not .Values.crds.install }}
 
 NOTE: CRD installation is disabled (crds.install=false).
-Ensure acko-crds is installed separately before creating AerospikeCECluster resources:
+Ensure acko-crds is installed separately before creating AerospikeCluster resources:
   helm install acko-crds oci://ghcr.io/kimsoungryoul/charts/acko-crds --version {{ .Chart.Version }}
 {{- end }}
 
@@ -34,9 +34,9 @@ Namespace: {{ .Release.Namespace }}
 
   cat <<EOF | kubectl apply -f -
   apiVersion: acko.io/v1alpha1
-  kind: AerospikeCECluster
+  kind: AerospikeCluster
   metadata:
-    name: aerospike-ce-basic
+    name: aerospike-basic
     namespace: aerospike
   spec:
     size: 1
@@ -52,7 +52,7 @@ Namespace: {{ .Release.Namespace }}
 
 4. Check the cluster status:
 
-  kubectl -n aerospike get asce
+  kubectl -n aerospike get asc
 
 {{- if .Values.serviceMonitor.enabled }}
 
@@ -115,13 +115,13 @@ You can create and manage Aerospike clusters directly from the UI.
 {{- if .Values.ui.rbac.create }}
 RBAC resources (ClusterRole/ClusterRoleBinding) have been created.
 NOTE: The ClusterRole grants create/delete/patch permissions for
-AerospikeCECluster CRDs across all namespaces. For production environments,
+AerospikeCluster CRDs across all namespaces. For production environments,
 consider restricting to specific namespaces using a Role + RoleBinding instead.
 {{- else }}
 
 WARNING: RBAC resource creation is disabled (ui.rbac.create=false).
   Ensure the service account "{{ include "acko.ui.serviceAccountName" . }}"
-  has the required permissions to manage AerospikeCECluster CRDs.
+  has the required permissions to manage AerospikeCluster CRDs.
 {{- end }}
 
 {{- else }}

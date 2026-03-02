@@ -8,7 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/podutil"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
@@ -54,9 +54,9 @@ func stsWithAnnotations(configHash, podSpecHash string) *appsv1.StatefulSet {
 }
 
 func TestShouldWarmRestart_NilRestConfig(t *testing.T) {
-	r := &AerospikeCEClusterReconciler{RestConfig: nil}
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{Image: testImage},
+	r := &AerospikeClusterReconciler{RestConfig: nil}
+	cluster := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{Image: testImage},
 	}
 	pod := readyPod("abc", "xyz")
 	sts := stsWithAnnotations("abc", "xyz")
@@ -67,9 +67,9 @@ func TestShouldWarmRestart_NilRestConfig(t *testing.T) {
 }
 
 func TestShouldWarmRestart_PodNotReady(t *testing.T) {
-	r := &AerospikeCEClusterReconciler{RestConfig: &rest.Config{}}
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{Image: testImage},
+	r := &AerospikeClusterReconciler{RestConfig: &rest.Config{}}
+	cluster := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{Image: testImage},
 	}
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -97,9 +97,9 @@ func TestShouldWarmRestart_PodNotReady(t *testing.T) {
 }
 
 func TestShouldWarmRestart_ImageChanged(t *testing.T) {
-	r := &AerospikeCEClusterReconciler{RestConfig: &rest.Config{}}
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{Image: "aerospike:ce-8.2.0.0"},
+	r := &AerospikeClusterReconciler{RestConfig: &rest.Config{}}
+	cluster := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{Image: "aerospike:ce-8.2.0.0"},
 	}
 	pod := readyPod("abc", "xyz")
 	sts := stsWithAnnotations("abc-new", "xyz")
@@ -110,9 +110,9 @@ func TestShouldWarmRestart_ImageChanged(t *testing.T) {
 }
 
 func TestShouldWarmRestart_PodSpecHashChanged(t *testing.T) {
-	r := &AerospikeCEClusterReconciler{RestConfig: &rest.Config{}}
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{Image: testImage},
+	r := &AerospikeClusterReconciler{RestConfig: &rest.Config{}}
+	cluster := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{Image: testImage},
 	}
 	pod := readyPod("abc", "xyz-old")
 	sts := stsWithAnnotations("abc-new", "xyz-new")
@@ -123,9 +123,9 @@ func TestShouldWarmRestart_PodSpecHashChanged(t *testing.T) {
 }
 
 func TestShouldWarmRestart_OnlyConfigChanged(t *testing.T) {
-	r := &AerospikeCEClusterReconciler{RestConfig: &rest.Config{}}
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{Image: testImage},
+	r := &AerospikeClusterReconciler{RestConfig: &rest.Config{}}
+	cluster := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{Image: testImage},
 	}
 	// Pod has old config hash but same podspec hash as STS
 	pod := readyPod("abc-old", "xyz")
@@ -137,9 +137,9 @@ func TestShouldWarmRestart_OnlyConfigChanged(t *testing.T) {
 }
 
 func TestShouldWarmRestart_NoPodAnnotations(t *testing.T) {
-	r := &AerospikeCEClusterReconciler{RestConfig: &rest.Config{}}
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{Image: testImage},
+	r := &AerospikeClusterReconciler{RestConfig: &rest.Config{}}
+	cluster := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{Image: testImage},
 	}
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "pod-0"},
@@ -164,9 +164,9 @@ func TestShouldWarmRestart_NoPodAnnotations(t *testing.T) {
 }
 
 func TestShouldWarmRestart_NoStsAnnotations(t *testing.T) {
-	r := &AerospikeCEClusterReconciler{RestConfig: &rest.Config{}}
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{Image: testImage},
+	r := &AerospikeClusterReconciler{RestConfig: &rest.Config{}}
+	cluster := &ackov1alpha1.AerospikeCluster{
+		Spec: ackov1alpha1.AerospikeClusterSpec{Image: testImage},
 	}
 	pod := readyPod("abc", "xyz")
 	sts := &appsv1.StatefulSet{

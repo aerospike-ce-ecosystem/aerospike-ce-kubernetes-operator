@@ -1,40 +1,40 @@
 ---
 sidebar_position: 2
-title: AerospikeCEClusterTemplate API 레퍼런스
+title: AerospikeClusterTemplate API 레퍼런스
 ---
 
-# AerospikeCEClusterTemplate API 레퍼런스
+# AerospikeClusterTemplate API 레퍼런스
 
-이 페이지는 `AerospikeCEClusterTemplate` Custom Resource Definition (CRD) 타입을 문서화합니다.
+이 페이지는 `AerospikeClusterTemplate` Custom Resource Definition (CRD) 타입을 문서화합니다.
 
 **API Group:** `acko.io`
 **API Version:** `v1alpha1`
-**Kind:** `AerospikeCEClusterTemplate`
-**Short Names:** `ascet`, `ascetemplate`
+**Kind:** `AerospikeClusterTemplate`
+**Short Names:** `asct`
 
 ---
 
 ## 개요
 
-`AerospikeCEClusterTemplate`은 `AerospikeCECluster`를 위한 재사용 가능한 설정 프로필입니다. 공유 설정(스케줄링, 스토리지, 리소스, Aerospike 설정)을 한 번 정의하고 여러 클러스터에서 `spec.templateRef`를 통해 참조할 수 있습니다.
+`AerospikeClusterTemplate`은 `AerospikeCluster`를 위한 재사용 가능한 설정 프로필입니다. 공유 설정(스케줄링, 스토리지, 리소스, Aerospike 설정)을 한 번 정의하고 여러 클러스터에서 `spec.templateRef`를 통해 참조할 수 있습니다.
 
 **스냅샷 전략:** 템플릿 spec은 클러스터 생성 시 `status.templateSnapshot`에 복사됩니다. 이후 템플릿 변경 사항은 **자동으로 전파되지 않습니다**. 재동기화하려면 클러스터 객체에 `acko.io/resync-template: "true"` 어노테이션을 설정하세요.
 
 ---
 
-## AerospikeCEClusterTemplate
+## AerospikeClusterTemplate
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
 | `apiVersion` | string | `acko.io/v1alpha1` |
-| `kind` | string | `AerospikeCEClusterTemplate` |
+| `kind` | string | `AerospikeClusterTemplate` |
 | `metadata` | [ObjectMeta](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/object-meta/) | 표준 객체 메타데이터 |
-| `spec` | [AerospikeCEClusterTemplateSpec](#aerospikececlustertemplatespec) | 설정 프로필 |
-| `status` | [AerospikeCEClusterTemplateStatus](#aerospikececlustertemplatestatus) | 관측된 상태 |
+| `spec` | [AerospikeClusterTemplateSpec](#aerospikeclustertemplatespec) | 설정 프로필 |
+| `status` | [AerospikeClusterTemplateStatus](#aerospikeclustertemplatestatus) | 관측된 상태 |
 
 ---
 
-## AerospikeCEClusterTemplateSpec
+## AerospikeClusterTemplateSpec
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
@@ -45,8 +45,8 @@ title: AerospikeCEClusterTemplate API 레퍼런스
 | `rackConfig` | [TemplateRackConfig](#templaterackconfig) | Rack 설정 기본값 |
 | `image` | string | 기본 Aerospike CE 컨테이너 이미지 (예: `aerospike:ce-8.1.1.1`). 클러스터에 `spec.image`가 설정되지 않은 경우 적용됩니다. |
 | `size` | integer | 기본 클러스터 크기 (1–8). 클러스터에서 `spec.size`가 `0`(미설정)인 경우 적용됩니다. |
-| `monitoring` | [AerospikeMonitoringSpec](./aerospikececluster.md#aerospikemonitoringspec) | 기본 Prometheus exporter 사이드카 설정. 클러스터에 `spec.monitoring`이 설정되지 않은 경우 적용됩니다. |
-| `aerospikeNetworkPolicy` | [AerospikeNetworkPolicy](./aerospikececluster.md#aerospikenetworkpolicy) | 기본 네트워크 접근 설정. 클러스터에 `spec.aerospikeNetworkPolicy`가 설정되지 않은 경우 적용됩니다. |
+| `monitoring` | [AerospikeMonitoringSpec](./aerospikecluster.md#aerospikemonitoringspec) | 기본 Prometheus exporter 사이드카 설정. 클러스터에 `spec.monitoring`이 설정되지 않은 경우 적용됩니다. |
+| `aerospikeNetworkPolicy` | [AerospikeNetworkPolicy](./aerospikecluster.md#aerospikenetworkpolicy) | 기본 네트워크 접근 설정. 클러스터에 `spec.aerospikeNetworkPolicy`가 설정되지 않은 경우 적용됩니다. |
 
 ---
 
@@ -118,28 +118,28 @@ title: AerospikeCEClusterTemplate API 레퍼런스
 
 ---
 
-## AerospikeCEClusterTemplateStatus
+## AerospikeClusterTemplateStatus
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
-| `usedBy` | []string | 이 템플릿을 참조하는 `AerospikeCECluster` 이름 목록 |
+| `usedBy` | []string | 이 템플릿을 참조하는 `AerospikeCluster` 이름 목록 |
 
 ---
 
 ## 클러스터에서 템플릿 사용
 
-`AerospikeCECluster`의 `spec.templateRef`를 통해 템플릿을 참조합니다:
+`AerospikeCluster`의 `spec.templateRef`를 통해 템플릿을 참조합니다:
 
 ```yaml
 apiVersion: acko.io/v1alpha1
-kind: AerospikeCECluster
+kind: AerospikeCluster
 metadata:
   name: my-cluster
 spec:
   size: 3
   image: aerospike:ce-8.1.1.1
   templateRef:
-    name: prod          # "prod"라는 이름의 AerospikeCEClusterTemplate을 참조
+    name: prod          # "prod"라는 이름의 AerospikeClusterTemplate을 참조
   overrides:            # 선택 사항: 템플릿의 특정 필드를 오버라이드
     resources:
       requests:
@@ -155,7 +155,7 @@ spec:
 템플릿 변경 사항은 클러스터에 자동으로 적용되지 않습니다. 재동기화하려면:
 
 ```bash
-kubectl annotate aerospikececluster my-cluster acko.io/resync-template=true
+kubectl annotate aerospikecluster my-cluster acko.io/resync-template=true
 ```
 
 오퍼레이터가 템플릿을 다시 가져오고, `status.templateSnapshot`을 업데이트하고, `TemplateApplied` 이벤트를 발행한 후 어노테이션을 제거합니다.

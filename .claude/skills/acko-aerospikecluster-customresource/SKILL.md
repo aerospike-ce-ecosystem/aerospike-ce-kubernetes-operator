@@ -1,12 +1,12 @@
 ---
-name: acko-aerospikececluster-customresource
-description: Generate a full AerospikeCECluster CR YAML example with comprehensive comments explaining every field
+name: acko-aerospikecluster-customresource
+description: Generate a full AerospikeCluster CR YAML example with comprehensive comments explaining every field
 disable-model-invocation: false
 ---
 
-# AerospikeCECluster Custom Resource Guide
+# AerospikeCluster Custom Resource Guide
 
-Generate a complete, annotated AerospikeCECluster CR YAML with all available fields documented.
+Generate a complete, annotated AerospikeCluster CR YAML with all available fields documented.
 
 ## Output
 
@@ -14,9 +14,9 @@ Print the full example CR YAML below to the user. This is the comprehensive refe
 
 ```yaml
 ##############################################################################
-# AerospikeCECluster - Full Configuration Reference
+# AerospikeCluster - Full Configuration Reference
 # API Group: acko.io/v1alpha1
-# Short names: asce, ascecluster
+# Short names: asc
 #
 # CE Constraints:
 #   - Max 8 nodes per cluster
@@ -25,7 +25,7 @@ Print the full example CR YAML below to the user. This is the comprehensive refe
 #   - Image must be community edition (e.g., aerospike:ce-8.1.1.1)
 ##############################################################################
 apiVersion: acko.io/v1alpha1
-kind: AerospikeCECluster
+kind: AerospikeCluster
 metadata:
   name: aerospike-ce-full-example
   namespace: aerospike
@@ -591,22 +591,22 @@ kubectl create namespace aerospike
 kubectl apply -f aerospike-ce-full-example.yaml
 
 # Check status
-kubectl get asce -n aerospike
+kubectl get asc -n aerospike
 kubectl get pods -n aerospike
 
 # View cluster details
-kubectl describe asce -n aerospike aerospike-ce-full-example
+kubectl describe asc -n aerospike aerospike-ce-full-example
 
 # Check aerospike logs
 kubectl logs -n aerospike <pod-name> -c aerospike-server
 
 # Trigger an on-demand operation (e.g., warm restart)
-kubectl patch asce -n aerospike aerospike-ce-full-example --type=merge -p '
+kubectl patch asc -n aerospike aerospike-ce-full-example --type=merge -p '
   {"spec":{"operations":[{"kind":"WarmRestart","id":"restart-001"}]}}'
 
 # Check operation status
-kubectl get asce -n aerospike aerospike-ce-full-example -o jsonpath='{.status.operationStatus}'
+kubectl get asc -n aerospike aerospike-ce-full-example -o jsonpath='{.status.operationStatus}'
 
 # Delete cluster
-kubectl delete asce -n aerospike aerospike-ce-full-example
+kubectl delete asc -n aerospike aerospike-ce-full-example
 ```

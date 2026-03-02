@@ -12,7 +12,7 @@ This guide covers day-2 operations: scaling, updates, configuration changes, and
 Change `spec.size` to scale the cluster up or down.
 
 ```bash
-kubectl -n aerospike patch asce aerospike-ce-3node --type merge -p '{"spec":{"size":5}}'
+kubectl -n aerospike patch asc aerospike-ce-3node --type merge -p '{"spec":{"size":5}}'
 ```
 
 The operator creates or removes pods to match the desired size. For multi-rack deployments, pods are distributed evenly across racks.
@@ -131,7 +131,7 @@ Most Aerospike service and namespace parameters are dynamically configurable. Ex
 After a config change with `enableDynamicConfigUpdate: true`, check per-pod status:
 
 ```bash
-kubectl -n aerospike get asce aerospike-ce-3node -o jsonpath='{.status.pods}' | jq '.[] | {name: .podName, dynamicConfig: .dynamicConfigStatus}'
+kubectl -n aerospike get asc aerospike-ce-3node -o jsonpath='{.status.pods}' | jq '.[] | {name: .podName, dynamicConfig: .dynamicConfigStatus}'
 ```
 
 | Status | Meaning |
@@ -185,7 +185,7 @@ kubectl -n aerospike get pod aerospike-ce-3node-0 \
 The operator also reflects the gate status in the cluster's pod status:
 
 ```bash
-kubectl -n aerospike get asce aerospike-ce-3node \
+kubectl -n aerospike get asc aerospike-ce-3node \
   -o jsonpath='{.status.pods}' | jq 'to_entries[] | {pod: .key, gateOk: .value.readinessGateSatisfied}'
 ```
 
@@ -220,10 +220,10 @@ While paused, the operator skips all reconciliation. Set back to `false` (or rem
 
 ```bash
 # Pause
-kubectl -n aerospike patch asce aerospike-ce-3node --type merge -p '{"spec":{"paused":true}}'
+kubectl -n aerospike patch asc aerospike-ce-3node --type merge -p '{"spec":{"paused":true}}'
 
 # Resume
-kubectl -n aerospike patch asce aerospike-ce-3node --type merge -p '{"spec":{"paused":null}}'
+kubectl -n aerospike patch asc aerospike-ce-3node --type merge -p '{"spec":{"paused":null}}'
 ```
 
 ## On-Demand Operations
@@ -260,7 +260,7 @@ spec:
 ### Checking Operation Status
 
 ```bash
-kubectl -n aerospike get asce aerospike-ce-3node -o jsonpath='{.status.operationStatus}' | jq .
+kubectl -n aerospike get asc aerospike-ce-3node -o jsonpath='{.status.operationStatus}' | jq .
 ```
 
 The status includes `phase` (`InProgress`, `Completed`, `Error`), `completedPods`, and `failedPods`.
@@ -365,7 +365,7 @@ The operator resolves settings with this precedence:
 
 ### Cascade Delete
 
-When `cascadeDelete: true`, PVCs are automatically deleted when the AerospikeCECluster CR is deleted. This can be set per-volume or via global policy.
+When `cascadeDelete: true`, PVCs are automatically deleted when the AerospikeCluster CR is deleted. This can be set per-volume or via global policy.
 
 ```yaml
 storage:
@@ -661,7 +661,7 @@ spec:
 ### Check Cluster Phase
 
 ```bash
-kubectl -n aerospike get asce
+kubectl -n aerospike get asc
 ```
 
 | Phase | Meaning |
@@ -679,13 +679,13 @@ kubectl -n aerospike get asce
 ### Check Conditions
 
 ```bash
-kubectl -n aerospike get asce aerospike-ce-3node -o jsonpath='{.status.conditions}' | jq .
+kubectl -n aerospike get asc aerospike-ce-3node -o jsonpath='{.status.conditions}' | jq .
 ```
 
 ### Check Pod Status
 
 ```bash
-kubectl -n aerospike get asce aerospike-ce-3node -o jsonpath='{.status.pods}' | jq .
+kubectl -n aerospike get asc aerospike-ce-3node -o jsonpath='{.status.pods}' | jq .
 ```
 
 Each pod status includes:
@@ -737,8 +737,8 @@ Use `kubectl get events` to observe cluster activity in real time:
 # Watch events for a specific cluster
 kubectl get events --field-selector involvedObject.name=my-cluster -w
 
-# Show all AerospikeCECluster events in a namespace
-kubectl get events --field-selector involvedObject.kind=AerospikeCECluster -n aerospike
+# Show all AerospikeCluster events in a namespace
+kubectl get events --field-selector involvedObject.kind=AerospikeCluster -n aerospike
 ```
 
 ### Event Reference

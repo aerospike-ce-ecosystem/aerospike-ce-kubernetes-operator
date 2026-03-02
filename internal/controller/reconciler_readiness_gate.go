@@ -26,7 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/podutil"
 )
 
@@ -34,9 +34,9 @@ import (
 // for every running pod in the cluster when spec.podSpec.readinessGateEnabled=true.
 // When the feature is disabled, it is a no-op. Gate sync errors are non-fatal:
 // if the patch fails, the gate remains False, which safely holds the rolling restart.
-func (r *AerospikeCEClusterReconciler) syncAllPodsReadinessGates(
+func (r *AerospikeClusterReconciler) syncAllPodsReadinessGates(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 ) error {
 	if !isReadinessGateEnabled(cluster) {
 		return nil
@@ -83,9 +83,9 @@ func (r *AerospikeCEClusterReconciler) syncAllPodsReadinessGates(
 // patches pod.Status.Conditions to reflect the "acko.io/aerospike-ready" gate.
 // The migrating/migratingErr parameters are the pre-computed cluster-wide
 // migration state, hoisted out of the per-pod loop by the caller.
-func (r *AerospikeCEClusterReconciler) syncPodReadinessGate(
+func (r *AerospikeClusterReconciler) syncPodReadinessGate(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 	pod *corev1.Pod,
 	aeroClient *aero.Client,
 	migrating bool,
@@ -130,7 +130,7 @@ func (r *AerospikeCEClusterReconciler) syncPodReadinessGate(
 
 // patchPodReadinessCondition patches pod.Status.Conditions to set or update
 // the "acko.io/aerospike-ready" condition via the pods/status subresource.
-func (r *AerospikeCEClusterReconciler) patchPodReadinessCondition(
+func (r *AerospikeClusterReconciler) patchPodReadinessCondition(
 	ctx context.Context,
 	pod *corev1.Pod,
 	satisfied bool,
@@ -187,7 +187,7 @@ func upsertPodCondition(pod *corev1.Pod, newCond corev1.PodCondition) {
 // isPodReadinessGateSatisfied returns true if the readiness gate feature is
 // disabled, or if the pod's "acko.io/aerospike-ready" condition is True.
 // Pods that predate the feature (gate not in spec) are treated as satisfied.
-func isPodReadinessGateSatisfied(cluster *asdbcev1alpha1.AerospikeCECluster, pod *corev1.Pod) bool {
+func isPodReadinessGateSatisfied(cluster *ackov1alpha1.AerospikeCluster, pod *corev1.Pod) bool {
 	if !isReadinessGateEnabled(cluster) {
 		return true
 	}
@@ -201,7 +201,7 @@ func isPodReadinessGateSatisfied(cluster *asdbcev1alpha1.AerospikeCECluster, pod
 }
 
 // isReadinessGateEnabled returns true when spec.podSpec.readinessGateEnabled=true.
-func isReadinessGateEnabled(cluster *asdbcev1alpha1.AerospikeCECluster) bool {
+func isReadinessGateEnabled(cluster *ackov1alpha1.AerospikeCluster) bool {
 	return cluster.Spec.PodSpec != nil &&
 		cluster.Spec.PodSpec.ReadinessGateEnabled != nil &&
 		*cluster.Spec.PodSpec.ReadinessGateEnabled
@@ -222,7 +222,7 @@ func podHasReadinessGate(pod *corev1.Pod) bool {
 // rackPods has the readiness gate in its spec but the condition is not yet True.
 // Returns the name of the first such pod for logging.
 func anyPodGateUnsatisfied(
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 	rackPods []corev1.Pod,
 ) (blocked bool, podName string) {
 	for i := range rackPods {

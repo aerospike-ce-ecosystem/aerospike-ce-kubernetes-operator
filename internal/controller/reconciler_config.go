@@ -11,18 +11,18 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/configgen"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/initcontainer"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/podutil"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
-func (r *AerospikeCEClusterReconciler) reconcileConfigMap(
+func (r *AerospikeClusterReconciler) reconcileConfigMap(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
-	rack *asdbcev1alpha1.Rack,
-	effectiveConfig *asdbcev1alpha1.AerospikeConfigSpec,
+	cluster *ackov1alpha1.AerospikeCluster,
+	rack *ackov1alpha1.Rack,
+	effectiveConfig *ackov1alpha1.AerospikeConfigSpec,
 ) error {
 	log := logf.FromContext(ctx)
 
@@ -30,7 +30,7 @@ func (r *AerospikeCEClusterReconciler) reconcileConfigMap(
 
 	if effectiveConfig == nil {
 		// Provide a minimal default config
-		effectiveConfig = &asdbcev1alpha1.AerospikeConfigSpec{
+		effectiveConfig = &ackov1alpha1.AerospikeConfigSpec{
 			Value: map[string]any{
 				"service": map[string]any{
 					"cluster-name": cluster.Name,
@@ -144,10 +144,10 @@ func (r *AerospikeCEClusterReconciler) reconcileConfigMap(
 }
 
 // getEffectiveConfig returns the merged config for a rack.
-func (r *AerospikeCEClusterReconciler) getEffectiveConfig(
-	cluster *asdbcev1alpha1.AerospikeCECluster,
-	rack *asdbcev1alpha1.Rack,
-) *asdbcev1alpha1.AerospikeConfigSpec {
+func (r *AerospikeClusterReconciler) getEffectiveConfig(
+	cluster *ackov1alpha1.AerospikeCluster,
+	rack *ackov1alpha1.Rack,
+) *ackov1alpha1.AerospikeConfigSpec {
 	if cluster.Spec.AerospikeConfig == nil {
 		if rack.AerospikeConfig != nil {
 			return rack.AerospikeConfig
@@ -163,5 +163,5 @@ func (r *AerospikeCEClusterReconciler) getEffectiveConfig(
 		cluster.Spec.AerospikeConfig.Value,
 		rack.AerospikeConfig.Value,
 	)
-	return &asdbcev1alpha1.AerospikeConfigSpec{Value: merged}
+	return &ackov1alpha1.AerospikeConfigSpec{Value: merged}
 }

@@ -27,26 +27,26 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-var aerospikececlustertemplatelog = logf.Log.WithName("aerospikececlustertemplate-resource")
+var aerospikeclustertemplatelog = logf.Log.WithName("aerospikeclustertemplate-resource")
 
-// SetupWebhookWithManager registers the webhooks for AerospikeCEClusterTemplate.
-func (r *AerospikeCEClusterTemplate) SetupWebhookWithManager(mgr ctrl.Manager) error {
+// SetupWebhookWithManager registers the webhooks for AerospikeClusterTemplate.
+func (r *AerospikeClusterTemplate) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr, r).
-		WithDefaulter(&AerospikeCEClusterTemplateDefaulter{}).
-		WithValidator(&AerospikeCEClusterTemplateValidator{}).
+		WithDefaulter(&AerospikeClusterTemplateDefaulter{}).
+		WithValidator(&AerospikeClusterTemplateValidator{}).
 		Complete()
 }
 
-// +kubebuilder:webhook:path=/mutate-acko-io-v1alpha1-aerospikececlustertemplate,mutating=true,failurePolicy=fail,sideEffects=None,groups=acko.io,resources=aerospikececlustertemplates,verbs=create;update,versions=v1alpha1,name=maerospikececlustertemplate.kb.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/mutate-acko-io-v1alpha1-aerospikeclustertemplate,mutating=true,failurePolicy=fail,sideEffects=None,groups=acko.io,resources=aerospikeclustertemplates,verbs=create;update,versions=v1alpha1,name=maerospikeclustertemplate.kb.io,admissionReviewVersions=v1
 
-// AerospikeCEClusterTemplateDefaulter implements admission.Defaulter for AerospikeCEClusterTemplate.
-type AerospikeCEClusterTemplateDefaulter struct{}
+// AerospikeClusterTemplateDefaulter implements admission.Defaulter for AerospikeClusterTemplate.
+type AerospikeClusterTemplateDefaulter struct{}
 
-var _ admission.Defaulter[*AerospikeCEClusterTemplate] = &AerospikeCEClusterTemplateDefaulter{}
+var _ admission.Defaulter[*AerospikeClusterTemplate] = &AerospikeClusterTemplateDefaulter{}
 
-// Default implements admission.Defaulter[*AerospikeCEClusterTemplate].
-func (d *AerospikeCEClusterTemplateDefaulter) Default(_ context.Context, tmpl *AerospikeCEClusterTemplate) error {
-	aerospikececlustertemplatelog.Info("Defaulting", "name", tmpl.Name, "namespace", tmpl.Namespace)
+// Default implements admission.Defaulter[*AerospikeClusterTemplate].
+func (d *AerospikeClusterTemplateDefaulter) Default(_ context.Context, tmpl *AerospikeClusterTemplate) error {
+	aerospikeclustertemplatelog.Info("Defaulting", "name", tmpl.Name, "namespace", tmpl.Namespace)
 
 	// Default scheduling.podAntiAffinityLevel to "preferred" if scheduling is set but level is empty.
 	if tmpl.Spec.Scheduling != nil && tmpl.Spec.Scheduling.PodAntiAffinityLevel == "" {
@@ -66,32 +66,32 @@ func (d *AerospikeCEClusterTemplateDefaulter) Default(_ context.Context, tmpl *A
 	return nil
 }
 
-// +kubebuilder:webhook:path=/validate-acko-io-v1alpha1-aerospikececlustertemplate,mutating=false,failurePolicy=fail,sideEffects=None,groups=acko.io,resources=aerospikececlustertemplates,verbs=create;update,versions=v1alpha1,name=vaerospikececlustertemplate.kb.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/validate-acko-io-v1alpha1-aerospikeclustertemplate,mutating=false,failurePolicy=fail,sideEffects=None,groups=acko.io,resources=aerospikeclustertemplates,verbs=create;update,versions=v1alpha1,name=vaerospikeclustertemplate.kb.io,admissionReviewVersions=v1
 
-// AerospikeCEClusterTemplateValidator implements admission.Validator for AerospikeCEClusterTemplate.
-type AerospikeCEClusterTemplateValidator struct{}
+// AerospikeClusterTemplateValidator implements admission.Validator for AerospikeClusterTemplate.
+type AerospikeClusterTemplateValidator struct{}
 
-var _ admission.Validator[*AerospikeCEClusterTemplate] = &AerospikeCEClusterTemplateValidator{}
+var _ admission.Validator[*AerospikeClusterTemplate] = &AerospikeClusterTemplateValidator{}
 
-// ValidateCreate implements admission.Validator[*AerospikeCEClusterTemplate].
-func (v *AerospikeCEClusterTemplateValidator) ValidateCreate(_ context.Context, tmpl *AerospikeCEClusterTemplate) (admission.Warnings, error) {
-	aerospikececlustertemplatelog.Info("Validating create", "name", tmpl.Name)
+// ValidateCreate implements admission.Validator[*AerospikeClusterTemplate].
+func (v *AerospikeClusterTemplateValidator) ValidateCreate(_ context.Context, tmpl *AerospikeClusterTemplate) (admission.Warnings, error) {
+	aerospikeclustertemplatelog.Info("Validating create", "name", tmpl.Name)
 	return v.validate(tmpl)
 }
 
-// ValidateUpdate implements admission.Validator[*AerospikeCEClusterTemplate].
-func (v *AerospikeCEClusterTemplateValidator) ValidateUpdate(_ context.Context, _, tmpl *AerospikeCEClusterTemplate) (admission.Warnings, error) {
-	aerospikececlustertemplatelog.Info("Validating update", "name", tmpl.Name)
+// ValidateUpdate implements admission.Validator[*AerospikeClusterTemplate].
+func (v *AerospikeClusterTemplateValidator) ValidateUpdate(_ context.Context, _, tmpl *AerospikeClusterTemplate) (admission.Warnings, error) {
+	aerospikeclustertemplatelog.Info("Validating update", "name", tmpl.Name)
 	return v.validate(tmpl)
 }
 
-// ValidateDelete implements admission.Validator[*AerospikeCEClusterTemplate].
-func (v *AerospikeCEClusterTemplateValidator) ValidateDelete(_ context.Context, _ *AerospikeCEClusterTemplate) (admission.Warnings, error) {
+// ValidateDelete implements admission.Validator[*AerospikeClusterTemplate].
+func (v *AerospikeClusterTemplateValidator) ValidateDelete(_ context.Context, _ *AerospikeClusterTemplate) (admission.Warnings, error) {
 	return nil, nil
 }
 
 // validate performs all template-specific validations.
-func (v *AerospikeCEClusterTemplateValidator) validate(tmpl *AerospikeCEClusterTemplate) (admission.Warnings, error) {
+func (v *AerospikeClusterTemplateValidator) validate(tmpl *AerospikeClusterTemplate) (admission.Warnings, error) {
 	var allErrors []string
 	var warnings admission.Warnings
 

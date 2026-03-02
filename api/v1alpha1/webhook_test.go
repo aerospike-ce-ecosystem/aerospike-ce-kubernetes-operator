@@ -17,10 +17,10 @@ func boolPtr(b bool) *bool { return &b }
 // --- Defaulter tests ---
 
 func TestDefaultMonitoring_SetsDefaults(t *testing.T) {
-	d := &AerospikeCEClusterDefaulter{}
-	cluster := &AerospikeCECluster{
+	d := &AerospikeClusterDefaulter{}
+	cluster := &AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-		Spec: AerospikeCEClusterSpec{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
@@ -49,10 +49,10 @@ func TestDefaultMonitoring_SetsDefaults(t *testing.T) {
 }
 
 func TestDefaultMonitoring_NoopWhenDisabled(t *testing.T) {
-	d := &AerospikeCEClusterDefaulter{}
-	cluster := &AerospikeCECluster{
+	d := &AerospikeClusterDefaulter{}
+	cluster := &AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-		Spec: AerospikeCEClusterSpec{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 		},
@@ -68,10 +68,10 @@ func TestDefaultMonitoring_NoopWhenDisabled(t *testing.T) {
 }
 
 func TestDefaultMonitoring_PreservesCustomValues(t *testing.T) {
-	d := &AerospikeCEClusterDefaulter{}
-	cluster := &AerospikeCECluster{
+	d := &AerospikeClusterDefaulter{}
+	cluster := &AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-		Spec: AerospikeCEClusterSpec{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
@@ -97,10 +97,10 @@ func TestDefaultMonitoring_PreservesCustomValues(t *testing.T) {
 // --- HostNetwork defaulting tests ---
 
 func TestDefaultHostNetwork_SetsMultiPodPerHostFalse(t *testing.T) {
-	d := &AerospikeCEClusterDefaulter{}
-	cluster := &AerospikeCECluster{
+	d := &AerospikeClusterDefaulter{}
+	cluster := &AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-		Spec: AerospikeCEClusterSpec{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			PodSpec: &AerospikeCEPodSpec{
@@ -122,10 +122,10 @@ func TestDefaultHostNetwork_SetsMultiPodPerHostFalse(t *testing.T) {
 }
 
 func TestDefaultHostNetwork_SetsDNSPolicy(t *testing.T) {
-	d := &AerospikeCEClusterDefaulter{}
-	cluster := &AerospikeCECluster{
+	d := &AerospikeClusterDefaulter{}
+	cluster := &AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-		Spec: AerospikeCEClusterSpec{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			PodSpec: &AerospikeCEPodSpec{
@@ -144,10 +144,10 @@ func TestDefaultHostNetwork_SetsDNSPolicy(t *testing.T) {
 }
 
 func TestDefaultHostNetwork_PreservesExplicitMultiPodPerHost(t *testing.T) {
-	d := &AerospikeCEClusterDefaulter{}
-	cluster := &AerospikeCECluster{
+	d := &AerospikeClusterDefaulter{}
+	cluster := &AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-		Spec: AerospikeCEClusterSpec{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			PodSpec: &AerospikeCEPodSpec{
@@ -167,10 +167,10 @@ func TestDefaultHostNetwork_PreservesExplicitMultiPodPerHost(t *testing.T) {
 }
 
 func TestDefaultHostNetwork_NoopWhenHostNetworkFalse(t *testing.T) {
-	d := &AerospikeCEClusterDefaulter{}
-	cluster := &AerospikeCECluster{
+	d := &AerospikeClusterDefaulter{}
+	cluster := &AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-		Spec: AerospikeCEClusterSpec{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			PodSpec: &AerospikeCEPodSpec{
@@ -192,10 +192,10 @@ func TestDefaultHostNetwork_NoopWhenHostNetworkFalse(t *testing.T) {
 }
 
 func TestDefaultHostNetwork_PreservesExplicitDNSPolicy(t *testing.T) {
-	d := &AerospikeCEClusterDefaulter{}
-	cluster := &AerospikeCECluster{
+	d := &AerospikeClusterDefaulter{}
+	cluster := &AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-		Spec: AerospikeCEClusterSpec{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			PodSpec: &AerospikeCEPodSpec{
@@ -217,9 +217,9 @@ func TestDefaultHostNetwork_PreservesExplicitDNSPolicy(t *testing.T) {
 // --- Validator tests ---
 
 func TestValidate_HostNetworkMultiPodPerHostWarning(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			PodSpec: &AerospikeCEPodSpec{
@@ -241,9 +241,9 @@ func TestValidate_HostNetworkMultiPodPerHostWarning(t *testing.T) {
 }
 
 func TestValidate_HostNetworkDNSPolicyWarning(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			PodSpec: &AerospikeCEPodSpec{
@@ -265,9 +265,9 @@ func TestValidate_HostNetworkDNSPolicyWarning(t *testing.T) {
 }
 
 func TestValidate_NoWarningsForValidHostNetwork(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			PodSpec: &AerospikeCEPodSpec{
@@ -289,9 +289,9 @@ func TestValidate_NoWarningsForValidHostNetwork(t *testing.T) {
 }
 
 func TestValidate_NoHostNetworkNoWarnings(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 		},
@@ -310,9 +310,9 @@ func TestValidate_NoHostNetworkNoWarnings(t *testing.T) {
 // --- Existing validation tests (ensure no regressions) ---
 
 func TestValidate_CEClusterSizeLimit(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  9,
 			Image: "aerospike:ce-8.1.1.1",
 		},
@@ -325,7 +325,7 @@ func TestValidate_CEClusterSizeLimit(t *testing.T) {
 }
 
 func TestValidate_EnterpriseImageRejected(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
+	v := &AerospikeClusterValidator{}
 
 	tests := []struct {
 		image string
@@ -335,8 +335,8 @@ func TestValidate_EnterpriseImageRejected(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		cluster := &AerospikeCECluster{
-			Spec: AerospikeCEClusterSpec{
+		cluster := &AerospikeCluster{
+			Spec: AerospikeClusterSpec{
 				Size:  3,
 				Image: tc.image,
 			},
@@ -349,9 +349,9 @@ func TestValidate_EnterpriseImageRejected(t *testing.T) {
 }
 
 func TestValidate_XDRRejected(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeConfig: &AerospikeConfigSpec{
@@ -369,9 +369,9 @@ func TestValidate_XDRRejected(t *testing.T) {
 }
 
 func TestValidate_TLSRejected(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeConfig: &AerospikeConfigSpec{
@@ -389,9 +389,9 @@ func TestValidate_TLSRejected(t *testing.T) {
 }
 
 func TestValidate_MaxNamespaces(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeConfig: &AerospikeConfigSpec{
@@ -413,9 +413,9 @@ func TestValidate_MaxNamespaces(t *testing.T) {
 }
 
 func TestValidate_DuplicateRackIDs(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  4,
 			Image: "aerospike:ce-8.1.1.1",
 			RackConfig: &RackConfig{
@@ -436,7 +436,7 @@ func TestValidate_DuplicateRackIDs(t *testing.T) {
 // --- Enterprise-only namespace config validation tests ---
 
 func TestValidate_EnterpriseOnlyNamespaceKeys(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
+	v := &AerospikeClusterValidator{}
 
 	enterpriseKeys := []string{
 		"compression", "compression-level", "durable-delete", "fast-restart",
@@ -445,8 +445,8 @@ func TestValidate_EnterpriseOnlyNamespaceKeys(t *testing.T) {
 	}
 
 	for _, key := range enterpriseKeys {
-		cluster := &AerospikeCECluster{
-			Spec: AerospikeCEClusterSpec{
+		cluster := &AerospikeCluster{
+			Spec: AerospikeClusterSpec{
 				Size:  3,
 				Image: "aerospike:ce-8.1.1.1",
 				AerospikeConfig: &AerospikeConfigSpec{
@@ -470,9 +470,9 @@ func TestValidate_EnterpriseOnlyNamespaceKeys(t *testing.T) {
 }
 
 func TestValidate_HeartbeatModeMulticastRejected(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeConfig: &AerospikeConfigSpec{
@@ -495,9 +495,9 @@ func TestValidate_HeartbeatModeMulticastRejected(t *testing.T) {
 }
 
 func TestValidate_HeartbeatModeMeshAccepted(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeConfig: &AerospikeConfigSpec{
@@ -520,9 +520,9 @@ func TestValidate_HeartbeatModeMeshAccepted(t *testing.T) {
 }
 
 func TestValidate_DataInMemoryWarning(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeConfig: &AerospikeConfigSpec{
@@ -561,9 +561,9 @@ func TestValidate_DataInMemoryWarning(t *testing.T) {
 }
 
 func TestValidate_ReplicationFactorOutOfRange(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeConfig: &AerospikeConfigSpec{
@@ -586,9 +586,9 @@ func TestValidate_ReplicationFactorOutOfRange(t *testing.T) {
 }
 
 func TestValidate_ValidNamespaceConfigAccepted(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeConfig: &AerospikeConfigSpec{
@@ -621,9 +621,9 @@ func TestValidate_ValidNamespaceConfigAccepted(t *testing.T) {
 // aerospikeAccessControl is configured; the security section is intentionally
 // skipped during config generation (configgen).
 func TestValidate_SecuritySectionAllowed(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeConfig: &AerospikeConfigSpec{
@@ -643,9 +643,9 @@ func TestValidate_SecuritySectionAllowed(t *testing.T) {
 // --- ACL validation tests ---
 
 func TestValidate_ACLWithAdminUser(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeAccessControl: &AerospikeAccessControlSpec{
@@ -667,9 +667,9 @@ func TestValidate_ACLWithAdminUser(t *testing.T) {
 }
 
 func TestValidate_ACLWithoutAdminUser(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeAccessControl: &AerospikeAccessControlSpec{
@@ -694,9 +694,9 @@ func TestValidate_ACLWithoutAdminUser(t *testing.T) {
 }
 
 func TestValidate_ACLWithSplitAdminRoles(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeAccessControl: &AerospikeAccessControlSpec{
@@ -727,9 +727,9 @@ func TestValidate_ACLWithSplitAdminRoles(t *testing.T) {
 func int32Ptr(i int32) *int32 { return &i }
 
 func TestValidate_RollingUpdateBatchSizeGreaterThanSize(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:                   3,
 			Image:                  "aerospike:ce-8.1.1.1",
 			RollingUpdateBatchSize: int32Ptr(5),
@@ -754,9 +754,9 @@ func TestValidate_RollingUpdateBatchSizeGreaterThanSize(t *testing.T) {
 }
 
 func TestValidate_RollingUpdateBatchSizeEqualToSize(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:                   3,
 			Image:                  "aerospike:ce-8.1.1.1",
 			RollingUpdateBatchSize: int32Ptr(3),
@@ -777,9 +777,9 @@ func TestValidate_RollingUpdateBatchSizeEqualToSize(t *testing.T) {
 }
 
 func TestValidate_RollingUpdateBatchSizeLessThanSize(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:                   4,
 			Image:                  "aerospike:ce-8.1.1.1",
 			RollingUpdateBatchSize: int32Ptr(2),
@@ -799,9 +799,9 @@ func TestValidate_RollingUpdateBatchSizeLessThanSize(t *testing.T) {
 }
 
 func TestValidate_RollingUpdateBatchSizeNil(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 		},
@@ -822,10 +822,10 @@ func TestValidate_RollingUpdateBatchSizeNil(t *testing.T) {
 // --- Defaulter core behavior tests ---
 
 func TestDefault_SetsClusterName(t *testing.T) {
-	d := &AerospikeCEClusterDefaulter{}
-	cluster := &AerospikeCECluster{
+	d := &AerospikeClusterDefaulter{}
+	cluster := &AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-cluster", Namespace: "default"},
-		Spec: AerospikeCEClusterSpec{
+		Spec: AerospikeClusterSpec{
 			Size:  1,
 			Image: "aerospike:ce-8.1.1.1",
 		},
@@ -845,10 +845,10 @@ func TestDefault_SetsClusterName(t *testing.T) {
 }
 
 func TestDefault_SetsNetworkPorts(t *testing.T) {
-	d := &AerospikeCEClusterDefaulter{}
-	cluster := &AerospikeCECluster{
+	d := &AerospikeClusterDefaulter{}
+	cluster := &AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-		Spec: AerospikeCEClusterSpec{
+		Spec: AerospikeClusterSpec{
 			Size:  1,
 			Image: "aerospike:ce-8.1.1.1",
 		},
@@ -878,10 +878,10 @@ func TestDefault_SetsNetworkPorts(t *testing.T) {
 }
 
 func TestDefault_PreservesExistingConfig(t *testing.T) {
-	d := &AerospikeCEClusterDefaulter{}
-	cluster := &AerospikeCECluster{
+	d := &AerospikeClusterDefaulter{}
+	cluster := &AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-		Spec: AerospikeCEClusterSpec{
+		Spec: AerospikeClusterSpec{
 			Size:  1,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeConfig: &AerospikeConfigSpec{
@@ -922,9 +922,9 @@ func TestDefault_PreservesExistingConfig(t *testing.T) {
 // --- Storage validation tests ---
 
 func TestValidate_Storage_NoSourceSpecified(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Storage: &AerospikeStorageSpec{
@@ -945,9 +945,9 @@ func TestValidate_Storage_NoSourceSpecified(t *testing.T) {
 }
 
 func TestValidate_Storage_MultipleSourcesRejected(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Storage: &AerospikeStorageSpec{
@@ -974,9 +974,9 @@ func TestValidate_Storage_MultipleSourcesRejected(t *testing.T) {
 }
 
 func TestValidate_Storage_HostPathWarning(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Storage: &AerospikeStorageSpec{
@@ -1010,9 +1010,9 @@ func TestValidate_Storage_HostPathWarning(t *testing.T) {
 }
 
 func TestValidate_Storage_SubPathAndSubPathExprMutuallyExclusive_Aerospike(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Storage: &AerospikeStorageSpec{
@@ -1043,9 +1043,9 @@ func TestValidate_Storage_SubPathAndSubPathExprMutuallyExclusive_Aerospike(t *te
 }
 
 func TestValidate_Storage_SubPathAndSubPathExprMutuallyExclusive_Sidecar(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Storage: &AerospikeStorageSpec{
@@ -1079,9 +1079,9 @@ func TestValidate_Storage_SubPathAndSubPathExprMutuallyExclusive_Sidecar(t *test
 }
 
 func TestValidate_Storage_SubPathAndSubPathExprMutuallyExclusive_InitContainer(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Storage: &AerospikeStorageSpec{
@@ -1112,9 +1112,9 @@ func TestValidate_Storage_SubPathAndSubPathExprMutuallyExclusive_InitContainer(t
 }
 
 func TestValidate_Storage_DeleteLocalStorageWithoutClasses(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Storage: &AerospikeStorageSpec{
@@ -1133,9 +1133,9 @@ func TestValidate_Storage_DeleteLocalStorageWithoutClasses(t *testing.T) {
 }
 
 func TestValidate_Storage_LocalStorageClassesWithoutDeleteFlag(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Storage: &AerospikeStorageSpec{
@@ -1170,9 +1170,9 @@ func TestValidate_Storage_LocalStorageClassesWithoutDeleteFlag(t *testing.T) {
 }
 
 func TestValidate_Storage_ValidConfig(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Storage: &AerospikeStorageSpec{
@@ -1210,9 +1210,9 @@ func TestValidate_Storage_ValidConfig(t *testing.T) {
 }
 
 func TestValidate_Storage_DeleteLocalStorageFalse_NoError(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Storage: &AerospikeStorageSpec{
@@ -1228,9 +1228,9 @@ func TestValidate_Storage_DeleteLocalStorageFalse_NoError(t *testing.T) {
 }
 
 func TestValidate_Storage_CascadeDeleteOnNonPersistent(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Storage: &AerospikeStorageSpec{
@@ -1266,9 +1266,9 @@ func TestValidate_Storage_CascadeDeleteOnNonPersistent(t *testing.T) {
 }
 
 func TestValidate_Storage_DuplicateVolumeNames(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Storage: &AerospikeStorageSpec{
@@ -1300,9 +1300,9 @@ func TestValidate_Storage_DuplicateVolumeNames(t *testing.T) {
 }
 
 func TestValidate_Storage_GlobalPoliciesAccepted(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Storage: &AerospikeStorageSpec{
@@ -1432,9 +1432,9 @@ func TestValidateNonNegativeIntOrString_PercentageEdgeCases(t *testing.T) {
 // --- ACL role cross-reference tests ---
 
 func TestValidate_ACLUserReferencesUndefinedRole(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeAccessControl: &AerospikeAccessControlSpec{
@@ -1474,9 +1474,9 @@ func TestValidate_ACLUserReferencesUndefinedRole(t *testing.T) {
 }
 
 func TestValidate_ACLUserReferencesBuiltinRolesOnly(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeAccessControl: &AerospikeAccessControlSpec{
@@ -1503,9 +1503,9 @@ func TestValidate_ACLUserReferencesBuiltinRolesOnly(t *testing.T) {
 }
 
 func TestValidate_ACLUserReferencesCustomDefinedRole(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeAccessControl: &AerospikeAccessControlSpec{
@@ -1540,17 +1540,17 @@ func TestValidate_ACLUserReferencesCustomDefinedRole(t *testing.T) {
 // --- Operations InProgress change attempt tests ---
 
 func TestValidateUpdate_RejectsOperationChangeWhileInProgress(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
+	v := &AerospikeClusterValidator{}
 
-	oldCluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	oldCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Operations: []OperationSpec{
 				{Kind: OperationWarmRestart, ID: "op-1"},
 			},
 		},
-		Status: AerospikeCEClusterStatus{
+		Status: AerospikeClusterStatus{
 			OperationStatus: &OperationStatus{
 				ID:    "op-1",
 				Kind:  OperationWarmRestart,
@@ -1559,8 +1559,8 @@ func TestValidateUpdate_RejectsOperationChangeWhileInProgress(t *testing.T) {
 		},
 	}
 
-	newCluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	newCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Operations: []OperationSpec{
@@ -1579,17 +1579,17 @@ func TestValidateUpdate_RejectsOperationChangeWhileInProgress(t *testing.T) {
 }
 
 func TestValidateUpdate_AllowsSameOperationWhileInProgress(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
+	v := &AerospikeClusterValidator{}
 
-	oldCluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	oldCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Operations: []OperationSpec{
 				{Kind: OperationWarmRestart, ID: "op-1"},
 			},
 		},
-		Status: AerospikeCEClusterStatus{
+		Status: AerospikeClusterStatus{
 			OperationStatus: &OperationStatus{
 				ID:    "op-1",
 				Kind:  OperationWarmRestart,
@@ -1598,8 +1598,8 @@ func TestValidateUpdate_AllowsSameOperationWhileInProgress(t *testing.T) {
 		},
 	}
 
-	newCluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	newCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Operations: []OperationSpec{
@@ -1615,17 +1615,17 @@ func TestValidateUpdate_AllowsSameOperationWhileInProgress(t *testing.T) {
 }
 
 func TestValidateUpdate_AllowsOperationChangeWhenCompleted(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
+	v := &AerospikeClusterValidator{}
 
-	oldCluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	oldCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Operations: []OperationSpec{
 				{Kind: OperationWarmRestart, ID: "op-1"},
 			},
 		},
-		Status: AerospikeCEClusterStatus{
+		Status: AerospikeClusterStatus{
 			OperationStatus: &OperationStatus{
 				ID:    "op-1",
 				Kind:  OperationWarmRestart,
@@ -1634,8 +1634,8 @@ func TestValidateUpdate_AllowsOperationChangeWhenCompleted(t *testing.T) {
 		},
 	}
 
-	newCluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	newCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Operations: []OperationSpec{
@@ -1653,9 +1653,9 @@ func TestValidateUpdate_AllowsOperationChangeWhenCompleted(t *testing.T) {
 // --- Replication-factor vs spec.size cross-validation tests ---
 
 func TestValidate_ReplicationFactorExceedsClusterSize(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  2,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeConfig: &AerospikeConfigSpec{
@@ -1681,9 +1681,9 @@ func TestValidate_ReplicationFactorExceedsClusterSize(t *testing.T) {
 }
 
 func TestValidate_ReplicationFactorEqualsClusterSize(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeConfig: &AerospikeConfigSpec{
@@ -1708,7 +1708,7 @@ func TestValidate_ReplicationFactorEqualsClusterSize(t *testing.T) {
 // --- Monitoring validation tests ---
 
 func TestValidate_MonitoringPortConflict(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
+	v := &AerospikeClusterValidator{}
 
 	conflictPorts := map[int32]string{
 		3000: "service",
@@ -1718,8 +1718,8 @@ func TestValidate_MonitoringPortConflict(t *testing.T) {
 	}
 
 	for port, portName := range conflictPorts {
-		cluster := &AerospikeCECluster{
-			Spec: AerospikeCEClusterSpec{
+		cluster := &AerospikeCluster{
+			Spec: AerospikeClusterSpec{
 				Size:  3,
 				Image: "aerospike:ce-8.1.1.1",
 				Monitoring: &AerospikeMonitoringSpec{
@@ -1741,9 +1741,9 @@ func TestValidate_MonitoringPortConflict(t *testing.T) {
 }
 
 func TestValidate_MonitoringPortNoConflict(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
@@ -1761,9 +1761,9 @@ func TestValidate_MonitoringPortNoConflict(t *testing.T) {
 }
 
 func TestValidate_MonitoringEmptyImage(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
@@ -1784,9 +1784,9 @@ func TestValidate_MonitoringEmptyImage(t *testing.T) {
 }
 
 func TestValidate_MonitoringLatestTagWarning(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
@@ -1815,9 +1815,9 @@ func TestValidate_MonitoringLatestTagWarning(t *testing.T) {
 }
 
 func TestValidate_MonitoringNoTagWarning(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
@@ -1846,9 +1846,9 @@ func TestValidate_MonitoringNoTagWarning(t *testing.T) {
 }
 
 func TestValidate_MonitoringValidConfig(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
@@ -1871,10 +1871,10 @@ func TestValidate_MonitoringValidConfig(t *testing.T) {
 }
 
 func TestValidate_MonitoringDisabledSkipsValidation(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
+	v := &AerospikeClusterValidator{}
 	// Invalid config but disabled — should pass
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
@@ -1894,10 +1894,10 @@ func TestValidate_MonitoringDisabledSkipsValidation(t *testing.T) {
 // --- Default monitoring image version test ---
 
 func TestDefaultMonitoring_DefaultImageVersion(t *testing.T) {
-	d := &AerospikeCEClusterDefaulter{}
-	cluster := &AerospikeCECluster{
+	d := &AerospikeClusterDefaulter{}
+	cluster := &AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-		Spec: AerospikeCEClusterSpec{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
@@ -1919,9 +1919,9 @@ func TestDefaultMonitoring_DefaultImageVersion(t *testing.T) {
 // --- CustomRules validation tests ---
 
 func TestValidate_CustomRules_ValidStructure(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
@@ -1945,9 +1945,9 @@ func TestValidate_CustomRules_ValidStructure(t *testing.T) {
 }
 
 func TestValidate_CustomRules_MissingName(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
@@ -1974,9 +1974,9 @@ func TestValidate_CustomRules_MissingName(t *testing.T) {
 }
 
 func TestValidate_CustomRules_MissingRules(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
@@ -2003,9 +2003,9 @@ func TestValidate_CustomRules_MissingRules(t *testing.T) {
 }
 
 func TestValidate_CustomRules_InvalidJSON(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
@@ -2032,9 +2032,9 @@ func TestValidate_CustomRules_InvalidJSON(t *testing.T) {
 }
 
 func TestValidate_CustomRules_MissingBothFields(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
@@ -2063,9 +2063,9 @@ func TestValidate_CustomRules_MissingBothFields(t *testing.T) {
 // --- MetricLabels validation tests ---
 
 func TestValidate_MetricLabels_ValidLabels(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
@@ -2087,9 +2087,9 @@ func TestValidate_MetricLabels_ValidLabels(t *testing.T) {
 }
 
 func TestValidate_MetricLabels_KeyContainsEquals(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
@@ -2113,9 +2113,9 @@ func TestValidate_MetricLabels_KeyContainsEquals(t *testing.T) {
 }
 
 func TestValidate_MetricLabels_ValueContainsComma(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
@@ -2141,9 +2141,9 @@ func TestValidate_MetricLabels_ValueContainsComma(t *testing.T) {
 // --- validateAccessControl gap tests ---
 
 func TestValidate_ACLInvalidPrivilegeCodeSuperuser(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeAccessControl: &AerospikeAccessControlSpec{
@@ -2177,9 +2177,9 @@ func TestValidate_ACLInvalidPrivilegeCodeSuperuser(t *testing.T) {
 }
 
 func TestValidate_ACLUserMissingSecretName(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeAccessControl: &AerospikeAccessControlSpec{
@@ -2214,9 +2214,9 @@ func TestValidate_ACLUserMissingSecretName(t *testing.T) {
 // --- validateRackConfig gap tests ---
 
 func TestValidate_DuplicateRackLabels(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  4,
 			Image: "aerospike:ce-8.1.1.1",
 			RackConfig: &RackConfig{
@@ -2243,9 +2243,9 @@ func TestValidate_DuplicateRackLabels(t *testing.T) {
 // --- validateOperations gap tests ---
 
 func TestValidate_MultipleOperationsRejected(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Operations: []OperationSpec{
@@ -2265,9 +2265,9 @@ func TestValidate_MultipleOperationsRejected(t *testing.T) {
 }
 
 func TestValidate_DuplicateOperationIDs(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Operations: []OperationSpec{
@@ -2287,10 +2287,10 @@ func TestValidate_DuplicateOperationIDs(t *testing.T) {
 }
 
 func TestValidate_OperationIDTooLong(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
+	v := &AerospikeClusterValidator{}
 	longID := "this-id-is-way-too-long-for-validation"
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Operations: []OperationSpec{
@@ -2309,9 +2309,9 @@ func TestValidate_OperationIDTooLong(t *testing.T) {
 }
 
 func TestValidate_OperationIDEmpty(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Operations: []OperationSpec{
@@ -2332,9 +2332,9 @@ func TestValidate_OperationIDEmpty(t *testing.T) {
 // --- validateWorkDirectory gap tests ---
 
 func TestValidate_WorkDirectoryWithoutVolumeWarning(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeConfig: &AerospikeConfigSpec{
@@ -2365,9 +2365,9 @@ func TestValidate_WorkDirectoryWithoutVolumeWarning(t *testing.T) {
 }
 
 func TestValidate_WorkDirectoryWithVolumeNoWarning(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeConfig: &AerospikeConfigSpec{
@@ -2403,9 +2403,9 @@ func TestValidate_WorkDirectoryWithVolumeNoWarning(t *testing.T) {
 }
 
 func TestValidate_WorkDirectorySkippedWhenPolicySet(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeConfig: &AerospikeConfigSpec{
@@ -2436,17 +2436,17 @@ func TestValidate_WorkDirectorySkippedWhenPolicySet(t *testing.T) {
 // --- ValidateUpdate with in-progress operation removing operations ---
 
 func TestValidateUpdate_RejectsRemovingOperationWhileInProgress(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
+	v := &AerospikeClusterValidator{}
 
-	oldCluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	oldCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Operations: []OperationSpec{
 				{Kind: OperationWarmRestart, ID: "op-1"},
 			},
 		},
-		Status: AerospikeCEClusterStatus{
+		Status: AerospikeClusterStatus{
 			OperationStatus: &OperationStatus{
 				ID:    "op-1",
 				Kind:  OperationWarmRestart,
@@ -2456,8 +2456,8 @@ func TestValidateUpdate_RejectsRemovingOperationWhileInProgress(t *testing.T) {
 	}
 
 	// New cluster removes operations entirely
-	newCluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	newCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:       3,
 			Image:      "aerospike:ce-8.1.1.1",
 			Operations: []OperationSpec{},
@@ -2476,9 +2476,9 @@ func TestValidateUpdate_RejectsRemovingOperationWhileInProgress(t *testing.T) {
 // --- Replication factor float64 bounds check tests ---
 
 func TestValidate_ReplicationFactorNonIntegerFloat(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeConfig: &AerospikeConfigSpec{
@@ -2504,9 +2504,9 @@ func TestValidate_ReplicationFactorNonIntegerFloat(t *testing.T) {
 }
 
 func TestValidate_ReplicationFactorNegativeFloat(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeConfig: &AerospikeConfigSpec{
@@ -2532,9 +2532,9 @@ func TestValidate_ReplicationFactorNegativeFloat(t *testing.T) {
 }
 
 func TestValidate_ReplicationFactorValidFloat(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeConfig: &AerospikeConfigSpec{
@@ -2559,9 +2559,9 @@ func TestValidate_ReplicationFactorValidFloat(t *testing.T) {
 // --- Rack ID validation tests ---
 
 func TestValidate_RackIDZero(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			RackConfig: &RackConfig{
@@ -2582,9 +2582,9 @@ func TestValidate_RackIDZero(t *testing.T) {
 }
 
 func TestValidate_RackIDNegative(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			RackConfig: &RackConfig{
@@ -2605,9 +2605,9 @@ func TestValidate_RackIDNegative(t *testing.T) {
 }
 
 func TestValidate_RackIDPositive(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  6,
 			Image: "aerospike:ce-8.1.1.1",
 			RackConfig: &RackConfig{
@@ -2628,9 +2628,9 @@ func TestValidate_RackIDPositive(t *testing.T) {
 // --- Empty image validation tests ---
 
 func TestValidate_EmptyImage(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  1,
 			Image: "",
 		},
@@ -2648,9 +2648,9 @@ func TestValidate_EmptyImage(t *testing.T) {
 // --- Storage volume path validation tests ---
 
 func TestValidate_StorageRelativePath(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  1,
 			Image: "aerospike:ce-8.1.1.1",
 			Storage: &AerospikeStorageSpec{
@@ -2679,9 +2679,9 @@ func TestValidate_StorageRelativePath(t *testing.T) {
 }
 
 func TestValidate_StorageAbsolutePathOK(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  1,
 			Image: "aerospike:ce-8.1.1.1",
 			Storage: &AerospikeStorageSpec{
@@ -2709,9 +2709,9 @@ func TestValidate_StorageAbsolutePathOK(t *testing.T) {
 // --- Rack node name uniqueness tests ---
 
 func TestValidate_DuplicateRackNodeName(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  4,
 			Image: "aerospike:ce-8.1.1.1",
 			RackConfig: &RackConfig{
@@ -2733,9 +2733,9 @@ func TestValidate_DuplicateRackNodeName(t *testing.T) {
 }
 
 func TestValidate_UniqueRackNodeNamesOK(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  4,
 			Image: "aerospike:ce-8.1.1.1",
 			RackConfig: &RackConfig{
@@ -2756,9 +2756,9 @@ func TestValidate_UniqueRackNodeNamesOK(t *testing.T) {
 // --- Immutable rack ID validation tests ---
 
 func TestValidateUpdate_RackIDRename(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	oldCluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	oldCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  4,
 			Image: "aerospike:ce-8.1.1.1",
 			RackConfig: &RackConfig{
@@ -2769,8 +2769,8 @@ func TestValidateUpdate_RackIDRename(t *testing.T) {
 			},
 		},
 	}
-	newCluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	newCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  4,
 			Image: "aerospike:ce-8.1.1.1",
 			RackConfig: &RackConfig{
@@ -2792,9 +2792,9 @@ func TestValidateUpdate_RackIDRename(t *testing.T) {
 }
 
 func TestValidateUpdate_RackAddRemoveOK(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	oldCluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	oldCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  4,
 			Image: "aerospike:ce-8.1.1.1",
 			RackConfig: &RackConfig{
@@ -2805,8 +2805,8 @@ func TestValidateUpdate_RackAddRemoveOK(t *testing.T) {
 			},
 		},
 	}
-	newCluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	newCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  6,
 			Image: "aerospike:ce-8.1.1.1",
 			RackConfig: &RackConfig{
@@ -2828,10 +2828,10 @@ func TestValidateUpdate_RackAddRemoveOK(t *testing.T) {
 // --- MaxUnavailable validation tests ---
 
 func TestValidate_MaxUnavailableExceedsClusterSize(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
+	v := &AerospikeClusterValidator{}
 	mu := intstr.FromInt32(4)
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:           3,
 			Image:          "aerospike:ce-8.1.1.1",
 			MaxUnavailable: &mu,
@@ -2856,10 +2856,10 @@ func TestValidate_MaxUnavailableExceedsClusterSize(t *testing.T) {
 }
 
 func TestValidate_MaxUnavailableEqualsClusterSize(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
+	v := &AerospikeClusterValidator{}
 	mu := intstr.FromInt32(3)
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:           3,
 			Image:          "aerospike:ce-8.1.1.1",
 			MaxUnavailable: &mu,
@@ -2884,10 +2884,10 @@ func TestValidate_MaxUnavailableEqualsClusterSize(t *testing.T) {
 }
 
 func TestValidate_MaxUnavailableLessThanClusterSize(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
+	v := &AerospikeClusterValidator{}
 	mu := intstr.FromInt32(1)
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:           3,
 			Image:          "aerospike:ce-8.1.1.1",
 			MaxUnavailable: &mu,
@@ -2907,10 +2907,10 @@ func TestValidate_MaxUnavailableLessThanClusterSize(t *testing.T) {
 }
 
 func TestValidate_MaxUnavailablePercentage100(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
+	v := &AerospikeClusterValidator{}
 	mu := intstr.FromString("100%")
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:           3,
 			Image:          "aerospike:ce-8.1.1.1",
 			MaxUnavailable: &mu,
@@ -2935,9 +2935,9 @@ func TestValidate_MaxUnavailablePercentage100(t *testing.T) {
 }
 
 func TestValidate_MaxUnavailableNil(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 		},
@@ -2958,9 +2958,9 @@ func TestValidate_MaxUnavailableNil(t *testing.T) {
 // --- ServiceMonitor / Monitoring consistency tests ---
 
 func TestValidate_ServiceMonitorEnabledWithoutMonitoring(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
@@ -2990,9 +2990,9 @@ func TestValidate_ServiceMonitorEnabledWithoutMonitoring(t *testing.T) {
 }
 
 func TestValidate_PrometheusRuleEnabledWithoutMonitoring(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
@@ -3022,9 +3022,9 @@ func TestValidate_PrometheusRuleEnabledWithoutMonitoring(t *testing.T) {
 }
 
 func TestValidate_MonitoringDisabledSubfeaturesDisabled(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
@@ -3051,9 +3051,9 @@ func TestValidate_MonitoringDisabledSubfeaturesDisabled(t *testing.T) {
 // --- Empty privilege string validation tests ---
 
 func TestValidate_ACLEmptyPrivilegeStringRejected(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeAccessControl: &AerospikeAccessControlSpec{
@@ -3077,9 +3077,9 @@ func TestValidate_ACLEmptyPrivilegeStringRejected(t *testing.T) {
 }
 
 func TestValidate_ACLWhitespacePrivilegeStringRejected(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeAccessControl: &AerospikeAccessControlSpec{
@@ -3103,7 +3103,7 @@ func TestValidate_ACLWhitespacePrivilegeStringRejected(t *testing.T) {
 }
 
 func TestValidate_ACLLeadingTrailingWhitespacePrivilegeRejected(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
+	v := &AerospikeClusterValidator{}
 	tests := []struct {
 		name    string
 		privStr string
@@ -3116,8 +3116,8 @@ func TestValidate_ACLLeadingTrailingWhitespacePrivilegeRejected(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cluster := &AerospikeCECluster{
-				Spec: AerospikeCEClusterSpec{
+			cluster := &AerospikeCluster{
+				Spec: AerospikeClusterSpec{
 					Size:  3,
 					Image: "aerospike:ce-8.1.1.1",
 					AerospikeAccessControl: &AerospikeAccessControlSpec{
@@ -3144,12 +3144,12 @@ func TestValidate_ACLLeadingTrailingWhitespacePrivilegeRejected(t *testing.T) {
 // --- Overrides without TemplateRef validation tests ---
 
 func TestValidate_OverridesWithoutTemplateRefRejected(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:      3,
 			Image:     "aerospike:ce-8.1.1.1",
-			Overrides: &AerospikeCEClusterTemplateSpec{},
+			Overrides: &AerospikeClusterTemplateSpec{},
 		},
 	}
 
@@ -3163,13 +3163,13 @@ func TestValidate_OverridesWithoutTemplateRefRejected(t *testing.T) {
 }
 
 func TestValidate_OverridesWithTemplateRefOK(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:        3,
 			Image:       "aerospike:ce-8.1.1.1",
 			TemplateRef: &TemplateRef{Name: "my-template"},
-			Overrides:   &AerospikeCEClusterTemplateSpec{},
+			Overrides:   &AerospikeClusterTemplateSpec{},
 		},
 	}
 
@@ -3182,15 +3182,15 @@ func TestValidate_OverridesWithTemplateRefOK(t *testing.T) {
 // --- Operation phase update edge case tests ---
 
 func TestValidateUpdate_RejectsAddingOperationWhileInProgress(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	oldCluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	oldCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			// Old operations already cleared from spec
 			Operations: []OperationSpec{},
 		},
-		Status: AerospikeCEClusterStatus{
+		Status: AerospikeClusterStatus{
 			OperationStatus: &OperationStatus{
 				ID:    "op-1",
 				Kind:  OperationPodRestart,
@@ -3198,8 +3198,8 @@ func TestValidateUpdate_RejectsAddingOperationWhileInProgress(t *testing.T) {
 			},
 		},
 	}
-	newCluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	newCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			// Attempt to add new operation while another is in progress
@@ -3207,7 +3207,7 @@ func TestValidateUpdate_RejectsAddingOperationWhileInProgress(t *testing.T) {
 				{Kind: OperationWarmRestart, ID: "op-2"},
 			},
 		},
-		Status: AerospikeCEClusterStatus{
+		Status: AerospikeClusterStatus{
 			OperationStatus: &OperationStatus{
 				ID:    "op-1",
 				Kind:  OperationPodRestart,
@@ -3226,16 +3226,16 @@ func TestValidateUpdate_RejectsAddingOperationWhileInProgress(t *testing.T) {
 }
 
 func TestValidateUpdate_RejectsOperationKindChangeWhileInProgress(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	oldCluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	oldCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Operations: []OperationSpec{
 				{Kind: OperationPodRestart, ID: "op-1"},
 			},
 		},
-		Status: AerospikeCEClusterStatus{
+		Status: AerospikeClusterStatus{
 			OperationStatus: &OperationStatus{
 				ID:    "op-1",
 				Kind:  OperationPodRestart,
@@ -3243,8 +3243,8 @@ func TestValidateUpdate_RejectsOperationKindChangeWhileInProgress(t *testing.T) 
 			},
 		},
 	}
-	newCluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	newCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Operations: []OperationSpec{
@@ -3252,7 +3252,7 @@ func TestValidateUpdate_RejectsOperationKindChangeWhileInProgress(t *testing.T) 
 				{Kind: OperationWarmRestart, ID: "op-1"},
 			},
 		},
-		Status: AerospikeCEClusterStatus{
+		Status: AerospikeClusterStatus{
 			OperationStatus: &OperationStatus{
 				ID:    "op-1",
 				Kind:  OperationPodRestart,
@@ -3273,9 +3273,9 @@ func TestValidateUpdate_RejectsOperationKindChangeWhileInProgress(t *testing.T) 
 // --- Scoped privilege validation tests ---
 
 func TestValidate_ACLScopedPrivilegeAccepted(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeAccessControl: &AerospikeAccessControlSpec{
@@ -3299,10 +3299,10 @@ func TestValidate_ACLScopedPrivilegeAccepted(t *testing.T) {
 // --- Defaulting idempotency test ---
 
 func TestDefault_IsIdempotent(t *testing.T) {
-	d := &AerospikeCEClusterDefaulter{}
-	cluster := &AerospikeCECluster{
+	d := &AerospikeClusterDefaulter{}
+	cluster := &AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-		Spec: AerospikeCEClusterSpec{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			PodSpec: &AerospikeCEPodSpec{
@@ -3350,9 +3350,9 @@ func TestDefault_IsIdempotent(t *testing.T) {
 // --- Image tag validation edge cases ---
 
 func TestValidate_ImageWithDigestAccepted(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  1,
 			Image: "aerospike:ce-8.1.1.1@sha256:abc123",
 		},
@@ -3365,9 +3365,9 @@ func TestValidate_ImageWithDigestAccepted(t *testing.T) {
 }
 
 func TestValidate_ImageEnterpriseEETag(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  1,
 			Image: "aerospike:ee-8.0.0.1",
 		},
@@ -3383,9 +3383,9 @@ func TestValidate_ImageEnterpriseEETag(t *testing.T) {
 }
 
 func TestValidate_DuplicateUserNames(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeAccessControl: &AerospikeAccessControlSpec{
@@ -3415,9 +3415,9 @@ func TestValidate_DuplicateUserNames(t *testing.T) {
 }
 
 func TestValidate_DuplicateRoleNames(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeAccessControl: &AerospikeAccessControlSpec{
@@ -3452,9 +3452,9 @@ func TestValidate_DuplicateRoleNames(t *testing.T) {
 }
 
 func TestValidate_UniqueUserNames(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			AerospikeAccessControl: &AerospikeAccessControlSpec{
@@ -3481,9 +3481,9 @@ func TestValidate_UniqueUserNames(t *testing.T) {
 }
 
 func TestValidate_MonitoringPortOutOfRange_Negative(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
@@ -3504,9 +3504,9 @@ func TestValidate_MonitoringPortOutOfRange_Negative(t *testing.T) {
 }
 
 func TestValidate_MonitoringPortOutOfRange_Zero(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
@@ -3527,9 +3527,9 @@ func TestValidate_MonitoringPortOutOfRange_Zero(t *testing.T) {
 }
 
 func TestValidate_MonitoringPortOutOfRange_TooHigh(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
@@ -3552,10 +3552,10 @@ func TestValidate_MonitoringPortOutOfRange_TooHigh(t *testing.T) {
 // --- Rack config IntOrString validation tests ---
 
 func TestValidate_RackConfig_ScaleDownBatchSize_Valid(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
+	v := &AerospikeClusterValidator{}
 	bs := intstr.FromInt32(2)
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			RackConfig: &RackConfig{
@@ -3572,10 +3572,10 @@ func TestValidate_RackConfig_ScaleDownBatchSize_Valid(t *testing.T) {
 }
 
 func TestValidate_RackConfig_ScaleDownBatchSize_Zero(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
+	v := &AerospikeClusterValidator{}
 	bs := intstr.FromInt32(0)
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			RackConfig: &RackConfig{
@@ -3595,10 +3595,10 @@ func TestValidate_RackConfig_ScaleDownBatchSize_Zero(t *testing.T) {
 }
 
 func TestValidate_RackConfig_ScaleDownBatchSize_ValidPercentage(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
+	v := &AerospikeClusterValidator{}
 	bs := intstr.FromString("50%")
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			RackConfig: &RackConfig{
@@ -3615,10 +3615,10 @@ func TestValidate_RackConfig_ScaleDownBatchSize_ValidPercentage(t *testing.T) {
 }
 
 func TestValidate_RackConfig_MaxIgnorablePods_Zero(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
+	v := &AerospikeClusterValidator{}
 	mp := intstr.FromInt32(0)
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			RackConfig: &RackConfig{
@@ -3635,10 +3635,10 @@ func TestValidate_RackConfig_MaxIgnorablePods_Zero(t *testing.T) {
 }
 
 func TestValidate_RackConfig_MaxIgnorablePods_Negative(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
+	v := &AerospikeClusterValidator{}
 	mp := intstr.FromInt32(-1)
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			RackConfig: &RackConfig{
@@ -3658,10 +3658,10 @@ func TestValidate_RackConfig_MaxIgnorablePods_Negative(t *testing.T) {
 }
 
 func TestValidate_RackConfig_RollingUpdateBatchSize_Valid(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
+	v := &AerospikeClusterValidator{}
 	bs := intstr.FromInt32(3)
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			RackConfig: &RackConfig{
@@ -3678,10 +3678,10 @@ func TestValidate_RackConfig_RollingUpdateBatchSize_Valid(t *testing.T) {
 }
 
 func TestValidate_RackConfig_RollingUpdateBatchSize_Zero(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
+	v := &AerospikeClusterValidator{}
 	bs := intstr.FromInt32(0)
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			RackConfig: &RackConfig{
@@ -3701,10 +3701,10 @@ func TestValidate_RackConfig_RollingUpdateBatchSize_Zero(t *testing.T) {
 }
 
 func TestValidate_RackConfig_RollingUpdateBatchSize_ValidPercentage(t *testing.T) {
-	v := &AerospikeCEClusterValidator{}
+	v := &AerospikeClusterValidator{}
 	bs := intstr.FromString("25%")
-	cluster := &AerospikeCECluster{
-		Spec: AerospikeCEClusterSpec{
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
 			RackConfig: &RackConfig{

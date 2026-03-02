@@ -355,7 +355,7 @@ aerospike-operator-controller-manager-xxxxx-yyyyy   1/1     Running   0         
 CRD가 등록되었는지 확인:
 
 ```bash
-kubectl get crd aerospikececlusters.acko.io
+kubectl get crd aerospikeclusters.acko.io
 ```
 
 ## 빠른 시작: 전체 설치 스크립트
@@ -427,7 +427,7 @@ helm install grafana grafana/grafana \
 # 5. Aerospike CE 클러스터 배포
 # =============================================================================
 kubectl create namespace aerospike --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -f config/samples/acko_v1alpha1_aerospikececluster.yaml
+kubectl apply -f config/samples/acko_v1alpha1_aerospikecluster.yaml
 
 echo "Aerospike 파드 준비 대기 중..."
 kubectl -n aerospike wait --for=condition=Ready pod/aerospike-ce-basic-0-0 --timeout=120s
@@ -460,7 +460,7 @@ kubectl -n monitoring port-forward svc/grafana 3000:80
 ## 제거
 
 :::warning
-오퍼레이터를 제거하기 전에 반드시 AerospikeCECluster 리소스를 먼저 삭제하세요. 오퍼레이터를 먼저 제거하면 고아 상태의 StatefulSet과 PVC가 남게 됩니다.
+오퍼레이터를 제거하기 전에 반드시 AerospikeCluster 리소스를 먼저 삭제하세요. 오퍼레이터를 먼저 제거하면 고아 상태의 StatefulSet과 PVC가 남게 됩니다.
 :::
 
 <Tabs groupId="install-method">
@@ -468,7 +468,7 @@ kubectl -n monitoring port-forward svc/grafana 3000:80
 
 ```bash
 # 먼저 모든 Aerospike 클러스터를 삭제
-kubectl delete asce --all --all-namespaces
+kubectl delete asc --all --all-namespaces
 
 # 오퍼레이터 제거
 helm uninstall aerospike-operator -n aerospike-operator
@@ -482,7 +482,7 @@ kubectl delete namespace aerospike-operator
 
 ```bash
 # 먼저 모든 Aerospike 클러스터를 삭제
-kubectl delete asce --all --all-namespaces
+kubectl delete asc --all --all-namespaces
 
 # 오퍼레이터 제거
 make undeploy

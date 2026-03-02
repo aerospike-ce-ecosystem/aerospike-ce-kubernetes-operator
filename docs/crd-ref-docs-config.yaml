@@ -1,6 +1,6 @@
 processor:
   ignoreTypes:
-    - "AerospikeCEClusterList"
+    - "AerospikeClusterList"
   ignoreFields:
     - "TypeMeta"
     - "ObjectMeta"

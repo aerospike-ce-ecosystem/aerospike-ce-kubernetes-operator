@@ -3,25 +3,25 @@ package controller
 import (
 	"testing"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
 func TestGetServicePort(t *testing.T) {
 	tests := []struct {
 		name    string
-		cluster *asdbcev1alpha1.AerospikeCECluster
+		cluster *ackov1alpha1.AerospikeCluster
 		want    int
 	}{
 		{
 			name:    "nil AerospikeConfig returns default",
-			cluster: &asdbcev1alpha1.AerospikeCECluster{},
+			cluster: &ackov1alpha1.AerospikeCluster{},
 			want:    defaultAeroPort,
 		},
 		{
 			name: "empty config returns default",
-			cluster: &asdbcev1alpha1.AerospikeCECluster{
-				Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
-					AerospikeConfig: &asdbcev1alpha1.AerospikeConfigSpec{
+			cluster: &ackov1alpha1.AerospikeCluster{
+				Spec: ackov1alpha1.AerospikeClusterSpec{
+					AerospikeConfig: &ackov1alpha1.AerospikeConfigSpec{
 						Value: map[string]any{},
 					},
 				},
@@ -30,9 +30,9 @@ func TestGetServicePort(t *testing.T) {
 		},
 		{
 			name: "no network section returns default",
-			cluster: &asdbcev1alpha1.AerospikeCECluster{
-				Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
-					AerospikeConfig: &asdbcev1alpha1.AerospikeConfigSpec{
+			cluster: &ackov1alpha1.AerospikeCluster{
+				Spec: ackov1alpha1.AerospikeClusterSpec{
+					AerospikeConfig: &ackov1alpha1.AerospikeConfigSpec{
 						Value: map[string]any{
 							"service": map[string]any{"cluster-name": "test"},
 						},
@@ -43,9 +43,9 @@ func TestGetServicePort(t *testing.T) {
 		},
 		{
 			name: "no service in network returns default",
-			cluster: &asdbcev1alpha1.AerospikeCECluster{
-				Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
-					AerospikeConfig: &asdbcev1alpha1.AerospikeConfigSpec{
+			cluster: &ackov1alpha1.AerospikeCluster{
+				Spec: ackov1alpha1.AerospikeClusterSpec{
+					AerospikeConfig: &ackov1alpha1.AerospikeConfigSpec{
 						Value: map[string]any{
 							"network": map[string]any{
 								"heartbeat": map[string]any{"port": 3002},
@@ -58,9 +58,9 @@ func TestGetServicePort(t *testing.T) {
 		},
 		{
 			name: "custom port as int",
-			cluster: &asdbcev1alpha1.AerospikeCECluster{
-				Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
-					AerospikeConfig: &asdbcev1alpha1.AerospikeConfigSpec{
+			cluster: &ackov1alpha1.AerospikeCluster{
+				Spec: ackov1alpha1.AerospikeClusterSpec{
+					AerospikeConfig: &ackov1alpha1.AerospikeConfigSpec{
 						Value: map[string]any{
 							"network": map[string]any{
 								"service": map[string]any{"port": 4000},
@@ -73,9 +73,9 @@ func TestGetServicePort(t *testing.T) {
 		},
 		{
 			name: "custom port as float64 (JSON deserialization)",
-			cluster: &asdbcev1alpha1.AerospikeCECluster{
-				Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
-					AerospikeConfig: &asdbcev1alpha1.AerospikeConfigSpec{
+			cluster: &ackov1alpha1.AerospikeCluster{
+				Spec: ackov1alpha1.AerospikeClusterSpec{
+					AerospikeConfig: &ackov1alpha1.AerospikeConfigSpec{
 						Value: map[string]any{
 							"network": map[string]any{
 								"service": map[string]any{"port": float64(5000)},

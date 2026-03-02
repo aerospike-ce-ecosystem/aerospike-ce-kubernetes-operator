@@ -233,9 +233,9 @@ kubectl create namespace aerospike
 
 cat <<EOF | kubectl apply -f -
 apiVersion: acko.io/v1alpha1
-kind: AerospikeCECluster
+kind: AerospikeCluster
 metadata:
-  name: aerospike-ce-basic
+  name: aerospike-basic
   namespace: aerospike
 spec:
   size: 1
@@ -252,7 +252,7 @@ EOF
 
 Check the cluster status:
 ```bash
-kubectl -n aerospike get asce
+kubectl -n aerospike get asc
 ```
 
 More sample CRs are in `config/samples/`.
@@ -279,7 +279,7 @@ See [values.yaml](values.yaml) for all available configuration options with desc
 
 ```bash
 # Delete all Aerospike clusters first to avoid orphaned StatefulSets/PVCs
-kubectl delete asce --all --all-namespaces
+kubectl delete asc --all --all-namespaces
 
 # Uninstall the operator
 helm uninstall acko -n aerospike-operator
@@ -287,8 +287,8 @@ helm uninstall acko -n aerospike-operator
 
 > **Note:** CRDs are protected with `helm.sh/resource-policy: keep` — they are
 > **not** removed on `helm uninstall`. To remove CRDs explicitly (this deletes
-> **all** AerospikeCECluster resources and their data):
+> **all** AerospikeCluster resources and their data):
 >
 > ```bash
-> kubectl delete crd aerospikececlusters.acko.io aerospikececlustertemplates.acko.io
+> kubectl delete crd aerospikeclusters.acko.io aerospikeclustertemplates.acko.io
 > ```

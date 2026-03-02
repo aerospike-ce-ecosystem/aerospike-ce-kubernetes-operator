@@ -29,7 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	internalutils "github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
@@ -51,26 +51,26 @@ func DeleteNamespace(ctx context.Context, c client.Client, name string) error {
 	return client.IgnoreNotFound(c.Delete(ctx, ns))
 }
 
-// --- AerospikeCECluster CRUD ---
+// --- AerospikeCluster CRUD ---
 
-// GetCluster retrieves an AerospikeCECluster by name and namespace.
-func GetCluster(ctx context.Context, c client.Client, name, ns string) (*asdbcev1alpha1.AerospikeCECluster, error) {
-	cluster := &asdbcev1alpha1.AerospikeCECluster{}
+// GetCluster retrieves an AerospikeCluster by name and namespace.
+func GetCluster(ctx context.Context, c client.Client, name, ns string) (*ackov1alpha1.AerospikeCluster, error) {
+	cluster := &ackov1alpha1.AerospikeCluster{}
 	err := c.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, cluster)
 	return cluster, err
 }
 
-// PatchCluster applies a JSON merge patch to an AerospikeCECluster.
+// PatchCluster applies a JSON merge patch to an AerospikeCluster.
 func PatchCluster(ctx context.Context, c client.Client, name, ns string, patch []byte) error {
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
+	cluster := &ackov1alpha1.AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
 	}
 	return c.Patch(ctx, cluster, client.RawPatch(types.MergePatchType, patch))
 }
 
-// DeleteCluster deletes an AerospikeCECluster, ignoring NotFound errors.
+// DeleteCluster deletes an AerospikeCluster, ignoring NotFound errors.
 func DeleteCluster(ctx context.Context, c client.Client, name, ns string) error {
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
+	cluster := &ackov1alpha1.AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
 	}
 	return client.IgnoreNotFound(c.Delete(ctx, cluster))

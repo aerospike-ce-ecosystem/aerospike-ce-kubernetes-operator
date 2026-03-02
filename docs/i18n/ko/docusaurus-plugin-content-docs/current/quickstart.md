@@ -95,7 +95,7 @@ kubectl create namespace aerospike
 <TabItem value="file" label="샘플 파일" default>
 
 ```bash
-kubectl apply -f config/samples/acko_v1alpha1_aerospikececluster.yaml
+kubectl apply -f config/samples/acko_v1alpha1_aerospikecluster.yaml
 ```
 
 </TabItem>
@@ -104,7 +104,7 @@ kubectl apply -f config/samples/acko_v1alpha1_aerospikececluster.yaml
 ```bash
 kubectl apply -f - <<'EOF'
 apiVersion: acko.io/v1alpha1
-kind: AerospikeCECluster
+kind: AerospikeCluster
 metadata:
   name: aerospike-ce-basic
   namespace: aerospike
@@ -128,7 +128,7 @@ EOF
 
 ```bash
 # 클러스터 상태 확인 (Phase가 "Completed"여야 함)
-kubectl -n aerospike get asce
+kubectl -n aerospike get asc
 
 # 파드 확인
 kubectl -n aerospike get pods
@@ -201,4 +201,4 @@ kubectl -n aerospike run asinfo-client --rm -it --restart=Never \
 - [설치 가이드](./guide/install) — 상세한 설치 방법 (Helm, Kustomize)
 - [클러스터 생성](./guide/create-cluster) — 샘플 설정 및 CRD 필드 참조
 - [클러스터 관리](./guide/manage-cluster) — 스케일링, 롤링 업데이트, 모니터링
-- [API 레퍼런스](./api-reference/aerospikececluster) — 전체 CRD 타입 문서
+- [API 레퍼런스](./api-reference/aerospikecluster) — 전체 CRD 타입 문서

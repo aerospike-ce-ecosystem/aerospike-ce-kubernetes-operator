@@ -32,7 +32,7 @@ sync_crd() {
   echo "Synced: $1 → charts/acko-crds/templates/$2"
 }
 
-sync_crd "acko.io_aerospikececlusters.yaml"        "aerospikececluster-crd.yaml"
-sync_crd "acko.io_aerospikececlustertemplates.yaml" "aerospikececlustertemplate-crd.yaml"
+sync_crd "acko.io_aerospikeclusters.yaml"        "aerospikecluster-crd.yaml"
+sync_crd "acko.io_aerospikeclustertemplates.yaml" "aerospikeclustertemplate-crd.yaml"
 
 echo "CRD sync complete."

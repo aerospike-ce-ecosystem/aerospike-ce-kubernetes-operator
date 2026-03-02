@@ -10,14 +10,14 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
 // listClusterPods returns all pods matching the cluster's selector labels.
-func (r *AerospikeCEClusterReconciler) listClusterPods(
+func (r *AerospikeClusterReconciler) listClusterPods(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 ) (*corev1.PodList, error) {
 	podList := &corev1.PodList{}
 	if err := r.List(ctx, podList,
@@ -30,9 +30,9 @@ func (r *AerospikeCEClusterReconciler) listClusterPods(
 }
 
 // listClusterStatefulSets returns all StatefulSets matching the cluster's selector labels.
-func (r *AerospikeCEClusterReconciler) listClusterStatefulSets(
+func (r *AerospikeClusterReconciler) listClusterStatefulSets(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 ) (*appsv1.StatefulSetList, error) {
 	stsList := &appsv1.StatefulSetList{}
 	if err := r.List(ctx, stsList,
@@ -45,11 +45,11 @@ func (r *AerospikeCEClusterReconciler) listClusterStatefulSets(
 }
 
 // refetchCluster re-reads the cluster from the API server to get the latest version.
-func (r *AerospikeCEClusterReconciler) refetchCluster(
+func (r *AerospikeClusterReconciler) refetchCluster(
 	ctx context.Context,
 	nn types.NamespacedName,
-) (*asdbcev1alpha1.AerospikeCECluster, error) {
-	latest := &asdbcev1alpha1.AerospikeCECluster{}
+) (*ackov1alpha1.AerospikeCluster, error) {
+	latest := &ackov1alpha1.AerospikeCluster{}
 	if err := r.Get(ctx, nn, latest); err != nil {
 		return nil, err
 	}
@@ -57,8 +57,8 @@ func (r *AerospikeCEClusterReconciler) refetchCluster(
 }
 
 // setOwnerRef sets the controller reference on the given object.
-func (r *AerospikeCEClusterReconciler) setOwnerRef(
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+func (r *AerospikeClusterReconciler) setOwnerRef(
+	cluster *ackov1alpha1.AerospikeCluster,
 	obj client.Object,
 ) error {
 	if err := ctrl.SetControllerReference(cluster, obj, r.Scheme); err != nil {

@@ -19,13 +19,13 @@ package template
 import (
 	corev1 "k8s.io/api/core/v1"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
-// MergeTemplateSpec merges base and override AerospikeCEClusterTemplateSpec.
+// MergeTemplateSpec merges base and override AerospikeClusterTemplateSpec.
 // The override's non-nil/non-zero fields take precedence over the base.
 // Returns a new spec; neither input is modified.
-func MergeTemplateSpec(base, override *asdbcev1alpha1.AerospikeCEClusterTemplateSpec) *asdbcev1alpha1.AerospikeCEClusterTemplateSpec {
+func MergeTemplateSpec(base, override *ackov1alpha1.AerospikeClusterTemplateSpec) *ackov1alpha1.AerospikeClusterTemplateSpec {
 	if base == nil && override == nil {
 		return nil
 	}
@@ -84,7 +84,7 @@ func MergeTemplateSpec(base, override *asdbcev1alpha1.AerospikeCEClusterTemplate
 }
 
 // mergeTemplateAerospikeConfig merges two TemplateAerospikeConfig values.
-func mergeTemplateAerospikeConfig(base, override *asdbcev1alpha1.TemplateAerospikeConfig) *asdbcev1alpha1.TemplateAerospikeConfig {
+func mergeTemplateAerospikeConfig(base, override *ackov1alpha1.TemplateAerospikeConfig) *ackov1alpha1.TemplateAerospikeConfig {
 	if base == nil && override == nil {
 		return nil
 	}
@@ -105,7 +105,7 @@ func mergeTemplateAerospikeConfig(base, override *asdbcev1alpha1.TemplateAerospi
 			baseMap = base.NamespaceDefaults.Value
 		}
 		merged := deepMergeMapBaseFirst(baseMap, override.NamespaceDefaults.Value)
-		result.NamespaceDefaults = &asdbcev1alpha1.AerospikeConfigSpec{Value: merged}
+		result.NamespaceDefaults = &ackov1alpha1.AerospikeConfigSpec{Value: merged}
 	}
 
 	// Merge Service: deep map merge.
@@ -115,7 +115,7 @@ func mergeTemplateAerospikeConfig(base, override *asdbcev1alpha1.TemplateAerospi
 			baseMap = base.Service.Value
 		}
 		merged := deepMergeMapBaseFirst(baseMap, override.Service.Value)
-		result.Service = &asdbcev1alpha1.AerospikeConfigSpec{Value: merged}
+		result.Service = &ackov1alpha1.AerospikeConfigSpec{Value: merged}
 	}
 
 	// Merge Network.
@@ -127,7 +127,7 @@ func mergeTemplateAerospikeConfig(base, override *asdbcev1alpha1.TemplateAerospi
 }
 
 // mergeTemplateNetworkConfig merges two TemplateNetworkConfig values.
-func mergeTemplateNetworkConfig(base, override *asdbcev1alpha1.TemplateNetworkConfig) *asdbcev1alpha1.TemplateNetworkConfig {
+func mergeTemplateNetworkConfig(base, override *ackov1alpha1.TemplateNetworkConfig) *ackov1alpha1.TemplateNetworkConfig {
 	if base == nil && override == nil {
 		return nil
 	}
@@ -148,7 +148,7 @@ func mergeTemplateNetworkConfig(base, override *asdbcev1alpha1.TemplateNetworkCo
 }
 
 // mergeTemplateHeartbeatConfig merges two TemplateHeartbeatConfig values.
-func mergeTemplateHeartbeatConfig(base, override *asdbcev1alpha1.TemplateHeartbeatConfig) *asdbcev1alpha1.TemplateHeartbeatConfig {
+func mergeTemplateHeartbeatConfig(base, override *ackov1alpha1.TemplateHeartbeatConfig) *ackov1alpha1.TemplateHeartbeatConfig {
 	if base == nil && override == nil {
 		return nil
 	}
@@ -173,7 +173,7 @@ func mergeTemplateHeartbeatConfig(base, override *asdbcev1alpha1.TemplateHeartbe
 }
 
 // mergeTemplateScheduling merges two TemplateScheduling values.
-func mergeTemplateScheduling(base, override *asdbcev1alpha1.TemplateScheduling) *asdbcev1alpha1.TemplateScheduling {
+func mergeTemplateScheduling(base, override *ackov1alpha1.TemplateScheduling) *ackov1alpha1.TemplateScheduling {
 	if base == nil && override == nil {
 		return nil
 	}

@@ -3,22 +3,22 @@ package controller
 import (
 	"testing"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
 func TestGetRacks(t *testing.T) {
-	r := &AerospikeCEClusterReconciler{}
+	r := &AerospikeClusterReconciler{}
 
 	tests := []struct {
 		name    string
-		cluster *asdbcev1alpha1.AerospikeCECluster
+		cluster *ackov1alpha1.AerospikeCluster
 		wantLen int
 		wantIDs []int
 	}{
 		{
 			name: "nil RackConfig returns default rack with ID 0",
-			cluster: &asdbcev1alpha1.AerospikeCECluster{
-				Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+			cluster: &ackov1alpha1.AerospikeCluster{
+				Spec: ackov1alpha1.AerospikeClusterSpec{
 					RackConfig: nil,
 				},
 			},
@@ -27,10 +27,10 @@ func TestGetRacks(t *testing.T) {
 		},
 		{
 			name: "empty Racks slice returns default rack with ID 0",
-			cluster: &asdbcev1alpha1.AerospikeCECluster{
-				Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
-					RackConfig: &asdbcev1alpha1.RackConfig{
-						Racks: []asdbcev1alpha1.Rack{},
+			cluster: &ackov1alpha1.AerospikeCluster{
+				Spec: ackov1alpha1.AerospikeClusterSpec{
+					RackConfig: &ackov1alpha1.RackConfig{
+						Racks: []ackov1alpha1.Rack{},
 					},
 				},
 			},
@@ -39,10 +39,10 @@ func TestGetRacks(t *testing.T) {
 		},
 		{
 			name: "populated Racks returns racks as-is",
-			cluster: &asdbcev1alpha1.AerospikeCECluster{
-				Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
-					RackConfig: &asdbcev1alpha1.RackConfig{
-						Racks: []asdbcev1alpha1.Rack{
+			cluster: &ackov1alpha1.AerospikeCluster{
+				Spec: ackov1alpha1.AerospikeClusterSpec{
+					RackConfig: &ackov1alpha1.RackConfig{
+						Racks: []ackov1alpha1.Rack{
 							{ID: 1},
 							{ID: 2},
 							{ID: 3},
@@ -71,103 +71,103 @@ func TestGetRacks(t *testing.T) {
 }
 
 func TestGetRackSize(t *testing.T) {
-	r := &AerospikeCEClusterReconciler{}
+	r := &AerospikeClusterReconciler{}
 
 	tests := []struct {
 		name      string
 		totalSize int32
-		racks     []asdbcev1alpha1.Rack
+		racks     []ackov1alpha1.Rack
 		rackIndex int
 		want      int32
 	}{
 		{
 			name:      "1 rack, 5 pods",
 			totalSize: 5,
-			racks:     []asdbcev1alpha1.Rack{{ID: 0}},
+			racks:     []ackov1alpha1.Rack{{ID: 0}},
 			rackIndex: 0,
 			want:      5,
 		},
 		{
 			name:      "2 racks even split (6 pods) - rack 0",
 			totalSize: 6,
-			racks:     []asdbcev1alpha1.Rack{{ID: 0}, {ID: 1}},
+			racks:     []ackov1alpha1.Rack{{ID: 0}, {ID: 1}},
 			rackIndex: 0,
 			want:      3,
 		},
 		{
 			name:      "2 racks even split (6 pods) - rack 1",
 			totalSize: 6,
-			racks:     []asdbcev1alpha1.Rack{{ID: 0}, {ID: 1}},
+			racks:     []ackov1alpha1.Rack{{ID: 0}, {ID: 1}},
 			rackIndex: 1,
 			want:      3,
 		},
 		{
 			name:      "2 racks uneven split (5 pods) - rack 0 gets extra",
 			totalSize: 5,
-			racks:     []asdbcev1alpha1.Rack{{ID: 0}, {ID: 1}},
+			racks:     []ackov1alpha1.Rack{{ID: 0}, {ID: 1}},
 			rackIndex: 0,
 			want:      3,
 		},
 		{
 			name:      "2 racks uneven split (5 pods) - rack 1",
 			totalSize: 5,
-			racks:     []asdbcev1alpha1.Rack{{ID: 0}, {ID: 1}},
+			racks:     []ackov1alpha1.Rack{{ID: 0}, {ID: 1}},
 			rackIndex: 1,
 			want:      2,
 		},
 		{
 			name:      "3 racks, 7 pods - rack 0 gets extra",
 			totalSize: 7,
-			racks:     []asdbcev1alpha1.Rack{{ID: 0}, {ID: 1}, {ID: 2}},
+			racks:     []ackov1alpha1.Rack{{ID: 0}, {ID: 1}, {ID: 2}},
 			rackIndex: 0,
 			want:      3,
 		},
 		{
 			name:      "3 racks, 7 pods - rack 1",
 			totalSize: 7,
-			racks:     []asdbcev1alpha1.Rack{{ID: 0}, {ID: 1}, {ID: 2}},
+			racks:     []ackov1alpha1.Rack{{ID: 0}, {ID: 1}, {ID: 2}},
 			rackIndex: 1,
 			want:      2,
 		},
 		{
 			name:      "3 racks, 7 pods - rack 2",
 			totalSize: 7,
-			racks:     []asdbcev1alpha1.Rack{{ID: 0}, {ID: 1}, {ID: 2}},
+			racks:     []ackov1alpha1.Rack{{ID: 0}, {ID: 1}, {ID: 2}},
 			rackIndex: 2,
 			want:      2,
 		},
 		{
 			name:      "rack count > pod count (3 racks, 2 pods) - rack 0",
 			totalSize: 2,
-			racks:     []asdbcev1alpha1.Rack{{ID: 0}, {ID: 1}, {ID: 2}},
+			racks:     []ackov1alpha1.Rack{{ID: 0}, {ID: 1}, {ID: 2}},
 			rackIndex: 0,
 			want:      1,
 		},
 		{
 			name:      "rack count > pod count (3 racks, 2 pods) - rack 1",
 			totalSize: 2,
-			racks:     []asdbcev1alpha1.Rack{{ID: 0}, {ID: 1}, {ID: 2}},
+			racks:     []ackov1alpha1.Rack{{ID: 0}, {ID: 1}, {ID: 2}},
 			rackIndex: 1,
 			want:      1,
 		},
 		{
 			name:      "rack count > pod count (3 racks, 2 pods) - rack 2",
 			totalSize: 2,
-			racks:     []asdbcev1alpha1.Rack{{ID: 0}, {ID: 1}, {ID: 2}},
+			racks:     []ackov1alpha1.Rack{{ID: 0}, {ID: 1}, {ID: 2}},
 			rackIndex: 2,
 			want:      0,
 		},
 		{
 			name:      "0 pods - all racks get 0 (rack 0)",
 			totalSize: 0,
-			racks:     []asdbcev1alpha1.Rack{{ID: 0}, {ID: 1}},
+			racks:     []ackov1alpha1.Rack{{ID: 0}, {ID: 1}},
 			rackIndex: 0,
 			want:      0,
 		},
 		{
 			name:      "0 pods - all racks get 0 (rack 1)",
 			totalSize: 0,
-			racks:     []asdbcev1alpha1.Rack{{ID: 0}, {ID: 1}},
+			racks:     []ackov1alpha1.Rack{{ID: 0}, {ID: 1}},
 			rackIndex: 1,
 			want:      0,
 		},
@@ -175,8 +175,8 @@ func TestGetRackSize(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cluster := &asdbcev1alpha1.AerospikeCECluster{
-				Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+			cluster := &ackov1alpha1.AerospikeCluster{
+				Spec: ackov1alpha1.AerospikeClusterSpec{
 					Size: tc.totalSize,
 				},
 			}
@@ -190,7 +190,7 @@ func TestGetRackSize(t *testing.T) {
 }
 
 func TestGetRackSize_SumInvariant(t *testing.T) {
-	r := &AerospikeCEClusterReconciler{}
+	r := &AerospikeClusterReconciler{}
 
 	tests := []struct {
 		totalSize int32
@@ -210,12 +210,12 @@ func TestGetRackSize_SumInvariant(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		racks := make([]asdbcev1alpha1.Rack, tc.numRacks)
+		racks := make([]ackov1alpha1.Rack, tc.numRacks)
 		for i := range racks {
-			racks[i] = asdbcev1alpha1.Rack{ID: i}
+			racks[i] = ackov1alpha1.Rack{ID: i}
 		}
-		cluster := &asdbcev1alpha1.AerospikeCECluster{
-			Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+		cluster := &ackov1alpha1.AerospikeCluster{
+			Spec: ackov1alpha1.AerospikeClusterSpec{
 				Size: tc.totalSize,
 			},
 		}

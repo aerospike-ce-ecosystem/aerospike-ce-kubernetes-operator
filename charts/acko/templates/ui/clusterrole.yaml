@@ -7,10 +7,10 @@ metadata:
     {{- include "acko.ui.labels" . | nindent 4 }}
 rules:
   - apiGroups: ["acko.io"]
-    resources: ["aerospikececlusters"]
+    resources: ["aerospikeclusters"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
   - apiGroups: ["acko.io"]
-    resources: ["aerospikececlusters/status"]
+    resources: ["aerospikeclusters/status"]
     verbs: ["get"]
   - apiGroups: [""]
     resources: ["pods", "services"]

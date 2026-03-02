@@ -76,15 +76,15 @@ kubectl -n aerospike-operator wait --for=condition=Available deployment/aerospik
 ## Apply Sample CR (`apply`)
 
 Available samples in `config/samples/`:
-- `acko_v1alpha1_aerospikececluster.yaml` - Minimal single-node in-memory
-- `aerospike-ce-cluster-3node.yaml` - 3-node with PV storage
-- `aerospike-ce-cluster-multirack.yaml` - 6-node multi-rack
-- `aerospike-ce-cluster-acl.yaml` - 3-node with ACL
+- `acko_v1alpha1_aerospikecluster.yaml` - Minimal single-node in-memory
+- `aerospike-cluster-3node.yaml` - 3-node with PV storage
+- `aerospike-cluster-multirack.yaml` - 6-node multi-rack
+- `aerospike-cluster-acl.yaml` - 3-node with ACL
 
 ```bash
 kubectl create namespace aerospike --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f config/samples/<sample-file>.yaml
-kubectl -n aerospike get aerospikececlusters.acko.io
+kubectl -n aerospike get aerospikeclusters.acko.io
 kubectl -n aerospike get pods -w
 ```
 
@@ -94,7 +94,7 @@ kubectl -n aerospike get pods -w
 kubectl -n aerospike-operator get deployment
 kubectl -n aerospike-operator get pods
 kubectl -n aerospike-operator logs deployment/aerospike-ce-operator-controller-manager --tail=30
-kubectl -n aerospike get asce
+kubectl -n aerospike get asc
 kubectl -n aerospike get pods
 kubectl -n aerospike get statefulsets
 ```

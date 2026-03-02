@@ -19,18 +19,18 @@ package template
 import (
 	"maps"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
 // applyAerospikeConfig merges template aerospikeConfig defaults into the cluster's aerospikeConfig.
 // Cluster-level settings always take precedence over template defaults.
-func applyAerospikeConfig(tmplConfig *asdbcev1alpha1.TemplateAerospikeConfig, cluster *asdbcev1alpha1.AerospikeCECluster) {
+func applyAerospikeConfig(tmplConfig *ackov1alpha1.TemplateAerospikeConfig, cluster *ackov1alpha1.AerospikeCluster) {
 	if tmplConfig == nil {
 		return
 	}
 
 	if cluster.Spec.AerospikeConfig == nil {
-		cluster.Spec.AerospikeConfig = &asdbcev1alpha1.AerospikeConfigSpec{
+		cluster.Spec.AerospikeConfig = &ackov1alpha1.AerospikeConfigSpec{
 			Value: make(map[string]any),
 		}
 	}

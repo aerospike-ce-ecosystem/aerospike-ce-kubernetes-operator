@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/podutil"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
@@ -23,9 +23,9 @@ const podServiceLabel = "acko.io/pod-service"
 // reconcilePodServices creates or updates individual Services for each pod
 // when spec.podService is configured. It also cleans up stale pod services
 // left behind after scale-down or when podService is disabled.
-func (r *AerospikeCEClusterReconciler) reconcilePodServices(
+func (r *AerospikeClusterReconciler) reconcilePodServices(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 ) error {
 	if cluster.Spec.PodService == nil {
 		// PodService disabled — clean up any leftover pod services.
@@ -125,9 +125,9 @@ func (r *AerospikeCEClusterReconciler) reconcilePodServices(
 // cleanupStalePodServices removes pod services that no longer correspond to
 // an active pod. When activePodNames is nil, all pod services for the cluster
 // are removed (used when podService is disabled).
-func (r *AerospikeCEClusterReconciler) cleanupStalePodServices(
+func (r *AerospikeClusterReconciler) cleanupStalePodServices(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 	activePodNames map[string]struct{},
 ) error {
 	log := logf.FromContext(ctx)

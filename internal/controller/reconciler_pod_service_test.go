@@ -13,19 +13,19 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/podutil"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
 var _ = Describe("reconcilePodServices", func() {
 	var (
-		reconciler *AerospikeCEClusterReconciler
+		reconciler *AerospikeClusterReconciler
 		ns         *corev1.Namespace
 	)
 
 	BeforeEach(func() {
-		reconciler = &AerospikeCEClusterReconciler{
+		reconciler = &AerospikeClusterReconciler{
 			Client: k8sClient,
 			Scheme: scheme.Scheme,
 		}
@@ -43,13 +43,13 @@ var _ = Describe("reconcilePodServices", func() {
 		Expect(k8sClient.Delete(ctx, ns)).To(Succeed())
 	})
 
-	newCluster := func(namespace, name string, podService *asdbcev1alpha1.AerospikeServiceSpec) *asdbcev1alpha1.AerospikeCECluster {
-		return &asdbcev1alpha1.AerospikeCECluster{
+	newCluster := func(namespace, name string, podService *ackov1alpha1.AerospikeServiceSpec) *ackov1alpha1.AerospikeCluster {
+		return &ackov1alpha1.AerospikeCluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
 				Namespace: namespace,
 			},
-			Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+			Spec: ackov1alpha1.AerospikeClusterSpec{
 				Size:       1,
 				Image:      "aerospike:ce-8.1.1.1",
 				PodService: podService,
@@ -57,7 +57,7 @@ var _ = Describe("reconcilePodServices", func() {
 		}
 	}
 
-	createClusterCR := func(cluster *asdbcev1alpha1.AerospikeCECluster) {
+	createClusterCR := func(cluster *ackov1alpha1.AerospikeCluster) {
 		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
 	}
 
@@ -85,8 +85,8 @@ var _ = Describe("reconcilePodServices", func() {
 	Context("when podService is configured", func() {
 		It("should create a per-pod service for each pod", func() {
 			clusterName := "test-create"
-			podSvc := &asdbcev1alpha1.AerospikeServiceSpec{
-				Metadata: &asdbcev1alpha1.AerospikeObjectMeta{
+			podSvc := &ackov1alpha1.AerospikeServiceSpec{
+				Metadata: &ackov1alpha1.AerospikeObjectMeta{
 					Annotations: map[string]string{"example.com/env": "test"},
 				},
 			}
@@ -122,8 +122,8 @@ var _ = Describe("reconcilePodServices", func() {
 			clusterName := "test-update"
 
 			// Start with initial annotations.
-			podSvc := &asdbcev1alpha1.AerospikeServiceSpec{
-				Metadata: &asdbcev1alpha1.AerospikeObjectMeta{
+			podSvc := &ackov1alpha1.AerospikeServiceSpec{
+				Metadata: &ackov1alpha1.AerospikeObjectMeta{
 					Annotations: map[string]string{"example.com/env": "staging"},
 				},
 			}
@@ -144,8 +144,8 @@ var _ = Describe("reconcilePodServices", func() {
 
 			// Update cluster spec with new annotations.
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: clusterName, Namespace: ns.Name}, cluster)).To(Succeed())
-			cluster.Spec.PodService = &asdbcev1alpha1.AerospikeServiceSpec{
-				Metadata: &asdbcev1alpha1.AerospikeObjectMeta{
+			cluster.Spec.PodService = &ackov1alpha1.AerospikeServiceSpec{
+				Metadata: &ackov1alpha1.AerospikeObjectMeta{
 					Annotations: map[string]string{
 						"example.com/env":    "production",
 						"example.com/region": "us-west-2",
@@ -176,8 +176,8 @@ var _ = Describe("reconcilePodServices", func() {
 			clusterName := "test-remove-ann"
 
 			// Start with annotations.
-			podSvc := &asdbcev1alpha1.AerospikeServiceSpec{
-				Metadata: &asdbcev1alpha1.AerospikeObjectMeta{
+			podSvc := &ackov1alpha1.AerospikeServiceSpec{
+				Metadata: &ackov1alpha1.AerospikeObjectMeta{
 					Annotations: map[string]string{
 						"example.com/env":    "staging",
 						"example.com/region": "us-east-1",
@@ -202,7 +202,7 @@ var _ = Describe("reconcilePodServices", func() {
 
 			// Update CR: remove all annotations.
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: clusterName, Namespace: ns.Name}, cluster)).To(Succeed())
-			cluster.Spec.PodService = &asdbcev1alpha1.AerospikeServiceSpec{}
+			cluster.Spec.PodService = &ackov1alpha1.AerospikeServiceSpec{}
 			Expect(k8sClient.Update(ctx, cluster)).To(Succeed())
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: clusterName, Namespace: ns.Name}, cluster)).To(Succeed())
 
@@ -242,7 +242,7 @@ var _ = Describe("reconcilePodServices", func() {
 	Context("when a pod is removed (scale-down)", func() {
 		It("should delete the stale pod service", func() {
 			clusterName := "test-cleanup"
-			podSvc := &asdbcev1alpha1.AerospikeServiceSpec{}
+			podSvc := &ackov1alpha1.AerospikeServiceSpec{}
 			cluster := newCluster(ns.Name, clusterName, podSvc)
 			cluster.Spec.Size = 2
 			createClusterCR(cluster)
@@ -283,7 +283,7 @@ var _ = Describe("reconcilePodServices", func() {
 	Context("when podService is disabled after being enabled", func() {
 		It("should clean up all pod services", func() {
 			clusterName := "test-disable"
-			podSvc := &asdbcev1alpha1.AerospikeServiceSpec{}
+			podSvc := &ackov1alpha1.AerospikeServiceSpec{}
 			cluster := newCluster(ns.Name, clusterName, podSvc)
 			createClusterCR(cluster)
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: clusterName, Namespace: ns.Name}, cluster)).To(Succeed())

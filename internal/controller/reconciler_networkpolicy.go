@@ -15,7 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/podutil"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
@@ -26,27 +26,27 @@ var ciliumNetworkPolicyGVK = schema.GroupVersionKind{
 	Kind:    "CiliumNetworkPolicy",
 }
 
-func (r *AerospikeCEClusterReconciler) reconcileNetworkPolicy(
+func (r *AerospikeClusterReconciler) reconcileNetworkPolicy(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 ) error {
 	npcEnabled := cluster.Spec.NetworkPolicyConfig != nil && cluster.Spec.NetworkPolicyConfig.Enabled
-	npcType := asdbcev1alpha1.NetworkPolicyTypeKubernetes
+	npcType := ackov1alpha1.NetworkPolicyTypeKubernetes
 	if cluster.Spec.NetworkPolicyConfig != nil && cluster.Spec.NetworkPolicyConfig.Type != "" {
 		npcType = cluster.Spec.NetworkPolicyConfig.Type
 	}
 
 	switch npcType {
-	case asdbcev1alpha1.NetworkPolicyTypeCilium:
+	case ackov1alpha1.NetworkPolicyTypeCilium:
 		return r.reconcileCiliumNetworkPolicy(ctx, cluster, npcEnabled)
 	default:
 		return r.reconcileK8sNetworkPolicy(ctx, cluster, npcEnabled)
 	}
 }
 
-func (r *AerospikeCEClusterReconciler) reconcileK8sNetworkPolicy(
+func (r *AerospikeClusterReconciler) reconcileK8sNetworkPolicy(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 	enabled bool,
 ) error {
 	log := logf.FromContext(ctx)
@@ -84,8 +84,8 @@ func (r *AerospikeCEClusterReconciler) reconcileK8sNetworkPolicy(
 	return r.Update(ctx, existing)
 }
 
-func (r *AerospikeCEClusterReconciler) buildK8sNetworkPolicy(
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+func (r *AerospikeClusterReconciler) buildK8sNetworkPolicy(
+	cluster *ackov1alpha1.AerospikeCluster,
 	name string,
 ) *networkingv1.NetworkPolicy {
 	labels := utils.LabelsForCluster(cluster.Name)
@@ -147,9 +147,9 @@ func (r *AerospikeCEClusterReconciler) buildK8sNetworkPolicy(
 	}
 }
 
-func (r *AerospikeCEClusterReconciler) reconcileCiliumNetworkPolicy(
+func (r *AerospikeClusterReconciler) reconcileCiliumNetworkPolicy(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 	enabled bool,
 ) error {
 	log := logf.FromContext(ctx)

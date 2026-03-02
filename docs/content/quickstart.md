@@ -95,7 +95,7 @@ Apply a minimal single-node in-memory cluster:
 <TabItem value="file" label="Sample File" default>
 
 ```bash
-kubectl apply -f config/samples/acko_v1alpha1_aerospikececluster.yaml
+kubectl apply -f config/samples/acko_v1alpha1_aerospikecluster.yaml
 ```
 
 </TabItem>
@@ -104,7 +104,7 @@ kubectl apply -f config/samples/acko_v1alpha1_aerospikececluster.yaml
 ```bash
 kubectl apply -f - <<'EOF'
 apiVersion: acko.io/v1alpha1
-kind: AerospikeCECluster
+kind: AerospikeCluster
 metadata:
   name: aerospike-ce-basic
   namespace: aerospike
@@ -128,7 +128,7 @@ EOF
 
 ```bash
 # Check cluster status (Phase should be "Completed")
-kubectl -n aerospike get asce
+kubectl -n aerospike get asc
 
 # Check pods
 kubectl -n aerospike get pods
@@ -201,4 +201,4 @@ kubectl -n aerospike run asinfo-client --rm -it --restart=Never \
 - [Installation Guide](./guide/install) — detailed installation options (Helm, Kustomize)
 - [Create Cluster](./guide/create-cluster) — sample configurations and CRD field reference
 - [Manage Cluster](./guide/manage-cluster) — scaling, rolling updates, monitoring
-- [API Reference](./api-reference/aerospikececluster) — full CRD type documentation
+- [API Reference](./api-reference/aerospikecluster) — full CRD type documentation

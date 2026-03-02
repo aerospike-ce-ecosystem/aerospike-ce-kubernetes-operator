@@ -5,7 +5,7 @@ title: Cluster Templates
 
 # Cluster Templates
 
-`AerospikeCEClusterTemplate` lets you define reusable configuration profiles for Aerospike clusters. Instead of repeating the same scheduling, storage, and Aerospike configuration across every cluster, you define it once in a template and reference it from multiple clusters.
+`AerospikeClusterTemplate` lets you define reusable configuration profiles for Aerospike clusters. Instead of repeating the same scheduling, storage, and Aerospike configuration across every cluster, you define it once in a template and reference it from multiple clusters.
 
 ---
 
@@ -23,7 +23,7 @@ Templates can now supply the container **image**, cluster **size**, **monitoring
 
 ```yaml
 apiVersion: acko.io/v1alpha1
-kind: AerospikeCEClusterTemplate
+kind: AerospikeClusterTemplate
 metadata:
   name: prod
   namespace: default
@@ -95,7 +95,7 @@ When a template supplies `image` and `size`, the cluster can omit those fields e
 
 ```yaml
 apiVersion: acko.io/v1alpha1
-kind: AerospikeCECluster
+kind: AerospikeCluster
 metadata:
   name: prod-cluster
 spec:
@@ -157,7 +157,7 @@ After updating a template, existing clusters show `status.templateSnapshot.synce
 To apply the updated template to a cluster:
 
 ```bash
-kubectl annotate aerospikececluster prod-cluster acko.io/resync-template=true
+kubectl annotate aerospikecluster prod-cluster acko.io/resync-template=true
 ```
 
 The operator will:
@@ -171,7 +171,7 @@ The operator will:
 ## Check template snapshot status
 
 ```bash
-kubectl get aerospikececluster prod-cluster -o jsonpath='{.status.templateSnapshot}'
+kubectl get aerospikecluster prod-cluster -o jsonpath='{.status.templateSnapshot}'
 ```
 
 Example output:
@@ -195,9 +195,9 @@ The `config/samples/` directory includes ready-to-use templates:
 | `acko_v1alpha1_template_dev.yaml` | Minimal resources, no anti-affinity |
 | `acko_v1alpha1_template_stage.yaml` | Moderate resources, preferred anti-affinity |
 | `acko_v1alpha1_template_prod.yaml` | Full resources, required anti-affinity, local PV |
-| `aerospike-ce-cluster-with-template.yaml` | Example cluster using stage template |
+| `aerospike-cluster-with-template.yaml` | Example cluster using stage template |
 
 ```bash
 kubectl apply -f config/samples/acko_v1alpha1_template_prod.yaml
-kubectl apply -f config/samples/aerospike-ce-cluster-with-template.yaml
+kubectl apply -f config/samples/aerospike-cluster-with-template.yaml
 ```

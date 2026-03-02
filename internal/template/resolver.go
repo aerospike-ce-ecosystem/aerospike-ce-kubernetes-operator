@@ -25,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
 const (
@@ -49,13 +49,13 @@ type ResolveResult struct {
 func FetchAndSnapshot(
 	ctx context.Context,
 	reader client.Reader,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
-) (*asdbcev1alpha1.AerospikeCEClusterTemplateSpec, bool, error) {
+	cluster *ackov1alpha1.AerospikeCluster,
+) (*ackov1alpha1.AerospikeClusterTemplateSpec, bool, error) {
 	if cluster.Spec.TemplateRef == nil {
 		return nil, false, nil
 	}
 
-	tmpl := &asdbcev1alpha1.AerospikeCEClusterTemplate{}
+	tmpl := &ackov1alpha1.AerospikeClusterTemplate{}
 	if err := reader.Get(ctx, types.NamespacedName{
 		Name:      cluster.Spec.TemplateRef.Name,
 		Namespace: cluster.Namespace,
@@ -64,7 +64,7 @@ func FetchAndSnapshot(
 	}
 
 	specCopy := tmpl.Spec.DeepCopy()
-	snapshot := &asdbcev1alpha1.TemplateSnapshotStatus{
+	snapshot := &ackov1alpha1.TemplateSnapshotStatus{
 		Name:              tmpl.Name,
 		ResourceVersion:   tmpl.ResourceVersion,
 		SnapshotTimestamp: metav1.NewTime(time.Now()),
@@ -80,7 +80,7 @@ func FetchAndSnapshot(
 // This happens when:
 // 1. No snapshot exists (first creation).
 // 2. The "acko.io/resync-template: true" annotation is present.
-func NeedsResync(cluster *asdbcev1alpha1.AerospikeCECluster) bool {
+func NeedsResync(cluster *ackov1alpha1.AerospikeCluster) bool {
 	if cluster.Spec.TemplateRef == nil {
 		return false
 	}
@@ -96,7 +96,7 @@ func NeedsResync(cluster *asdbcev1alpha1.AerospikeCECluster) bool {
 // ApplyTemplate applies the resolved template spec (after merge with overrides)
 // to the cluster's spec in-memory. The API server object is not modified.
 // Only fields not already explicitly set in the cluster spec are applied.
-func ApplyTemplate(resolvedTemplateSpec *asdbcev1alpha1.AerospikeCEClusterTemplateSpec, cluster *asdbcev1alpha1.AerospikeCECluster) {
+func ApplyTemplate(resolvedTemplateSpec *ackov1alpha1.AerospikeClusterTemplateSpec, cluster *ackov1alpha1.AerospikeCluster) {
 	if resolvedTemplateSpec == nil {
 		return
 	}
@@ -113,10 +113,10 @@ func ApplyTemplate(resolvedTemplateSpec *asdbcev1alpha1.AerospikeCEClusterTempla
 	// Apply resource defaults.
 	if resolvedTemplateSpec.Resources != nil {
 		if cluster.Spec.PodSpec == nil {
-			cluster.Spec.PodSpec = &asdbcev1alpha1.AerospikeCEPodSpec{}
+			cluster.Spec.PodSpec = &ackov1alpha1.AerospikeCEPodSpec{}
 		}
 		if cluster.Spec.PodSpec.AerospikeContainerSpec == nil {
-			cluster.Spec.PodSpec.AerospikeContainerSpec = &asdbcev1alpha1.AerospikeContainerSpec{}
+			cluster.Spec.PodSpec.AerospikeContainerSpec = &ackov1alpha1.AerospikeContainerSpec{}
 		}
 		if cluster.Spec.PodSpec.AerospikeContainerSpec.Resources == nil {
 			cluster.Spec.PodSpec.AerospikeContainerSpec.Resources = resolvedTemplateSpec.Resources.DeepCopy()
@@ -140,7 +140,7 @@ func ApplyTemplate(resolvedTemplateSpec *asdbcev1alpha1.AerospikeCEClusterTempla
 func Resolve(
 	ctx context.Context,
 	reader client.Reader,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+	cluster *ackov1alpha1.AerospikeCluster,
 ) (ResolveResult, error) {
 	result := ResolveResult{}
 

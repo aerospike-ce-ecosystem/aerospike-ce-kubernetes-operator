@@ -139,8 +139,8 @@ type TemplateRackConfig struct {
 	MaxRacksPerNode int `json:"maxRacksPerNode,omitempty"`
 }
 
-// AerospikeCEClusterTemplateSpec defines the reusable configuration profile.
-type AerospikeCEClusterTemplateSpec struct {
+// AerospikeClusterTemplateSpec defines the reusable configuration profile.
+type AerospikeClusterTemplateSpec struct {
 	// AerospikeConfig defines Aerospike configuration defaults.
 	// +optional
 	AerospikeConfig *TemplateAerospikeConfig `json:"aerospikeConfig,omitempty"`
@@ -187,41 +187,41 @@ type AerospikeCEClusterTemplateSpec struct {
 	AerospikeNetworkPolicy *AerospikeNetworkPolicy `json:"aerospikeNetworkPolicy,omitempty"`
 }
 
-// AerospikeCEClusterTemplateStatus defines the observed state of AerospikeCEClusterTemplate.
-type AerospikeCEClusterTemplateStatus struct {
-	// UsedBy lists the AerospikeCECluster resources that reference this template.
+// AerospikeClusterTemplateStatus defines the observed state of AerospikeClusterTemplate.
+type AerospikeClusterTemplateStatus struct {
+	// UsedBy lists the AerospikeCluster resources that reference this template.
 	// +optional
 	UsedBy []string `json:"usedBy,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:shortName=ascet;ascetemplate
+// +kubebuilder:resource:shortName=asct
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 // +kubebuilder:printcolumn:name="AntiAffinity",type=string,JSONPath=`.spec.scheduling.podAntiAffinityLevel`
 // +kubebuilder:printcolumn:name="StorageClass",type=string,JSONPath=`.spec.storage.storageClassName`,priority=1
 
-// AerospikeCEClusterTemplate is a reusable configuration profile for AerospikeCECluster.
+// AerospikeClusterTemplate is a reusable configuration profile for AerospikeCluster.
 // Clusters reference a template via spec.templateRef and can override individual fields
 // via spec.overrides. Template changes are not automatically propagated to clusters;
 // use the annotation "acko.io/resync-template: true" to trigger a manual resync.
-type AerospikeCEClusterTemplate struct {
+type AerospikeClusterTemplate struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   AerospikeCEClusterTemplateSpec   `json:"spec,omitempty"`
-	Status AerospikeCEClusterTemplateStatus `json:"status,omitempty"`
+	Spec   AerospikeClusterTemplateSpec   `json:"spec,omitempty"`
+	Status AerospikeClusterTemplateStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// AerospikeCEClusterTemplateList contains a list of AerospikeCEClusterTemplate.
-type AerospikeCEClusterTemplateList struct {
+// AerospikeClusterTemplateList contains a list of AerospikeClusterTemplate.
+type AerospikeClusterTemplateList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []AerospikeCEClusterTemplate `json:"items"`
+	Items           []AerospikeClusterTemplate `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&AerospikeCEClusterTemplate{}, &AerospikeCEClusterTemplateList{})
+	SchemeBuilder.Register(&AerospikeClusterTemplate{}, &AerospikeClusterTemplateList{})
 }

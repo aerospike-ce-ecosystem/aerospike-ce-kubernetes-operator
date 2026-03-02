@@ -13,17 +13,17 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/podutil"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/storage"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
-func (r *AerospikeCEClusterReconciler) reconcileStatefulSet(
+func (r *AerospikeClusterReconciler) reconcileStatefulSet(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
-	rack *asdbcev1alpha1.Rack,
-	_ *asdbcev1alpha1.AerospikeConfigSpec, // effectiveConfig (pre-computed, hash passed separately)
+	cluster *ackov1alpha1.AerospikeCluster,
+	rack *ackov1alpha1.Rack,
+	_ *ackov1alpha1.AerospikeConfigSpec, // effectiveConfig (pre-computed, hash passed separately)
 	hash string,
 	rackSize int32,
 ) error {
@@ -134,8 +134,8 @@ func (r *AerospikeCEClusterReconciler) reconcileStatefulSet(
 	return nil
 }
 
-func (r *AerospikeCEClusterReconciler) buildStatefulSet(
-	cluster *asdbcev1alpha1.AerospikeCECluster,
+func (r *AerospikeClusterReconciler) buildStatefulSet(
+	cluster *ackov1alpha1.AerospikeCluster,
 	name string,
 	replicas int32,
 	podTemplate corev1.PodTemplateSpec,
@@ -175,10 +175,10 @@ func (r *AerospikeCEClusterReconciler) buildStatefulSet(
 }
 
 // cleanupRemovedRacks deletes StatefulSets for racks that no longer exist in the spec.
-func (r *AerospikeCEClusterReconciler) cleanupRemovedRacks(
+func (r *AerospikeClusterReconciler) cleanupRemovedRacks(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
-	currentRacks []asdbcev1alpha1.Rack,
+	cluster *ackov1alpha1.AerospikeCluster,
+	currentRacks []ackov1alpha1.Rack,
 ) error {
 	log := logf.FromContext(ctx)
 
@@ -210,7 +210,7 @@ func (r *AerospikeCEClusterReconciler) cleanupRemovedRacks(
 }
 
 // getScaleDownBatchSize returns the effective scale-down batch size.
-func (r *AerospikeCEClusterReconciler) getScaleDownBatchSize(cluster *asdbcev1alpha1.AerospikeCECluster, totalToScaleDown int32) int32 {
+func (r *AerospikeClusterReconciler) getScaleDownBatchSize(cluster *ackov1alpha1.AerospikeCluster, totalToScaleDown int32) int32 {
 	if cluster.Spec.RackConfig != nil && cluster.Spec.RackConfig.ScaleDownBatchSize != nil {
 		return resolveIntOrPercent(cluster.Spec.RackConfig.ScaleDownBatchSize, totalToScaleDown)
 	}
@@ -243,10 +243,10 @@ func resolveIntOrPercent(val *intstr.IntOrString, total int32) int32 {
 // If racks are simultaneously scaling in opposite directions (one rack up, another
 // down), both flags can be true. The caller uses else-if so ScalingUp takes
 // precedence in the phase display when both are true.
-func (r *AerospikeCEClusterReconciler) detectScaling(
+func (r *AerospikeClusterReconciler) detectScaling(
 	ctx context.Context,
-	cluster *asdbcev1alpha1.AerospikeCECluster,
-	racks []asdbcev1alpha1.Rack,
+	cluster *ackov1alpha1.AerospikeCluster,
+	racks []ackov1alpha1.Rack,
 	rackSizes []int32,
 ) (scalingUp bool, scalingDown bool, err error) {
 	for i, rack := range racks {
@@ -277,12 +277,12 @@ func (r *AerospikeCEClusterReconciler) detectScaling(
 // computePodSpecHash returns a short SHA256 hash derived from the cluster image
 // and pod-level spec settings so that changes to the pod template (aside from
 // config) are captured.
-func computePodSpecHash(cluster *asdbcev1alpha1.AerospikeCECluster, rack *asdbcev1alpha1.Rack) string {
+func computePodSpecHash(cluster *ackov1alpha1.AerospikeCluster, rack *ackov1alpha1.Rack) string {
 	input := struct {
-		Image      string                                  `json:"image"`
-		PodSpec    *asdbcev1alpha1.AerospikeCEPodSpec      `json:"podSpec,omitempty"`
-		Monitoring *asdbcev1alpha1.AerospikeMonitoringSpec `json:"monitoring,omitempty"`
-		RackID     int                                     `json:"rackID"`
+		Image      string                                `json:"image"`
+		PodSpec    *ackov1alpha1.AerospikeCEPodSpec      `json:"podSpec,omitempty"`
+		Monitoring *ackov1alpha1.AerospikeMonitoringSpec `json:"monitoring,omitempty"`
+		RackID     int                                   `json:"rackID"`
 	}{
 		Image:      cluster.Spec.Image,
 		PodSpec:    cluster.Spec.PodSpec,

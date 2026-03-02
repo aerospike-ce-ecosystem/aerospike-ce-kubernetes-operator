@@ -9,9 +9,9 @@
 #      kubectl -n aerospike create secret generic aerospike-admin-secret --from-literal=password='admin123'
 #      kubectl -n aerospike create secret generic aerospike-reader-secret --from-literal=password='reader123'
 apiVersion: acko.io/v1alpha1
-kind: AerospikeCECluster
+kind: AerospikeCluster
 metadata:
-  name: aerospike-ce-acl
+  name: aerospike-acl
   namespace: aerospike
 spec:
   size: 3
@@ -52,7 +52,7 @@ spec:
 
   aerospikeConfig:
     service:
-      cluster-name: aerospike-ce-acl
+      cluster-name: aerospike-acl
       proto-fd-max: 15000
 
     # Security stanza enables authentication and authorization.

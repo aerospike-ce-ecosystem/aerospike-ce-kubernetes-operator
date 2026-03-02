@@ -31,7 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-var aerospikececlusterlog = logf.Log.WithName("aerospikececluster-resource")
+var aerospikeclusterlog = logf.Log.WithName("aerospikecluster-resource")
 
 const (
 	maxCEClusterSize     = 8
@@ -44,24 +44,24 @@ const (
 	defaultScrapeInterval = "30s"
 )
 
-// SetupWebhookWithManager registers the webhooks for AerospikeCECluster.
-func (r *AerospikeCECluster) SetupWebhookWithManager(mgr ctrl.Manager) error {
+// SetupWebhookWithManager registers the webhooks for AerospikeCluster.
+func (r *AerospikeCluster) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr, r).
-		WithDefaulter(&AerospikeCEClusterDefaulter{}).
-		WithValidator(&AerospikeCEClusterValidator{}).
+		WithDefaulter(&AerospikeClusterDefaulter{}).
+		WithValidator(&AerospikeClusterValidator{}).
 		Complete()
 }
 
-// +kubebuilder:webhook:path=/mutate-acko-io-v1alpha1-aerospikececluster,mutating=true,failurePolicy=fail,sideEffects=None,groups=acko.io,resources=aerospikececlusters,verbs=create;update,versions=v1alpha1,name=maerospikececluster.kb.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/mutate-acko-io-v1alpha1-aerospikecluster,mutating=true,failurePolicy=fail,sideEffects=None,groups=acko.io,resources=aerospikeclusters,verbs=create;update,versions=v1alpha1,name=maerospikecluster.kb.io,admissionReviewVersions=v1
 
-// AerospikeCEClusterDefaulter implements admission.Defaulter for AerospikeCECluster.
-type AerospikeCEClusterDefaulter struct{}
+// AerospikeClusterDefaulter implements admission.Defaulter for AerospikeCluster.
+type AerospikeClusterDefaulter struct{}
 
-var _ admission.Defaulter[*AerospikeCECluster] = &AerospikeCEClusterDefaulter{}
+var _ admission.Defaulter[*AerospikeCluster] = &AerospikeClusterDefaulter{}
 
-// Default implements admission.Defaulter[*AerospikeCECluster].
-func (d *AerospikeCEClusterDefaulter) Default(ctx context.Context, cluster *AerospikeCECluster) error {
-	aerospikececlusterlog.Info("Defaulting", "name", cluster.Name, "namespace", cluster.Namespace)
+// Default implements admission.Defaulter[*AerospikeCluster].
+func (d *AerospikeClusterDefaulter) Default(ctx context.Context, cluster *AerospikeCluster) error {
+	aerospikeclusterlog.Info("Defaulting", "name", cluster.Name, "namespace", cluster.Namespace)
 
 	if cluster.Spec.AerospikeConfig == nil {
 		cluster.Spec.AerospikeConfig = &AerospikeConfigSpec{
@@ -81,7 +81,7 @@ func (d *AerospikeCEClusterDefaulter) Default(ctx context.Context, cluster *Aero
 }
 
 // defaultServiceConfig sets defaults in aerospikeConfig.service.
-func (d *AerospikeCEClusterDefaulter) defaultServiceConfig(cluster *AerospikeCECluster) {
+func (d *AerospikeClusterDefaulter) defaultServiceConfig(cluster *AerospikeCluster) {
 	config := cluster.Spec.AerospikeConfig.Value
 
 	serviceSection := getOrCreateMapSection(config, "service")
@@ -98,7 +98,7 @@ func (d *AerospikeCEClusterDefaulter) defaultServiceConfig(cluster *AerospikeCEC
 }
 
 // defaultNetworkConfig sets defaults in aerospikeConfig.network.
-func (d *AerospikeCEClusterDefaulter) defaultNetworkConfig(cluster *AerospikeCECluster) {
+func (d *AerospikeClusterDefaulter) defaultNetworkConfig(cluster *AerospikeCluster) {
 	config := cluster.Spec.AerospikeConfig.Value
 
 	networkSection := getOrCreateMapSection(config, "network")
@@ -124,7 +124,7 @@ func (d *AerospikeCEClusterDefaulter) defaultNetworkConfig(cluster *AerospikeCEC
 }
 
 // defaultMonitoring sets default values for the monitoring spec when enabled.
-func (d *AerospikeCEClusterDefaulter) defaultMonitoring(cluster *AerospikeCECluster) {
+func (d *AerospikeClusterDefaulter) defaultMonitoring(cluster *AerospikeCluster) {
 	if cluster.Spec.Monitoring == nil || !cluster.Spec.Monitoring.Enabled {
 		return
 	}
@@ -142,7 +142,7 @@ func (d *AerospikeCEClusterDefaulter) defaultMonitoring(cluster *AerospikeCEClus
 }
 
 // defaultHostNetwork sets defaults for hostNetwork mode.
-func (d *AerospikeCEClusterDefaulter) defaultHostNetwork(cluster *AerospikeCECluster) {
+func (d *AerospikeClusterDefaulter) defaultHostNetwork(cluster *AerospikeCluster) {
 	if cluster.Spec.PodSpec == nil || !cluster.Spec.PodSpec.HostNetwork {
 		return
 	}
@@ -171,22 +171,22 @@ func getOrCreateMapSection(m map[string]any, key string) map[string]any {
 	return newMap
 }
 
-// +kubebuilder:webhook:path=/validate-acko-io-v1alpha1-aerospikececluster,mutating=false,failurePolicy=fail,sideEffects=None,groups=acko.io,resources=aerospikececlusters,verbs=create;update,versions=v1alpha1,name=vaerospikececluster.kb.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/validate-acko-io-v1alpha1-aerospikecluster,mutating=false,failurePolicy=fail,sideEffects=None,groups=acko.io,resources=aerospikeclusters,verbs=create;update,versions=v1alpha1,name=vaerospikecluster.kb.io,admissionReviewVersions=v1
 
-// AerospikeCEClusterValidator implements admission.Validator for AerospikeCECluster.
-type AerospikeCEClusterValidator struct{}
+// AerospikeClusterValidator implements admission.Validator for AerospikeCluster.
+type AerospikeClusterValidator struct{}
 
-var _ admission.Validator[*AerospikeCECluster] = &AerospikeCEClusterValidator{}
+var _ admission.Validator[*AerospikeCluster] = &AerospikeClusterValidator{}
 
-// ValidateCreate implements admission.Validator[*AerospikeCECluster].
-func (v *AerospikeCEClusterValidator) ValidateCreate(ctx context.Context, cluster *AerospikeCECluster) (admission.Warnings, error) {
-	aerospikececlusterlog.Info("Validating create", "name", cluster.Name)
+// ValidateCreate implements admission.Validator[*AerospikeCluster].
+func (v *AerospikeClusterValidator) ValidateCreate(ctx context.Context, cluster *AerospikeCluster) (admission.Warnings, error) {
+	aerospikeclusterlog.Info("Validating create", "name", cluster.Name)
 	return v.validate(cluster)
 }
 
-// ValidateUpdate implements admission.Validator[*AerospikeCECluster].
-func (v *AerospikeCEClusterValidator) ValidateUpdate(ctx context.Context, oldCluster, cluster *AerospikeCECluster) (admission.Warnings, error) {
-	aerospikececlusterlog.Info("Validating update", "name", cluster.Name)
+// ValidateUpdate implements admission.Validator[*AerospikeCluster].
+func (v *AerospikeClusterValidator) ValidateUpdate(ctx context.Context, oldCluster, cluster *AerospikeCluster) (admission.Warnings, error) {
+	aerospikeclusterlog.Info("Validating update", "name", cluster.Name)
 
 	// Don't allow changing operations while one is InProgress
 	if oldCluster.Status.OperationStatus != nil &&
@@ -228,13 +228,13 @@ func (v *AerospikeCEClusterValidator) ValidateUpdate(ctx context.Context, oldClu
 	return v.validate(cluster)
 }
 
-// ValidateDelete implements admission.Validator[*AerospikeCECluster].
-func (v *AerospikeCEClusterValidator) ValidateDelete(ctx context.Context, cluster *AerospikeCECluster) (admission.Warnings, error) {
+// ValidateDelete implements admission.Validator[*AerospikeCluster].
+func (v *AerospikeClusterValidator) ValidateDelete(ctx context.Context, cluster *AerospikeCluster) (admission.Warnings, error) {
 	return nil, nil
 }
 
 // validate performs all CE-specific validations.
-func (v *AerospikeCEClusterValidator) validate(cluster *AerospikeCECluster) (admission.Warnings, error) {
+func (v *AerospikeClusterValidator) validate(cluster *AerospikeCluster) (admission.Warnings, error) {
 	var allErrors []string
 	var warnings admission.Warnings
 
@@ -320,7 +320,7 @@ func (v *AerospikeCEClusterValidator) validate(cluster *AerospikeCECluster) (adm
 }
 
 // validateAerospikeConfig checks the Aerospike configuration map.
-func (v *AerospikeCEClusterValidator) validateAerospikeConfig(config map[string]any) ([]string, admission.Warnings) {
+func (v *AerospikeClusterValidator) validateAerospikeConfig(config map[string]any) ([]string, admission.Warnings) {
 	var errors []string
 	var warnings admission.Warnings
 
@@ -387,7 +387,7 @@ var enterpriseOnlyNamespaceKeys = map[string]string{
 }
 
 // validateNamespaceConfig checks individual namespace config for CE-incompatible options.
-func (v *AerospikeCEClusterValidator) validateNamespaceConfig(nsMap map[string]any, index int) ([]string, admission.Warnings) {
+func (v *AerospikeClusterValidator) validateNamespaceConfig(nsMap map[string]any, index int) ([]string, admission.Warnings) {
 	var errors []string
 	var warnings admission.Warnings
 
@@ -448,7 +448,7 @@ var aerospikeCEBuiltinRoles = map[string]bool{
 }
 
 // validateAccessControl validates the ACL configuration.
-func (v *AerospikeCEClusterValidator) validateAccessControl(acl *AerospikeAccessControlSpec) []string {
+func (v *AerospikeClusterValidator) validateAccessControl(acl *AerospikeAccessControlSpec) []string {
 	var errors []string
 
 	// Check for duplicate user names
@@ -534,7 +534,7 @@ func (v *AerospikeCEClusterValidator) validateAccessControl(acl *AerospikeAccess
 
 // validateSizeAndImage validates spec.size and spec.image, accounting for the fact that
 // both fields may be supplied by a template when spec.templateRef is set.
-func (v *AerospikeCEClusterValidator) validateSizeAndImage(cluster *AerospikeCECluster) (sizeErrors, imageErrors []string, imageWarnings admission.Warnings) {
+func (v *AerospikeClusterValidator) validateSizeAndImage(cluster *AerospikeCluster) (sizeErrors, imageErrors []string, imageWarnings admission.Warnings) {
 	// size=0 is only allowed when templateRef is present (template will supply the default).
 	if cluster.Spec.Size > maxCEClusterSize {
 		sizeErrors = append(sizeErrors, fmt.Sprintf("spec.size %d exceeds CE maximum of %d", cluster.Spec.Size, maxCEClusterSize))
@@ -593,7 +593,7 @@ func hasVolumeForPath(storage *AerospikeStorageSpec, path string) bool {
 }
 
 // validateReplicationFactor validates that replication-factor does not exceed cluster size.
-func (v *AerospikeCEClusterValidator) validateReplicationFactor(cluster *AerospikeCECluster) []string {
+func (v *AerospikeClusterValidator) validateReplicationFactor(cluster *AerospikeCluster) []string {
 	if cluster.Spec.AerospikeConfig == nil {
 		return nil
 	}
@@ -636,7 +636,7 @@ func (v *AerospikeCEClusterValidator) validateReplicationFactor(cluster *Aerospi
 }
 
 // validateWorkDirectory checks that the work directory has persistent storage.
-func (v *AerospikeCEClusterValidator) validateWorkDirectory(cluster *AerospikeCECluster) admission.Warnings {
+func (v *AerospikeClusterValidator) validateWorkDirectory(cluster *AerospikeCluster) admission.Warnings {
 	if cluster.Spec.ValidationPolicy != nil && cluster.Spec.ValidationPolicy.SkipWorkDirValidate {
 		return nil
 	}
@@ -659,7 +659,7 @@ func (v *AerospikeCEClusterValidator) validateWorkDirectory(cluster *AerospikeCE
 }
 
 // validateBatchSize checks the rolling update batch size against cluster size.
-func (v *AerospikeCEClusterValidator) validateBatchSize(cluster *AerospikeCECluster) admission.Warnings {
+func (v *AerospikeClusterValidator) validateBatchSize(cluster *AerospikeCluster) admission.Warnings {
 	if cluster.Spec.RollingUpdateBatchSize == nil {
 		return nil
 	}
@@ -671,7 +671,7 @@ func (v *AerospikeCEClusterValidator) validateBatchSize(cluster *AerospikeCEClus
 }
 
 // validateMaxUnavailable warns if maxUnavailable is >= cluster size.
-func (v *AerospikeCEClusterValidator) validateMaxUnavailable(cluster *AerospikeCECluster) admission.Warnings {
+func (v *AerospikeClusterValidator) validateMaxUnavailable(cluster *AerospikeCluster) admission.Warnings {
 	if cluster.Spec.MaxUnavailable == nil {
 		return nil
 	}
@@ -696,7 +696,7 @@ func (v *AerospikeCEClusterValidator) validateMaxUnavailable(cluster *AerospikeC
 }
 
 // validateRackConfig validates the rack configuration.
-func (v *AerospikeCEClusterValidator) validateRackConfig(rackConfig *RackConfig) []string {
+func (v *AerospikeClusterValidator) validateRackConfig(rackConfig *RackConfig) []string {
 	var errors []string
 
 	rackIDs := make(map[int]bool)
@@ -755,7 +755,7 @@ func (v *AerospikeCEClusterValidator) validateRackConfig(rackConfig *RackConfig)
 }
 
 // validateOperations validates the on-demand operations spec.
-func (v *AerospikeCEClusterValidator) validateOperations(ops []OperationSpec) []string {
+func (v *AerospikeClusterValidator) validateOperations(ops []OperationSpec) []string {
 	var errors []string
 
 	if len(ops) > 1 {
@@ -808,7 +808,7 @@ func validateIntOrString(val *intstr.IntOrString, fieldName string, minValue int
 }
 
 // validateStorage validates the storage configuration.
-func (v *AerospikeCEClusterValidator) validateStorage(storage *AerospikeStorageSpec) ([]string, admission.Warnings) {
+func (v *AerospikeClusterValidator) validateStorage(storage *AerospikeStorageSpec) ([]string, admission.Warnings) {
 	var errors []string
 	var warnings admission.Warnings
 
@@ -843,7 +843,7 @@ func (v *AerospikeCEClusterValidator) validateStorage(storage *AerospikeStorageS
 }
 
 // validateVolume validates a single volume spec.
-func (v *AerospikeCEClusterValidator) validateVolume(vol VolumeSpec, index int) ([]string, admission.Warnings) {
+func (v *AerospikeClusterValidator) validateVolume(vol VolumeSpec, index int) ([]string, admission.Warnings) {
 	var errors []string
 	var warnings admission.Warnings
 
@@ -944,7 +944,7 @@ var aerospikeReservedPorts = map[int32]string{
 }
 
 // validateMonitoring validates the monitoring configuration.
-func (v *AerospikeCEClusterValidator) validateMonitoring(m *AerospikeMonitoringSpec) ([]string, admission.Warnings) {
+func (v *AerospikeClusterValidator) validateMonitoring(m *AerospikeMonitoringSpec) ([]string, admission.Warnings) {
 	var errors []string
 	var warnings admission.Warnings
 

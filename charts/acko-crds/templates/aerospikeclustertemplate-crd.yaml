@@ -5,17 +5,16 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.1
     "helm.sh/resource-policy": keep
-  name: aerospikececlustertemplates.acko.io
+  name: aerospikeclustertemplates.acko.io
 spec:
   group: acko.io
   names:
-    kind: AerospikeCEClusterTemplate
-    listKind: AerospikeCEClusterTemplateList
-    plural: aerospikececlustertemplates
+    kind: AerospikeClusterTemplate
+    listKind: AerospikeClusterTemplateList
+    plural: aerospikeclustertemplates
     shortNames:
-    - ascet
-    - ascetemplate
-    singular: aerospikececlustertemplate
+    - asct
+    singular: aerospikeclustertemplate
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
@@ -33,7 +32,7 @@ spec:
     schema:
       openAPIV3Schema:
         description: |-
-          AerospikeCEClusterTemplate is a reusable configuration profile for AerospikeCECluster.
+          AerospikeClusterTemplate is a reusable configuration profile for AerospikeCluster.
           Clusters reference a template via spec.templateRef and can override individual fields
           via spec.overrides. Template changes are not automatically propagated to clusters;
           use the annotation "acko.io/resync-template: true" to trigger a manual resync.
@@ -56,7 +55,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: AerospikeCEClusterTemplateSpec defines the reusable configuration
+            description: AerospikeClusterTemplateSpec defines the reusable configuration
               profile.
             properties:
               aerospikeConfig:
@@ -652,11 +651,11 @@ spec:
                 type: object
             type: object
           status:
-            description: AerospikeCEClusterTemplateStatus defines the observed state
-              of AerospikeCEClusterTemplate.
+            description: AerospikeClusterTemplateStatus defines the observed state
+              of AerospikeClusterTemplate.
             properties:
               usedBy:
-                description: UsedBy lists the AerospikeCECluster resources that reference
+                description: UsedBy lists the AerospikeCluster resources that reference
                   this template.
                 items:
                   type: string

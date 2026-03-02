@@ -29,23 +29,23 @@ import (
 
 // --- Defaulter tests ---
 
-func TestAerospikeCEClusterTemplateDefault(t *testing.T) {
+func TestAerospikeClusterTemplateDefault(t *testing.T) {
 	tests := []struct {
 		name   string
-		tmpl   *AerospikeCEClusterTemplate
-		verify func(t *testing.T, tmpl *AerospikeCEClusterTemplate)
+		tmpl   *AerospikeClusterTemplate
+		verify func(t *testing.T, tmpl *AerospikeClusterTemplate)
 	}{
 		{
 			name: "empty podAntiAffinityLevel defaults to preferred",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					Scheduling: &TemplateScheduling{
 						PodAntiAffinityLevel: "",
 					},
 				},
 			},
-			verify: func(t *testing.T, tmpl *AerospikeCEClusterTemplate) {
+			verify: func(t *testing.T, tmpl *AerospikeClusterTemplate) {
 				if tmpl.Spec.Scheduling.PodAntiAffinityLevel != PodAntiAffinityPreferred {
 					t.Errorf("PodAntiAffinityLevel = %q, want %q",
 						tmpl.Spec.Scheduling.PodAntiAffinityLevel, PodAntiAffinityPreferred)
@@ -54,15 +54,15 @@ func TestAerospikeCEClusterTemplateDefault(t *testing.T) {
 		},
 		{
 			name: "empty volumeMode defaults to Filesystem",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					Storage: &TemplateStorage{
 						StorageClassName: "standard",
 					},
 				},
 			},
-			verify: func(t *testing.T, tmpl *AerospikeCEClusterTemplate) {
+			verify: func(t *testing.T, tmpl *AerospikeClusterTemplate) {
 				if tmpl.Spec.Storage.VolumeMode != corev1.PersistentVolumeFilesystem {
 					t.Errorf("VolumeMode = %q, want %q",
 						tmpl.Spec.Storage.VolumeMode, corev1.PersistentVolumeFilesystem)
@@ -71,15 +71,15 @@ func TestAerospikeCEClusterTemplateDefault(t *testing.T) {
 		},
 		{
 			name: "empty accessModes defaults to ReadWriteOnce",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					Storage: &TemplateStorage{
 						StorageClassName: "standard",
 					},
 				},
 			},
-			verify: func(t *testing.T, tmpl *AerospikeCEClusterTemplate) {
+			verify: func(t *testing.T, tmpl *AerospikeClusterTemplate) {
 				if len(tmpl.Spec.Storage.AccessModes) != 1 {
 					t.Fatalf("AccessModes length = %d, want 1", len(tmpl.Spec.Storage.AccessModes))
 				}
@@ -91,11 +91,11 @@ func TestAerospikeCEClusterTemplateDefault(t *testing.T) {
 		},
 		{
 			name: "nil scheduling and nil storage does not panic",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-				Spec:       AerospikeCEClusterTemplateSpec{},
+				Spec:       AerospikeClusterTemplateSpec{},
 			},
-			verify: func(t *testing.T, tmpl *AerospikeCEClusterTemplate) {
+			verify: func(t *testing.T, tmpl *AerospikeClusterTemplate) {
 				if tmpl.Spec.Scheduling != nil {
 					t.Error("Scheduling should remain nil")
 				}
@@ -106,15 +106,15 @@ func TestAerospikeCEClusterTemplateDefault(t *testing.T) {
 		},
 		{
 			name: "pre-set podAntiAffinityLevel is not overwritten",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					Scheduling: &TemplateScheduling{
 						PodAntiAffinityLevel: PodAntiAffinityRequired,
 					},
 				},
 			},
-			verify: func(t *testing.T, tmpl *AerospikeCEClusterTemplate) {
+			verify: func(t *testing.T, tmpl *AerospikeClusterTemplate) {
 				if tmpl.Spec.Scheduling.PodAntiAffinityLevel != PodAntiAffinityRequired {
 					t.Errorf("PodAntiAffinityLevel = %q, want %q (should not be overwritten)",
 						tmpl.Spec.Scheduling.PodAntiAffinityLevel, PodAntiAffinityRequired)
@@ -123,15 +123,15 @@ func TestAerospikeCEClusterTemplateDefault(t *testing.T) {
 		},
 		{
 			name: "pre-set volumeMode is not overwritten",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					Storage: &TemplateStorage{
 						VolumeMode: corev1.PersistentVolumeBlock,
 					},
 				},
 			},
-			verify: func(t *testing.T, tmpl *AerospikeCEClusterTemplate) {
+			verify: func(t *testing.T, tmpl *AerospikeClusterTemplate) {
 				if tmpl.Spec.Storage.VolumeMode != corev1.PersistentVolumeBlock {
 					t.Errorf("VolumeMode = %q, want %q (should not be overwritten)",
 						tmpl.Spec.Storage.VolumeMode, corev1.PersistentVolumeBlock)
@@ -140,9 +140,9 @@ func TestAerospikeCEClusterTemplateDefault(t *testing.T) {
 		},
 		{
 			name: "pre-set accessModes are not overwritten",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					Storage: &TemplateStorage{
 						AccessModes: []corev1.PersistentVolumeAccessMode{
 							corev1.ReadWriteMany,
@@ -150,7 +150,7 @@ func TestAerospikeCEClusterTemplateDefault(t *testing.T) {
 					},
 				},
 			},
-			verify: func(t *testing.T, tmpl *AerospikeCEClusterTemplate) {
+			verify: func(t *testing.T, tmpl *AerospikeClusterTemplate) {
 				if len(tmpl.Spec.Storage.AccessModes) != 1 {
 					t.Fatalf("AccessModes length = %d, want 1", len(tmpl.Spec.Storage.AccessModes))
 				}
@@ -162,7 +162,7 @@ func TestAerospikeCEClusterTemplateDefault(t *testing.T) {
 		},
 	}
 
-	d := &AerospikeCEClusterTemplateDefaulter{}
+	d := &AerospikeClusterTemplateDefaulter{}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if err := d.Default(context.Background(), tt.tmpl); err != nil {
@@ -175,36 +175,36 @@ func TestAerospikeCEClusterTemplateDefault(t *testing.T) {
 
 // --- Validator tests ---
 
-func TestAerospikeCEClusterTemplateValidate(t *testing.T) {
+func TestAerospikeClusterTemplateValidate(t *testing.T) {
 	tests := []struct {
 		name        string
-		tmpl        *AerospikeCEClusterTemplate
+		tmpl        *AerospikeClusterTemplate
 		wantErr     bool
 		errContains string
 		wantWarning string
 	}{
 		{
 			name: "valid minimal template passes",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "minimal", Namespace: "default"},
-				Spec:       AerospikeCEClusterTemplateSpec{},
+				Spec:       AerospikeClusterTemplateSpec{},
 			},
 			wantErr: false,
 		},
 		{
 			name: "empty spec passes (all optional)",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "empty", Namespace: "default"},
-				Spec:       AerospikeCEClusterTemplateSpec{},
+				Spec:       AerospikeClusterTemplateSpec{},
 			},
 			wantErr: false,
 		},
 		// V-T01: podAntiAffinityLevel validation
 		{
 			name: "V-T01: invalid podAntiAffinityLevel is rejected",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "bad-level", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					Scheduling: &TemplateScheduling{
 						PodAntiAffinityLevel: "hard",
 					},
@@ -215,9 +215,9 @@ func TestAerospikeCEClusterTemplateValidate(t *testing.T) {
 		},
 		{
 			name: "V-T01: podAntiAffinityLevel=none passes",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "level-none", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					Scheduling: &TemplateScheduling{
 						PodAntiAffinityLevel: PodAntiAffinityNone,
 					},
@@ -227,9 +227,9 @@ func TestAerospikeCEClusterTemplateValidate(t *testing.T) {
 		},
 		{
 			name: "V-T01: podAntiAffinityLevel=preferred passes",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "level-preferred", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					Scheduling: &TemplateScheduling{
 						PodAntiAffinityLevel: PodAntiAffinityPreferred,
 					},
@@ -239,9 +239,9 @@ func TestAerospikeCEClusterTemplateValidate(t *testing.T) {
 		},
 		{
 			name: "V-T01: podAntiAffinityLevel=required passes",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "level-required", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					Scheduling: &TemplateScheduling{
 						PodAntiAffinityLevel: PodAntiAffinityRequired,
 					},
@@ -252,9 +252,9 @@ func TestAerospikeCEClusterTemplateValidate(t *testing.T) {
 		// V-T05: podManagementPolicy validation
 		{
 			name: "V-T05: invalid podManagementPolicy is rejected",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "bad-policy", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					Scheduling: &TemplateScheduling{
 						PodManagementPolicy: appsv1.PodManagementPolicyType("Immediate"),
 					},
@@ -265,9 +265,9 @@ func TestAerospikeCEClusterTemplateValidate(t *testing.T) {
 		},
 		{
 			name: "V-T05: podManagementPolicy=OrderedReady passes",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "ordered", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					Scheduling: &TemplateScheduling{
 						PodManagementPolicy: appsv1.OrderedReadyPodManagement,
 					},
@@ -277,9 +277,9 @@ func TestAerospikeCEClusterTemplateValidate(t *testing.T) {
 		},
 		{
 			name: "V-T05: podManagementPolicy=Parallel passes",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "parallel", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					Scheduling: &TemplateScheduling{
 						PodManagementPolicy: appsv1.ParallelPodManagement,
 					},
@@ -289,9 +289,9 @@ func TestAerospikeCEClusterTemplateValidate(t *testing.T) {
 		},
 		{
 			name: "V-T05: empty podManagementPolicy passes (optional)",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "empty-policy", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					Scheduling: &TemplateScheduling{},
 				},
 			},
@@ -300,9 +300,9 @@ func TestAerospikeCEClusterTemplateValidate(t *testing.T) {
 		// V-T02: maxRacksPerNode validation
 		{
 			name: "V-T02: negative maxRacksPerNode is rejected",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "neg-racks", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					RackConfig: &TemplateRackConfig{
 						MaxRacksPerNode: -1,
 					},
@@ -313,9 +313,9 @@ func TestAerospikeCEClusterTemplateValidate(t *testing.T) {
 		},
 		{
 			name: "V-T02: zero maxRacksPerNode passes",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "zero-racks", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					RackConfig: &TemplateRackConfig{
 						MaxRacksPerNode: 0,
 					},
@@ -325,9 +325,9 @@ func TestAerospikeCEClusterTemplateValidate(t *testing.T) {
 		},
 		{
 			name: "V-T02: positive maxRacksPerNode passes",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "pos-racks", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					RackConfig: &TemplateRackConfig{
 						MaxRacksPerNode: 3,
 					},
@@ -338,9 +338,9 @@ func TestAerospikeCEClusterTemplateValidate(t *testing.T) {
 		// V-T03: localPVRequired warning
 		{
 			name: "V-T03: localPVRequired=true with empty storageClassName produces warning",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "localpv-warn", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					Storage: &TemplateStorage{
 						LocalPVRequired:  true,
 						StorageClassName: "",
@@ -352,9 +352,9 @@ func TestAerospikeCEClusterTemplateValidate(t *testing.T) {
 		},
 		{
 			name: "V-T03: localPVRequired=true with storageClassName set produces no warning",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "localpv-ok", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					Storage: &TemplateStorage{
 						LocalPVRequired:  true,
 						StorageClassName: "local-storage",
@@ -366,9 +366,9 @@ func TestAerospikeCEClusterTemplateValidate(t *testing.T) {
 		// V-T04: resources requests != limits warning
 		{
 			name: "V-T04: resources where requests != limits produces warning",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "resources-warn", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					Resources: &corev1.ResourceRequirements{
 						Requests: corev1.ResourceList{
 							corev1.ResourceCPU:    resource.MustParse("500m"),
@@ -386,9 +386,9 @@ func TestAerospikeCEClusterTemplateValidate(t *testing.T) {
 		},
 		{
 			name: "V-T04: resources where requests == limits produces no warning",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "resources-ok", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					Resources: &corev1.ResourceRequirements{
 						Requests: corev1.ResourceList{
 							corev1.ResourceCPU:    resource.MustParse("1"),
@@ -406,9 +406,9 @@ func TestAerospikeCEClusterTemplateValidate(t *testing.T) {
 		// Heartbeat mode validation
 		{
 			name: "heartbeat mode=multicast is rejected for CE",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "hb-multicast", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					AerospikeConfig: &TemplateAerospikeConfig{
 						Network: &TemplateNetworkConfig{
 							Heartbeat: &TemplateHeartbeatConfig{
@@ -423,9 +423,9 @@ func TestAerospikeCEClusterTemplateValidate(t *testing.T) {
 		},
 		{
 			name: "heartbeat mode=mesh passes",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "hb-mesh", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					AerospikeConfig: &TemplateAerospikeConfig{
 						Network: &TemplateNetworkConfig{
 							Heartbeat: &TemplateHeartbeatConfig{
@@ -439,9 +439,9 @@ func TestAerospikeCEClusterTemplateValidate(t *testing.T) {
 		},
 		{
 			name: "heartbeat mode empty passes (optional)",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "hb-empty", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					AerospikeConfig: &TemplateAerospikeConfig{
 						Network: &TemplateNetworkConfig{
 							Heartbeat: &TemplateHeartbeatConfig{
@@ -455,9 +455,9 @@ func TestAerospikeCEClusterTemplateValidate(t *testing.T) {
 		},
 		{
 			name: "nil aerospikeConfig passes",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "no-config", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					AerospikeConfig: nil,
 				},
 			},
@@ -465,9 +465,9 @@ func TestAerospikeCEClusterTemplateValidate(t *testing.T) {
 		},
 		{
 			name: "multiple errors are all reported",
-			tmpl: &AerospikeCEClusterTemplate{
+			tmpl: &AerospikeClusterTemplate{
 				ObjectMeta: metav1.ObjectMeta{Name: "multi-err", Namespace: "default"},
-				Spec: AerospikeCEClusterTemplateSpec{
+				Spec: AerospikeClusterTemplateSpec{
 					Scheduling: &TemplateScheduling{
 						PodAntiAffinityLevel: "invalid",
 						PodManagementPolicy:  appsv1.PodManagementPolicyType("BadPolicy"),
@@ -489,7 +489,7 @@ func TestAerospikeCEClusterTemplateValidate(t *testing.T) {
 		},
 	}
 
-	v := &AerospikeCEClusterTemplateValidator{}
+	v := &AerospikeClusterTemplateValidator{}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test ValidateCreate
@@ -551,9 +551,9 @@ func TestAerospikeCEClusterTemplateValidate(t *testing.T) {
 	}
 }
 
-func TestAerospikeCEClusterTemplateValidateDelete(t *testing.T) {
-	v := &AerospikeCEClusterTemplateValidator{}
-	tmpl := &AerospikeCEClusterTemplate{
+func TestAerospikeClusterTemplateValidateDelete(t *testing.T) {
+	v := &AerospikeClusterTemplateValidator{}
+	tmpl := &AerospikeClusterTemplate{
 		ObjectMeta: metav1.ObjectMeta{Name: "delete-test", Namespace: "default"},
 	}
 

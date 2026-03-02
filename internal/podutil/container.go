@@ -29,7 +29,7 @@ const (
 )
 
 // BuildAerospikeContainer creates the main Aerospike server container spec.
-func BuildAerospikeContainer(cluster *v1alpha1.AerospikeCECluster, volumeMounts []corev1.VolumeMount) corev1.Container {
+func BuildAerospikeContainer(cluster *v1alpha1.AerospikeCluster, volumeMounts []corev1.VolumeMount) corev1.Container {
 	c := corev1.Container{
 		Name:  AerospikeContainerName,
 		Image: cluster.Spec.Image,
@@ -85,7 +85,7 @@ func BuildAerospikeContainer(cluster *v1alpha1.AerospikeCECluster, volumeMounts 
 // to copy and process configuration files (placeholder substitution, volume initialization).
 // dirtyVolumes is the list of volume names that need wiping (from pod status DirtyVolumes).
 func BuildInitContainer(
-	cluster *v1alpha1.AerospikeCECluster,
+	cluster *v1alpha1.AerospikeCluster,
 	configMapName string,
 	storageSpec *v1alpha1.AerospikeStorageSpec,
 	volumeMounts []corev1.VolumeMount,

@@ -1,7 +1,7 @@
 apiVersion: acko.io/v1alpha1
-kind: AerospikeCECluster
+kind: AerospikeCluster
 metadata:
-  name: aerospike-ce-storage-advanced
+  name: aerospike-storage-advanced
   namespace: aerospike
 spec:
   size: 3

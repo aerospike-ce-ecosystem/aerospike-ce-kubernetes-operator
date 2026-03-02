@@ -14,22 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package template implements the AerospikeCEClusterTemplate resolution logic.
-// It converts template abstract fields into concrete AerospikeCEClusterSpec fields.
+// Package template implements the AerospikeClusterTemplate resolution logic.
+// It converts template abstract fields into concrete AerospikeClusterSpec fields.
 package template
 
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
 // TranslatePodAntiAffinity converts a PodAntiAffinityLevel to a Kubernetes PodAntiAffinity struct.
 // Returns nil for PodAntiAffinityNone or empty level.
-func TranslatePodAntiAffinity(level asdbcev1alpha1.PodAntiAffinityLevel, clusterName string) *corev1.PodAntiAffinity {
-	if level == "" || level == asdbcev1alpha1.PodAntiAffinityNone {
+func TranslatePodAntiAffinity(level ackov1alpha1.PodAntiAffinityLevel, clusterName string) *corev1.PodAntiAffinity {
+	if level == "" || level == ackov1alpha1.PodAntiAffinityNone {
 		return nil
 	}
 
@@ -41,11 +41,11 @@ func TranslatePodAntiAffinity(level asdbcev1alpha1.PodAntiAffinityLevel, cluster
 	}
 
 	switch level {
-	case asdbcev1alpha1.PodAntiAffinityRequired:
+	case ackov1alpha1.PodAntiAffinityRequired:
 		return &corev1.PodAntiAffinity{
 			RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{term},
 		}
-	case asdbcev1alpha1.PodAntiAffinityPreferred:
+	case ackov1alpha1.PodAntiAffinityPreferred:
 		return &corev1.PodAntiAffinity{
 			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
 				{Weight: 100, PodAffinityTerm: term},
@@ -58,13 +58,13 @@ func TranslatePodAntiAffinity(level asdbcev1alpha1.PodAntiAffinityLevel, cluster
 
 // applyScheduling translates template scheduling settings into the cluster's PodSpec.
 // It only sets fields that are not already explicitly set in the cluster spec.
-func applyScheduling(scheduling *asdbcev1alpha1.TemplateScheduling, cluster *asdbcev1alpha1.AerospikeCECluster) {
+func applyScheduling(scheduling *ackov1alpha1.TemplateScheduling, cluster *ackov1alpha1.AerospikeCluster) {
 	if scheduling == nil {
 		return
 	}
 
 	if cluster.Spec.PodSpec == nil {
-		cluster.Spec.PodSpec = &asdbcev1alpha1.AerospikeCEPodSpec{}
+		cluster.Spec.PodSpec = &ackov1alpha1.AerospikeCEPodSpec{}
 	}
 	ps := cluster.Spec.PodSpec
 

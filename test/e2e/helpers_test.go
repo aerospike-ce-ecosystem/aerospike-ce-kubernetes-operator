@@ -24,23 +24,23 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
-	asdbcev1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
-// newTestCluster creates a minimal AerospikeCECluster for e2e testing.
+// newTestCluster creates a minimal AerospikeCluster for e2e testing.
 // Use the variadic mutators to customize per-test (e.g., set batch size, paused, etc.).
 func newTestCluster(name, ns string, size int32,
-	mutators ...func(*asdbcev1alpha1.AerospikeCECluster),
-) *asdbcev1alpha1.AerospikeCECluster {
-	cluster := &asdbcev1alpha1.AerospikeCECluster{
+	mutators ...func(*ackov1alpha1.AerospikeCluster),
+) *ackov1alpha1.AerospikeCluster {
+	cluster := &ackov1alpha1.AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: ns,
 		},
-		Spec: asdbcev1alpha1.AerospikeCEClusterSpec{
+		Spec: ackov1alpha1.AerospikeClusterSpec{
 			Size:  size,
 			Image: "aerospike:ce-8.1.1.1",
-			AerospikeConfig: &asdbcev1alpha1.AerospikeConfigSpec{
+			AerospikeConfig: &ackov1alpha1.AerospikeConfigSpec{
 				Value: map[string]any{
 					"service": map[string]any{
 						"cluster-name": name,
@@ -71,14 +71,14 @@ func newTestCluster(name, ns string, size int32,
 	return cluster
 }
 
-// loadClusterFromFile reads a sample YAML file into a typed AerospikeCECluster.
+// loadClusterFromFile reads a sample YAML file into a typed AerospikeCluster.
 // This ensures the sample files are parseable while still using the typed client for creation.
-func loadClusterFromFile(path string) (*asdbcev1alpha1.AerospikeCECluster, error) {
+func loadClusterFromFile(path string) (*ackov1alpha1.AerospikeCluster, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	cluster := &asdbcev1alpha1.AerospikeCECluster{}
+	cluster := &ackov1alpha1.AerospikeCluster{}
 	if err := yaml.Unmarshal(data, cluster); err != nil {
 		return nil, err
 	}

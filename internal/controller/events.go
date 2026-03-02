@@ -53,6 +53,10 @@ const (
 	EventReadinessGateSatisfied = "ReadinessGateSatisfied"
 	EventReadinessGateBlocking  = "ReadinessGateBlocking"
 
+	// PVC cleanup
+	EventPVCCleanedUp     = "PVCCleanedUp"
+	EventPVCCleanupFailed = "PVCCleanupFailed"
+
 	// Miscellaneous
 	EventValidationWarning = "ValidationWarning"
 	EventReconcileError    = "ReconcileError"

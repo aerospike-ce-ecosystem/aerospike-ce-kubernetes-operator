@@ -62,14 +62,13 @@ func IsMigrating(client *aero.Client) (bool, error) {
 	return strings.TrimSpace(result) == "", nil
 }
 
-// IsMigratingOnAnyNode checks all cluster nodes for in-progress data
-// migrations. A node is considered migrating when either
-// migrate_progress_send or migrate_progress_recv is non-zero. Returns true
-// if any node has pending migrations.
+// IsMigratingOnAnyNode checks whether any node in the cluster has outstanding
+// partition migrations. Uses migrate_partitions_remaining which is supported
+// in Aerospike CE 7.x and 8.x (migrate_progress_send/recv are removed in 8.x).
 func IsMigratingOnAnyNode(client *aero.Client) (bool, error) {
 	nodes := client.GetNodes()
 	if len(nodes) == 0 {
-		return false, fmt.Errorf("no nodes available")
+		return false, fmt.Errorf("no nodes available in Aerospike cluster")
 	}
 
 	for _, node := range nodes {
@@ -78,11 +77,10 @@ func IsMigratingOnAnyNode(client *aero.Client) (bool, error) {
 		}
 		stats, err := asinfoCommandOnNode(node, "statistics")
 		if err != nil {
-			return true, fmt.Errorf("statistics command on node %s failed: %w", node.GetName(), err)
+			return false, fmt.Errorf("statistics command on node %s failed: %w", node.GetName(), err)
 		}
-		send := parseMigrateStat(stats, "migrate_progress_send")
-		recv := parseMigrateStat(stats, "migrate_progress_recv")
-		if send > 0 || recv > 0 {
+		remaining := parseMigrateStat(stats, "migrate_partitions_remaining")
+		if remaining > 0 {
 			return true, nil
 		}
 	}

@@ -141,15 +141,15 @@ func PhaseToFloat(phase string) float64 {
 	case "ScalingDown":
 		return 5
 	case "WaitingForMigration":
-		return 10
-	case "RollingRestart":
 		return 6
-	case "ACLSync":
+	case "RollingRestart":
 		return 7
-	case "Paused":
+	case "ACLSync":
 		return 8
-	case "Deleting":
+	case "Paused":
 		return 9
+	case "Deleting":
+		return 10
 	default:
 		return 0
 	}

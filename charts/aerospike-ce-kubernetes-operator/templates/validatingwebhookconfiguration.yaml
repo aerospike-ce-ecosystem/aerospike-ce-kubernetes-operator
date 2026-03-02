@@ -1,0 +1,33 @@
+{{- if .Values.webhook.enabled }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: {{ include "aerospike-ce-kubernetes-operator.fullname" . }}-validating
+  labels:
+    {{- include "aerospike-ce-kubernetes-operator.labels" . | nindent 4 }}
+  {{- if .Values.certManager.enabled }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ include "aerospike-ce-kubernetes-operator.certName" . }}
+  {{- end }}
+webhooks:
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: {{ include "aerospike-ce-kubernetes-operator.webhookServiceName" . }}
+        namespace: {{ .Release.Namespace }}
+        path: /validate-acko-io-v1alpha1-aerospikecluster
+    failurePolicy: Fail
+    name: vaerospikecluster.kb.io
+    rules:
+      - apiGroups:
+          - acko.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - aerospikeclusters
+    sideEffects: None
+{{- end }}

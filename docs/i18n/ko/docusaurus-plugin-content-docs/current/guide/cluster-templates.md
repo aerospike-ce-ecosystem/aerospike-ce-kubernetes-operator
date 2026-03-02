@@ -219,7 +219,7 @@ kubectl apply -f config/samples/aerospike-cluster-with-template.yaml
 `defaultTemplates.enabled=true` 옵션을 사용하면 릴리스 네임스페이스에 세 가지 티어 템플릿이 자동으로 생성됩니다:
 
 ```bash
-helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set certManagerSubchart.enabled=true \
   --set defaultTemplates.enabled=true

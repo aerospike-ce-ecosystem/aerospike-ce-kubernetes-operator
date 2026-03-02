@@ -44,7 +44,7 @@ kubectl -n cert-manager wait --for=condition=Available deployment/cert-manager-w
 게시된 OCI Helm 차트를 사용하는 가장 간단한 설치 방법입니다.
 
 ```bash
-helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace
 ```
 
@@ -53,7 +53,7 @@ helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-
 기본값을 재정의할 수 있습니다:
 
 ```bash
-helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set replicaCount=2 \
   --set resources.limits.memory=256Mi
@@ -62,7 +62,7 @@ helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-
 사용 가능한 모든 값 조회:
 
 ```bash
-helm show values oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator
+helm show values oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator
 ```
 
 </TabItem>
@@ -75,13 +75,13 @@ git clone https://github.com/KimSoungRyoul/aerospike-ce-kubernetes-operator.git
 cd aerospike-ce-kubernetes-operator
 
 # 오퍼레이터 이미지를 빌드하고 레지스트리에 푸시
-make docker-build docker-push IMG=<your-registry>/aerospike-ce-operator:latest
+make docker-build docker-push IMG=<your-registry>/aerospike-ce-kubernetes-operator:latest
 
 # CRD 설치
 make install
 
 # 오퍼레이터 배포
-make deploy IMG=<your-registry>/aerospike-ce-operator:latest
+make deploy IMG=<your-registry>/aerospike-ce-kubernetes-operator:latest
 ```
 
 </TabItem>
@@ -97,7 +97,7 @@ Helm 차트에는 Prometheus Operator 모니터링 리소스가 내장되어 있
 Prometheus가 오퍼레이터 메트릭을 자동으로 스크레이핑하도록 `ServiceMonitor` 리소스를 생성합니다.
 
 ```bash
-helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set serviceMonitor.enabled=true \
   --set serviceMonitor.additionalLabels.release=prometheus
@@ -122,7 +122,7 @@ kubectl get prometheus -A -o jsonpath='{.items[*].spec.serviceMonitorSelector}'
 오퍼레이터를 위한 내장 알림 규칙이 포함된 `PrometheusRule` 리소스를 생성합니다.
 
 ```bash
-helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set serviceMonitor.enabled=true \
   --set prometheusRule.enabled=true
@@ -165,7 +165,7 @@ prometheusRule:
 사전 구성된 Grafana 대시보드가 포함된 `ConfigMap`을 생성합니다. [Grafana sidecar](https://github.com/grafana/helm-charts/tree/main/charts/grafana#sidecar-for-dashboards)가 자동 발견을 위해 설정되어 있어야 합니다.
 
 ```bash
-helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set grafanaDashboard.enabled=true
 ```
@@ -209,7 +209,7 @@ helm install grafana grafana/grafana \
 **3. 대시보드를 활성화하여 오퍼레이터 설치 (또는 업그레이드):**
 
 ```bash
-helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set grafanaDashboard.enabled=true
 ```
@@ -244,7 +244,7 @@ kubectl -n aerospike-operator get configmap -l grafana_dashboard=1
 모든 모니터링 기능을 한 번에 활성화:
 
 ```bash
-helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set serviceMonitor.enabled=true \
   --set serviceMonitor.additionalLabels.release=prometheus \
@@ -266,7 +266,7 @@ UI는 Helm 차트에 내장되어 오퍼레이터와 함께 배포됩니다. 클
 Helm 설치 명령에 `--set ui.enabled=true`를 추가합니다:
 
 ```bash
-helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set ui.enabled=true
 ```
@@ -291,7 +291,7 @@ kubectl -n aerospike-operator port-forward svc/<release>-aerospike-operator-ui 3
 외부에서 지속적으로 접근하려면 Ingress를 활성화합니다:
 
 ```bash
-helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set ui.enabled=true \
   --set ui.ingress.enabled=true \
@@ -322,7 +322,7 @@ helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-
 임베디드 사이드카 대신 기존 PostgreSQL 인스턴스를 사용하려면:
 
 ```bash
-helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set ui.enabled=true \
   --set ui.postgresql.enabled=false \
@@ -391,7 +391,7 @@ helm install prometheus prometheus-community/kube-prometheus-stack \
 # =============================================================================
 # 3. Aerospike Operator 설치 (모니터링 전체 활성화)
 # =============================================================================
-helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set serviceMonitor.enabled=true \
   --set serviceMonitor.additionalLabels.release=prometheus \
@@ -462,7 +462,7 @@ kubectl -n monitoring port-forward svc/grafana 3000:80
 kubectl delete asc --all --all-namespaces
 
 # 오퍼레이터 제거
-helm uninstall aerospike-ce-operator -n aerospike-operator
+helm uninstall aerospike-ce-kubernetes-operator -n aerospike-operator
 
 # (선택) 네임스페이스 삭제
 kubectl delete namespace aerospike-operator

@@ -219,7 +219,7 @@ kubectl apply -f config/samples/aerospike-cluster-with-template.yaml
 Use the `defaultTemplates.enabled=true` option to automatically create all three template tiers in the release namespace:
 
 ```bash
-helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set certManagerSubchart.enabled=true \
   --set defaultTemplates.enabled=true

@@ -1,0 +1,24 @@
+{{- if and .Values.ui.enabled .Values.ui.rbac.create .Values.ui.k8s.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "aerospike-ce-kubernetes-operator.ui.fullname" . }}
+  labels:
+    {{- include "aerospike-ce-kubernetes-operator.ui.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["aerospike-ce-kubernetes-operator.io"]
+    resources: ["aerospikeclusters"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["aerospike-ce-kubernetes-operator.io"]
+    resources: ["aerospikeclusters/status"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["pods", "services"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["list"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["list"]
+{{- end }}

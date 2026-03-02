@@ -73,7 +73,7 @@ kubectl -n cert-manager wait --for=condition=Available deployment/cert-manager -
 
 ```bash
 # With bundled cert-manager (recommended if you skipped Step 2)
-helm install aerospike-ce-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set certManagerSubchart.enabled=true
 ```

@@ -1,5 +1,5 @@
 namespace: aerospike-operator
-namePrefix: aerospike-ce-operator-
+namePrefix: aerospike-ce-kubernetes-operator-
 
 resources:
 - ../crd

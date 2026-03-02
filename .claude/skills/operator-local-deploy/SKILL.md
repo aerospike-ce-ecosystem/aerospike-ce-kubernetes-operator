@@ -22,8 +22,8 @@ Optional arguments:
 ## Environment Variables
 
 ```bash
-IMG=ghcr.io/kimsoungryoul/aerospike-ce-operator:latest
-KIND_CLUSTER=aerospike-ce-operator-test-e2e
+IMG=ghcr.io/kimsoungryoul/aerospike-ce-kubernetes-operator:latest
+KIND_CLUSTER=aerospike-ce-kubernetes-operator-test-e2e
 KIND_PROVIDER=podman   # or podman
 ```
 
@@ -33,7 +33,7 @@ KIND_PROVIDER=podman   # or podman
 ```bash
 make setup-test-e2e
 ```
-Creates `aerospike-ce-operator-test-e2e` cluster if not exists.
+Creates `aerospike-ce-kubernetes-operator-test-e2e` cluster if not exists.
 
 ### 2. Build Container Image
 ```bash
@@ -70,7 +70,7 @@ Deploys to `aerospike-operator` namespace with webhook, cert-manager, RBAC.
 ```bash
 kubectl -n aerospike-operator get deployment
 kubectl -n aerospike-operator get pods
-kubectl -n aerospike-operator wait --for=condition=Available deployment/aerospike-ce-operator-controller-manager --timeout=120s
+kubectl -n aerospike-operator wait --for=condition=Available deployment/aerospike-ce-kubernetes-operator-controller-manager --timeout=120s
 ```
 
 ## Apply Sample CR (`apply`)
@@ -93,7 +93,7 @@ kubectl -n aerospike get pods -w
 ```bash
 kubectl -n aerospike-operator get deployment
 kubectl -n aerospike-operator get pods
-kubectl -n aerospike-operator logs deployment/aerospike-ce-operator-controller-manager --tail=30
+kubectl -n aerospike-operator logs deployment/aerospike-ce-kubernetes-operator-controller-manager --tail=30
 kubectl -n aerospike get asc
 kubectl -n aerospike get pods
 kubectl -n aerospike get statefulsets
@@ -110,7 +110,7 @@ make cleanup-test-e2e
 ## Troubleshooting
 
 If deployment fails:
-1. Check operator logs: `kubectl -n aerospike-operator logs deployment/aerospike-ce-operator-controller-manager`
+1. Check operator logs: `kubectl -n aerospike-operator logs deployment/aerospike-ce-kubernetes-operator-controller-manager`
 2. Check events: `kubectl -n aerospike-operator get events --sort-by=.lastTimestamp`
 3. Check cert-manager: `kubectl get certificates -n aerospike-operator`
 4. Check webhook: `kubectl get validatingwebhookconfigurations`

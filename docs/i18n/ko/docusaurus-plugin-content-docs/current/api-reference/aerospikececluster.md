@@ -62,6 +62,30 @@ Aerospike CE 클러스터의 원하는 상태를 정의합니다.
 
 ---
 
+## TemplateRef
+
+같은 네임스페이스의 `AerospikeCEClusterTemplate` 참조입니다.
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `name` | string | 예 | `AerospikeCEClusterTemplate` 리소스 이름 |
+
+---
+
+## TemplateSnapshotStatus
+
+템플릿이 해결된 후 `status.templateSnapshot`에 기록됩니다.
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `name` | string | 참조된 템플릿 이름 |
+| `resourceVersion` | string | 스냅샷 시점의 템플릿 ResourceVersion |
+| `snapshotTimestamp` | Time | 스냅샷이 촬영된 시점 |
+| `synced` | bool | 클러스터가 최신 템플릿 버전을 사용하는지 여부. 스냅샷 이후 템플릿 변경 시 `false`로 설정. |
+| `spec` | [AerospikeCEClusterTemplateSpec](./aerospikececlustertemplate#aerospikececlustertemplatespec) | 스냅샷 시점의 해결된 템플릿 스펙. |
+
+---
+
 ## AerospikeConfigSpec
 
 비구조화된 JSON/YAML 객체로 Aerospike 설정을 보유합니다. 오퍼레이터가 이를 `aerospike.conf` 형식으로 변환합니다.
@@ -92,30 +116,6 @@ aerospikeConfig:
     - name: /var/log/aerospike/aerospike.log
       context: any info
 ```
-
----
-
-## TemplateRef
-
-같은 네임스페이스의 `AerospikeCEClusterTemplate` 참조입니다.
-
-| 필드 | 타입 | 필수 | 설명 |
-|---|---|---|---|
-| `name` | string | 예 | `AerospikeCEClusterTemplate` 리소스 이름 |
-
----
-
-## TemplateSnapshotStatus
-
-템플릿이 해결된 후 `status.templateSnapshot`에 기록됩니다.
-
-| 필드 | 타입 | 설명 |
-|---|---|---|
-| `name` | string | 참조된 템플릿 이름 |
-| `resourceVersion` | string | 스냅샷 시점의 템플릿 ResourceVersion |
-| `snapshotTimestamp` | Time | 스냅샷이 촬영된 시점 |
-| `synced` | boolean | 클러스터가 최신 템플릿 버전을 사용하는지 여부. 스냅샷 이후 템플릿 변경 시 `false`로 설정. |
-| `spec` | object | 스냅샷 시점의 해결된 템플릿 스펙 |
 
 ---
 
@@ -295,6 +295,10 @@ PVC 템플릿을 정의합니다.
 |---|---|---|---|
 | `containerName` | string | 예 | 대상 컨테이너 이름. |
 | `path` | string | 예 | 컨테이너의 마운트 경로. |
+| `readOnly` | bool | 아니요 | 볼륨을 읽기 전용으로 마운트. |
+| `subPath` | string | 아니요 | 볼륨의 특정 하위 경로만 마운트. |
+| `subPathExpr` | string | 아니요 | 환경 변수를 사용한 확장 경로. `subPath`와 상호 배타적. |
+| `mountPropagation` | [MountPropagationMode](https://kubernetes.io/docs/concepts/storage/volumes/#mount-propagation) | 아니요 | 마운트 전파 방식: `None`, `HostToContainer`, `Bidirectional`. |
 
 ---
 
@@ -406,7 +410,7 @@ Aerospike 서버 컨테이너를 커스터마이징합니다.
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
-| `id` | int | 예 | 고유 랙 식별자 (>= 0). |
+| `id` | int | 예 | 고유 랙 식별자 (>= 1). 랙 ID 0은 기본 랙용으로 예약됨. |
 | `zone` | string | 아니요 | 존 레이블 값 (`topology.kubernetes.io/zone`). |
 | `region` | string | 아니요 | 리전 레이블 값 (`topology.kubernetes.io/region`). |
 | `nodeName` | string | 아니요 | 특정 노드로 제한. |

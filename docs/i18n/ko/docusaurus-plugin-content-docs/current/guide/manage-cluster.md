@@ -51,6 +51,20 @@ spec:
     rollingUpdateBatchSize: "50%"   # 랙당 파드의 50%를 동시에 재시작
 ```
 
+#### 배치 크기: 정수 vs 퍼센트
+
+배치 크기는 정수 또는 퍼센트 문자열을 허용합니다:
+
+| 형식 | 예시 | 동작 (size=6) |
+|--------|---------|-------------------|
+| 정수 | `2` | 한 번에 정확히 2개 파드 |
+| 퍼센트 | `"50%"` | 6의 50% = 3개 파드 |
+| 퍼센트 | `"25%"` | 6의 25% = 2개 파드 (올림) |
+
+:::tip
+퍼센트 문자열은 `%` 접미사를 포함해야 합니다 (예: `"50%"`). 퍼센트는 랙당 총 파드 수에 대해 계산되며, 최소 1로 올림됩니다.
+:::
+
 ### 스케일 다운 배치 크기
 
 스케일 다운 시 랙당 동시에 제거하는 파드 수를 제어합니다:
@@ -61,6 +75,8 @@ spec:
     scaleDownBatchSize: 2            # 랙당 한 번에 2개 파드 제거
     # scaleDownBatchSize: "25%"      # 퍼센트도 사용 가능
 ```
+
+`scaleDownBatchSize`는 스케일 다운 오퍼레이션 중 **랙당** 적용됩니다. 한 번에 너무 많은 파드를 제거하여 데이터 비가용성을 초래하는 것을 방지합니다.
 
 ### 무시 가능한 파드 수
 
@@ -73,6 +89,15 @@ spec:
 ```
 
 스케줄링 문제로 파드가 멈췄을 때 전체 재조정이 차단되지 않도록 하는 데 유용합니다.
+
+#### 배치 크기 요약
+
+| 필드 | 범위 | 기본값 | 설명 |
+|-------|-------|---------|-------------|
+| `spec.rollingUpdateBatchSize` | 클러스터 전체 | 1 | 롤링 업데이트 시 동시 재시작 파드 수 |
+| `rackConfig.rollingUpdateBatchSize` | 랙당 | spec에서 상속 | 랙당 클러스터 레벨 배치 크기 오버라이드 |
+| `rackConfig.scaleDownBatchSize` | 랙당 | 전체 한 번에 | 스케일 다운 시 동시 제거 파드 수 |
+| `rackConfig.maxIgnorablePods` | 랙당 | 0 | 재조정 중 무시할 멈춘 파드 수 |
 
 ## 설정 변경
 
@@ -117,6 +142,40 @@ spec:
 :::note
 이것은 **옵트인** 기능입니다. `readinessGateEnabled`가 설정되지 않은(또는 `false`인) 기존 클러스터는 이전과 동일하게 동작합니다.
 :::
+
+### 게이트 상태 확인
+
+파드별 게이트 조건을 확인합니다:
+
+```bash
+kubectl -n aerospike get pod aerospike-ce-3node-0 \
+  -o jsonpath='{.status.conditions}' | jq '.[] | select(.type=="acko.io/aerospike-ready")'
+```
+
+오퍼레이터는 클러스터의 파드 상태에 게이트 상태를 반영합니다:
+
+```bash
+kubectl -n aerospike get asce aerospike-ce-3node \
+  -o jsonpath='{.status.pods}' | jq 'to_entries[] | {pod: .key, gateOk: .value.readinessGateSatisfied}'
+```
+
+### Readiness Gates와 롤링 리스타트 동작
+
+Readiness gates 없이:
+```
+Pod-2 삭제 → Pod-2 Running → Pod-1 삭제 → ...   (K8s Ready = 충분)
+```
+
+`readinessGateEnabled: true`일 때:
+```
+Pod-2 삭제 → Pod-2 Running → Gate=False (마이그레이션 중) → Gate=True → Pod-1 삭제 → ...
+```
+
+게이트 대기로 리스타트가 차단되면 `ReadinessGateBlocking` 경고 이벤트가 발생합니다:
+
+```bash
+kubectl -n aerospike get events --field-selector reason=ReadinessGateBlocking
+```
 
 ## 재조정 일시 중지
 
@@ -657,6 +716,7 @@ kubectl get events --field-selector involvedObject.kind=AerospikeCECluster -n ae
 | Reason | Type | 설명 |
 |--------|------|------|
 | `RollingRestartStarted` | Normal | 롤링 리스타트 루프 시작; 랙 ID와 파드 수 표시 |
+| `RollingRestartCompleted` | Normal | 모든 대상 파드에 대해 롤링 리스타트 완료 |
 | `PodWarmRestarted` | Normal | 파드가 SIGUSR1 수신 (무중단 설정 리로드) |
 | `PodColdRestarted` | Normal | 파드가 삭제 후 재생성됨 (풀 리스타트) |
 | `RestartFailed` | Warning | 롤링 리스타트 중 파드 재시작 실패 |
@@ -677,6 +737,8 @@ kubectl get events --field-selector involvedObject.kind=AerospikeCECluster -n ae
 | `ServiceUpdated` | Normal | Headless 서비스 업데이트 |
 | `ClusterDeletionStarted` | Normal | 클러스터 삭제 시작 (finalizer 활성) |
 | `FinalizerRemoved` | Normal | 스토리지 finalizer 제거; 객체 삭제 예정 |
+| `ReadinessGateSatisfied` | Normal | 파드 readiness gate `acko.io/aerospike-ready`가 True로 설정됨 |
+| `ReadinessGateBlocking` | Warning | Readiness gate 대기 중 롤링 리스타트 차단됨 |
 | `TemplateApplied` | Normal | ClusterTemplate 스펙이 이 클러스터에 적용됨 |
 | `TemplateDrifted` | Warning | 클러스터 스펙이 템플릿에서 드리프트됨 |
 | `TemplateResolutionError` | Warning | ClusterTemplate 해결 또는 적용 실패 |

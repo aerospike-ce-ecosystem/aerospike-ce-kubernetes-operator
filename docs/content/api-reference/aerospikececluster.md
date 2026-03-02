@@ -81,8 +81,8 @@ Recorded in `status.templateSnapshot` after a template is resolved.
 | `name` | string | Name of the referenced template |
 | `resourceVersion` | string | ResourceVersion of the template at snapshot time |
 | `snapshotTimestamp` | Time | When the snapshot was taken |
-| `synced` | boolean | Whether the cluster uses the latest template version. Set to `false` when the template changes after the snapshot. |
-| `spec` | object | Resolved template spec at snapshot time |
+| `synced` | bool | Whether the cluster uses the latest template version. Set to `false` when the template changes after the snapshot. |
+| `spec` | [AerospikeCEClusterTemplateSpec](./aerospikececlustertemplate#aerospikececlustertemplatespec) | Resolved template spec at snapshot time. |
 
 ---
 
@@ -295,6 +295,10 @@ Defines a volume mount for sidecar or init containers.
 |---|---|---|---|
 | `containerName` | string | Yes | Target container name. |
 | `path` | string | Yes | Mount path in the container. |
+| `readOnly` | bool | No | Mount the volume as read-only. |
+| `subPath` | string | No | Mount only a sub-path of the volume. |
+| `subPathExpr` | string | No | Expanded path using environment variables. Mutually exclusive with `subPath`. |
+| `mountPropagation` | [MountPropagationMode](https://kubernetes.io/docs/concepts/storage/volumes/#mount-propagation) | No | How mounts are propagated: `None`, `HostToContainer`, `Bidirectional`. |
 
 ---
 
@@ -406,7 +410,7 @@ Defines a single rack in the cluster topology.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `id` | int | Yes | Unique rack identifier (>= 0). |
+| `id` | int | Yes | Unique rack identifier (>= 1). Rack ID 0 is reserved for the default rack. |
 | `zone` | string | No | Zone label value (`topology.kubernetes.io/zone`). |
 | `region` | string | No | Region label value (`topology.kubernetes.io/region`). |
 | `nodeName` | string | No | Constrain to a specific node. |

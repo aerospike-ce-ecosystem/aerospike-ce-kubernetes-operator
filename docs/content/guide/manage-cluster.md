@@ -746,6 +746,7 @@ kubectl get events --field-selector involvedObject.kind=AerospikeCECluster -n ae
 | Reason | Type | Description |
 |--------|------|-------------|
 | `RollingRestartStarted` | Normal | Rolling restart loop began; shows rack ID and pod count |
+| `RollingRestartCompleted` | Normal | Rolling restart completed for all targeted pods |
 | `PodWarmRestarted` | Normal | Pod received SIGUSR1 (no downtime config reload) |
 | `PodColdRestarted` | Normal | Pod deleted and recreated for a full restart |
 | `RestartFailed` | Warning | Failed to restart a pod during rolling restart |
@@ -766,6 +767,8 @@ kubectl get events --field-selector involvedObject.kind=AerospikeCECluster -n ae
 | `ServiceUpdated` | Normal | Headless service updated |
 | `ClusterDeletionStarted` | Normal | Cluster teardown began (finalizer active) |
 | `FinalizerRemoved` | Normal | Storage finalizer removed; object will be deleted |
+| `ReadinessGateSatisfied` | Normal | Pod readiness gate `acko.io/aerospike-ready` set to True |
+| `ReadinessGateBlocking` | Warning | Rolling restart blocked waiting for readiness gate |
 | `TemplateApplied` | Normal | ClusterTemplate spec applied to this cluster |
 | `TemplateDrifted` | Warning | Cluster spec drifted from its template |
 | `TemplateResolutionError` | Warning | Failed to resolve or apply a ClusterTemplate |

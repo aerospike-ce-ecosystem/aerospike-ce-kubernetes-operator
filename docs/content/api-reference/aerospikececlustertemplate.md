@@ -29,7 +29,7 @@ This page documents the `AerospikeCEClusterTemplate` Custom Resource Definition 
 | `apiVersion` | string | `acko.io/v1alpha1` |
 | `kind` | string | `AerospikeCEClusterTemplate` |
 | `metadata` | [ObjectMeta](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/object-meta/) | Standard object metadata |
-| `spec` | [AerospikeCEClusterTemplateSpec](#aerospikececlustertemplatetspec) | Configuration profile |
+| `spec` | [AerospikeCEClusterTemplateSpec](#aerospikececlustertemplatespec) | Configuration profile |
 | `status` | [AerospikeCEClusterTemplateStatus](#aerospikececlustertemplatestatus) | Observed state |
 
 ---

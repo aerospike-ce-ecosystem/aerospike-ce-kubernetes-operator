@@ -666,9 +666,15 @@ kubectl -n aerospike get asce
 
 | Phase | Meaning |
 |---|---|
-| `InProgress` | Reconciliation is in progress |
+| `InProgress` | Reconciliation is in progress (generic) |
 | `Completed` | Cluster is healthy and up-to-date |
-| `Error` | Reconciliation encountered an error |
+| `Error` | Reconciliation encountered an unrecoverable error |
+| `ScalingUp` | Cluster is scaling up (adding pods) |
+| `ScalingDown` | Cluster is scaling down (removing pods) |
+| `RollingRestart` | A rolling restart is in progress |
+| `ACLSync` | ACL roles and users are being synchronized |
+| `Paused` | Reconciliation is paused by the user |
+| `Deleting` | Cluster is being deleted |
 
 ### Check Conditions
 
@@ -693,7 +699,13 @@ Each pod status includes:
 | `isRunningAndReady` | Whether the pod is healthy |
 | `configHash` | SHA256 of applied config |
 | `dynamicConfigStatus` | `Applied`, `Failed`, `Pending`, or empty |
+| `nodeID` | Aerospike-assigned node identifier (e.g., `BB9020012AC4202`) |
+| `clusterName` | Aerospike cluster name as reported by the node |
+| `accessEndpoints` | Network endpoints for direct client access |
 | `readinessGateSatisfied` | `true` when `acko.io/aerospike-ready` gate is satisfied (requires `readinessGateEnabled: true`) |
+| `lastRestartReason` | Why the pod was last restarted: `ConfigChanged`, `ImageChanged`, `PodSpecChanged`, `ManualRestart`, `WarmRestart` |
+| `lastRestartTime` | Timestamp of the last operator-initiated restart |
+| `unstableSince` | First time this pod became NotReady; reset when Ready |
 
 ### Check Operator Logs
 
@@ -734,6 +746,7 @@ kubectl get events --field-selector involvedObject.kind=AerospikeCECluster -n ae
 | Reason | Type | Description |
 |--------|------|-------------|
 | `RollingRestartStarted` | Normal | Rolling restart loop began; shows rack ID and pod count |
+| `RollingRestartCompleted` | Normal | Rolling restart completed for all targeted pods |
 | `PodWarmRestarted` | Normal | Pod received SIGUSR1 (no downtime config reload) |
 | `PodColdRestarted` | Normal | Pod deleted and recreated for a full restart |
 | `RestartFailed` | Warning | Failed to restart a pod during rolling restart |
@@ -754,6 +767,8 @@ kubectl get events --field-selector involvedObject.kind=AerospikeCECluster -n ae
 | `ServiceUpdated` | Normal | Headless service updated |
 | `ClusterDeletionStarted` | Normal | Cluster teardown began (finalizer active) |
 | `FinalizerRemoved` | Normal | Storage finalizer removed; object will be deleted |
+| `ReadinessGateSatisfied` | Normal | Pod readiness gate `acko.io/aerospike-ready` set to True |
+| `ReadinessGateBlocking` | Warning | Rolling restart blocked waiting for readiness gate |
 | `TemplateApplied` | Normal | ClusterTemplate spec applied to this cluster |
 | `TemplateDrifted` | Warning | Cluster spec drifted from its template |
 | `TemplateResolutionError` | Warning | Failed to resolve or apply a ClusterTemplate |

@@ -1,22 +1,22 @@
 apiVersion: acko.io/v1alpha1
 kind: AerospikeClusterTemplate
 metadata:
-  name: dev
+  name: minimal
   namespace: default
   labels:
-    environment: dev
+    app.kubernetes.io/profile: minimal
 spec:
-  # Dev template: default image and single-node cluster for fast iteration
+  # Minimal template: single-node cluster with minimal resources for fast iteration
   image: aerospike:ce-8.1.1.1   # Default image; clusters can override with spec.image
-  size: 1                         # Single node for dev; clusters can override with spec.size
+  size: 1                         # Single node; clusters can override with spec.size
 
-  # Monitoring disabled in dev to reduce resource usage
+  # Monitoring disabled to reduce resource usage
   monitoring:
     enabled: false
 
-  # Dev template: minimal resource usage, no strict anti-affinity
+  # No anti-affinity: allow multiple pods per node
   scheduling:
-    podAntiAffinityLevel: none   # Allow multiple pods per node in dev
+    podAntiAffinityLevel: none
 
   storage:
     storageClassName: standard

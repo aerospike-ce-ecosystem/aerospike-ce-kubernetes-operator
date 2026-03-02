@@ -1,19 +1,19 @@
 ---
-# Example: Cluster using the 'stage' template with minimal overrides.
+# Example: Cluster using the 'soft-rack' template with minimal overrides.
 # The template provides default scheduling, storage, and Aerospike config.
 # The cluster only specifies its unique fields (size, image, namespace config).
 apiVersion: acko.io/v1alpha1
 kind: AerospikeCluster
 metadata:
-  name: stage-cluster
+  name: soft-rack-cluster
   namespace: default
 spec:
   size: 3
   image: aerospike:ce-8.1.1.1
 
-  # Reference the stage template
+  # Reference the soft-rack template
   templateRef:
-    name: stage
+    name: soft-rack
 
   # Override only what differs from the template
   overrides:
@@ -33,20 +33,20 @@ spec:
           type: memory
 
 ---
-# Example: Cluster using the 'dev' template — no overrides needed.
+# Example: Cluster using the 'minimal' template — no overrides needed.
 # Great for quick development/testing environments.
 apiVersion: acko.io/v1alpha1
 kind: AerospikeCluster
 metadata:
-  name: dev-cluster
+  name: minimal-cluster
   namespace: default
 spec:
   size: 1
   image: aerospike:ce-8.1.1.1
 
-  # Reference the dev template
+  # Reference the minimal template
   templateRef:
-    name: dev
+    name: minimal
 
   aerospikeConfig:
     namespaces:
@@ -55,19 +55,19 @@ spec:
           type: memory
 
 ---
-# Example: Cluster that relies entirely on the 'dev' template for image and size.
+# Example: Cluster that relies entirely on the 'minimal' template for image and size.
 # spec.image and spec.size are omitted — the template's image and size defaults apply.
 apiVersion: acko.io/v1alpha1
 kind: AerospikeCluster
 metadata:
-  name: dev-cluster-minimal
+  name: minimal-cluster-slim
   namespace: default
 spec:
-  # No image or size specified — the dev template provides:
+  # No image or size specified — the minimal template provides:
   #   image: aerospike:ce-8.1.1.1
   #   size: 1
   templateRef:
-    name: dev
+    name: minimal
 
   aerospikeConfig:
     namespaces:
@@ -78,7 +78,7 @@ spec:
 ---
 # Example: Resync a cluster after the template was updated.
 # Add this annotation to trigger a one-time template resync:
-#   kubectl annotate aerospikecluster stage-cluster acko.io/resync-template=true
+#   kubectl annotate aerospikecluster soft-rack-cluster acko.io/resync-template=true
 #
 # The operator will re-fetch the template, update the snapshot in status,
 # and fire a TemplateApplied event. The annotation is removed after resync.

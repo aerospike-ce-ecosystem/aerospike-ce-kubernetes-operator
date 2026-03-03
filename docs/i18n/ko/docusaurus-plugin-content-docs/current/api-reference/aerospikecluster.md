@@ -40,7 +40,7 @@ Aerospike CE 클러스터의 원하는 상태를 정의합니다.
 | `storage` | [AerospikeStorageSpec](#aerospikestoragespec) | 아니요 | — | Aerospike 파드의 볼륨 정의. |
 | `rackConfig` | [RackConfig](#rackconfig) | 아니요 | — | 랙 인식 배포 토폴로지. |
 | `aerospikeNetworkPolicy` | [AerospikeNetworkPolicy](#aerospikenetworkpolicy) | 아니요 | — | 클라이언트 접근 네트워크 설정. |
-| `podSpec` | [AerospikePodSpec](#aerospikecepodspec) | 아니요 | — | 파드 레벨 설정. |
+| `podSpec` | [AerospikePodSpec](#aerospikepodspec) | 아니요 | — | 파드 레벨 설정. |
 | `aerospikeAccessControl` | [AerospikeAccessControlSpec](#aerospikeaccesscontrolspec) | 아니요 | — | ACL 역할 및 사용자. |
 | `monitoring` | [AerospikeMonitoringSpec](#aerospikemonitoringspec) | 아니요 | — | Prometheus 모니터링 설정. |
 | `networkPolicyConfig` | [NetworkPolicyConfig](#networkpolicyconfig) | 아니요 | — | 자동 NetworkPolicy 생성. |

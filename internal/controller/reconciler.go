@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -34,6 +35,13 @@ import (
 
 const (
 	defaultReconcileRetryInterval = 5 * time.Second
+
+	// podReadyPollInterval is the requeue interval used when reconciliation
+	// completes successfully but not all pods are ready yet. The controller
+	// does not watch pod readiness events directly, so periodic polling is
+	// required to detect when pods transition to Ready and update status
+	// conditions (Available, Ready).
+	podReadyPollInterval = 10 * time.Second
 
 	// reconcileTimeout is the maximum duration for a single reconciliation loop.
 	// If the context deadline is exceeded, the reconcile will be retried with backoff.
@@ -500,6 +508,18 @@ func (r *AerospikeClusterReconciler) reconcileCluster(
 	}
 
 	log.Info("Reconciliation completed successfully")
+
+	// The controller does not watch pod readiness events directly (StatefulSet
+	// Owns() uses GenerationChangedPredicate which ignores status-only updates).
+	// If not all pods are ready yet, poll periodically so that the Available and
+	// Ready conditions are updated once the pods finish starting up.
+	latest, err := r.refetchCluster(ctx, namespacedName)
+	if err == nil && latest.Status.Size < latest.Spec.Size {
+		log.Info("Not all pods ready yet, requeuing for status update",
+			"readyPods", latest.Status.Size, "desiredSize", latest.Spec.Size)
+		return ctrl.Result{RequeueAfter: podReadyPollInterval}, nil
+	}
+
 	return ctrl.Result{}, nil
 }
 
@@ -615,11 +635,15 @@ func (r *AerospikeClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				predicate.AnnotationChangedPredicate{},
 			)),
 		).
-		// GenerationChangedPredicate on Owns() suppresses reconcile triggers from
-		// status-only updates on owned resources (e.g., StatefulSet ready replicas).
-		// The controller reads pod state directly via listClusterPods, not from
-		// StatefulSet status, so these events are noise.
-		Owns(&appsv1.StatefulSet{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		// For StatefulSets, trigger reconciliation on both spec changes (generation)
+		// and ReadyReplicas status changes so that Available/Ready conditions on the
+		// AerospikeCluster are updated as soon as pods transition to Ready.
+		// Service/ConfigMap/PDB still use GenerationChangedPredicate since their
+		// status changes are irrelevant to cluster readiness.
+		Owns(&appsv1.StatefulSet{}, builder.WithPredicates(predicate.Or(
+			predicate.GenerationChangedPredicate{},
+			statefulSetReadyReplicasPredicate{},
+		))).
 		Owns(&corev1.Service{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Owns(&corev1.ConfigMap{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Owns(&policyv1.PodDisruptionBudget{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
@@ -681,4 +705,25 @@ func (r *AerospikeClusterReconciler) mapTemplateToCluster(ctx context.Context, o
 		})
 	}
 	return requests
+}
+
+// statefulSetReadyReplicasPredicate fires a reconcile when a StatefulSet's
+// ReadyReplicas count changes. This is needed because GenerationChangedPredicate
+// only reacts to spec changes (generation increments) and ignores status-only
+// updates. Without this predicate, the AerospikeCluster's Available/Ready
+// conditions would not be updated when pods finish starting up.
+type statefulSetReadyReplicasPredicate struct {
+	predicate.Funcs
+}
+
+func (statefulSetReadyReplicasPredicate) Update(e event.UpdateEvent) bool {
+	oldSTS, ok := e.ObjectOld.(*appsv1.StatefulSet)
+	if !ok {
+		return false
+	}
+	newSTS, ok := e.ObjectNew.(*appsv1.StatefulSet)
+	if !ok {
+		return false
+	}
+	return oldSTS.Status.ReadyReplicas != newSTS.Status.ReadyReplicas
 }

@@ -7,9 +7,8 @@ metadata:
     app.kubernetes.io/profile: soft-rack
 spec:
   description: >-
-    로컬 PVC 바인딩과 소프트 파드 안티어피니티를 적용한 멀티 랙 클러스터입니다.
-    용량 여유가 있을 때 파드를 다른 노드에 분산 배치하지만, 동일한 쿠버네티스 노드에 여러 랙이 공존할 수 있습니다.
-    리소스가 제한된 환경에서도 스케줄링 유연성을 유지하면서 스테이징에 적합한 실제적인 랙 토폴로지를 제공합니다.
+    스테이징 환경 추천. 멀티 랙(3 랙 이상)으로 배포하며 로컬 PVC를 보장합니다.
+    단, 동일한 쿠버네티스 노드에 여러 랙(Aerospike 파드)이 함께 배포될 수 있어 노드 수준의 완전한 격리는 보장하지 않습니다.
 
   scheduling:
     podAntiAffinityLevel: preferred   # Soft anti-affinity for better spread

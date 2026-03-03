@@ -122,11 +122,13 @@ CLUSTER_MANAGER_NAMESPACE ?= aerospike-operator
 CLUSTER_MANAGER_DEPLOYMENT ?= aerospike-ce-kubernetes-operator-ui
 
 .PHONY: reload-cluster-manager
-reload-cluster-manager: ## Build backend and frontend images, load into kind cluster, and restart deployment
+NO_CACHE ?=
+BUILD_NO_CACHE_FLAG = $(if $(NO_CACHE),--no-cache,)
+reload-cluster-manager: ## Build backend and frontend images, load into kind cluster, and restart deployment (use NO_CACHE=1 to disable cache)
 	@echo ">>> [1/4] Building backend image: $(BACKEND_IMG)"
-	$(CONTAINER_TOOL) build -t $(BACKEND_IMG) aerospike-cluster-manager/backend/
+	$(CONTAINER_TOOL) build $(BUILD_NO_CACHE_FLAG) -t $(BACKEND_IMG) aerospike-cluster-manager/backend/
 	@echo ">>> [2/4] Building frontend image: $(FRONTEND_IMG)"
-	$(CONTAINER_TOOL) build -t $(FRONTEND_IMG) aerospike-cluster-manager/frontend/
+	$(CONTAINER_TOOL) build $(BUILD_NO_CACHE_FLAG) -t $(FRONTEND_IMG) aerospike-cluster-manager/frontend/
 	@echo ">>> [3/4] Loading images into Kind cluster '$(CLUSTER_MANAGER_KIND_CLUSTER)'"
 	$(CONTAINER_TOOL) save --format docker-archive -o /tmp/backend-image.tar $(BACKEND_IMG)
 	kind load image-archive /tmp/backend-image.tar --name $(CLUSTER_MANAGER_KIND_CLUSTER)

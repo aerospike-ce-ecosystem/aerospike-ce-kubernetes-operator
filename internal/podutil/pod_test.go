@@ -841,7 +841,7 @@ func TestBuildPodTemplateSpec_InitContainerUsesClusterImage(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "test-cluster"},
 		Spec: v1alpha1.AerospikeClusterSpec{
 			Size:  1,
-			Image: "aerospike:ce-7.2.0.6",
+			Image: "aerospike:ce-8.0.0.0",
 		},
 	}
 
@@ -851,8 +851,8 @@ func TestBuildPodTemplateSpec_InitContainerUsesClusterImage(t *testing.T) {
 		t.Fatal("expected at least 1 init container")
 	}
 	initC := pt.Spec.InitContainers[0]
-	if initC.Image != "aerospike:ce-7.2.0.6" {
-		t.Errorf("init container image = %q, want %q", initC.Image, "aerospike:ce-7.2.0.6")
+	if initC.Image != "aerospike:ce-8.0.0.0" {
+		t.Errorf("init container image = %q, want %q", initC.Image, "aerospike:ce-8.0.0.0")
 	}
 	if initC.Name != InitContainerName {
 		t.Errorf("init container name = %q, want %q", initC.Name, InitContainerName)

@@ -123,7 +123,7 @@ func TestDetermineRestartReason(t *testing.T) {
 	}{
 		{
 			name:         "image changed → ImageChanged",
-			podImage:     "aerospike:ce-7.2.0.6",
+			podImage:     "aerospike:ce-8.0.0.0",
 			desiredImage: "aerospike:ce-8.1.1.1",
 			expected:     ackov1alpha1.RestartReasonImageChanged,
 		},
@@ -173,7 +173,7 @@ func TestDetermineRestartReason(t *testing.T) {
 		},
 		{
 			name:               "image change takes priority over config change",
-			podImage:           "aerospike:ce-7.2.0.6",
+			podImage:           "aerospike:ce-8.0.0.0",
 			desiredImage:       "aerospike:ce-8.1.1.1",
 			podConfigHash:      "old",
 			desiredConfigHash:  "new",

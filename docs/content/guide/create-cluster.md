@@ -273,7 +273,7 @@ The validating webhook enforces Community Edition constraints:
 | TLS | Not allowed | `must not contain 'tls' section` |
 | Security | Not allowed (CE 8.x) | `must not contain 'security' section` |
 | Heartbeat mode | Must be `mesh` | `must be 'mesh' for CE` |
-| Image | Must be CE image | `Enterprise Edition image not allowed` |
+| Image | Must be CE image, CE 8+ only | `Enterprise Edition image not allowed`, `CE 7.x is no longer supported` |
 | Replication factor | must not exceed `spec.size` | `replication-factor N exceeds cluster size` |
 | Replication factor range | 1 to 4 | `must be between 1 and 4` |
 | Rack IDs | Must be unique | `duplicate rack ID` |

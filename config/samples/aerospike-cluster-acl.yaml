@@ -1,5 +1,5 @@
 # 3-node Aerospike CE cluster with ACL (Access Control) enabled.
-# Requires Aerospike CE 7.x+ which supports security stanza and RBAC.
+# Requires Aerospike CE 8+ which supports security stanza and RBAC.
 # The operator manages roles and users declaratively via the CR.
 #
 # Prerequisites:

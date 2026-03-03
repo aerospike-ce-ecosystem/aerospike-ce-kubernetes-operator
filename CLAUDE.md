@@ -89,8 +89,7 @@ Located in `config/samples/`:
 
 ## image registry
 - https://hub.docker.com/_/aerospike
-- `aerospike:ce-8.1.1.1`
-- `aerospike:ce-7.2.0.6`
+- `aerospike:ce-8.1.1.1`  (minimum supported: CE 8)
 
 
 ## create kind cluster

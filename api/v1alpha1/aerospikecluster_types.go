@@ -383,9 +383,13 @@ type AerospikeClusterStatus struct {
 	// +optional
 	Phase AerospikePhase `json:"phase,omitempty"`
 
-	// Size is the current cluster size.
+	// Size is the current number of ready pods.
 	// +optional
 	Size int32 `json:"size,omitempty"`
+
+	// Health is a human-readable summary of pod readiness in "ready/total" format (e.g. "1/3").
+	// +optional
+	Health string `json:"health,omitempty"`
 
 	// Conditions represent the latest observations of the cluster state.
 	// +listType=map
@@ -528,8 +532,8 @@ type AerospikePodStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:subresource:scale:specpath=.spec.size,statuspath=.status.size,selectorpath=.status.selector
 // +kubebuilder:resource:shortName=asc
-// +kubebuilder:printcolumn:name="Size",type=integer,JSONPath=`.spec.size`
-// +kubebuilder:printcolumn:name="Ready",type=integer,JSONPath=`.status.size`
+// +kubebuilder:printcolumn:name="RackSize",type=integer,JSONPath=`.spec.size`
+// +kubebuilder:printcolumn:name="Health",type=string,JSONPath=`.status.health`
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 // +kubebuilder:printcolumn:name="Available",type=string,JSONPath=`.status.conditions[?(@.type=='Available')].status`

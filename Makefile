@@ -12,7 +12,7 @@ endif
 # Be aware that the target commands are only tested with Docker which is
 # scaffolded by default. However, you might want to replace it to use other
 # tools. (i.e. podman)
-CONTAINER_TOOL ?= docker
+CONTAINER_TOOL ?= podman
 
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
@@ -113,6 +113,27 @@ lint-config: golangci-lint ## Verify golangci-lint linter configuration
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "unknown")
 LDFLAGS = -X github.com/ksr/aerospike-ce-kubernetes-operator/internal/version.Version=$(VERSION)
+
+# UI image settings
+UI_IMG ?= ghcr.io/kimsoungryoul/aerospike-cluster-manager:local
+UI_KIND_CLUSTER ?= kind
+UI_NAMESPACE ?= aerospike-operator
+UI_DEPLOYMENT ?= aerospike-ce-kubernetes-operator-ui
+UI_CONTAINER ?= aerospike-cluster-manager
+
+.PHONY: reload-ui-image
+reload-ui-image: ## Build UI image, load into kind-kind cluster, and restart deployment
+	@echo ">>> [1/3] Building UI image: $(UI_IMG)"
+	$(CONTAINER_TOOL) build -t $(UI_IMG) aerospike-cluster-manager/
+	@echo ">>> [2/3] Loading image into Kind cluster '$(UI_KIND_CLUSTER)'"
+	$(CONTAINER_TOOL) save --format docker-archive -o /tmp/ui-image.tar $(UI_IMG)
+	kind load image-archive /tmp/ui-image.tar --name $(UI_KIND_CLUSTER)
+	rm -f /tmp/ui-image.tar
+	@echo ">>> [3/3] Updating deployment $(UI_DEPLOYMENT)"
+	kubectl -n $(UI_NAMESPACE) set image deployment/$(UI_DEPLOYMENT) \
+		$(UI_CONTAINER)=$(UI_IMG)
+	kubectl -n $(UI_NAMESPACE) rollout status deployment/$(UI_DEPLOYMENT) --timeout=120s
+	@echo ">>> Done. UI reloaded successfully."
 
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.

@@ -64,7 +64,7 @@ func applyScheduling(scheduling *ackov1alpha1.TemplateScheduling, cluster *ackov
 	}
 
 	if cluster.Spec.PodSpec == nil {
-		cluster.Spec.PodSpec = &ackov1alpha1.AerospikeCEPodSpec{}
+		cluster.Spec.PodSpec = &ackov1alpha1.AerospikePodSpec{}
 	}
 	ps := cluster.Spec.PodSpec
 

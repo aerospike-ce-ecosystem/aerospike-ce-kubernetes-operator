@@ -104,7 +104,7 @@ func TestDefaultHostNetwork_SetsMultiPodPerHostFalse(t *testing.T) {
 		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
-			PodSpec: &AerospikeCEPodSpec{
+			PodSpec: &AerospikePodSpec{
 				HostNetwork: true,
 			},
 		},
@@ -129,7 +129,7 @@ func TestDefaultHostNetwork_SetsDNSPolicy(t *testing.T) {
 		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
-			PodSpec: &AerospikeCEPodSpec{
+			PodSpec: &AerospikePodSpec{
 				HostNetwork: true,
 			},
 		},
@@ -151,7 +151,7 @@ func TestDefaultHostNetwork_PreservesExplicitMultiPodPerHost(t *testing.T) {
 		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
-			PodSpec: &AerospikeCEPodSpec{
+			PodSpec: &AerospikePodSpec{
 				HostNetwork:     true,
 				MultiPodPerHost: boolPtr(true),
 			},
@@ -174,7 +174,7 @@ func TestDefaultHostNetwork_NoopWhenHostNetworkFalse(t *testing.T) {
 		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
-			PodSpec: &AerospikeCEPodSpec{
+			PodSpec: &AerospikePodSpec{
 				HostNetwork: false,
 			},
 		},
@@ -199,7 +199,7 @@ func TestDefaultHostNetwork_PreservesExplicitDNSPolicy(t *testing.T) {
 		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
-			PodSpec: &AerospikeCEPodSpec{
+			PodSpec: &AerospikePodSpec{
 				HostNetwork: true,
 				DNSPolicy:   corev1.DNSDefault,
 			},
@@ -223,7 +223,7 @@ func TestValidate_HostNetworkMultiPodPerHostWarning(t *testing.T) {
 		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
-			PodSpec: &AerospikeCEPodSpec{
+			PodSpec: &AerospikePodSpec{
 				HostNetwork:     true,
 				MultiPodPerHost: boolPtr(true),
 			},
@@ -247,7 +247,7 @@ func TestValidate_HostNetworkDNSPolicyWarning(t *testing.T) {
 		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
-			PodSpec: &AerospikeCEPodSpec{
+			PodSpec: &AerospikePodSpec{
 				HostNetwork: true,
 				DNSPolicy:   corev1.DNSDefault,
 			},
@@ -271,7 +271,7 @@ func TestValidate_NoWarningsForValidHostNetwork(t *testing.T) {
 		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
-			PodSpec: &AerospikeCEPodSpec{
+			PodSpec: &AerospikePodSpec{
 				HostNetwork:     true,
 				MultiPodPerHost: boolPtr(false),
 				DNSPolicy:       corev1.DNSClusterFirstWithHostNet,
@@ -3421,7 +3421,7 @@ func TestDefault_IsIdempotent(t *testing.T) {
 		Spec: AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
-			PodSpec: &AerospikeCEPodSpec{
+			PodSpec: &AerospikePodSpec{
 				HostNetwork: true,
 			},
 			Monitoring: &AerospikeMonitoringSpec{

@@ -70,7 +70,7 @@ func TestComputePodSpecHash_ChangesWithPodSpec(t *testing.T) {
 	cluster2 := &ackov1alpha1.AerospikeCluster{
 		Spec: ackov1alpha1.AerospikeClusterSpec{
 			Image: "aerospike:ce-8.1.1.1",
-			PodSpec: &ackov1alpha1.AerospikeCEPodSpec{
+			PodSpec: &ackov1alpha1.AerospikePodSpec{
 				HostNetwork: true,
 			},
 		},

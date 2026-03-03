@@ -113,7 +113,7 @@ func ApplyTemplate(resolvedTemplateSpec *ackov1alpha1.AerospikeClusterTemplateSp
 	// Apply resource defaults.
 	if resolvedTemplateSpec.Resources != nil {
 		if cluster.Spec.PodSpec == nil {
-			cluster.Spec.PodSpec = &ackov1alpha1.AerospikeCEPodSpec{}
+			cluster.Spec.PodSpec = &ackov1alpha1.AerospikePodSpec{}
 		}
 		if cluster.Spec.PodSpec.AerospikeContainerSpec == nil {
 			cluster.Spec.PodSpec.AerospikeContainerSpec = &ackov1alpha1.AerospikeContainerSpec{}

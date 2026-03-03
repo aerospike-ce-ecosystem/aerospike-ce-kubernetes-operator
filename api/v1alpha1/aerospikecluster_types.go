@@ -229,7 +229,7 @@ type AerospikeClusterSpec struct {
 
 	// PodSpec defines pod-level configuration (sidecars, resources, scheduling).
 	// +optional
-	PodSpec *AerospikeCEPodSpec `json:"podSpec,omitempty"`
+	PodSpec *AerospikePodSpec `json:"podSpec,omitempty"`
 
 	// AerospikeAccessControl defines ACL roles and users for CE 7.x+.
 	// +optional

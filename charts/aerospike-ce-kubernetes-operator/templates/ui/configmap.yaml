@@ -10,4 +10,5 @@ data:
   CORS_ORIGINS: {{ .Values.ui.env.corsOrigins | quote }}
   LOG_LEVEL: {{ .Values.ui.env.logLevel | quote }}
   K8S_MANAGEMENT_ENABLED: {{ .Values.ui.k8s.enabled | quote }}
+  BACKEND_URL: "http://localhost:{{ .Values.ui.service.backendPort }}"
 {{- end }}

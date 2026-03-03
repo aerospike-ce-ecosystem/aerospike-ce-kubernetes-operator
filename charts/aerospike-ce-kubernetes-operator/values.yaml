@@ -250,11 +250,20 @@ ui:
   # -- Number of UI replicas
   replicaCount: 1
 
-  # -- Container image settings for the Cluster Manager
+  # -- Container image settings for the frontend (Next.js)
   image:
-    # -- Container image repository
-    repository: ghcr.io/kimsoungryoul/aerospike-cluster-manager
+    # -- Frontend container image repository
+    repository: ghcr.io/kimsoungryoul/aerospike-cluster-manager-frontend
     # -- Container image tag. UI is versioned independently from the operator.
+    tag: "0.2.3"
+    # -- Image pull policy
+    pullPolicy: IfNotPresent
+
+  # -- Container image settings for the backend (FastAPI)
+  backendImage:
+    # -- Backend container image repository
+    repository: ghcr.io/kimsoungryoul/aerospike-cluster-manager-backend
+    # -- Container image tag (kept in sync with ui.image.tag)
     tag: "0.2.3"
     # -- Image pull policy
     pullPolicy: IfNotPresent
@@ -384,9 +393,36 @@ ui:
         - ALL
 
   # =============================================================================
-  # Probes
+  # Probes — Frontend (Next.js, port: frontend/3000)
   # =============================================================================
   livenessProbe:
+    httpGet:
+      path: /
+      port: frontend
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 5
+
+  readinessProbe:
+    httpGet:
+      path: /
+      port: frontend
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+
+  startupProbe:
+    httpGet:
+      path: /
+      port: frontend
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+
+  # =============================================================================
+  # Probes — Backend (FastAPI, port: backend/8000)
+  # =============================================================================
+  backendLivenessProbe:
     httpGet:
       path: /api/health
       port: backend
@@ -394,7 +430,7 @@ ui:
     periodSeconds: 20
     timeoutSeconds: 5
 
-  readinessProbe:
+  backendReadinessProbe:
     httpGet:
       path: /api/health
       port: backend
@@ -402,13 +438,22 @@ ui:
     periodSeconds: 10
     timeoutSeconds: 5
 
-  startupProbe:
+  backendStartupProbe:
     httpGet:
       path: /api/health
       port: backend
     periodSeconds: 5
     timeoutSeconds: 3
     failureThreshold: 30
+
+  # -- Resource requests and limits for the backend container
+  backendResources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
 
   # =============================================================================
   # Environment

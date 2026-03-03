@@ -115,31 +115,37 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "unk
 LDFLAGS = -X github.com/ksr/aerospike-ce-kubernetes-operator/internal/version.Version=$(VERSION)
 
 # Cluster Manager image settings
-BACKEND_IMG ?= ghcr.io/kimsoungryoul/aerospike-cluster-manager-backend:local
-FRONTEND_IMG ?= ghcr.io/kimsoungryoul/aerospike-cluster-manager-frontend:local
+BACKEND_IMG ?= ghcr.io/kimsoungryoul/aerospike-cluster-manager-backend
+FRONTEND_IMG ?= ghcr.io/kimsoungryoul/aerospike-cluster-manager-frontend
 CLUSTER_MANAGER_KIND_CLUSTER ?= kind
 CLUSTER_MANAGER_NAMESPACE ?= aerospike-operator
 CLUSTER_MANAGER_DEPLOYMENT ?= aerospike-ce-kubernetes-operator-ui
+CLUSTER_MANAGER_CONTAINER ?= aerospike-cluster-manager
+CLUSTER_MANAGER_BACKEND_CONTAINER ?= aerospike-cluster-manager-backend
 
 .PHONY: reload-cluster-manager
 NO_CACHE ?=
 BUILD_NO_CACHE_FLAG = $(if $(NO_CACHE),--no-cache,)
-reload-cluster-manager: ## Build backend and frontend images, load into kind cluster, and restart deployment (use NO_CACHE=1 to disable cache)
-	@echo ">>> [1/4] Building backend image: $(BACKEND_IMG)"
-	$(CONTAINER_TOOL) build $(BUILD_NO_CACHE_FLAG) -t $(BACKEND_IMG) aerospike-cluster-manager/backend/
-	@echo ">>> [2/4] Building frontend image: $(FRONTEND_IMG)"
-	$(CONTAINER_TOOL) build $(BUILD_NO_CACHE_FLAG) -t $(FRONTEND_IMG) aerospike-cluster-manager/frontend/
-	@echo ">>> [3/4] Loading images into Kind cluster '$(CLUSTER_MANAGER_KIND_CLUSTER)'"
-	$(CONTAINER_TOOL) save --format docker-archive -o /tmp/backend-image.tar $(BACKEND_IMG)
+reload-cluster-manager: ## Build backend and frontend images, load into kind cluster, and force-update deployment image (use NO_CACHE=1 to disable cache)
+	$(eval RELOAD_TAG := $(shell date +%s))
+	@echo ">>> [1/5] Building backend image: $(BACKEND_IMG):$(RELOAD_TAG)"
+	$(CONTAINER_TOOL) build $(BUILD_NO_CACHE_FLAG) -t $(BACKEND_IMG):$(RELOAD_TAG) aerospike-cluster-manager/backend/
+	@echo ">>> [2/5] Building frontend image: $(FRONTEND_IMG):$(RELOAD_TAG)"
+	$(CONTAINER_TOOL) build $(BUILD_NO_CACHE_FLAG) -t $(FRONTEND_IMG):$(RELOAD_TAG) aerospike-cluster-manager/frontend/
+	@echo ">>> [3/5] Loading images into Kind cluster '$(CLUSTER_MANAGER_KIND_CLUSTER)'"
+	$(CONTAINER_TOOL) save --format docker-archive -o /tmp/backend-image.tar $(BACKEND_IMG):$(RELOAD_TAG)
 	kind load image-archive /tmp/backend-image.tar --name $(CLUSTER_MANAGER_KIND_CLUSTER)
 	rm -f /tmp/backend-image.tar
-	$(CONTAINER_TOOL) save --format docker-archive -o /tmp/frontend-image.tar $(FRONTEND_IMG)
+	$(CONTAINER_TOOL) save --format docker-archive -o /tmp/frontend-image.tar $(FRONTEND_IMG):$(RELOAD_TAG)
 	kind load image-archive /tmp/frontend-image.tar --name $(CLUSTER_MANAGER_KIND_CLUSTER)
 	rm -f /tmp/frontend-image.tar
-	@echo ">>> [4/4] Restarting deployment $(CLUSTER_MANAGER_DEPLOYMENT)"
-	kubectl -n $(CLUSTER_MANAGER_NAMESPACE) rollout restart deployment/$(CLUSTER_MANAGER_DEPLOYMENT)
+	@echo ">>> [4/5] Updating deployment images to tag :$(RELOAD_TAG)"
+	kubectl -n $(CLUSTER_MANAGER_NAMESPACE) set image deployment/$(CLUSTER_MANAGER_DEPLOYMENT) \
+		$(CLUSTER_MANAGER_CONTAINER)=$(FRONTEND_IMG):$(RELOAD_TAG) \
+		$(CLUSTER_MANAGER_BACKEND_CONTAINER)=$(BACKEND_IMG):$(RELOAD_TAG)
+	@echo ">>> [5/5] Waiting for rollout $(CLUSTER_MANAGER_DEPLOYMENT)"
 	kubectl -n $(CLUSTER_MANAGER_NAMESPACE) rollout status deployment/$(CLUSTER_MANAGER_DEPLOYMENT) --timeout=120s
-	@echo ">>> Done. Cluster Manager reloaded successfully."
+	@echo ">>> Done. Cluster Manager reloaded successfully (tag: $(RELOAD_TAG))"
 
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.

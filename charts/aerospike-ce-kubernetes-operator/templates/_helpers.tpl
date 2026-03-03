@@ -174,9 +174,16 @@ UI service account name.
 {{- end }}
 
 {{/*
-UI container image with tag.
+UI frontend container image with tag.
 UI is versioned independently from the operator; tag is set explicitly in values.yaml.
 */}}
 {{- define "aerospike-ce-kubernetes-operator.ui.image" -}}
-{{- printf "%s:%s" .Values.ui.image.repository .Values.ui.image.tag -}}
+{{- printf "%s:%s" .Values.ui.image.repository (.Values.ui.image.tag | toString) -}}
+{{- end }}
+
+{{/*
+UI backend container image with tag.
+*/}}
+{{- define "aerospike-ce-kubernetes-operator.ui.backendImage" -}}
+{{- printf "%s:%s" .Values.ui.backendImage.repository (.Values.ui.backendImage.tag | toString) -}}
 {{- end }}

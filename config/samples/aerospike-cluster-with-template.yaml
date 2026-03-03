@@ -15,6 +15,16 @@ spec:
   templateRef:
     name: soft-rack
 
+  # 3 racks spread across nodes with preferred anti-affinity.
+  # Multiple racks may share the same node (soft), but each rack gets its own local PVC.
+  rackConfig:
+    namespaces:
+      - data
+    racks:
+      - id: 1
+      - id: 2
+      - id: 3
+
   # Override only what differs from the template
   overrides:
     resources:
@@ -74,6 +84,41 @@ spec:
       - name: test
         storage-engine:
           type: memory
+
+---
+# Example: Cluster using the 'hard-rack' template — 1 k8s node : 1 rack, local PVC guaranteed.
+# The template enforces required anti-affinity so each rack lands on a distinct node.
+# local-path storage with WaitForFirstConsumer ensures the PVC is created on the scheduled node.
+apiVersion: acko.io/v1alpha1
+kind: AerospikeCluster
+metadata:
+  name: hard-rack-cluster
+  namespace: default
+spec:
+  size: 3
+  image: aerospike:ce-8.1.1.1
+
+  # Reference the hard-rack template (provides: required anti-affinity, local-path PVC, maxRacksPerNode=1)
+  templateRef:
+    name: hard-rack
+
+  # 3 racks, one per node (enforced by required anti-affinity from the template)
+  rackConfig:
+    namespaces:
+      - data
+    racks:
+      - id: 1
+      - id: 2
+      - id: 3
+
+  aerospikeConfig:
+    namespaces:
+      - name: data
+        replication-factor: 2
+        storage-engine:
+          type: device
+          file: /opt/aerospike/data/data.dat
+          filesize: 2147483648   # 2GiB
 
 ---
 # Example: Resync a cluster after the template was updated.

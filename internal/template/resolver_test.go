@@ -334,7 +334,7 @@ func TestApplyScheduling_Tolerations(t *testing.T) {
 func TestApplyScheduling_TolerationsNotOverriddenIfAlreadySet(t *testing.T) {
 	cluster := &ackov1alpha1.AerospikeCluster{
 		Spec: ackov1alpha1.AerospikeClusterSpec{
-			PodSpec: &ackov1alpha1.AerospikeCEPodSpec{
+			PodSpec: &ackov1alpha1.AerospikePodSpec{
 				Tolerations: []corev1.Toleration{{Key: "existing"}},
 			},
 		},

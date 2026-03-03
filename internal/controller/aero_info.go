@@ -107,12 +107,6 @@ func parseMigrateStat(stats, key string) int64 {
 	return 0
 }
 
-// Recluster sends the recluster command to the cluster.
-func Recluster(client *aero.Client) error {
-	_, err := AsinfoCommand(client, "recluster:")
-	return err
-}
-
 // ClusterSize returns the number of nodes in the Aerospike cluster as reported by asinfo.
 // Returns 0 and an error if the cluster is unreachable or the response cannot be parsed.
 func ClusterSize(client *aero.Client) (int, error) {

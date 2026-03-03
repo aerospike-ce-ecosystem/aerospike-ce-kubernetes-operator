@@ -332,7 +332,7 @@ func (r *AerospikeClusterReconciler) detectScaling(
 func computePodSpecHash(cluster *ackov1alpha1.AerospikeCluster, rack *ackov1alpha1.Rack) string {
 	input := struct {
 		Image           string                                `json:"image"`
-		PodSpec         *ackov1alpha1.AerospikeCEPodSpec      `json:"podSpec,omitempty"`
+		PodSpec         *ackov1alpha1.AerospikePodSpec        `json:"podSpec,omitempty"`
 		Monitoring      *ackov1alpha1.AerospikeMonitoringSpec `json:"monitoring,omitempty"`
 		RackID          int                                   `json:"rackID"`
 		PreStopSleepSec int                                   `json:"preStopSleepSec"`

@@ -175,7 +175,7 @@ func BuildPodTemplateSpec(
 }
 
 // applyPodSpecSettings applies cluster-level pod spec settings.
-func applyPodSpecSettings(podSpec *corev1.PodSpec, spec *v1alpha1.AerospikeCEPodSpec) {
+func applyPodSpecSettings(podSpec *corev1.PodSpec, spec *v1alpha1.AerospikePodSpec) {
 	if spec.Affinity != nil {
 		podSpec.Affinity = spec.Affinity
 	}

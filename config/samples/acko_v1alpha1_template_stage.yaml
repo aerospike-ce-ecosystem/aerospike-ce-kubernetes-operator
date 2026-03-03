@@ -15,7 +15,8 @@ spec:
         effect: "NoSchedule"
 
   storage:
-    storageClassName: standard
+    storageClassName: local-path     # Local storage: PVC is bound to the node where the pod is scheduled
+    localPVRequired: true            # Enforce WaitForFirstConsumer binding mode
     resources:
       requests:
         storage: 10Gi

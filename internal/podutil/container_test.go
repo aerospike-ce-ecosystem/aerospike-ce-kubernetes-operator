@@ -553,7 +553,7 @@ func TestBuildAerospikeContainer_HasPreStopHook(t *testing.T) {
 func TestBuildAerospikeContainer_PreStopHookWithCustomResources(t *testing.T) {
 	// Verify that setting custom resources does not affect the PreStop hook
 	cluster := newTestCluster()
-	cluster.Spec.PodSpec = &v1alpha1.AerospikeCEPodSpec{
+	cluster.Spec.PodSpec = &v1alpha1.AerospikePodSpec{
 		AerospikeContainerSpec: &v1alpha1.AerospikeContainerSpec{
 			Resources: &corev1.ResourceRequirements{
 				Requests: corev1.ResourceList{

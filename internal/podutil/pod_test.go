@@ -38,7 +38,7 @@ func TestShouldInjectAntiAffinity_MultiPodPerHostNil(t *testing.T) {
 		Spec: v1alpha1.AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
-			PodSpec: &v1alpha1.AerospikeCEPodSpec{
+			PodSpec: &v1alpha1.AerospikePodSpec{
 				MultiPodPerHost: nil, // nil = not set
 			},
 		},
@@ -53,7 +53,7 @@ func TestShouldInjectAntiAffinity_MultiPodPerHostFalse(t *testing.T) {
 		Spec: v1alpha1.AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
-			PodSpec: &v1alpha1.AerospikeCEPodSpec{
+			PodSpec: &v1alpha1.AerospikePodSpec{
 				MultiPodPerHost: boolPtr(false),
 			},
 		},
@@ -68,7 +68,7 @@ func TestShouldInjectAntiAffinity_MultiPodPerHostTrue(t *testing.T) {
 		Spec: v1alpha1.AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
-			PodSpec: &v1alpha1.AerospikeCEPodSpec{
+			PodSpec: &v1alpha1.AerospikePodSpec{
 				MultiPodPerHost: boolPtr(true),
 			},
 		},
@@ -499,7 +499,7 @@ func TestBuildPodTemplateSpec_AntiAffinityInjectedWhenMultiPodPerHostFalse(t *te
 		Spec: v1alpha1.AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
-			PodSpec: &v1alpha1.AerospikeCEPodSpec{
+			PodSpec: &v1alpha1.AerospikePodSpec{
 				MultiPodPerHost: boolPtr(false),
 			},
 		},
@@ -526,7 +526,7 @@ func TestBuildPodTemplateSpec_NoAntiAffinityWhenMultiPodPerHostTrue(t *testing.T
 		Spec: v1alpha1.AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
-			PodSpec: &v1alpha1.AerospikeCEPodSpec{
+			PodSpec: &v1alpha1.AerospikePodSpec{
 				MultiPodPerHost: boolPtr(true),
 			},
 		},
@@ -778,7 +778,7 @@ func TestBuildPodTemplateSpec_CustomTerminationGracePeriod(t *testing.T) {
 		Spec: v1alpha1.AerospikeClusterSpec{
 			Size:  3,
 			Image: "aerospike:ce-8.1.1.1",
-			PodSpec: &v1alpha1.AerospikeCEPodSpec{
+			PodSpec: &v1alpha1.AerospikePodSpec{
 				TerminationGracePeriodSeconds: &customGrace,
 			},
 		},

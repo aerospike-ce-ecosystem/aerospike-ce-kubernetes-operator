@@ -161,13 +161,13 @@ func TestIsReadinessGateEnabled(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		podSpec *ackov1alpha1.AerospikeCEPodSpec
+		podSpec *ackov1alpha1.AerospikePodSpec
 		want    bool
 	}{
 		{"nil podSpec", nil, false},
-		{"nil ReadinessGateEnabled", &ackov1alpha1.AerospikeCEPodSpec{}, false},
-		{"ReadinessGateEnabled=false", &ackov1alpha1.AerospikeCEPodSpec{ReadinessGateEnabled: &falseVal}, false},
-		{"ReadinessGateEnabled=true", &ackov1alpha1.AerospikeCEPodSpec{ReadinessGateEnabled: &trueVal}, true},
+		{"nil ReadinessGateEnabled", &ackov1alpha1.AerospikePodSpec{}, false},
+		{"ReadinessGateEnabled=false", &ackov1alpha1.AerospikePodSpec{ReadinessGateEnabled: &falseVal}, false},
+		{"ReadinessGateEnabled=true", &ackov1alpha1.AerospikePodSpec{ReadinessGateEnabled: &trueVal}, true},
 	}
 
 	for _, tt := range tests {
@@ -189,7 +189,7 @@ func TestIsPodReadinessGateSatisfied(t *testing.T) {
 
 	clusterEnabled := &ackov1alpha1.AerospikeCluster{
 		Spec: ackov1alpha1.AerospikeClusterSpec{
-			PodSpec: &ackov1alpha1.AerospikeCEPodSpec{ReadinessGateEnabled: &trueVal},
+			PodSpec: &ackov1alpha1.AerospikePodSpec{ReadinessGateEnabled: &trueVal},
 		},
 	}
 	clusterDisabled := &ackov1alpha1.AerospikeCluster{}
@@ -255,7 +255,7 @@ func TestAnyPodGateUnsatisfied(t *testing.T) {
 	trueVal := true
 	clusterEnabled := &ackov1alpha1.AerospikeCluster{
 		Spec: ackov1alpha1.AerospikeClusterSpec{
-			PodSpec: &ackov1alpha1.AerospikeCEPodSpec{ReadinessGateEnabled: &trueVal},
+			PodSpec: &ackov1alpha1.AerospikePodSpec{ReadinessGateEnabled: &trueVal},
 		},
 	}
 

@@ -21,8 +21,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-// AerospikeCEPodSpec defines pod-level customization for Aerospike pods.
-type AerospikeCEPodSpec struct {
+// AerospikePodSpec defines pod-level customization for Aerospike pods.
+type AerospikePodSpec struct {
 	// AerospikeContainerSpec customizes the main Aerospike container.
 	// +optional
 	AerospikeContainerSpec *AerospikeContainerSpec `json:"aerospikeContainer,omitempty"`

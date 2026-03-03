@@ -6,7 +6,10 @@ metadata:
   labels:
     app.kubernetes.io/profile: hard-rack
 spec:
-  # Hard-rack template: standard Aerospike image and cluster size for production
+  description: >-
+    프로덕션 환경 추천. 쿠버네티스 노드당 1개의 랙을 보장(required 안티어피니티)하고 로컬 PVC를 보장합니다.
+    최소 3개 이상의 멀티 랙 구성을 권장하며, 완전한 데이터 로컬리티와 장애 도메인 격리를 제공합니다.
+
   image: aerospike:ce-8.1.1.1   # Default image; clusters can override with spec.image
   size: 6                         # Default cluster size; clusters can override with spec.size
 

@@ -6,7 +6,10 @@ metadata:
   labels:
     app.kubernetes.io/profile: soft-rack
 spec:
-  # Soft-rack template: moderate resources, preferred anti-affinity
+  description: >-
+    스테이징 환경 추천. 멀티 랙(3 랙 이상)으로 배포하며 로컬 PVC를 보장합니다.
+    단, 동일한 쿠버네티스 노드에 여러 랙(Aerospike 파드)이 함께 배포될 수 있어 노드 수준의 완전한 격리는 보장하지 않습니다.
+
   scheduling:
     podAntiAffinityLevel: preferred   # Soft anti-affinity for better spread
     tolerations:

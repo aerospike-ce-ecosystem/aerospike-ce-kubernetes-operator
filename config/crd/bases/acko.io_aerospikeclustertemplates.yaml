@@ -27,6 +27,10 @@ spec:
       name: StorageClass
       priority: 1
       type: string
+    - jsonPath: .spec.description
+      name: Description
+      priority: 1
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -149,6 +153,12 @@ spec:
                     - configuredIP
                     type: string
                 type: object
+              description:
+                description: |-
+                  Description은 이 템플릿의 용도와 권장 환경을 설명합니다.
+                  예: "개발 환경용 단일 노드 클러스터" 또는 "프로덕션 멀티 랙 클러스터"
+                maxLength: 500
+                type: string
               image:
                 description: |-
                   Image is the default Aerospike CE container image for clusters using this template.

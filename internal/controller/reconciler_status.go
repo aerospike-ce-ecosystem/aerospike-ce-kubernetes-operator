@@ -57,6 +57,7 @@ func (r *AerospikeClusterReconciler) updateStatusAndPhase(
 	prevPhase := latest.Status.Phase
 	prevPhaseReason := latest.Status.PhaseReason
 	prevSize := latest.Status.Size
+	prevHealth := latest.Status.Health
 	prevGeneration := latest.Status.ObservedGeneration
 	prevConditions := conditionsSnapshot(latest.Status.Conditions)
 
@@ -75,6 +76,7 @@ func (r *AerospikeClusterReconciler) updateStatusAndPhase(
 	if prevPhase == phase &&
 		prevPhaseReason == phaseReason &&
 		prevSize == readyCount &&
+		prevHealth == latest.Status.Health &&
 		prevGeneration == latest.Generation &&
 		!conditionsChanged(prevConditions, latest.Status.Conditions) {
 		log.V(1).Info("Status unchanged, skipping update",
@@ -259,6 +261,7 @@ func (r *AerospikeClusterReconciler) populateStatus(
 
 	cluster.Status.Pods = podStatuses
 	cluster.Status.Size = readyCount
+	cluster.Status.Health = fmt.Sprintf("%d/%d", readyCount, cluster.Spec.Size)
 	cluster.Status.ObservedGeneration = cluster.Generation
 	cluster.Status.AerospikeConfig = cluster.Spec.AerospikeConfig
 

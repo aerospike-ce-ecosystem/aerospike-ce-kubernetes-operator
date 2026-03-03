@@ -138,8 +138,8 @@ kubectl -n aerospike get pods
 Expected output:
 
 ```
-NAME                 SIZE   PHASE       AGE
-aerospike-ce-basic   1      Completed   60s
+NAME                 RACKSIZE   HEALTH   PHASE       AGE
+aerospike-ce-basic   1          1/1      Completed   60s
 ```
 
 ## Step 6: Connect to Aerospike

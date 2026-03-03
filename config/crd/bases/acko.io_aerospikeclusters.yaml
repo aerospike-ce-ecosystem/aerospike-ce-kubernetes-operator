@@ -18,11 +18,11 @@ spec:
   versions:
   - additionalPrinterColumns:
     - jsonPath: .spec.size
-      name: Size
+      name: RackSize
       type: integer
-    - jsonPath: .status.size
-      name: Ready
-      type: integer
+    - jsonPath: .status.health
+      name: Health
+      type: string
     - jsonPath: .status.phase
       name: Phase
       type: string
@@ -17219,6 +17219,10 @@ spec:
                   excessive retries on persistently failing clusters.
                 format: int32
                 type: integer
+              health:
+                description: Health is a human-readable summary of pod readiness in
+                  "ready/total" format (e.g. "1/3").
+                type: string
               lastReconcileError:
                 description: |-
                   LastReconcileError is the error message from the most recent failed reconciliation.
@@ -17410,7 +17414,7 @@ spec:
                 description: Selector is the label selector for HPA compatibility.
                 type: string
               size:
-                description: Size is the current cluster size.
+                description: Size is the current number of ready pods.
                 format: int32
                 type: integer
               templateSnapshot:

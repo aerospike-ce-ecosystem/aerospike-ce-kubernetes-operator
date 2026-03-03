@@ -26,7 +26,7 @@ import (
 
 const (
 	testImageCE8     = "aerospike:ce-8.1.1.1"
-	testImageCE7     = "aerospike:ce-7.2.0.6"
+	testImageCE8Old  = "aerospike:ce-8.0.0.0"
 	testTopologyZone = "zone"
 	testMutatedValue = "mutated"
 )
@@ -52,9 +52,9 @@ func TestApplyImage_AppliedWhenClusterImageEmpty(t *testing.T) {
 
 func TestApplyImage_NotOverriddenWhenClusterImageSet(t *testing.T) {
 	cluster := newCluster()
-	cluster.Spec.Image = testImageCE7
+	cluster.Spec.Image = testImageCE8Old
 	applyImage(testImageCE8, cluster)
-	if cluster.Spec.Image != testImageCE7 {
+	if cluster.Spec.Image != testImageCE8Old {
 		t.Errorf("expected cluster image to be preserved, got %q", cluster.Spec.Image)
 	}
 }

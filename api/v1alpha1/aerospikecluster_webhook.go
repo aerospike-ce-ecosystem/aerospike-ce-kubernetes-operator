@@ -36,6 +36,7 @@ var aerospikeclusterlog = logf.Log.WithName("aerospikecluster-resource")
 const (
 	maxCEClusterSize     = 8
 	maxCENamespaces      = 2
+	minCEMajorVersion    = 8
 	defaultProtoFdMax    = 15000
 	defaultHeartbeatMode = "mesh"
 
@@ -356,7 +357,7 @@ func (v *AerospikeClusterValidator) validateAerospikeConfig(config map[string]an
 		}
 	}
 
-	// The security stanza is allowed in aerospikeConfig (CE 7.x+ supports
+	// The security stanza is allowed in aerospikeConfig (CE 8+ supports
 	// enable-security and default-password-file), but enterprise-only sub-keys
 	// must be rejected. ACL is managed via the Aerospike client API when
 	// aerospikeAccessControl is configured; the security section is intentionally
@@ -385,7 +386,7 @@ func (v *AerospikeClusterValidator) validateAerospikeConfig(config map[string]an
 }
 
 // enterpriseOnlySecurityKeys lists security sub-keys that are Enterprise-only.
-// CE 7.x+ supports: enable-security, default-password-file.
+// CE 8+ supports: enable-security, default-password-file.
 // Enterprise-only: tls, ldap, log, syslog.
 var enterpriseOnlySecurityKeys = map[string]string{
 	"tls":    "TLS within the security stanza is Enterprise-only",
@@ -582,11 +583,40 @@ func (v *AerospikeClusterValidator) validateSizeAndImage(cluster *AerospikeClust
 			parts := strings.SplitN(cluster.Spec.Image, ":", 2)
 			if parts[1] == "latest" {
 				imageWarnings = append(imageWarnings, "spec.image uses 'latest' tag; use an explicit version tag for reproducible deployments")
+			} else {
+				// Enforce minimum CE 8 version.
+				if major, err := parseMajorVersion(cluster.Spec.Image); err == nil && major < minCEMajorVersion {
+					imageErrors = append(imageErrors, fmt.Sprintf(
+						"spec.image %q requires Aerospike CE %d or later (got major version %d); CE 7.x is no longer supported",
+						cluster.Spec.Image, minCEMajorVersion, major))
+				}
 			}
 		}
 	}
 
 	return sizeErrors, imageErrors, imageWarnings
+}
+
+// parseMajorVersion extracts the major version number from a container image tag
+// such as "aerospike:ce-8.1.1.1" or "aerospike:8.1.0". Returns an error if the
+// version cannot be determined.
+func parseMajorVersion(image string) (int, error) {
+	parts := strings.SplitN(image, ":", 2)
+	if len(parts) != 2 {
+		return 0, fmt.Errorf("image %q has no tag", image)
+	}
+	tag := parts[1]
+	for _, prefix := range []string{"ce-", "ee-", "ent-"} {
+		if after, found := strings.CutPrefix(tag, prefix); found {
+			tag = after
+			break
+		}
+	}
+	before, _, ok := strings.Cut(tag, ".")
+	if !ok {
+		return 0, fmt.Errorf("tag %q does not contain a version", tag)
+	}
+	return strconv.Atoi(before)
 }
 
 // isEnterpriseTag returns true if the image tag indicates an Enterprise Edition image

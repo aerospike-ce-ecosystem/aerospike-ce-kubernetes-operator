@@ -3835,3 +3835,47 @@ func TestValidate_RackConfig_RollingUpdateBatchSize_ValidPercentage(t *testing.T
 		t.Errorf("expected no error for valid percentage RollingUpdateBatchSize, got: %v", err)
 	}
 }
+
+func TestValidate_CE7ImageRejected(t *testing.T) {
+	v := &AerospikeClusterValidator{}
+
+	tests := []struct {
+		name  string
+		image string
+	}{
+		{"ce-7 tag", "aerospike:ce-7.2.0.6"},
+		{"ce-7.0 tag", "aerospike:ce-7.0.0.0"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cluster := &AerospikeCluster{
+				Spec: AerospikeClusterSpec{
+					Size:  1,
+					Image: tc.image,
+				},
+			}
+			_, err := v.validate(cluster)
+			if err == nil {
+				t.Fatalf("expected error for CE 7 image %q", tc.image)
+			}
+			if !strings.Contains(err.Error(), "CE 7.x is no longer supported") {
+				t.Errorf("expected CE 7 rejection message, got: %v", err)
+			}
+		})
+	}
+}
+
+func TestValidate_CE8ImageAccepted(t *testing.T) {
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
+			Size:  1,
+			Image: "aerospike:ce-8.1.1.1",
+		},
+	}
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("expected no error for CE 8 image, got: %v", err)
+	}
+}

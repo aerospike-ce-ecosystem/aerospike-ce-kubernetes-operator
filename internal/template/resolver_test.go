@@ -575,7 +575,7 @@ func TestMergeTemplateSpec_TopologySpreadConstraintsIsolatedFromOverride(t *test
 // --- MergeTemplateSpec: Image ---
 
 func TestMergeTemplateSpec_ImageOverrideTakesPrecedence(t *testing.T) {
-	base := &ackov1alpha1.AerospikeClusterTemplateSpec{Image: testImageCE7}
+	base := &ackov1alpha1.AerospikeClusterTemplateSpec{Image: testImageCE8Old}
 	override := &ackov1alpha1.AerospikeClusterTemplateSpec{Image: testImageCE8}
 	result := MergeTemplateSpec(base, override)
 	if result.Image != testImageCE8 {
@@ -716,7 +716,7 @@ func TestApplyTemplate_ClusterValuesTakePrecedenceOverTemplate(t *testing.T) {
 		},
 	}
 	cluster := newCluster()
-	cluster.Spec.Image = testImageCE7
+	cluster.Spec.Image = testImageCE8Old
 	cluster.Spec.Size = 1
 	cluster.Spec.Monitoring = &ackov1alpha1.AerospikeMonitoringSpec{Port: 9200}
 	cluster.Spec.AerospikeNetworkPolicy = &ackov1alpha1.AerospikeNetworkPolicy{
@@ -725,7 +725,7 @@ func TestApplyTemplate_ClusterValuesTakePrecedenceOverTemplate(t *testing.T) {
 
 	ApplyTemplate(tmplSpec, cluster)
 
-	if cluster.Spec.Image != testImageCE7 {
+	if cluster.Spec.Image != testImageCE8Old {
 		t.Errorf("expected cluster image to be preserved, got %q", cluster.Spec.Image)
 	}
 	if cluster.Spec.Size != 1 {

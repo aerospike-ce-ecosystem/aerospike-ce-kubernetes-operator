@@ -175,13 +175,8 @@ UI service account name.
 
 {{/*
 UI container image with tag.
-When ui.image.tag is empty or "latest", defaults to Chart.appVersion.
+UI is versioned independently from the operator; tag is set explicitly in values.yaml.
 */}}
 {{- define "aerospike-ce-kubernetes-operator.ui.image" -}}
-{{- $tag := .Values.ui.image.tag -}}
-{{- if or (not $tag) (eq $tag "latest") -}}
-{{- printf "%s:%s" .Values.ui.image.repository .Chart.AppVersion -}}
-{{- else -}}
-{{- printf "%s:%s" .Values.ui.image.repository $tag -}}
-{{- end -}}
+{{- printf "%s:%s" .Values.ui.image.repository .Values.ui.image.tag -}}
 {{- end }}

@@ -254,9 +254,8 @@ ui:
   image:
     # -- Container image repository
     repository: ghcr.io/kimsoungryoul/aerospike-cluster-manager
-    # -- Container image tag; defaults to Chart.appVersion when empty or "latest".
-    # Set explicitly to pin a specific UI version (e.g., "0.2.0").
-    tag: ""
+    # -- Container image tag. UI is versioned independently from the operator.
+    tag: "0.2.3"
     # -- Image pull policy
     pullPolicy: IfNotPresent
 

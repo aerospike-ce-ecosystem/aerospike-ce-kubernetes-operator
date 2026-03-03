@@ -52,14 +52,9 @@ spec:
             - name: frontend
               containerPort: {{ .Values.ui.service.frontendPort }}
               protocol: TCP
-            - name: backend
-              containerPort: {{ .Values.ui.service.backendPort }}
-              protocol: TCP
           envFrom:
             - configMapRef:
                 name: {{ include "aerospike-ce-kubernetes-operator.ui.fullname" . }}-config
-            - secretRef:
-                name: {{ .Values.ui.postgresql.existingSecret | default (printf "%s-db" (include "aerospike-ce-kubernetes-operator.ui.fullname" .)) }}
           {{- with .Values.ui.extraEnv }}
           env:
             {{- toYaml . | nindent 12 }}
@@ -81,6 +76,38 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           {{- with .Values.ui.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        - name: aerospike-cluster-manager-backend
+          image: {{ include "aerospike-ce-kubernetes-operator.ui.backendImage" . }}
+          imagePullPolicy: {{ .Values.ui.backendImage.pullPolicy }}
+          ports:
+            - name: backend
+              containerPort: {{ .Values.ui.service.backendPort }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "aerospike-ce-kubernetes-operator.ui.fullname" . }}-config
+            - secretRef:
+                name: {{ .Values.ui.postgresql.existingSecret | default (printf "%s-db" (include "aerospike-ce-kubernetes-operator.ui.fullname" .)) }}
+          {{- with .Values.ui.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.ui.backendLivenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.ui.backendReadinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.ui.backendStartupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.ui.backendResources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}

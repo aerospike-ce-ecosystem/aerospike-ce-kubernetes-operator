@@ -6,7 +6,11 @@ metadata:
   labels:
     app.kubernetes.io/profile: minimal
 spec:
-  # Minimal template: single-node cluster with minimal resources for fast iteration
+  description: >-
+    빠른 개발과 설정 검증을 위한 단일 노드 클러스터입니다.
+    스토리지 I/O 성능이나 네트워크 지연은 고려하지 않으며, 빠른 기동과 최소한의 리소스 소비를 우선합니다.
+    내구성보다 기능 동작이 중요한 로컬 또는 임시 개발 환경에 적합합니다.
+
   image: aerospike:ce-8.1.1.1   # Default image; clusters can override with spec.image
   size: 1                         # Single node; clusters can override with spec.size
 

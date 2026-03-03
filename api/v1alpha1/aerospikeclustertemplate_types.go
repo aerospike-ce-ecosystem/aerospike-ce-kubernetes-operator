@@ -141,6 +141,12 @@ type TemplateRackConfig struct {
 
 // AerospikeClusterTemplateSpec defines the reusable configuration profile.
 type AerospikeClusterTemplateSpec struct {
+	// Description은 이 템플릿의 용도와 권장 환경을 설명합니다.
+	// 예: "개발 환경용 단일 노드 클러스터" 또는 "프로덕션 멀티 랙 클러스터"
+	// +kubebuilder:validation:MaxLength=500
+	// +optional
+	Description string `json:"description,omitempty"`
+
 	// AerospikeConfig defines Aerospike configuration defaults.
 	// +optional
 	AerospikeConfig *TemplateAerospikeConfig `json:"aerospikeConfig,omitempty"`
@@ -200,6 +206,7 @@ type AerospikeClusterTemplateStatus struct {
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 // +kubebuilder:printcolumn:name="AntiAffinity",type=string,JSONPath=`.spec.scheduling.podAntiAffinityLevel`
 // +kubebuilder:printcolumn:name="StorageClass",type=string,JSONPath=`.spec.storage.storageClassName`,priority=1
+// +kubebuilder:printcolumn:name="Description",type=string,JSONPath=`.spec.description`,priority=1
 
 // AerospikeClusterTemplate is a reusable configuration profile for AerospikeCluster.
 // Clusters reference a template via spec.templateRef and can override individual fields

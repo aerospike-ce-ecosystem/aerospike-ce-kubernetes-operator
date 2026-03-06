@@ -223,6 +223,12 @@ func (r *AerospikeClusterReconciler) reconcileServiceMonitor(
 		return fmt.Errorf("getting ServiceMonitor %s: %w", smName, err)
 	}
 
+	// Skip no-op updates to avoid unnecessary API writes and reconcile loops.
+	if !unstructuredResourceChanged(existing, smSpec, labels) {
+		log.V(1).Info("ServiceMonitor unchanged, skipping update", "name", smName)
+		return nil
+	}
+
 	// Update existing
 	existing.Object["spec"] = smSpec
 	existing.SetLabels(labels)
@@ -307,11 +313,29 @@ func (r *AerospikeClusterReconciler) reconcilePrometheusRule(
 		return fmt.Errorf("getting PrometheusRule %s: %w", prName, err)
 	}
 
+	// Skip no-op updates to avoid unnecessary API writes and reconcile loops.
+	if !unstructuredResourceChanged(existing, prSpec, labels) {
+		log.V(1).Info("PrometheusRule unchanged, skipping update", "name", prName)
+		return nil
+	}
+
 	// Update existing
 	existing.Object["spec"] = prSpec
 	existing.SetLabels(labels)
 	log.Info("Updating PrometheusRule", "name", prName)
 	return r.Update(ctx, existing)
+}
+
+func unstructuredResourceChanged(
+	existing *unstructured.Unstructured,
+	desiredSpec map[string]any,
+	desiredLabels map[string]string,
+) bool {
+	currentSpec, found, err := unstructured.NestedFieldCopy(existing.Object, "spec")
+	if err != nil || !found {
+		return true
+	}
+	return !reflect.DeepEqual(currentSpec, desiredSpec) || !maps.Equal(existing.GetLabels(), desiredLabels)
 }
 
 // defaultAlertRules returns the default Prometheus alert rules for an Aerospike cluster.

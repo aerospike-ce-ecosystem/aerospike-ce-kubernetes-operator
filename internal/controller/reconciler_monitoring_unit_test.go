@@ -3,6 +3,8 @@ package controller
 import (
 	"strings"
 	"testing"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 func TestToStringMap(t *testing.T) {
@@ -147,4 +149,86 @@ func TestDefaultAlertRules_LabelSeverity(t *testing.T) {
 	if warningCount != 4 {
 		t.Errorf("expected 4 warning alerts, got %d", warningCount)
 	}
+}
+
+func TestUnstructuredResourceChanged(t *testing.T) {
+	t.Run("returns false when spec and labels are unchanged", func(t *testing.T) {
+		existing := &unstructured.Unstructured{
+			Object: map[string]any{
+				"spec": map[string]any{
+					"groups": []any{map[string]any{"name": "test.rules"}},
+				},
+			},
+		}
+		existing.SetLabels(map[string]string{"app": "aerospike", "instance": "test"})
+
+		changed := unstructuredResourceChanged(
+			existing,
+			map[string]any{
+				"groups": []any{map[string]any{"name": "test.rules"}},
+			},
+			map[string]string{"app": "aerospike", "instance": "test"},
+		)
+		if changed {
+			t.Fatal("unstructuredResourceChanged() = true, want false")
+		}
+	})
+
+	t.Run("returns true when labels change", func(t *testing.T) {
+		existing := &unstructured.Unstructured{
+			Object: map[string]any{
+				"spec": map[string]any{
+					"selector": map[string]any{"matchLabels": map[string]any{"app": "aerospike"}},
+				},
+			},
+		}
+		existing.SetLabels(map[string]string{"app": "aerospike", "instance": "test"})
+
+		changed := unstructuredResourceChanged(
+			existing,
+			map[string]any{
+				"selector": map[string]any{"matchLabels": map[string]any{"app": "aerospike"}},
+			},
+			map[string]string{"app": "aerospike", "instance": "test2"},
+		)
+		if !changed {
+			t.Fatal("unstructuredResourceChanged() = false, want true when labels differ")
+		}
+	})
+
+	t.Run("returns true when spec changes", func(t *testing.T) {
+		existing := &unstructured.Unstructured{
+			Object: map[string]any{
+				"spec": map[string]any{
+					"groups": []any{map[string]any{"name": "test.rules"}},
+				},
+			},
+		}
+		existing.SetLabels(map[string]string{"app": "aerospike"})
+
+		changed := unstructuredResourceChanged(
+			existing,
+			map[string]any{
+				"groups": []any{map[string]any{"name": "test-v2.rules"}},
+			},
+			map[string]string{"app": "aerospike"},
+		)
+		if !changed {
+			t.Fatal("unstructuredResourceChanged() = false, want true when spec differs")
+		}
+	})
+
+	t.Run("returns true when existing spec is missing", func(t *testing.T) {
+		existing := &unstructured.Unstructured{Object: map[string]any{}}
+		existing.SetLabels(map[string]string{"app": "aerospike"})
+
+		changed := unstructuredResourceChanged(
+			existing,
+			map[string]any{"groups": []any{}},
+			map[string]string{"app": "aerospike"},
+		)
+		if !changed {
+			t.Fatal("unstructuredResourceChanged() = false, want true when existing spec is missing")
+		}
+	})
 }

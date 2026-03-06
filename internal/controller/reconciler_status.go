@@ -3,6 +3,8 @@ package controller
 import (
 	"context"
 	"fmt"
+	"maps"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -60,6 +62,8 @@ func (r *AerospikeClusterReconciler) updateStatusAndPhase(
 	prevSize := latest.Status.Size
 	prevHealth := latest.Status.Health
 	prevGeneration := latest.Status.ObservedGeneration
+	prevSelector := latest.Status.Selector
+	prevPods := maps.Clone(latest.Status.Pods)
 	prevConditions := conditionsSnapshot(latest.Status.Conditions)
 
 	readyCount, err := r.populateStatus(ctx, latest)
@@ -74,12 +78,10 @@ func (r *AerospikeClusterReconciler) updateStatusAndPhase(
 
 	// Skip the update if nothing meaningful changed to avoid
 	// triggering a reconciliation feedback loop via the watch.
-	if prevPhase == phase &&
-		prevPhaseReason == phaseReason &&
-		prevSize == readyCount &&
-		prevHealth == latest.Status.Health &&
-		prevGeneration == latest.Generation &&
-		!conditionsChanged(prevConditions, latest.Status.Conditions) {
+	if statusUnchanged(
+		prevPhase, prevPhaseReason, prevSize, prevHealth, prevGeneration, prevSelector, prevPods, prevConditions,
+		latest, readyCount, phase, phaseReason,
+	) {
 		log.V(1).Info("Status unchanged, skipping update",
 			"readyPods", readyCount, "desiredSize", latest.Spec.Size, "phase", phase)
 		return nil
@@ -399,6 +401,30 @@ func conditionsChanged(prev map[string]metav1.ConditionStatus, cur []metav1.Cond
 		}
 	}
 	return false
+}
+
+func statusUnchanged(
+	prevPhase ackov1alpha1.AerospikePhase,
+	prevPhaseReason string,
+	prevSize int32,
+	prevHealth string,
+	prevGeneration int64,
+	prevSelector string,
+	prevPods map[string]ackov1alpha1.AerospikePodStatus,
+	prevConditions map[string]metav1.ConditionStatus,
+	latest *ackov1alpha1.AerospikeCluster,
+	readyCount int32,
+	phase ackov1alpha1.AerospikePhase,
+	phaseReason string,
+) bool {
+	return prevPhase == phase &&
+		prevPhaseReason == phaseReason &&
+		prevSize == readyCount &&
+		prevHealth == latest.Status.Health &&
+		prevGeneration == latest.Generation &&
+		prevSelector == latest.Status.Selector &&
+		!conditionsChanged(prevConditions, latest.Status.Conditions) &&
+		reflect.DeepEqual(prevPods, latest.Status.Pods)
 }
 
 // aeroPodInfo holds per-node Aerospike information collected via asinfo commands.

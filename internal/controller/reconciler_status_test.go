@@ -580,6 +580,79 @@ func TestConditionsChanged(t *testing.T) {
 	}
 }
 
+func TestStatusUnchanged(t *testing.T) {
+	baseCluster := &ackov1alpha1.AerospikeCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Generation: 3,
+		},
+		Status: ackov1alpha1.AerospikeClusterStatus{
+			Health:   "1/1",
+			Selector: "app=aerospike,cluster=demo",
+			Pods: map[string]ackov1alpha1.AerospikePodStatus{
+				"demo-0": {
+					PodIP:             "10.0.0.10",
+					IsRunningAndReady: true,
+					AccessEndpoints:   []string{"10.0.0.10:3000"},
+				},
+			},
+			Conditions: []metav1.Condition{
+				{Type: ackov1alpha1.ConditionReady, Status: metav1.ConditionTrue},
+			},
+		},
+	}
+
+	basePrevPods := map[string]ackov1alpha1.AerospikePodStatus{
+		"demo-0": {
+			PodIP:             "10.0.0.10",
+			IsRunningAndReady: true,
+			AccessEndpoints:   []string{"10.0.0.10:3000"},
+		},
+	}
+	basePrevConditions := map[string]metav1.ConditionStatus{
+		ackov1alpha1.ConditionReady: metav1.ConditionTrue,
+	}
+
+	t.Run("unchanged status returns true", func(t *testing.T) {
+		if got := statusUnchanged(
+			ackov1alpha1.AerospikePhaseCompleted, "steady", 1, "1/1", 3, "app=aerospike,cluster=demo",
+			basePrevPods, basePrevConditions, baseCluster, 1,
+			ackov1alpha1.AerospikePhaseCompleted, "steady",
+		); !got {
+			t.Fatalf("statusUnchanged() = false, want true")
+		}
+	})
+
+	t.Run("pod status change returns false", func(t *testing.T) {
+		cluster := baseCluster.DeepCopy()
+		cluster.Status.Pods["demo-0"] = ackov1alpha1.AerospikePodStatus{
+			PodIP:             "10.0.0.20",
+			IsRunningAndReady: true,
+			AccessEndpoints:   []string{"10.0.0.20:3000"},
+		}
+
+		if got := statusUnchanged(
+			ackov1alpha1.AerospikePhaseCompleted, "steady", 1, "1/1", 3, "app=aerospike,cluster=demo",
+			basePrevPods, basePrevConditions, cluster, 1,
+			ackov1alpha1.AerospikePhaseCompleted, "steady",
+		); got {
+			t.Fatalf("statusUnchanged() = true, want false when pods changed")
+		}
+	})
+
+	t.Run("selector change returns false", func(t *testing.T) {
+		cluster := baseCluster.DeepCopy()
+		cluster.Status.Selector = "app=aerospike,cluster=demo,role=node"
+
+		if got := statusUnchanged(
+			ackov1alpha1.AerospikePhaseCompleted, "steady", 1, "1/1", 3, "app=aerospike,cluster=demo",
+			basePrevPods, basePrevConditions, cluster, 1,
+			ackov1alpha1.AerospikePhaseCompleted, "steady",
+		); got {
+			t.Fatalf("statusUnchanged() = true, want false when selector changed")
+		}
+	})
+}
+
 func TestUnstableSince(t *testing.T) {
 	now := metav1.Now()
 	earlier := metav1.NewTime(now.Add(-5 * time.Minute))

@@ -216,6 +216,35 @@ func TestSetCondition(t *testing.T) {
 		}
 	})
 
+	t.Run("existing condition with same status updates reason and message", func(t *testing.T) {
+		cluster := &ackov1alpha1.AerospikeCluster{}
+
+		setCondition(cluster, "Ready", false, "NotReady", "0/3 pods ready")
+		originalTime := cluster.Status.Conditions[0].LastTransitionTime
+
+		time.Sleep(time.Millisecond)
+
+		setCondition(cluster, "Ready", false, "Progressing", "1/3 pods ready")
+
+		if len(cluster.Status.Conditions) != 1 {
+			t.Fatalf("expected 1 condition, got %d", len(cluster.Status.Conditions))
+		}
+		cond := cluster.Status.Conditions[0]
+		if cond.Status != metav1.ConditionFalse {
+			t.Errorf("condition status = %q, want %q", cond.Status, metav1.ConditionFalse)
+		}
+		if cond.Reason != "Progressing" {
+			t.Errorf("condition reason = %q, want %q", cond.Reason, "Progressing")
+		}
+		if cond.Message != "1/3 pods ready" {
+			t.Errorf("condition message = %q, want %q", cond.Message, "1/3 pods ready")
+		}
+		if !cond.LastTransitionTime.Equal(&originalTime) {
+			t.Errorf("LastTransitionTime changed when status was unchanged: was %v, now %v",
+				originalTime, cond.LastTransitionTime)
+		}
+	})
+
 	t.Run("existing condition with changed status IS updated", func(t *testing.T) {
 		cluster := &ackov1alpha1.AerospikeCluster{}
 

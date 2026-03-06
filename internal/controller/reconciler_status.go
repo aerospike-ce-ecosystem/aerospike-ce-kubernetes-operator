@@ -326,7 +326,14 @@ func setCondition(cluster *ackov1alpha1.AerospikeCluster, condType string, statu
 
 	for i, existing := range cluster.Status.Conditions {
 		if existing.Type == condType {
-			if existing.Status != condStatus || existing.ObservedGeneration != cluster.Generation {
+			// Preserve transition time when status itself has not changed.
+			if existing.Status == condStatus {
+				newCond.LastTransitionTime = existing.LastTransitionTime
+			}
+			if existing.Status != condStatus ||
+				existing.ObservedGeneration != cluster.Generation ||
+				existing.Reason != reason ||
+				existing.Message != message {
 				cluster.Status.Conditions[i] = newCond
 			}
 			return

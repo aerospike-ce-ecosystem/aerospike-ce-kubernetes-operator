@@ -479,36 +479,58 @@ func TestConditionsSnapshot(t *testing.T) {
 	tests := []struct {
 		name string
 		in   []metav1.Condition
-		want map[string]metav1.ConditionStatus
+		want map[string]conditionSnapshot
 	}{
 		{
 			name: "nil conditions returns empty map",
 			in:   nil,
-			want: map[string]metav1.ConditionStatus{},
+			want: map[string]conditionSnapshot{},
 		},
 		{
 			name: "empty slice returns empty map",
 			in:   []metav1.Condition{},
-			want: map[string]metav1.ConditionStatus{},
+			want: map[string]conditionSnapshot{},
 		},
 		{
 			name: "single condition",
 			in: []metav1.Condition{
-				{Type: "Ready", Status: metav1.ConditionTrue},
+				{Type: "Ready", Status: metav1.ConditionTrue, ObservedGeneration: 7, Reason: "AllPodsReady", Message: "1/1 pods ready"},
 			},
-			want: map[string]metav1.ConditionStatus{"Ready": metav1.ConditionTrue},
+			want: map[string]conditionSnapshot{
+				"Ready": {
+					Status:             metav1.ConditionTrue,
+					ObservedGeneration: 7,
+					Reason:             "AllPodsReady",
+					Message:            "1/1 pods ready",
+				},
+			},
 		},
 		{
 			name: "multiple conditions",
 			in: []metav1.Condition{
-				{Type: "Ready", Status: metav1.ConditionTrue},
-				{Type: "ACLSynced", Status: metav1.ConditionFalse},
-				{Type: "MigrationComplete", Status: metav1.ConditionTrue},
+				{Type: "Ready", Status: metav1.ConditionTrue, ObservedGeneration: 10, Reason: "AllPodsReady", Message: "3/3 pods ready"},
+				{Type: "ACLSynced", Status: metav1.ConditionFalse, ObservedGeneration: 10, Reason: "ACLSyncPending", Message: "ACL sync skipped: no ready pods available"},
+				{Type: "MigrationComplete", Status: metav1.ConditionTrue, ObservedGeneration: 10, Reason: "MigrationComplete", Message: "No pending data migrations"},
 			},
-			want: map[string]metav1.ConditionStatus{
-				"Ready":             metav1.ConditionTrue,
-				"ACLSynced":         metav1.ConditionFalse,
-				"MigrationComplete": metav1.ConditionTrue,
+			want: map[string]conditionSnapshot{
+				"Ready": {
+					Status:             metav1.ConditionTrue,
+					ObservedGeneration: 10,
+					Reason:             "AllPodsReady",
+					Message:            "3/3 pods ready",
+				},
+				"ACLSynced": {
+					Status:             metav1.ConditionFalse,
+					ObservedGeneration: 10,
+					Reason:             "ACLSyncPending",
+					Message:            "ACL sync skipped: no ready pods available",
+				},
+				"MigrationComplete": {
+					Status:             metav1.ConditionTrue,
+					ObservedGeneration: 10,
+					Reason:             "MigrationComplete",
+					Message:            "No pending data migrations",
+				},
 			},
 		},
 	}
@@ -531,70 +553,162 @@ func TestConditionsSnapshot(t *testing.T) {
 func TestConditionsChanged(t *testing.T) {
 	tests := []struct {
 		name string
-		prev map[string]metav1.ConditionStatus
+		prev map[string]conditionSnapshot
 		cur  []metav1.Condition
 		want bool
 	}{
 		{
 			name: "both empty — no change",
-			prev: map[string]metav1.ConditionStatus{},
+			prev: map[string]conditionSnapshot{},
 			cur:  []metav1.Condition{},
 			want: false,
 		},
 		{
 			name: "identical single condition — no change",
-			prev: map[string]metav1.ConditionStatus{"Ready": metav1.ConditionTrue},
-			cur:  []metav1.Condition{{Type: "Ready", Status: metav1.ConditionTrue}},
+			prev: map[string]conditionSnapshot{
+				"Ready": {
+					Status:             metav1.ConditionTrue,
+					ObservedGeneration: 3,
+					Reason:             "AllPodsReady",
+					Message:            "1/1 pods ready",
+				},
+			},
+			cur:  []metav1.Condition{{Type: "Ready", Status: metav1.ConditionTrue, ObservedGeneration: 3, Reason: "AllPodsReady", Message: "1/1 pods ready"}},
 			want: false,
 		},
 		{
 			name: "status changed True→False",
-			prev: map[string]metav1.ConditionStatus{"Ready": metav1.ConditionTrue},
-			cur:  []metav1.Condition{{Type: "Ready", Status: metav1.ConditionFalse}},
+			prev: map[string]conditionSnapshot{
+				"Ready": {
+					Status:             metav1.ConditionTrue,
+					ObservedGeneration: 3,
+					Reason:             "AllPodsReady",
+					Message:            "1/1 pods ready",
+				},
+			},
+			cur:  []metav1.Condition{{Type: "Ready", Status: metav1.ConditionFalse, ObservedGeneration: 3, Reason: "NotReady", Message: "0/1 pods ready"}},
+			want: true,
+		},
+		{
+			name: "reason changed with same status",
+			prev: map[string]conditionSnapshot{
+				"Ready": {
+					Status:             metav1.ConditionFalse,
+					ObservedGeneration: 3,
+					Reason:             "NotReady",
+					Message:            "0/1 pods ready",
+				},
+			},
+			cur:  []metav1.Condition{{Type: "Ready", Status: metav1.ConditionFalse, ObservedGeneration: 3, Reason: "Progressing", Message: "1/1 pods ready"}},
+			want: true,
+		},
+		{
+			name: "message changed with same status",
+			prev: map[string]conditionSnapshot{
+				"Ready": {
+					Status:             metav1.ConditionFalse,
+					ObservedGeneration: 3,
+					Reason:             "Progressing",
+					Message:            "1/3 pods ready",
+				},
+			},
+			cur:  []metav1.Condition{{Type: "Ready", Status: metav1.ConditionFalse, ObservedGeneration: 3, Reason: "Progressing", Message: "2/3 pods ready"}},
+			want: true,
+		},
+		{
+			name: "observed generation changed with same status",
+			prev: map[string]conditionSnapshot{
+				"Ready": {
+					Status:             metav1.ConditionTrue,
+					ObservedGeneration: 2,
+					Reason:             "AllPodsReady",
+					Message:            "1/1 pods ready",
+				},
+			},
+			cur:  []metav1.Condition{{Type: "Ready", Status: metav1.ConditionTrue, ObservedGeneration: 3, Reason: "AllPodsReady", Message: "1/1 pods ready"}},
 			want: true,
 		},
 		{
 			name: "condition added",
-			prev: map[string]metav1.ConditionStatus{"Ready": metav1.ConditionTrue},
+			prev: map[string]conditionSnapshot{
+				"Ready": {
+					Status:             metav1.ConditionTrue,
+					ObservedGeneration: 3,
+					Reason:             "AllPodsReady",
+					Message:            "1/1 pods ready",
+				},
+			},
 			cur: []metav1.Condition{
-				{Type: "Ready", Status: metav1.ConditionTrue},
-				{Type: "ACLSynced", Status: metav1.ConditionTrue},
+				{Type: "Ready", Status: metav1.ConditionTrue, ObservedGeneration: 3, Reason: "AllPodsReady", Message: "1/1 pods ready"},
+				{Type: "ACLSynced", Status: metav1.ConditionTrue, ObservedGeneration: 3, Reason: "ACLSyncSucceeded", Message: "ACL roles and users are synchronized"},
 			},
 			want: true,
 		},
 		{
 			name: "condition removed",
-			prev: map[string]metav1.ConditionStatus{
-				"Ready":     metav1.ConditionTrue,
-				"ACLSynced": metav1.ConditionTrue,
+			prev: map[string]conditionSnapshot{
+				"Ready": {
+					Status:             metav1.ConditionTrue,
+					ObservedGeneration: 3,
+					Reason:             "AllPodsReady",
+					Message:            "1/1 pods ready",
+				},
+				"ACLSynced": {
+					Status:             metav1.ConditionTrue,
+					ObservedGeneration: 3,
+					Reason:             "ACLSyncSucceeded",
+					Message:            "ACL roles and users are synchronized",
+				},
 			},
-			cur:  []metav1.Condition{{Type: "Ready", Status: metav1.ConditionTrue}},
+			cur:  []metav1.Condition{{Type: "Ready", Status: metav1.ConditionTrue, ObservedGeneration: 3, Reason: "AllPodsReady", Message: "1/1 pods ready"}},
 			want: true,
 		},
 		{
 			name: "new condition type replaces old",
-			prev: map[string]metav1.ConditionStatus{"OldType": metav1.ConditionTrue},
-			cur:  []metav1.Condition{{Type: "NewType", Status: metav1.ConditionTrue}},
+			prev: map[string]conditionSnapshot{
+				"OldType": {
+					Status:             metav1.ConditionTrue,
+					ObservedGeneration: 3,
+					Reason:             "OldReason",
+					Message:            "Old message",
+				},
+			},
+			cur:  []metav1.Condition{{Type: "NewType", Status: metav1.ConditionTrue, ObservedGeneration: 3, Reason: "NewReason", Message: "New message"}},
 			want: true,
 		},
 		{
 			name: "multiple conditions identical — no change",
-			prev: map[string]metav1.ConditionStatus{
-				"Ready":             metav1.ConditionTrue,
-				"ACLSynced":         metav1.ConditionFalse,
-				"MigrationComplete": metav1.ConditionTrue,
+			prev: map[string]conditionSnapshot{
+				"Ready": {
+					Status:             metav1.ConditionTrue,
+					ObservedGeneration: 8,
+					Reason:             "AllPodsReady",
+					Message:            "3/3 pods ready",
+				},
+				"ACLSynced": {
+					Status:             metav1.ConditionFalse,
+					ObservedGeneration: 8,
+					Reason:             "ACLSyncPending",
+					Message:            "ACL sync skipped: no ready pods available",
+				},
+				"MigrationComplete": {
+					Status:             metav1.ConditionTrue,
+					ObservedGeneration: 8,
+					Reason:             "MigrationComplete",
+					Message:            "No pending data migrations",
+				},
 			},
 			cur: []metav1.Condition{
-				{Type: "Ready", Status: metav1.ConditionTrue},
-				{Type: "ACLSynced", Status: metav1.ConditionFalse},
-				{Type: "MigrationComplete", Status: metav1.ConditionTrue},
+				{Type: "Ready", Status: metav1.ConditionTrue, ObservedGeneration: 8, Reason: "AllPodsReady", Message: "3/3 pods ready"},
+				{Type: "ACLSynced", Status: metav1.ConditionFalse, ObservedGeneration: 8, Reason: "ACLSyncPending", Message: "ACL sync skipped: no ready pods available"},
+				{Type: "MigrationComplete", Status: metav1.ConditionTrue, ObservedGeneration: 8, Reason: "MigrationComplete", Message: "No pending data migrations"},
 			},
 			want: false,
 		},
 		{
 			name: "prev empty, cur has condition — changed",
-			prev: map[string]metav1.ConditionStatus{},
-			cur:  []metav1.Condition{{Type: "Ready", Status: metav1.ConditionTrue}},
+			prev: map[string]conditionSnapshot{},
+			cur:  []metav1.Condition{{Type: "Ready", Status: metav1.ConditionTrue, ObservedGeneration: 1, Reason: "AllPodsReady", Message: "1/1 pods ready"}},
 			want: true,
 		},
 	}
@@ -637,8 +751,13 @@ func TestStatusUnchanged(t *testing.T) {
 			AccessEndpoints:   []string{"10.0.0.10:3000"},
 		},
 	}
-	basePrevConditions := map[string]metav1.ConditionStatus{
-		ackov1alpha1.ConditionReady: metav1.ConditionTrue,
+	basePrevConditions := map[string]conditionSnapshot{
+		ackov1alpha1.ConditionReady: {
+			Status:             metav1.ConditionTrue,
+			ObservedGeneration: 0,
+			Reason:             "",
+			Message:            "",
+		},
 	}
 
 	t.Run("unchanged status returns true", func(t *testing.T) {
@@ -678,6 +797,35 @@ func TestStatusUnchanged(t *testing.T) {
 			ackov1alpha1.AerospikePhaseCompleted, "steady",
 		); got {
 			t.Fatalf("statusUnchanged() = true, want false when selector changed")
+		}
+	})
+
+	t.Run("condition reason change returns false", func(t *testing.T) {
+		cluster := baseCluster.DeepCopy()
+		cluster.Status.Conditions = []metav1.Condition{
+			{
+				Type:               ackov1alpha1.ConditionReady,
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: 3,
+				Reason:             "AllPodsReady",
+				Message:            "1/1 pods ready",
+			},
+		}
+		prevConditions := map[string]conditionSnapshot{
+			ackov1alpha1.ConditionReady: {
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: 3,
+				Reason:             "Ready",
+				Message:            "1/1 pods ready",
+			},
+		}
+
+		if got := statusUnchanged(
+			ackov1alpha1.AerospikePhaseCompleted, "steady", 1, "1/1", 3, "app=aerospike,cluster=demo",
+			basePrevPods, prevConditions, cluster, 1,
+			ackov1alpha1.AerospikePhaseCompleted, "steady",
+		); got {
+			t.Fatalf("statusUnchanged() = true, want false when condition reason changed")
 		}
 	})
 }

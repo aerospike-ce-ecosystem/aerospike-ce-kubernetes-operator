@@ -387,23 +387,42 @@ func setFineGrainedConditions(cluster *ackov1alpha1.AerospikeCluster, o StatusUp
 		"MigrationComplete", "No pending data migrations")
 }
 
-// conditionsSnapshot returns a map of condition Type → Status for skip-check comparison.
-func conditionsSnapshot(conds []metav1.Condition) map[string]metav1.ConditionStatus {
-	m := make(map[string]metav1.ConditionStatus, len(conds))
+type conditionSnapshot struct {
+	Status             metav1.ConditionStatus
+	ObservedGeneration int64
+	Reason             string
+	Message            string
+}
+
+// conditionsSnapshot returns a map of condition Type → stable fields for skip-check comparison.
+func conditionsSnapshot(conds []metav1.Condition) map[string]conditionSnapshot {
+	m := make(map[string]conditionSnapshot, len(conds))
 	for _, c := range conds {
-		m[c.Type] = c.Status
+		m[c.Type] = conditionSnapshot{
+			Status:             c.Status,
+			ObservedGeneration: c.ObservedGeneration,
+			Reason:             c.Reason,
+			Message:            c.Message,
+		}
 	}
 	return m
 }
 
 // conditionsChanged returns true if any condition type or status differs between
 // the snapshot taken before populateStatus and the current slice after all updates.
-func conditionsChanged(prev map[string]metav1.ConditionStatus, cur []metav1.Condition) bool {
+func conditionsChanged(prev map[string]conditionSnapshot, cur []metav1.Condition) bool {
 	if len(prev) != len(cur) {
 		return true
 	}
 	for _, c := range cur {
-		if s, ok := prev[c.Type]; !ok || s != c.Status {
+		s, ok := prev[c.Type]
+		if !ok {
+			return true
+		}
+		if s.Status != c.Status ||
+			s.ObservedGeneration != c.ObservedGeneration ||
+			s.Reason != c.Reason ||
+			s.Message != c.Message {
 			return true
 		}
 	}
@@ -418,7 +437,7 @@ func statusUnchanged(
 	prevGeneration int64,
 	prevSelector string,
 	prevPods map[string]ackov1alpha1.AerospikePodStatus,
-	prevConditions map[string]metav1.ConditionStatus,
+	prevConditions map[string]conditionSnapshot,
 	latest *ackov1alpha1.AerospikeCluster,
 	readyCount int32,
 	phase ackov1alpha1.AerospikePhase,

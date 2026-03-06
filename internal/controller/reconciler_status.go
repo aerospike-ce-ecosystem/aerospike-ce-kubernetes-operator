@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -265,13 +266,8 @@ func (r *AerospikeClusterReconciler) populateStatus(
 	cluster.Status.ObservedGeneration = cluster.Generation
 	cluster.Status.AerospikeConfig = cluster.Spec.AerospikeConfig
 
-	// Build selector string for HPA
-	selectorLabels := utils.SelectorLabelsForCluster(cluster.Name)
-	selectorParts := make([]string, 0, len(selectorLabels))
-	for k, v := range selectorLabels {
-		selectorParts = append(selectorParts, fmt.Sprintf("%s=%s", k, v))
-	}
-	cluster.Status.Selector = strings.Join(selectorParts, ",")
+	// Build a deterministic selector string for HPA.
+	cluster.Status.Selector = buildSelectorString(utils.SelectorLabelsForCluster(cluster.Name))
 
 	// Update base conditions (Available, Ready).
 	setCondition(cluster, ackov1alpha1.ConditionAvailable, readyCount > 0, "ClusterAvailable", "At least one pod is ready")
@@ -290,6 +286,25 @@ func isPodReady(pod *corev1.Pod) bool {
 		}
 	}
 	return false
+}
+
+func buildSelectorString(labels map[string]string) string {
+	if len(labels) == 0 {
+		return ""
+	}
+
+	keys := make([]string, 0, len(labels))
+	for k := range labels {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	selectorParts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		selectorParts = append(selectorParts, fmt.Sprintf("%s=%s", k, labels[k]))
+	}
+
+	return strings.Join(selectorParts, ",")
 }
 
 func setCondition(cluster *ackov1alpha1.AerospikeCluster, condType string, status bool, reason, message string) {

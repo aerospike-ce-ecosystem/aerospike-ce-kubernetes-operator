@@ -2,6 +2,7 @@ package controller
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -110,6 +111,47 @@ func TestIsPodReady(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBuildSelectorString(t *testing.T) {
+	t.Run("returns empty string for empty map", func(t *testing.T) {
+		if got := buildSelectorString(map[string]string{}); got != "" {
+			t.Fatalf("buildSelectorString(empty) = %q, want empty", got)
+		}
+	})
+
+	t.Run("returns deterministic key order", func(t *testing.T) {
+		labels := map[string]string{
+			"z-key": "z",
+			"a-key": "a",
+			"m-key": "m",
+		}
+
+		want := "a-key=a,m-key=m,z-key=z"
+		for i := 0; i < 50; i++ {
+			if got := buildSelectorString(labels); got != want {
+				t.Fatalf("buildSelectorString() = %q, want %q", got, want)
+			}
+		}
+	})
+
+	t.Run("escapes nothing and uses comma separator", func(t *testing.T) {
+		labels := map[string]string{
+			"app.kubernetes.io/name":     "aerospike-cluster",
+			"app.kubernetes.io/instance": "demo",
+		}
+
+		got := buildSelectorString(labels)
+		if strings.Count(got, ",") != 1 {
+			t.Fatalf("selector %q should contain exactly one comma", got)
+		}
+		if !strings.Contains(got, "app.kubernetes.io/instance=demo") {
+			t.Fatalf("selector %q missing instance label", got)
+		}
+		if !strings.Contains(got, "app.kubernetes.io/name=aerospike-cluster") {
+			t.Fatalf("selector %q missing app label", got)
+		}
+	})
 }
 
 func TestSetCondition(t *testing.T) {

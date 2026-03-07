@@ -4,6 +4,7 @@ import (
 	"maps"
 	"testing"
 
+	"github.com/go-logr/logr"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -304,7 +305,7 @@ func TestMergeAdditionalLabels(t *testing.T) {
 		"custom":            "value",
 	}
 
-	got := mergeAdditionalLabels(maps.Clone(base), additional)
+	got := mergeAdditionalLabels(logr.Discard(), maps.Clone(base), additional)
 
 	if got[utils.AppLabel] != base[utils.AppLabel] {
 		t.Fatalf("AppLabel overwritten: got %q, want %q", got[utils.AppLabel], base[utils.AppLabel])

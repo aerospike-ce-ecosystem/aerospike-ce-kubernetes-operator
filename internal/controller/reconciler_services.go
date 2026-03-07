@@ -6,6 +6,7 @@ import (
 	"maps"
 	"strings"
 
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,7 +46,7 @@ func (r *AerospikeClusterReconciler) reconcileHeadlessService(
 			desiredAnnotations = make(map[string]string)
 			maps.Copy(desiredAnnotations, cluster.Spec.HeadlessService.Metadata.Annotations)
 		}
-		labels = mergeAdditionalLabels(labels, cluster.Spec.HeadlessService.Metadata.Labels)
+		labels = mergeAdditionalLabels(log, labels, cluster.Spec.HeadlessService.Metadata.Labels)
 	}
 
 	if errors.IsNotFound(err) {
@@ -108,12 +109,13 @@ func headlessServiceNeedsUpdate(
 
 // mergeAdditionalLabels adds user-specified labels without allowing them to
 // overwrite operator-managed identity labels that selectors and cleanup rely on.
-func mergeAdditionalLabels(base, additional map[string]string) map[string]string {
+func mergeAdditionalLabels(log logr.Logger, base, additional map[string]string) map[string]string {
 	if len(additional) == 0 {
 		return base
 	}
 	for k, v := range additional {
 		if _, exists := base[k]; exists {
+			log.V(1).Info("Ignoring user label that conflicts with operator-managed label", "key", k, "userValue", v, "operatorValue", base[k])
 			continue
 		}
 		base[k] = v

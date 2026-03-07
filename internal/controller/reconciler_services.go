@@ -45,9 +45,7 @@ func (r *AerospikeClusterReconciler) reconcileHeadlessService(
 			desiredAnnotations = make(map[string]string)
 			maps.Copy(desiredAnnotations, cluster.Spec.HeadlessService.Metadata.Annotations)
 		}
-		if cluster.Spec.HeadlessService.Metadata.Labels != nil {
-			maps.Copy(labels, cluster.Spec.HeadlessService.Metadata.Labels)
-		}
+		labels = mergeAdditionalLabels(labels, cluster.Spec.HeadlessService.Metadata.Labels)
 	}
 
 	if errors.IsNotFound(err) {
@@ -106,6 +104,21 @@ func headlessServiceNeedsUpdate(
 		!maps.Equal(existing.Spec.Selector, desiredSelector) ||
 		!existing.Spec.PublishNotReadyAddresses ||
 		servicePortsChanged(existing.Spec.Ports, desiredPorts)
+}
+
+// mergeAdditionalLabels adds user-specified labels without allowing them to
+// overwrite operator-managed identity labels that selectors and cleanup rely on.
+func mergeAdditionalLabels(base, additional map[string]string) map[string]string {
+	if len(additional) == 0 {
+		return base
+	}
+	for k, v := range additional {
+		if _, exists := base[k]; exists {
+			continue
+		}
+		base[k] = v
+	}
+	return base
 }
 
 // servicePortsChanged returns true if the existing ports differ from desired ports.

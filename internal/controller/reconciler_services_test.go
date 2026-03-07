@@ -4,6 +4,7 @@ import (
 	"maps"
 	"testing"
 
+	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -285,6 +286,37 @@ func TestIsSystemAnnotation(t *testing.T) {
 				t.Errorf("isSystemAnnotation(%q) = %v, want %v", tc.key, got, tc.expected)
 			}
 		})
+	}
+}
+
+func TestMergeAdditionalLabels(t *testing.T) {
+	base := map[string]string{
+		utils.AppLabel:       "aerospike-cluster",
+		utils.InstanceLabel:  "demo",
+		utils.ManagedByLabel: "aerospike-ce-kubernetes-operator",
+		podServiceLabel:      "demo-0",
+	}
+
+	additional := map[string]string{
+		utils.AppLabel:      "user-value",
+		utils.InstanceLabel: "other",
+		podServiceLabel:     "other-pod",
+		"custom":            "value",
+	}
+
+	got := mergeAdditionalLabels(maps.Clone(base), additional)
+
+	if got[utils.AppLabel] != base[utils.AppLabel] {
+		t.Fatalf("AppLabel overwritten: got %q, want %q", got[utils.AppLabel], base[utils.AppLabel])
+	}
+	if got[utils.InstanceLabel] != base[utils.InstanceLabel] {
+		t.Fatalf("InstanceLabel overwritten: got %q, want %q", got[utils.InstanceLabel], base[utils.InstanceLabel])
+	}
+	if got[podServiceLabel] != base[podServiceLabel] {
+		t.Fatalf("podServiceLabel overwritten: got %q, want %q", got[podServiceLabel], base[podServiceLabel])
+	}
+	if got["custom"] != "value" {
+		t.Fatalf("custom label missing: got %q", got["custom"])
 	}
 }
 

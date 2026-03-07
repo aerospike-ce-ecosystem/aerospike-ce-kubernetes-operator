@@ -64,9 +64,7 @@ func (r *AerospikeClusterReconciler) reconcilePodServices(
 				desiredAnnotations = make(map[string]string)
 				maps.Copy(desiredAnnotations, cluster.Spec.PodService.Metadata.Annotations)
 			}
-			if cluster.Spec.PodService.Metadata.Labels != nil {
-				maps.Copy(labels, cluster.Spec.PodService.Metadata.Labels)
-			}
+			labels = mergeAdditionalLabels(labels, cluster.Spec.PodService.Metadata.Labels)
 		}
 
 		existing := &corev1.Service{}

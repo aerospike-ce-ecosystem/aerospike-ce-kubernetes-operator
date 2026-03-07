@@ -176,9 +176,7 @@ func (r *AerospikeClusterReconciler) reconcileServiceMonitor(
 	interval := monitoring.ServiceMonitor.Interval
 
 	labels := utils.LabelsForCluster(cluster.Name)
-	if monitoring.ServiceMonitor.Labels != nil {
-		maps.Copy(labels, monitoring.ServiceMonitor.Labels)
-	}
+	labels = mergeAdditionalLabels(labels, monitoring.ServiceMonitor.Labels)
 
 	selectorLabels := utils.SelectorLabelsForCluster(cluster.Name)
 
@@ -273,9 +271,7 @@ func (r *AerospikeClusterReconciler) reconcilePrometheusRule(
 
 	monitoring := cluster.Spec.Monitoring
 	labels := utils.LabelsForCluster(cluster.Name)
-	if monitoring.PrometheusRule.Labels != nil {
-		maps.Copy(labels, monitoring.PrometheusRule.Labels)
-	}
+	labels = mergeAdditionalLabels(labels, monitoring.PrometheusRule.Labels)
 
 	// Build rule groups: use custom rules if provided, otherwise default rules.
 	var groups []any

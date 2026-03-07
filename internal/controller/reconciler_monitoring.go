@@ -131,25 +131,17 @@ func (r *AerospikeClusterReconciler) reconcileMetricsService(
 		return fmt.Errorf("getting metrics service %s: %w", svcName, err)
 	}
 
-	// Before updating, check if the service needs changes
-	needsUpdate := false
-	if !reflect.DeepEqual(existing.Spec.Ports, desired.Spec.Ports) {
-		existing.Spec.Ports = desired.Spec.Ports
-		needsUpdate = true
+	if !metricsServiceNeedsUpdate(existing, desired) {
+		log.V(1).Info("Metrics Service unchanged, skipping update", "name", svcName)
+		return nil
 	}
-	if !maps.Equal(existing.Spec.Selector, desired.Spec.Selector) {
-		existing.Spec.Selector = desired.Spec.Selector
-		needsUpdate = true
-	}
-	if !maps.Equal(existing.Labels, labels) {
-		existing.Labels = labels
-		needsUpdate = true
-	}
-	if needsUpdate {
-		log.Info("Updating metrics Service", "name", svcName)
-		return r.Update(ctx, existing)
-	}
-	return nil
+
+	existing.Spec.Type = desired.Spec.Type
+	existing.Spec.Ports = desired.Spec.Ports
+	existing.Spec.Selector = desired.Spec.Selector
+	existing.Labels = labels
+	log.Info("Updating metrics Service", "name", svcName)
+	return r.Update(ctx, existing)
 }
 
 func (r *AerospikeClusterReconciler) reconcileServiceMonitor(
@@ -242,6 +234,13 @@ func toStringMap(m map[string]string) map[string]any {
 		out[k] = v
 	}
 	return out
+}
+
+func metricsServiceNeedsUpdate(existing, desired *corev1.Service) bool {
+	return existing.Spec.Type != desired.Spec.Type ||
+		!reflect.DeepEqual(existing.Spec.Ports, desired.Spec.Ports) ||
+		!maps.Equal(existing.Spec.Selector, desired.Spec.Selector) ||
+		!maps.Equal(existing.Labels, desired.Labels)
 }
 
 func (r *AerospikeClusterReconciler) reconcilePrometheusRule(

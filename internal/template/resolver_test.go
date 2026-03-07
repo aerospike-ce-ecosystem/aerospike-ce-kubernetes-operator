@@ -26,6 +26,48 @@ import (
 	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 )
 
+func TestResolveTemplateNamespace(t *testing.T) {
+	tests := []struct {
+		name      string
+		refNS     string
+		clusterNS string
+		wantNS    string
+	}{
+		{
+			name:      "empty ref namespace falls back to cluster namespace",
+			refNS:     "",
+			clusterNS: "default",
+			wantNS:    "default",
+		},
+		{
+			name:      "ref namespace used when set",
+			refNS:     "acko-system",
+			clusterNS: "default",
+			wantNS:    "acko-system",
+		},
+		{
+			name:      "ref namespace same as cluster namespace",
+			refNS:     "default",
+			clusterNS: "default",
+			wantNS:    "default",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cluster := &ackov1alpha1.AerospikeCluster{}
+			cluster.Namespace = tt.clusterNS
+			cluster.Spec.TemplateRef = &ackov1alpha1.TemplateRef{
+				Name:      "my-template",
+				Namespace: tt.refNS,
+			}
+			got := resolveTemplateNamespace(cluster)
+			if got != tt.wantNS {
+				t.Errorf("resolveTemplateNamespace() = %q, want %q", got, tt.wantNS)
+			}
+		})
+	}
+}
+
 func TestMergeTemplateSpec_NilInputs(t *testing.T) {
 	result := MergeTemplateSpec(nil, nil)
 	if result != nil {

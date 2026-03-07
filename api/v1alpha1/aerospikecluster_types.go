@@ -85,18 +85,27 @@ func deepCopyValue(val any) any {
 	}
 }
 
-// TemplateRef is a reference to an AerospikeClusterTemplate in the same namespace.
+// TemplateRef is a reference to an AerospikeClusterTemplate.
 type TemplateRef struct {
 	// Name is the name of the AerospikeClusterTemplate resource.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
+
+	// Namespace is the namespace of the AerospikeClusterTemplate resource.
+	// If empty, defaults to the cluster's own namespace.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
 }
 
 // TemplateSnapshotStatus records which template version was resolved and when.
 type TemplateSnapshotStatus struct {
 	// Name is the name of the referenced AerospikeClusterTemplate.
 	Name string `json:"name"`
+
+	// Namespace is the namespace of the referenced AerospikeClusterTemplate.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
 
 	// ResourceVersion is the resourceVersion of the template at snapshot time.
 	// +optional

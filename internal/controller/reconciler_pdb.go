@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"maps"
 
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
@@ -76,17 +77,38 @@ func (r *AerospikeClusterReconciler) reconcilePDB(
 		return fmt.Errorf("getting PDB %s: %w", pdbName, err)
 	}
 
-	// Update only if MaxUnavailable changed
-	if existing.Spec.MaxUnavailable != nil && intOrStringEqual(*existing.Spec.MaxUnavailable, maxUnavailable) {
+	if !pdbNeedsUpdate(existing, labels, selectorLabels, maxUnavailable) {
 		return nil
 	}
+
+	existing.Labels = labels
+	existing.Spec.MinAvailable = nil
 	existing.Spec.MaxUnavailable = &maxUnavailable
+	existing.Spec.Selector = &metav1.LabelSelector{MatchLabels: selectorLabels}
 	log.Info("Updating PDB", "name", pdbName)
 	if err := r.Update(ctx, existing); err != nil {
 		return fmt.Errorf("updating PDB %s: %w", pdbName, err)
 	}
 	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventPDBUpdated, "Updated PodDisruptionBudget %s", pdbName)
 	return nil
+}
+
+func pdbNeedsUpdate(
+	existing *policyv1.PodDisruptionBudget,
+	desiredLabels map[string]string,
+	desiredSelectorLabels map[string]string,
+	desiredMaxUnavailable intstr.IntOrString,
+) bool {
+	if existing.Spec.MinAvailable != nil || existing.Spec.MaxUnavailable == nil {
+		return true
+	}
+	if !intOrStringEqual(*existing.Spec.MaxUnavailable, desiredMaxUnavailable) {
+		return true
+	}
+	if existing.Spec.Selector == nil || !maps.Equal(existing.Spec.Selector.MatchLabels, desiredSelectorLabels) {
+		return true
+	}
+	return !maps.Equal(existing.Labels, desiredLabels)
 }
 
 // intOrStringEqual compares two IntOrString values by type and value,

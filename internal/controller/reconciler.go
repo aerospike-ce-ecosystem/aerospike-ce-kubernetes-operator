@@ -669,9 +669,10 @@ func (r *AerospikeClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func (r *AerospikeClusterReconciler) mapTemplateToCluster(ctx context.Context, obj client.Object) []reconcile.Request {
 	log := logf.FromContext(ctx)
 
-	// List all AerospikeClusters in the template's namespace.
+	// List all AerospikeClusters across all namespaces to support cross-namespace
+	// template references.
 	clusterList := &ackov1alpha1.AerospikeClusterList{}
-	if err := r.List(ctx, clusterList, client.InNamespace(obj.GetNamespace())); err != nil {
+	if err := r.List(ctx, clusterList); err != nil {
 		log.Error(err, "Failed to list clusters for template watch", "template", obj.GetName())
 		return nil
 	}
@@ -680,6 +681,15 @@ func (r *AerospikeClusterReconciler) mapTemplateToCluster(ctx context.Context, o
 	for i := range clusterList.Items {
 		cl := &clusterList.Items[i]
 		if cl.Spec.TemplateRef == nil || cl.Spec.TemplateRef.Name != obj.GetName() {
+			continue
+		}
+
+		// Verify the cluster actually references a template in this namespace.
+		refNS := cl.Spec.TemplateRef.Namespace
+		if refNS == "" {
+			refNS = cl.Namespace
+		}
+		if refNS != obj.GetNamespace() {
 			continue
 		}
 

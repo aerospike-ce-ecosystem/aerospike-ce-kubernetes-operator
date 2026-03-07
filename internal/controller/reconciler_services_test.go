@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -282,6 +283,90 @@ func TestIsSystemAnnotation(t *testing.T) {
 			got := isSystemAnnotation(tc.key)
 			if got != tc.expected {
 				t.Errorf("isSystemAnnotation(%q) = %v, want %v", tc.key, got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestHeadlessServiceNeedsUpdate(t *testing.T) {
+	desiredLabels := map[string]string{
+		"app.kubernetes.io/name":     "aerospike-cluster",
+		"app.kubernetes.io/instance": "demo",
+	}
+	desiredAnnotations := map[string]string{
+		"example.com/env": "dev",
+	}
+	desiredSelector := map[string]string{
+		"app.kubernetes.io/name":     "aerospike-cluster",
+		"app.kubernetes.io/instance": "demo",
+	}
+	desiredPorts := []corev1.ServicePort{
+		{
+			Name:       "service",
+			Port:       3000,
+			TargetPort: intstr.FromInt32(3000),
+			Protocol:   corev1.ProtocolTCP,
+		},
+	}
+
+	base := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels:      desiredLabels,
+			Annotations: desiredAnnotations,
+		},
+		Spec: corev1.ServiceSpec{
+			Selector:                 desiredSelector,
+			PublishNotReadyAddresses: true,
+			Ports:                    desiredPorts,
+		},
+	}
+
+	tests := []struct {
+		name     string
+		mutate   func(*corev1.Service)
+		expected bool
+	}{
+		{
+			name:     "unchanged",
+			mutate:   func(_ *corev1.Service) {},
+			expected: false,
+		},
+		{
+			name: "selector drift",
+			mutate: func(svc *corev1.Service) {
+				svc.Spec.Selector = map[string]string{"app.kubernetes.io/instance": "other"}
+			},
+			expected: true,
+		},
+		{
+			name: "publish not ready drift",
+			mutate: func(svc *corev1.Service) {
+				svc.Spec.PublishNotReadyAddresses = false
+			},
+			expected: true,
+		},
+		{
+			name: "port drift",
+			mutate: func(svc *corev1.Service) {
+				svc.Spec.Ports[0].Port = 4000
+			},
+			expected: true,
+		},
+		{
+			name: "label drift",
+			mutate: func(svc *corev1.Service) {
+				svc.Labels["custom"] = "stale"
+			},
+			expected: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := base.DeepCopy()
+			tc.mutate(svc)
+			if got := headlessServiceNeedsUpdate(svc, desiredLabels, desiredAnnotations, desiredSelector, desiredPorts); got != tc.expected {
+				t.Fatalf("headlessServiceNeedsUpdate() = %v, want %v", got, tc.expected)
 			}
 		})
 	}

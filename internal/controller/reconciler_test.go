@@ -1,9 +1,14 @@
 package controller
 
 import (
+	"context"
 	"testing"
 
 	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func TestGetRacks(t *testing.T) {
@@ -228,5 +233,94 @@ func TestGetRackSize_SumInvariant(t *testing.T) {
 			t.Errorf("sum of getRackSize(totalSize=%d, numRacks=%d) = %d, want %d",
 				tc.totalSize, tc.numRacks, sum, tc.totalSize)
 		}
+	}
+}
+
+func TestSetPhasePreservesPendingRestartPods(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := ackov1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("AddToScheme() error = %v", err)
+	}
+
+	stored := &ackov1alpha1.AerospikeCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "demo",
+			Namespace: "default",
+		},
+	}
+
+	reconciler := &AerospikeClusterReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithStatusSubresource(&ackov1alpha1.AerospikeCluster{}).
+			WithObjects(stored).
+			Build(),
+		Scheme: scheme,
+	}
+
+	cluster := stored.DeepCopy()
+	cluster.Status.PendingRestartPods = []string{"demo-2", "demo-1"}
+
+	if err := reconciler.setPhase(context.Background(), cluster, ackov1alpha1.AerospikePhaseRollingRestart, "Rolling restart in progress"); err != nil {
+		t.Fatalf("setPhase() error = %v", err)
+	}
+
+	updated := &ackov1alpha1.AerospikeCluster{}
+	if err := reconciler.Get(context.Background(), types.NamespacedName{Name: stored.Name, Namespace: stored.Namespace}, updated); err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+
+	if updated.Status.Phase != ackov1alpha1.AerospikePhaseRollingRestart {
+		t.Fatalf("Phase = %q, want %q", updated.Status.Phase, ackov1alpha1.AerospikePhaseRollingRestart)
+	}
+	if updated.Status.PhaseReason != "Rolling restart in progress" {
+		t.Fatalf("PhaseReason = %q, want %q", updated.Status.PhaseReason, "Rolling restart in progress")
+	}
+	if len(updated.Status.PendingRestartPods) != 2 || updated.Status.PendingRestartPods[0] != "demo-2" || updated.Status.PendingRestartPods[1] != "demo-1" {
+		t.Fatalf("PendingRestartPods = %v, want [demo-2 demo-1]", updated.Status.PendingRestartPods)
+	}
+}
+
+func TestSetPhaseUpdatesPendingRestartPodsWhenPhaseUnchanged(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := ackov1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("AddToScheme() error = %v", err)
+	}
+
+	stored := &ackov1alpha1.AerospikeCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "demo",
+			Namespace: "default",
+		},
+		Status: ackov1alpha1.AerospikeClusterStatus{
+			Phase:              ackov1alpha1.AerospikePhaseRollingRestart,
+			PhaseReason:        "Rolling restart in progress",
+			PendingRestartPods: []string{"demo-0"},
+		},
+	}
+
+	reconciler := &AerospikeClusterReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithStatusSubresource(&ackov1alpha1.AerospikeCluster{}).
+			WithObjects(stored).
+			Build(),
+		Scheme: scheme,
+	}
+
+	cluster := stored.DeepCopy()
+	cluster.Status.PendingRestartPods = []string{"demo-2", "demo-1"}
+
+	if err := reconciler.setPhase(context.Background(), cluster, ackov1alpha1.AerospikePhaseRollingRestart, "Rolling restart in progress"); err != nil {
+		t.Fatalf("setPhase() error = %v", err)
+	}
+
+	updated := &ackov1alpha1.AerospikeCluster{}
+	if err := reconciler.Get(context.Background(), types.NamespacedName{Name: stored.Name, Namespace: stored.Namespace}, updated); err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+
+	if len(updated.Status.PendingRestartPods) != 2 || updated.Status.PendingRestartPods[0] != "demo-2" || updated.Status.PendingRestartPods[1] != "demo-1" {
+		t.Fatalf("PendingRestartPods = %v, want [demo-2 demo-1]", updated.Status.PendingRestartPods)
 	}
 }

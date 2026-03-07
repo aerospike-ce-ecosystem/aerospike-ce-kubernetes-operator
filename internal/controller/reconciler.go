@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"slices"
 	"sync"
 	"time"
 
@@ -584,6 +585,7 @@ func (r *AerospikeClusterReconciler) getRackSize(cluster *ackov1alpha1.Aerospike
 // so the caller can decide to requeue without logging a spurious error.
 func (r *AerospikeClusterReconciler) setPhase(ctx context.Context, cluster *ackov1alpha1.AerospikeCluster, phase ackov1alpha1.AerospikePhase, reason string) error {
 	log := logf.FromContext(ctx)
+	desiredPendingRestartPods := slices.Clone(cluster.Status.PendingRestartPods)
 
 	// Re-fetch the latest version to avoid "object has been modified" conflicts.
 	latest, err := r.refetchCluster(ctx, types.NamespacedName{Name: cluster.Name, Namespace: cluster.Namespace})
@@ -591,12 +593,15 @@ func (r *AerospikeClusterReconciler) setPhase(ctx context.Context, cluster *acko
 		return err
 	}
 
-	if latest.Status.Phase == phase && latest.Status.PhaseReason == reason {
+	if latest.Status.Phase == phase &&
+		latest.Status.PhaseReason == reason &&
+		slices.Equal(latest.Status.PendingRestartPods, desiredPendingRestartPods) {
 		return nil
 	}
 
 	latest.Status.Phase = phase
 	latest.Status.PhaseReason = reason
+	latest.Status.PendingRestartPods = desiredPendingRestartPods
 	if err := r.Status().Update(ctx, latest); err != nil {
 		if errors.IsConflict(err) {
 			log.V(1).Info("Conflict updating phase, will requeue", "phase", phase)
@@ -610,6 +615,7 @@ func (r *AerospikeClusterReconciler) setPhase(ctx context.Context, cluster *acko
 	cluster.ResourceVersion = latest.ResourceVersion
 	cluster.Status.Phase = phase
 	cluster.Status.PhaseReason = reason
+	cluster.Status.PendingRestartPods = slices.Clone(desiredPendingRestartPods)
 	return nil
 }
 

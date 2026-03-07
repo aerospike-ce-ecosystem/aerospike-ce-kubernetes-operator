@@ -7,6 +7,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -99,13 +100,14 @@ func pdbNeedsUpdate(
 	desiredSelectorLabels map[string]string,
 	desiredMaxUnavailable intstr.IntOrString,
 ) bool {
+	desiredSelector := &metav1.LabelSelector{MatchLabels: desiredSelectorLabels}
 	if existing.Spec.MinAvailable != nil || existing.Spec.MaxUnavailable == nil {
 		return true
 	}
 	if !intOrStringEqual(*existing.Spec.MaxUnavailable, desiredMaxUnavailable) {
 		return true
 	}
-	if existing.Spec.Selector == nil || !maps.Equal(existing.Spec.Selector.MatchLabels, desiredSelectorLabels) {
+	if !equality.Semantic.DeepEqual(existing.Spec.Selector, desiredSelector) {
 		return true
 	}
 	return !maps.Equal(existing.Labels, desiredLabels)

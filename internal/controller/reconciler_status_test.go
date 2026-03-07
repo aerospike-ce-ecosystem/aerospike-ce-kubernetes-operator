@@ -744,26 +744,32 @@ func TestStatusUnchanged(t *testing.T) {
 		},
 	}
 
-	basePrevPods := map[string]ackov1alpha1.AerospikePodStatus{
-		"demo-0": {
-			PodIP:             "10.0.0.10",
-			IsRunningAndReady: true,
-			AccessEndpoints:   []string{"10.0.0.10:3000"},
+	basePrev := statusSnapshot{
+		Phase:       ackov1alpha1.AerospikePhaseCompleted,
+		PhaseReason: "steady",
+		Size:        1,
+		Health:      "1/1",
+		Generation:  3,
+		Selector:    "app=aerospike,cluster=demo",
+		Pods: map[string]ackov1alpha1.AerospikePodStatus{
+			"demo-0": {
+				PodIP:             "10.0.0.10",
+				IsRunningAndReady: true,
+				AccessEndpoints:   []string{"10.0.0.10:3000"},
+			},
 		},
-	}
-	basePrevConditions := map[string]conditionSnapshot{
-		ackov1alpha1.ConditionReady: {
-			Status:             metav1.ConditionTrue,
-			ObservedGeneration: 0,
-			Reason:             "",
-			Message:            "",
+		Conditions: map[string]conditionSnapshot{
+			ackov1alpha1.ConditionReady: {
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: 0,
+				Reason:             "",
+				Message:            "",
+			},
 		},
 	}
 
 	t.Run("unchanged status returns true", func(t *testing.T) {
-		if got := statusUnchanged(
-			ackov1alpha1.AerospikePhaseCompleted, "steady", 1, "1/1", 3, "app=aerospike,cluster=demo",
-			basePrevPods, basePrevConditions, baseCluster, 1,
+		if got := statusUnchanged(basePrev, baseCluster, 1,
 			ackov1alpha1.AerospikePhaseCompleted, "steady",
 		); !got {
 			t.Fatalf("statusUnchanged() = false, want true")
@@ -778,9 +784,7 @@ func TestStatusUnchanged(t *testing.T) {
 			AccessEndpoints:   []string{"10.0.0.20:3000"},
 		}
 
-		if got := statusUnchanged(
-			ackov1alpha1.AerospikePhaseCompleted, "steady", 1, "1/1", 3, "app=aerospike,cluster=demo",
-			basePrevPods, basePrevConditions, cluster, 1,
+		if got := statusUnchanged(basePrev, cluster, 1,
 			ackov1alpha1.AerospikePhaseCompleted, "steady",
 		); got {
 			t.Fatalf("statusUnchanged() = true, want false when pods changed")
@@ -791,9 +795,7 @@ func TestStatusUnchanged(t *testing.T) {
 		cluster := baseCluster.DeepCopy()
 		cluster.Status.Selector = "app=aerospike,cluster=demo,role=node"
 
-		if got := statusUnchanged(
-			ackov1alpha1.AerospikePhaseCompleted, "steady", 1, "1/1", 3, "app=aerospike,cluster=demo",
-			basePrevPods, basePrevConditions, cluster, 1,
+		if got := statusUnchanged(basePrev, cluster, 1,
 			ackov1alpha1.AerospikePhaseCompleted, "steady",
 		); got {
 			t.Fatalf("statusUnchanged() = true, want false when selector changed")
@@ -811,7 +813,8 @@ func TestStatusUnchanged(t *testing.T) {
 				Message:            "1/1 pods ready",
 			},
 		}
-		prevConditions := map[string]conditionSnapshot{
+		prev := basePrev
+		prev.Conditions = map[string]conditionSnapshot{
 			ackov1alpha1.ConditionReady: {
 				Status:             metav1.ConditionTrue,
 				ObservedGeneration: 3,
@@ -820,9 +823,7 @@ func TestStatusUnchanged(t *testing.T) {
 			},
 		}
 
-		if got := statusUnchanged(
-			ackov1alpha1.AerospikePhaseCompleted, "steady", 1, "1/1", 3, "app=aerospike,cluster=demo",
-			basePrevPods, prevConditions, cluster, 1,
+		if got := statusUnchanged(prev, cluster, 1,
 			ackov1alpha1.AerospikePhaseCompleted, "steady",
 		); got {
 			t.Fatalf("statusUnchanged() = true, want false when condition reason changed")

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -57,14 +57,16 @@ func (r *AerospikeClusterReconciler) updateStatusAndPhase(
 	}
 
 	// Capture the previous state for comparison (before populateStatus modifies it).
-	prevPhase := latest.Status.Phase
-	prevPhaseReason := latest.Status.PhaseReason
-	prevSize := latest.Status.Size
-	prevHealth := latest.Status.Health
-	prevGeneration := latest.Status.ObservedGeneration
-	prevSelector := latest.Status.Selector
-	prevPods := maps.Clone(latest.Status.Pods)
-	prevConditions := conditionsSnapshot(latest.Status.Conditions)
+	prev := statusSnapshot{
+		Phase:       latest.Status.Phase,
+		PhaseReason: latest.Status.PhaseReason,
+		Size:        latest.Status.Size,
+		Health:      latest.Status.Health,
+		Generation:  latest.Status.ObservedGeneration,
+		Selector:    latest.Status.Selector,
+		Pods:        maps.Clone(latest.Status.Pods),
+		Conditions:  conditionsSnapshot(latest.Status.Conditions),
+	}
 
 	readyCount, err := r.populateStatus(ctx, latest)
 	if err != nil {
@@ -78,10 +80,7 @@ func (r *AerospikeClusterReconciler) updateStatusAndPhase(
 
 	// Skip the update if nothing meaningful changed to avoid
 	// triggering a reconciliation feedback loop via the watch.
-	if statusUnchanged(
-		prevPhase, prevPhaseReason, prevSize, prevHealth, prevGeneration, prevSelector, prevPods, prevConditions,
-		latest, readyCount, phase, phaseReason,
-	) {
+	if statusUnchanged(prev, latest, readyCount, phase, phaseReason) {
 		log.V(1).Info("Status unchanged, skipping update",
 			"readyPods", readyCount, "desiredSize", latest.Spec.Size, "phase", phase)
 		return nil
@@ -299,7 +298,7 @@ func buildSelectorString(labels map[string]string) string {
 	for k := range labels {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	selectorParts := make([]string, 0, len(keys))
 	for _, k := range keys {
@@ -429,28 +428,28 @@ func conditionsChanged(prev map[string]conditionSnapshot, cur []metav1.Condition
 	return false
 }
 
-func statusUnchanged(
-	prevPhase ackov1alpha1.AerospikePhase,
-	prevPhaseReason string,
-	prevSize int32,
-	prevHealth string,
-	prevGeneration int64,
-	prevSelector string,
-	prevPods map[string]ackov1alpha1.AerospikePodStatus,
-	prevConditions map[string]conditionSnapshot,
-	latest *ackov1alpha1.AerospikeCluster,
-	readyCount int32,
-	phase ackov1alpha1.AerospikePhase,
-	phaseReason string,
-) bool {
-	return prevPhase == phase &&
-		prevPhaseReason == phaseReason &&
-		prevSize == readyCount &&
-		prevHealth == latest.Status.Health &&
-		prevGeneration == latest.Generation &&
-		prevSelector == latest.Status.Selector &&
-		!conditionsChanged(prevConditions, latest.Status.Conditions) &&
-		reflect.DeepEqual(prevPods, latest.Status.Pods)
+// statusSnapshot captures the relevant status fields before populateStatus
+// modifies them, so we can compare and skip no-op status updates.
+type statusSnapshot struct {
+	Phase       ackov1alpha1.AerospikePhase
+	PhaseReason string
+	Size        int32
+	Health      string
+	Generation  int64
+	Selector    string
+	Pods        map[string]ackov1alpha1.AerospikePodStatus
+	Conditions  map[string]conditionSnapshot
+}
+
+func statusUnchanged(prev statusSnapshot, latest *ackov1alpha1.AerospikeCluster, readyCount int32, phase ackov1alpha1.AerospikePhase, phaseReason string) bool {
+	return prev.Phase == phase &&
+		prev.PhaseReason == phaseReason &&
+		prev.Size == readyCount &&
+		prev.Health == latest.Status.Health &&
+		prev.Generation == latest.Generation &&
+		prev.Selector == latest.Status.Selector &&
+		!conditionsChanged(prev.Conditions, latest.Status.Conditions) &&
+		reflect.DeepEqual(prev.Pods, latest.Status.Pods)
 }
 
 // aeroPodInfo holds per-node Aerospike information collected via asinfo commands.

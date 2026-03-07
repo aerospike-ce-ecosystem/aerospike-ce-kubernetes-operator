@@ -102,13 +102,13 @@ func (r *AerospikeClusterReconciler) reconcilePodServices(
 		}
 
 		// Compare and update if needed.
-		needsUpdate := !equalAnnotations(existing.Annotations, desiredAnnotations) ||
-			!maps.Equal(existing.Labels, labels) ||
-			servicePortsChanged(existing.Spec.Ports, desiredPorts)
+		needsUpdate := podServiceNeedsUpdate(existing, labels, desiredAnnotations, podSelector, desiredPorts)
 
 		if needsUpdate {
 			existing.Labels = labels
 			existing.Annotations = reconcileAnnotations(existing.Annotations, desiredAnnotations)
+			existing.Spec.Type = corev1.ServiceTypeClusterIP
+			existing.Spec.Selector = podSelector
 			existing.Spec.Ports = desiredPorts
 			log.Info("Updating per-pod service", "name", svcName)
 			if err := r.Update(ctx, existing); err != nil {
@@ -161,4 +161,18 @@ func (r *AerospikeClusterReconciler) cleanupStalePodServices(
 	}
 
 	return nil
+}
+
+func podServiceNeedsUpdate(
+	existing *corev1.Service,
+	desiredLabels map[string]string,
+	desiredAnnotations map[string]string,
+	desiredSelector map[string]string,
+	desiredPorts []corev1.ServicePort,
+) bool {
+	return !equalAnnotations(existing.Annotations, desiredAnnotations) ||
+		!maps.Equal(existing.Labels, desiredLabels) ||
+		existing.Spec.Type != corev1.ServiceTypeClusterIP ||
+		!maps.Equal(existing.Spec.Selector, desiredSelector) ||
+		servicePortsChanged(existing.Spec.Ports, desiredPorts)
 }

@@ -146,6 +146,13 @@ func (r *AerospikeClusterReconciler) reconcileStatefulSet(
 
 	existing.Spec.Replicas = &targetReplicas
 	existing.Spec.Template = podTemplate
+	// VolumeClaimTemplates are immutable after creation but must remain in the
+	// spec so that volumeMount references (e.g. "data") resolve correctly.
+	// Preserve the existing VCTs when they are present and the desired set
+	// matches; otherwise apply the newly computed templates (first reconcile).
+	if len(existing.Spec.VolumeClaimTemplates) == 0 && len(pvcTemplates) > 0 {
+		existing.Spec.VolumeClaimTemplates = pvcTemplates
+	}
 	log.Info("Updating StatefulSet", "name", stsName, "targetReplicas", targetReplicas)
 	if err := r.Update(ctx, existing); err != nil {
 		return false, fmt.Errorf("updating StatefulSet %s: %w", stsName, err)

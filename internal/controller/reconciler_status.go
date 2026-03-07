@@ -3,6 +3,9 @@ package controller
 import (
 	"context"
 	"fmt"
+	"maps"
+	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -54,12 +57,16 @@ func (r *AerospikeClusterReconciler) updateStatusAndPhase(
 	}
 
 	// Capture the previous state for comparison (before populateStatus modifies it).
-	prevPhase := latest.Status.Phase
-	prevPhaseReason := latest.Status.PhaseReason
-	prevSize := latest.Status.Size
-	prevHealth := latest.Status.Health
-	prevGeneration := latest.Status.ObservedGeneration
-	prevConditions := conditionsSnapshot(latest.Status.Conditions)
+	prev := statusSnapshot{
+		Phase:       latest.Status.Phase,
+		PhaseReason: latest.Status.PhaseReason,
+		Size:        latest.Status.Size,
+		Health:      latest.Status.Health,
+		Generation:  latest.Status.ObservedGeneration,
+		Selector:    latest.Status.Selector,
+		Pods:        maps.Clone(latest.Status.Pods),
+		Conditions:  conditionsSnapshot(latest.Status.Conditions),
+	}
 
 	readyCount, err := r.populateStatus(ctx, latest)
 	if err != nil {
@@ -73,12 +80,7 @@ func (r *AerospikeClusterReconciler) updateStatusAndPhase(
 
 	// Skip the update if nothing meaningful changed to avoid
 	// triggering a reconciliation feedback loop via the watch.
-	if prevPhase == phase &&
-		prevPhaseReason == phaseReason &&
-		prevSize == readyCount &&
-		prevHealth == latest.Status.Health &&
-		prevGeneration == latest.Generation &&
-		!conditionsChanged(prevConditions, latest.Status.Conditions) {
+	if statusUnchanged(prev, latest, readyCount, phase, phaseReason) {
 		log.V(1).Info("Status unchanged, skipping update",
 			"readyPods", readyCount, "desiredSize", latest.Spec.Size, "phase", phase)
 		return nil
@@ -265,13 +267,8 @@ func (r *AerospikeClusterReconciler) populateStatus(
 	cluster.Status.ObservedGeneration = cluster.Generation
 	cluster.Status.AerospikeConfig = cluster.Spec.AerospikeConfig
 
-	// Build selector string for HPA
-	selectorLabels := utils.SelectorLabelsForCluster(cluster.Name)
-	selectorParts := make([]string, 0, len(selectorLabels))
-	for k, v := range selectorLabels {
-		selectorParts = append(selectorParts, fmt.Sprintf("%s=%s", k, v))
-	}
-	cluster.Status.Selector = strings.Join(selectorParts, ",")
+	// Build a deterministic selector string for HPA.
+	cluster.Status.Selector = buildSelectorString(utils.SelectorLabelsForCluster(cluster.Name))
 
 	// Update base conditions (Available, Ready).
 	setCondition(cluster, ackov1alpha1.ConditionAvailable, readyCount > 0, "ClusterAvailable", "At least one pod is ready")
@@ -292,6 +289,25 @@ func isPodReady(pod *corev1.Pod) bool {
 	return false
 }
 
+func buildSelectorString(labels map[string]string) string {
+	if len(labels) == 0 {
+		return ""
+	}
+
+	keys := make([]string, 0, len(labels))
+	for k := range labels {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+
+	selectorParts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		selectorParts = append(selectorParts, fmt.Sprintf("%s=%s", k, labels[k]))
+	}
+
+	return strings.Join(selectorParts, ",")
+}
+
 func setCondition(cluster *ackov1alpha1.AerospikeCluster, condType string, status bool, reason, message string) {
 	condStatus := metav1.ConditionFalse
 	if status {
@@ -309,7 +325,14 @@ func setCondition(cluster *ackov1alpha1.AerospikeCluster, condType string, statu
 
 	for i, existing := range cluster.Status.Conditions {
 		if existing.Type == condType {
-			if existing.Status != condStatus || existing.ObservedGeneration != cluster.Generation {
+			// Preserve transition time when status itself has not changed.
+			if existing.Status == condStatus {
+				newCond.LastTransitionTime = existing.LastTransitionTime
+			}
+			if existing.Status != condStatus ||
+				existing.ObservedGeneration != cluster.Generation ||
+				existing.Reason != reason ||
+				existing.Message != message {
 				cluster.Status.Conditions[i] = newCond
 			}
 			return
@@ -363,27 +386,70 @@ func setFineGrainedConditions(cluster *ackov1alpha1.AerospikeCluster, o StatusUp
 		"MigrationComplete", "No pending data migrations")
 }
 
-// conditionsSnapshot returns a map of condition Type → Status for skip-check comparison.
-func conditionsSnapshot(conds []metav1.Condition) map[string]metav1.ConditionStatus {
-	m := make(map[string]metav1.ConditionStatus, len(conds))
+type conditionSnapshot struct {
+	Status             metav1.ConditionStatus
+	ObservedGeneration int64
+	Reason             string
+	Message            string
+}
+
+// conditionsSnapshot returns a map of condition Type → stable fields for skip-check comparison.
+func conditionsSnapshot(conds []metav1.Condition) map[string]conditionSnapshot {
+	m := make(map[string]conditionSnapshot, len(conds))
 	for _, c := range conds {
-		m[c.Type] = c.Status
+		m[c.Type] = conditionSnapshot{
+			Status:             c.Status,
+			ObservedGeneration: c.ObservedGeneration,
+			Reason:             c.Reason,
+			Message:            c.Message,
+		}
 	}
 	return m
 }
 
 // conditionsChanged returns true if any condition type or status differs between
 // the snapshot taken before populateStatus and the current slice after all updates.
-func conditionsChanged(prev map[string]metav1.ConditionStatus, cur []metav1.Condition) bool {
+func conditionsChanged(prev map[string]conditionSnapshot, cur []metav1.Condition) bool {
 	if len(prev) != len(cur) {
 		return true
 	}
 	for _, c := range cur {
-		if s, ok := prev[c.Type]; !ok || s != c.Status {
+		s, ok := prev[c.Type]
+		if !ok {
+			return true
+		}
+		if s.Status != c.Status ||
+			s.ObservedGeneration != c.ObservedGeneration ||
+			s.Reason != c.Reason ||
+			s.Message != c.Message {
 			return true
 		}
 	}
 	return false
+}
+
+// statusSnapshot captures the relevant status fields before populateStatus
+// modifies them, so we can compare and skip no-op status updates.
+type statusSnapshot struct {
+	Phase       ackov1alpha1.AerospikePhase
+	PhaseReason string
+	Size        int32
+	Health      string
+	Generation  int64
+	Selector    string
+	Pods        map[string]ackov1alpha1.AerospikePodStatus
+	Conditions  map[string]conditionSnapshot
+}
+
+func statusUnchanged(prev statusSnapshot, latest *ackov1alpha1.AerospikeCluster, readyCount int32, phase ackov1alpha1.AerospikePhase, phaseReason string) bool {
+	return prev.Phase == phase &&
+		prev.PhaseReason == phaseReason &&
+		prev.Size == readyCount &&
+		prev.Health == latest.Status.Health &&
+		prev.Generation == latest.Generation &&
+		prev.Selector == latest.Status.Selector &&
+		!conditionsChanged(prev.Conditions, latest.Status.Conditions) &&
+		reflect.DeepEqual(prev.Pods, latest.Status.Pods)
 }
 
 // aeroPodInfo holds per-node Aerospike information collected via asinfo commands.

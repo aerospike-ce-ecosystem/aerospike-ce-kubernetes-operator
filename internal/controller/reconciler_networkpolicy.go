@@ -3,9 +3,11 @@ package controller
 import (
 	"context"
 	"fmt"
+	"maps"
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -77,7 +79,11 @@ func (r *AerospikeClusterReconciler) reconcileK8sNetworkPolicy(
 		return fmt.Errorf("getting NetworkPolicy %s: %w", npName, err)
 	}
 
-	// Update existing
+	if !k8sNetworkPolicyChanged(existing, np) {
+		log.V(1).Info("NetworkPolicy unchanged, skipping update", "name", npName)
+		return nil
+	}
+
 	existing.Spec = np.Spec
 	existing.Labels = np.Labels
 	log.Info("Updating NetworkPolicy", "name", npName)
@@ -243,9 +249,18 @@ func (r *AerospikeClusterReconciler) reconcileCiliumNetworkPolicy(
 		return fmt.Errorf("getting CiliumNetworkPolicy %s: %w", npName, err)
 	}
 
-	// Update existing
+	if !unstructuredResourceChanged(existing, spec, labels) {
+		log.V(1).Info("CiliumNetworkPolicy unchanged, skipping update", "name", npName)
+		return nil
+	}
+
 	existing.Object["spec"] = spec
 	existing.SetLabels(labels)
 	log.Info("Updating CiliumNetworkPolicy", "name", npName)
 	return r.Update(ctx, existing)
+}
+
+func k8sNetworkPolicyChanged(existing, desired *networkingv1.NetworkPolicy) bool {
+	return !equality.Semantic.DeepEqual(existing.Spec, desired.Spec) ||
+		!maps.Equal(existing.Labels, desired.Labels)
 }

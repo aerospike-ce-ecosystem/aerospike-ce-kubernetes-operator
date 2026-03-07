@@ -3,6 +3,11 @@ package controller
 import (
 	"strings"
 	"testing"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func TestToStringMap(t *testing.T) {
@@ -146,5 +151,160 @@ func TestDefaultAlertRules_LabelSeverity(t *testing.T) {
 	}
 	if warningCount != 4 {
 		t.Errorf("expected 4 warning alerts, got %d", warningCount)
+	}
+}
+
+func TestUnstructuredResourceChanged(t *testing.T) {
+	t.Run("returns false when spec and labels are unchanged", func(t *testing.T) {
+		existing := &unstructured.Unstructured{
+			Object: map[string]any{
+				"spec": map[string]any{
+					"groups": []any{map[string]any{"name": "test.rules"}},
+				},
+			},
+		}
+		existing.SetLabels(map[string]string{"app": "aerospike", "instance": "test"})
+
+		changed := unstructuredResourceChanged(
+			existing,
+			map[string]any{
+				"groups": []any{map[string]any{"name": "test.rules"}},
+			},
+			map[string]string{"app": "aerospike", "instance": "test"},
+		)
+		if changed {
+			t.Fatal("unstructuredResourceChanged() = true, want false")
+		}
+	})
+
+	t.Run("returns true when labels change", func(t *testing.T) {
+		existing := &unstructured.Unstructured{
+			Object: map[string]any{
+				"spec": map[string]any{
+					"selector": map[string]any{"matchLabels": map[string]any{"app": "aerospike"}},
+				},
+			},
+		}
+		existing.SetLabels(map[string]string{"app": "aerospike", "instance": "test"})
+
+		changed := unstructuredResourceChanged(
+			existing,
+			map[string]any{
+				"selector": map[string]any{"matchLabels": map[string]any{"app": "aerospike"}},
+			},
+			map[string]string{"app": "aerospike", "instance": "test2"},
+		)
+		if !changed {
+			t.Fatal("unstructuredResourceChanged() = false, want true when labels differ")
+		}
+	})
+
+	t.Run("returns true when spec changes", func(t *testing.T) {
+		existing := &unstructured.Unstructured{
+			Object: map[string]any{
+				"spec": map[string]any{
+					"groups": []any{map[string]any{"name": "test.rules"}},
+				},
+			},
+		}
+		existing.SetLabels(map[string]string{"app": "aerospike"})
+
+		changed := unstructuredResourceChanged(
+			existing,
+			map[string]any{
+				"groups": []any{map[string]any{"name": "test-v2.rules"}},
+			},
+			map[string]string{"app": "aerospike"},
+		)
+		if !changed {
+			t.Fatal("unstructuredResourceChanged() = false, want true when spec differs")
+		}
+	})
+
+	t.Run("returns true when existing spec is missing", func(t *testing.T) {
+		existing := &unstructured.Unstructured{Object: map[string]any{}}
+		existing.SetLabels(map[string]string{"app": "aerospike"})
+
+		changed := unstructuredResourceChanged(
+			existing,
+			map[string]any{"groups": []any{}},
+			map[string]string{"app": "aerospike"},
+		)
+		if !changed {
+			t.Fatal("unstructuredResourceChanged() = false, want true when existing spec is missing")
+		}
+	})
+}
+
+func TestMetricsServiceNeedsUpdate(t *testing.T) {
+	desired := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				"app.kubernetes.io/name":     "aerospike-cluster",
+				"app.kubernetes.io/instance": "demo",
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			Type:     corev1.ServiceTypeClusterIP,
+			Selector: map[string]string{"app.kubernetes.io/instance": "demo"},
+			Ports: []corev1.ServicePort{
+				{
+					Name:       "metrics",
+					Port:       9145,
+					TargetPort: intstr.FromInt32(9145),
+					Protocol:   corev1.ProtocolTCP,
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(existing *corev1.Service)
+		want   bool
+	}{
+		{
+			name:   "unchanged",
+			mutate: func(_ *corev1.Service) {},
+			want:   false,
+		},
+		{
+			name: "type drift",
+			mutate: func(existing *corev1.Service) {
+				existing.Spec.Type = corev1.ServiceTypeNodePort
+			},
+			want: true,
+		},
+		{
+			name: "selector drift",
+			mutate: func(existing *corev1.Service) {
+				existing.Spec.Selector = map[string]string{"app.kubernetes.io/instance": "other"}
+			},
+			want: true,
+		},
+		{
+			name: "port drift",
+			mutate: func(existing *corev1.Service) {
+				existing.Spec.Ports[0].Port = 9200
+			},
+			want: true,
+		},
+		{
+			name: "labels drift",
+			mutate: func(existing *corev1.Service) {
+				existing.Labels["custom"] = "stale"
+			},
+			want: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			existing := desired.DeepCopy()
+			tc.mutate(existing)
+			if got := metricsServiceNeedsUpdate(existing, desired); got != tc.want {
+				t.Fatalf("metricsServiceNeedsUpdate() = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }

@@ -45,9 +45,7 @@ func (r *AerospikeClusterReconciler) reconcileHeadlessService(
 			desiredAnnotations = make(map[string]string)
 			maps.Copy(desiredAnnotations, cluster.Spec.HeadlessService.Metadata.Annotations)
 		}
-		if cluster.Spec.HeadlessService.Metadata.Labels != nil {
-			maps.Copy(labels, cluster.Spec.HeadlessService.Metadata.Labels)
-		}
+		labels = mergeAdditionalLabels(labels, cluster.Spec.HeadlessService.Metadata.Labels)
 	}
 
 	if errors.IsNotFound(err) {
@@ -78,16 +76,12 @@ func (r *AerospikeClusterReconciler) reconcileHeadlessService(
 		return fmt.Errorf("getting headless service %s: %w", svcName, err)
 	}
 
-	// Update if annotations, labels, or ports changed.
-	needsUpdate := !equalAnnotations(existing.Annotations, desiredAnnotations) ||
-		!maps.Equal(existing.Labels, labels) ||
-		servicePortsChanged(existing.Spec.Ports, desiredPorts)
-
-	if needsUpdate {
+	if headlessServiceNeedsUpdate(existing, labels, desiredAnnotations, selectorLabels, desiredPorts) {
 		existing.Labels = labels
 		existing.Annotations = reconcileAnnotations(existing.Annotations, desiredAnnotations)
 		existing.Spec.Ports = desiredPorts
 		existing.Spec.Selector = selectorLabels
+		existing.Spec.PublishNotReadyAddresses = true
 		log.Info("Updating headless service", "name", svcName)
 		if err := r.Update(ctx, existing); err != nil {
 			return fmt.Errorf("updating headless service %s: %w", svcName, err)
@@ -96,6 +90,35 @@ func (r *AerospikeClusterReconciler) reconcileHeadlessService(
 	}
 
 	return nil
+}
+
+func headlessServiceNeedsUpdate(
+	existing *corev1.Service,
+	desiredLabels map[string]string,
+	desiredAnnotations map[string]string,
+	desiredSelector map[string]string,
+	desiredPorts []corev1.ServicePort,
+) bool {
+	return !equalAnnotations(existing.Annotations, desiredAnnotations) ||
+		!maps.Equal(existing.Labels, desiredLabels) ||
+		!maps.Equal(existing.Spec.Selector, desiredSelector) ||
+		!existing.Spec.PublishNotReadyAddresses ||
+		servicePortsChanged(existing.Spec.Ports, desiredPorts)
+}
+
+// mergeAdditionalLabels adds user-specified labels without allowing them to
+// overwrite operator-managed identity labels that selectors and cleanup rely on.
+func mergeAdditionalLabels(base, additional map[string]string) map[string]string {
+	if len(additional) == 0 {
+		return base
+	}
+	for k, v := range additional {
+		if _, exists := base[k]; exists {
+			continue
+		}
+		base[k] = v
+	}
+	return base
 }
 
 // servicePortsChanged returns true if the existing ports differ from desired ports.

@@ -5,6 +5,7 @@ import (
 
 	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/podutil"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -167,5 +168,67 @@ func TestBuildK8sNetworkPolicy_PolicyTypes(t *testing.T) {
 	}
 	if np.Spec.PolicyTypes[0] != "Ingress" {
 		t.Errorf("expected Ingress policy type, got %s", np.Spec.PolicyTypes[0])
+	}
+}
+
+func TestK8sNetworkPolicyChanged_Unchanged(t *testing.T) {
+	r := &AerospikeClusterReconciler{}
+	cluster := &ackov1alpha1.AerospikeCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cluster",
+			Namespace: "default",
+		},
+		Spec: ackov1alpha1.AerospikeClusterSpec{
+			Size: 1,
+		},
+	}
+
+	desired := r.buildK8sNetworkPolicy(cluster, "test-cluster-np")
+	existing := desired.DeepCopy()
+
+	if changed := k8sNetworkPolicyChanged(existing, desired); changed {
+		t.Fatal("k8sNetworkPolicyChanged() = true, want false for identical policy")
+	}
+}
+
+func TestK8sNetworkPolicyChanged_SpecChanged(t *testing.T) {
+	r := &AerospikeClusterReconciler{}
+	cluster := &ackov1alpha1.AerospikeCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cluster",
+			Namespace: "default",
+		},
+		Spec: ackov1alpha1.AerospikeClusterSpec{
+			Size: 1,
+		},
+	}
+
+	desired := r.buildK8sNetworkPolicy(cluster, "test-cluster-np")
+	existing := desired.DeepCopy()
+	existing.Spec.PolicyTypes = append(existing.Spec.PolicyTypes, networkingv1.PolicyTypeEgress)
+
+	if changed := k8sNetworkPolicyChanged(existing, desired); !changed {
+		t.Fatal("k8sNetworkPolicyChanged() = false, want true when spec differs")
+	}
+}
+
+func TestK8sNetworkPolicyChanged_LabelsChanged(t *testing.T) {
+	r := &AerospikeClusterReconciler{}
+	cluster := &ackov1alpha1.AerospikeCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cluster",
+			Namespace: "default",
+		},
+		Spec: ackov1alpha1.AerospikeClusterSpec{
+			Size: 1,
+		},
+	}
+
+	desired := r.buildK8sNetworkPolicy(cluster, "test-cluster-np")
+	existing := desired.DeepCopy()
+	existing.Labels["custom"] = "different"
+
+	if changed := k8sNetworkPolicyChanged(existing, desired); !changed {
+		t.Fatal("k8sNetworkPolicyChanged() = false, want true when labels differ")
 	}
 }

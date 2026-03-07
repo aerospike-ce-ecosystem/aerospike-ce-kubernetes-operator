@@ -131,25 +131,17 @@ func (r *AerospikeClusterReconciler) reconcileMetricsService(
 		return fmt.Errorf("getting metrics service %s: %w", svcName, err)
 	}
 
-	// Before updating, check if the service needs changes
-	needsUpdate := false
-	if !reflect.DeepEqual(existing.Spec.Ports, desired.Spec.Ports) {
-		existing.Spec.Ports = desired.Spec.Ports
-		needsUpdate = true
+	if !metricsServiceNeedsUpdate(existing, desired) {
+		log.V(1).Info("Metrics Service unchanged, skipping update", "name", svcName)
+		return nil
 	}
-	if !maps.Equal(existing.Spec.Selector, desired.Spec.Selector) {
-		existing.Spec.Selector = desired.Spec.Selector
-		needsUpdate = true
-	}
-	if !maps.Equal(existing.Labels, labels) {
-		existing.Labels = labels
-		needsUpdate = true
-	}
-	if needsUpdate {
-		log.Info("Updating metrics Service", "name", svcName)
-		return r.Update(ctx, existing)
-	}
-	return nil
+
+	existing.Spec.Type = desired.Spec.Type
+	existing.Spec.Ports = desired.Spec.Ports
+	existing.Spec.Selector = desired.Spec.Selector
+	existing.Labels = labels
+	log.Info("Updating metrics Service", "name", svcName)
+	return r.Update(ctx, existing)
 }
 
 func (r *AerospikeClusterReconciler) reconcileServiceMonitor(
@@ -184,9 +176,7 @@ func (r *AerospikeClusterReconciler) reconcileServiceMonitor(
 	interval := monitoring.ServiceMonitor.Interval
 
 	labels := utils.LabelsForCluster(cluster.Name)
-	if monitoring.ServiceMonitor.Labels != nil {
-		maps.Copy(labels, monitoring.ServiceMonitor.Labels)
-	}
+	labels = mergeAdditionalLabels(labels, monitoring.ServiceMonitor.Labels)
 
 	selectorLabels := utils.SelectorLabelsForCluster(cluster.Name)
 
@@ -223,6 +213,12 @@ func (r *AerospikeClusterReconciler) reconcileServiceMonitor(
 		return fmt.Errorf("getting ServiceMonitor %s: %w", smName, err)
 	}
 
+	// Skip no-op updates to avoid unnecessary API writes and reconcile loops.
+	if !unstructuredResourceChanged(existing, smSpec, labels) {
+		log.V(1).Info("ServiceMonitor unchanged, skipping update", "name", smName)
+		return nil
+	}
+
 	// Update existing
 	existing.Object["spec"] = smSpec
 	existing.SetLabels(labels)
@@ -236,6 +232,13 @@ func toStringMap(m map[string]string) map[string]any {
 		out[k] = v
 	}
 	return out
+}
+
+func metricsServiceNeedsUpdate(existing, desired *corev1.Service) bool {
+	return existing.Spec.Type != desired.Spec.Type ||
+		!reflect.DeepEqual(existing.Spec.Ports, desired.Spec.Ports) ||
+		!maps.Equal(existing.Spec.Selector, desired.Spec.Selector) ||
+		!maps.Equal(existing.Labels, desired.Labels)
 }
 
 func (r *AerospikeClusterReconciler) reconcilePrometheusRule(
@@ -268,9 +271,7 @@ func (r *AerospikeClusterReconciler) reconcilePrometheusRule(
 
 	monitoring := cluster.Spec.Monitoring
 	labels := utils.LabelsForCluster(cluster.Name)
-	if monitoring.PrometheusRule.Labels != nil {
-		maps.Copy(labels, monitoring.PrometheusRule.Labels)
-	}
+	labels = mergeAdditionalLabels(labels, monitoring.PrometheusRule.Labels)
 
 	// Build rule groups: use custom rules if provided, otherwise default rules.
 	var groups []any
@@ -307,11 +308,29 @@ func (r *AerospikeClusterReconciler) reconcilePrometheusRule(
 		return fmt.Errorf("getting PrometheusRule %s: %w", prName, err)
 	}
 
+	// Skip no-op updates to avoid unnecessary API writes and reconcile loops.
+	if !unstructuredResourceChanged(existing, prSpec, labels) {
+		log.V(1).Info("PrometheusRule unchanged, skipping update", "name", prName)
+		return nil
+	}
+
 	// Update existing
 	existing.Object["spec"] = prSpec
 	existing.SetLabels(labels)
 	log.Info("Updating PrometheusRule", "name", prName)
 	return r.Update(ctx, existing)
+}
+
+func unstructuredResourceChanged(
+	existing *unstructured.Unstructured,
+	desiredSpec map[string]any,
+	desiredLabels map[string]string,
+) bool {
+	currentSpec, found, err := unstructured.NestedFieldCopy(existing.Object, "spec")
+	if err != nil || !found {
+		return true
+	}
+	return !reflect.DeepEqual(currentSpec, desiredSpec) || !maps.Equal(existing.GetLabels(), desiredLabels)
 }
 
 // defaultAlertRules returns the default Prometheus alert rules for an Aerospike cluster.

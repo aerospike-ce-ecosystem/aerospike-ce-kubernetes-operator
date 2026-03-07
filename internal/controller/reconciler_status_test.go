@@ -128,7 +128,7 @@ func TestBuildSelectorString(t *testing.T) {
 		}
 
 		want := "a-key=a,m-key=m,z-key=z"
-		for i := 0; i < 50; i++ {
+		for range 50 {
 			if got := buildSelectorString(labels); got != want {
 				t.Fatalf("buildSelectorString() = %q, want %q", got, want)
 			}

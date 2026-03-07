@@ -82,7 +82,10 @@ func (r *AerospikeClusterReconciler) reconcilePDB(
 		return nil
 	}
 
-	existing.Labels = labels
+	if existing.Labels == nil {
+		existing.Labels = make(map[string]string, len(labels))
+	}
+	maps.Copy(existing.Labels, labels)
 	existing.Spec.MinAvailable = nil
 	existing.Spec.MaxUnavailable = &maxUnavailable
 	existing.Spec.Selector = &metav1.LabelSelector{MatchLabels: selectorLabels}
@@ -110,7 +113,12 @@ func pdbNeedsUpdate(
 	if !equality.Semantic.DeepEqual(existing.Spec.Selector, desiredSelector) {
 		return true
 	}
-	return !maps.Equal(existing.Labels, desiredLabels)
+	for k, v := range desiredLabels {
+		if existing.Labels[k] != v {
+			return true
+		}
+	}
+	return false
 }
 
 // intOrStringEqual compares two IntOrString values by type and value,

@@ -73,11 +73,18 @@ func TestPDBNeedsUpdate(t *testing.T) {
 			expected: true,
 		},
 		{
-			name: "label drift",
+			name: "operator label drift",
 			mutate: func(pdb *policyv1.PodDisruptionBudget) {
-				pdb.Labels["custom"] = "drifted"
+				pdb.Labels[utils.InstanceLabel] = "wrong"
 			},
 			expected: true,
+		},
+		{
+			name: "extra external label is not drift",
+			mutate: func(pdb *policyv1.PodDisruptionBudget) {
+				pdb.Labels["custom"] = "external"
+			},
+			expected: false,
 		},
 		{
 			name: "min available drift",
@@ -121,7 +128,6 @@ func TestReconcilePDBRepairsGeneratedDrift(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "demo",
 			Namespace: "default",
-			UID:       "cluster-uid",
 		},
 	}
 
@@ -186,12 +192,34 @@ func TestReconcilePDBRepairsGeneratedDrift(t *testing.T) {
 	if got := updated.Spec.Selector.MatchLabels; len(got) != len(utils.SelectorLabelsForCluster(cluster.Name)) || got[utils.InstanceLabel] != cluster.Name {
 		t.Fatalf("Selector.MatchLabels = %v, want %v", got, utils.SelectorLabelsForCluster(cluster.Name))
 	}
-	if len(updated.Labels) != len(wantLabels) {
-		t.Fatalf("Labels = %v, want %v", updated.Labels, wantLabels)
-	}
 	for k, v := range wantLabels {
 		if updated.Labels[k] != v {
 			t.Fatalf("Labels[%q] = %q, want %q", k, updated.Labels[k], v)
 		}
+	}
+	if updated.Labels["custom"] != "drifted" {
+		t.Fatalf("external label 'custom' was not preserved, got %q", updated.Labels["custom"])
+	}
+}
+
+func TestIntOrStringEqual(t *testing.T) {
+	tests := []struct {
+		name     string
+		a, b     intstr.IntOrString
+		expected bool
+	}{
+		{"same int", intstr.FromInt32(1), intstr.FromInt32(1), true},
+		{"different int", intstr.FromInt32(1), intstr.FromInt32(2), false},
+		{"same string", intstr.FromString("50%"), intstr.FromString("50%"), true},
+		{"different string", intstr.FromString("50%"), intstr.FromString("25%"), false},
+		{"int vs string same text", intstr.FromInt32(1), intstr.FromString("1"), false},
+		{"zero values", intstr.IntOrString{}, intstr.IntOrString{}, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := intOrStringEqual(tc.a, tc.b); got != tc.expected {
+				t.Fatalf("intOrStringEqual() = %v, want %v", got, tc.expected)
+			}
+		})
 	}
 }

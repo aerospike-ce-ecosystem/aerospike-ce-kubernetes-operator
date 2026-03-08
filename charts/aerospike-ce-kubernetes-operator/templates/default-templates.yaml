@@ -1,11 +1,10 @@
 {{- if .Values.defaultTemplates.enabled }}
-{{- range $name, $spec := .Values.defaultTemplates.templates }}
+{{- range $name, $spec := $.Values.defaultTemplates.templates }}
 ---
 apiVersion: acko.io/v1alpha1
 kind: AerospikeClusterTemplate
 metadata:
   name: {{ $name }}
-  namespace: {{ $.Release.Namespace }}
   labels:
     {{- include "aerospike-ce-kubernetes-operator.labels" $ | nindent 4 }}
     app.kubernetes.io/component: cluster-template

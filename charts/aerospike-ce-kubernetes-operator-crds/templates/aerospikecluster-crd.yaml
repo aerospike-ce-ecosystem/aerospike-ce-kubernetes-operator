@@ -19,11 +19,11 @@ spec:
   versions:
   - additionalPrinterColumns:
     - jsonPath: .spec.size
-      name: Size
+      name: RackSize
       type: integer
-    - jsonPath: .status.size
-      name: Ready
-      type: integer
+    - jsonPath: .status.health
+      name: Health
+      type: string
     - jsonPath: .status.phase
       name: Phase
       type: string
@@ -716,6 +716,12 @@ spec:
                         - configuredIP
                         type: string
                     type: object
+                  description:
+                    description: |-
+                      Description은 이 템플릿의 용도와 권장 환경을 설명합니다.
+                      예: "개발 환경용 단일 노드 클러스터" 또는 "프로덕션 멀티 랙 클러스터"
+                    maxLength: 500
+                    type: string
                   image:
                     description: |-
                       Image is the default Aerospike CE container image for clusters using this template.
@@ -9240,6 +9246,12 @@ spec:
                             - configuredIP
                             type: string
                         type: object
+                      description:
+                        description: |-
+                          Description은 이 템플릿의 용도와 권장 환경을 설명합니다.
+                          예: "개발 환경용 단일 노드 클러스터" 또는 "프로덕션 멀티 랙 클러스터"
+                        maxLength: 500
+                        type: string
                       image:
                         description: |-
                           Image is the default Aerospike CE container image for clusters using this template.
@@ -17220,6 +17232,10 @@ spec:
                   excessive retries on persistently failing clusters.
                 format: int32
                 type: integer
+              health:
+                description: Health is a human-readable summary of pod readiness in
+                  "ready/total" format (e.g. "1/3").
+                type: string
               lastReconcileError:
                 description: |-
                   LastReconcileError is the error message from the most recent failed reconciliation.
@@ -17268,6 +17284,7 @@ spec:
                     - Error
                     - ScalingUp
                     - ScalingDown
+                    - WaitingForMigration
                     - RollingRestart
                     - ACLSync
                     - Paused
@@ -17294,6 +17311,7 @@ spec:
                 - Error
                 - ScalingUp
                 - ScalingDown
+                - WaitingForMigration
                 - RollingRestart
                 - ACLSync
                 - Paused
@@ -17409,7 +17427,7 @@ spec:
                 description: Selector is the label selector for HPA compatibility.
                 type: string
               size:
-                description: Size is the current cluster size.
+                description: Size is the current number of ready pods.
                 format: int32
                 type: integer
               templateSnapshot:
@@ -17528,6 +17546,12 @@ spec:
                             - configuredIP
                             type: string
                         type: object
+                      description:
+                        description: |-
+                          Description은 이 템플릿의 용도와 권장 환경을 설명합니다.
+                          예: "개발 환경용 단일 노드 클러스터" 또는 "프로덕션 멀티 랙 클러스터"
+                        maxLength: 500
+                        type: string
                       image:
                         description: |-
                           Image is the default Aerospike CE container image for clusters using this template.

@@ -46,7 +46,7 @@ var _ admission.Defaulter[*AerospikeClusterTemplate] = &AerospikeClusterTemplate
 
 // Default implements admission.Defaulter[*AerospikeClusterTemplate].
 func (d *AerospikeClusterTemplateDefaulter) Default(_ context.Context, tmpl *AerospikeClusterTemplate) error {
-	aerospikeclustertemplatelog.Info("Defaulting", "name", tmpl.Name, "namespace", tmpl.Namespace)
+	aerospikeclustertemplatelog.Info("Defaulting", "name", tmpl.Name)
 
 	// Default scheduling.podAntiAffinityLevel to "preferred" if scheduling is set but level is empty.
 	if tmpl.Spec.Scheduling != nil && tmpl.Spec.Scheduling.PodAntiAffinityLevel == "" {

@@ -79,6 +79,53 @@ setup-kind: ## Delete existing Kind cluster and create a fresh one with kind-con
 	@$(KIND) delete cluster --name kind 2>/dev/null || true
 	KIND_EXPERIMENTAL_PROVIDER=$(KIND_PROVIDER) $(KIND) create cluster --config kind-config.yaml --name kind
 
+##@ Local Development (Full Stack)
+
+.PHONY: run-local
+run-local: manifests helm-sync-crds ## Deploy operator + cluster-manager UI into a fresh Kind cluster via Helm
+	@echo ""
+	@echo "==> [1/7] Creating fresh Kind cluster..."
+	-@$(KIND) delete cluster --name kind 2>/dev/null || true
+	KIND_EXPERIMENTAL_PROVIDER=$(KIND_PROVIDER) $(KIND) create cluster --config kind-config.yaml --name kind
+	@echo ""
+	@echo "==> [2/7] Building operator image..."
+	$(CONTAINER_TOOL) build --build-arg VERSION=$(VERSION) -t $(IMG) .
+	@echo ""
+	@echo "==> [3/7] Building cluster-manager image..."
+	$(CONTAINER_TOOL) build -t $(CLUSTER_MANAGER_IMG):latest aerospike-cluster-manager/
+	@echo ""
+	@echo "==> [4/7] Loading images into Kind cluster..."
+	$(CONTAINER_TOOL) save --format docker-archive $(IMG) -o /tmp/acko-operator.tar
+	$(KIND) load image-archive /tmp/acko-operator.tar --name kind
+	$(CONTAINER_TOOL) save --format docker-archive $(CLUSTER_MANAGER_IMG):latest -o /tmp/acko-cluster-manager.tar
+	$(KIND) load image-archive /tmp/acko-cluster-manager.tar --name kind
+	@rm -f /tmp/acko-operator.tar /tmp/acko-cluster-manager.tar
+	@echo ""
+	@echo "==> [5/7] Installing cert-manager..."
+	helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --set crds.enabled=true
+	@echo "    Waiting for cert-manager webhook..."
+	kubectl wait --for=condition=Available deployment/cert-manager-webhook -n cert-manager --timeout=120s
+	@echo ""
+	@echo "==> [6/7] Deploying operator and UI via Helm..."
+	helm upgrade -i aerospike-ce-kubernetes-operator ./charts/aerospike-ce-kubernetes-operator \
+		-n aerospike-operator --create-namespace \
+		--set ui.enabled=true \
+		--set image.tag=latest \
+		--set ui.image.tag=latest
+	@echo ""
+	@echo "==> [7/7] Waiting for operator deployment to be ready..."
+	kubectl -n aerospike-operator wait --for=condition=Available deployment --all --timeout=180s
+	@echo ""
+	@echo "==> ACKO local development stack is running!"
+	@echo "    Operator:  deployed in namespace 'aerospike-operator'"
+	@echo "    UI:        kubectl port-forward -n aerospike-operator svc/aerospike-ce-kubernetes-operator-ui 3000:3000"
+	@echo ""
+
+.PHONY: stop-local
+stop-local: ## Delete the Kind cluster used for local development
+	-@$(KIND) delete cluster --name kind
+	@echo "==> Kind cluster 'kind' deleted."
+
 .PHONY: setup-test-e2e
 setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
 	@command -v $(KIND) >/dev/null 2>&1 || { \
@@ -123,26 +170,29 @@ LDFLAGS = -X github.com/ksr/aerospike-ce-kubernetes-operator/internal/version.Ve
 CLUSTER_MANAGER_IMG ?= ghcr.io/kimsoungryoul/aerospike-cluster-manager
 CLUSTER_MANAGER_KIND_CLUSTER ?= kind
 CLUSTER_MANAGER_NAMESPACE ?= aerospike-operator
-CLUSTER_MANAGER_DEPLOYMENT ?= aerospike-ce-kubernetes-operator-ui
-CLUSTER_MANAGER_CONTAINER ?= aerospike-cluster-manager
-
-.PHONY: reload-cluster-manager
 NO_CACHE ?=
 BUILD_NO_CACHE_FLAG = $(if $(NO_CACHE),--no-cache,)
-reload-cluster-manager: ## Build cluster-manager image, load into kind cluster, and force-update deployment image (use NO_CACHE=1 to disable cache)
-	$(eval RELOAD_TAG := $(shell date +%s))
-	@echo ">>> [1/4] Building cluster-manager image: $(CLUSTER_MANAGER_IMG):$(RELOAD_TAG)"
-	$(CONTAINER_TOOL) build $(BUILD_NO_CACHE_FLAG) -t $(CLUSTER_MANAGER_IMG):$(RELOAD_TAG) aerospike-cluster-manager/
-	@echo ">>> [2/4] Loading image into Kind cluster '$(CLUSTER_MANAGER_KIND_CLUSTER)'"
-	$(CONTAINER_TOOL) save --format docker-archive -o /tmp/cluster-manager-image.tar $(CLUSTER_MANAGER_IMG):$(RELOAD_TAG)
-	kind load image-archive /tmp/cluster-manager-image.tar --name $(CLUSTER_MANAGER_KIND_CLUSTER)
-	rm -f /tmp/cluster-manager-image.tar
-	@echo ">>> [3/4] Updating deployment image to tag :$(RELOAD_TAG)"
-	kubectl -n $(CLUSTER_MANAGER_NAMESPACE) set image deployment/$(CLUSTER_MANAGER_DEPLOYMENT) \
-		$(CLUSTER_MANAGER_CONTAINER)=$(CLUSTER_MANAGER_IMG):$(RELOAD_TAG)
-	@echo ">>> [4/4] Waiting for rollout $(CLUSTER_MANAGER_DEPLOYMENT)"
-	kubectl -n $(CLUSTER_MANAGER_NAMESPACE) rollout status deployment/$(CLUSTER_MANAGER_DEPLOYMENT) --timeout=120s
-	@echo ">>> Done. Cluster Manager reloaded successfully (tag: $(RELOAD_TAG))"
+
+.PHONY: reload-cluster-manager
+reload-cluster-manager: ## Build operator + cluster-manager images, load into Kind, and redeploy via helm upgrade (use NO_CACHE=1 to disable cache)
+	@echo ">>> [1/5] Building images..."
+	$(CONTAINER_TOOL) build $(BUILD_NO_CACHE_FLAG) --build-arg VERSION=$(VERSION) -t $(IMG) .
+	$(CONTAINER_TOOL) build $(BUILD_NO_CACHE_FLAG) -t $(CLUSTER_MANAGER_IMG):latest aerospike-cluster-manager/
+	@echo ">>> [2/5] Loading images into Kind cluster '$(CLUSTER_MANAGER_KIND_CLUSTER)'"
+	$(CONTAINER_TOOL) save --format docker-archive $(IMG) -o /tmp/acko-operator.tar
+	$(KIND) load image-archive /tmp/acko-operator.tar --name $(CLUSTER_MANAGER_KIND_CLUSTER)
+	$(CONTAINER_TOOL) save --format docker-archive $(CLUSTER_MANAGER_IMG):latest -o /tmp/acko-cluster-manager.tar
+	$(KIND) load image-archive /tmp/acko-cluster-manager.tar --name $(CLUSTER_MANAGER_KIND_CLUSTER)
+	@rm -f /tmp/acko-operator.tar /tmp/acko-cluster-manager.tar
+	@echo ">>> [3/5] Upgrading Helm release"
+	helm upgrade aerospike-ce-kubernetes-operator ./charts/aerospike-ce-kubernetes-operator \
+		-n $(CLUSTER_MANAGER_NAMESPACE) --reuse-values \
+		--set ui.enabled=true --set image.tag=latest --set ui.image.tag=latest
+	@echo ">>> [4/5] Restarting deployments"
+	kubectl -n $(CLUSTER_MANAGER_NAMESPACE) rollout restart deployment
+	@echo ">>> [5/5] Waiting for rollout to complete"
+	kubectl -n $(CLUSTER_MANAGER_NAMESPACE) wait --for=condition=Available deployment --all --timeout=180s
+	@echo ">>> Done. Operator and Cluster Manager reloaded successfully."
 
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.
@@ -227,7 +277,7 @@ endif
 .PHONY: install
 install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
 	@out="$$( "$(KUSTOMIZE)" build config/crd 2>/dev/null || true )"; \
-	if [ -n "$$out" ]; then echo "$$out" | "$(KUBECTL)" apply -f -; else echo "No CRDs to install; skipping."; fi
+	if [ -n "$$out" ]; then echo "$$out" | "$(KUBECTL)" apply --server-side -f -; else echo "No CRDs to install; skipping."; fi
 
 .PHONY: uninstall
 uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.

@@ -2,7 +2,6 @@ apiVersion: acko.io/v1alpha1
 kind: AerospikeClusterTemplate
 metadata:
   name: hard-rack
-  namespace: default
   labels:
     app.kubernetes.io/profile: hard-rack
 spec:

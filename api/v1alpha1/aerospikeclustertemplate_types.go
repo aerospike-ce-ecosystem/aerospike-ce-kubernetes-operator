@@ -202,7 +202,7 @@ type AerospikeClusterTemplateStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:shortName=asct
+// +kubebuilder:resource:shortName=asct,scope=Cluster
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 // +kubebuilder:printcolumn:name="AntiAffinity",type=string,JSONPath=`.spec.scheduling.podAntiAffinityLevel`
 // +kubebuilder:printcolumn:name="StorageClass",type=string,JSONPath=`.spec.storage.storageClassName`,priority=1

@@ -79,9 +79,9 @@ func TestNewValidation(t *testing.T) {
 }
 
 func TestNewValidationf(t *testing.T) {
-	err := NewValidationf("template %q not found in namespace %q", "my-tmpl", "default")
+	err := NewValidationf("template %q not found", "my-tmpl")
 
-	expected := `template "my-tmpl" not found in namespace "default"`
+	expected := `template "my-tmpl" not found`
 	if err.Error() != expected {
 		t.Fatalf("expected %q, got %q", expected, err.Error())
 	}

@@ -183,10 +183,11 @@ func PDBExists(ctx context.Context, c client.Client, name, ns string) (bool, err
 
 // --- AerospikeClusterTemplate helpers ---
 
-// GetTemplate retrieves an AerospikeClusterTemplate by name and namespace.
-func GetTemplate(ctx context.Context, c client.Client, name, ns string) (*ackov1alpha1.AerospikeClusterTemplate, error) {
+// GetTemplate retrieves an AerospikeClusterTemplate by name.
+// Templates are cluster-scoped, so no namespace is needed.
+func GetTemplate(ctx context.Context, c client.Client, name string) (*ackov1alpha1.AerospikeClusterTemplate, error) {
 	template := &ackov1alpha1.AerospikeClusterTemplate{}
-	err := c.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, template)
+	err := c.Get(ctx, types.NamespacedName{Name: name}, template)
 	return template, err
 }
 

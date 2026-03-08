@@ -79,6 +79,95 @@ setup-kind: ## Delete existing Kind cluster and create a fresh one with kind-con
 	@$(KIND) delete cluster --name kind 2>/dev/null || true
 	KIND_EXPERIMENTAL_PROVIDER=$(KIND_PROVIDER) $(KIND) create cluster --config kind-config.yaml --name kind
 
+##@ Local Development (Full Stack)
+
+.PHONY: ensure-kind
+ensure-kind: ## Ensure Kind cluster 'kind' exists (idempotent)
+	@case "$$($(KIND) get clusters 2>/dev/null)" in \
+		*"kind"*) \
+			echo "Kind cluster 'kind' already exists. Skipping creation." ;; \
+		*) \
+			echo "Creating Kind cluster 'kind' with provider '$(KIND_PROVIDER)'..."; \
+			KIND_EXPERIMENTAL_PROVIDER=$(KIND_PROVIDER) $(KIND) create cluster --config kind-config.yaml --name kind ;; \
+	esac
+
+.PHONY: start-local-pg
+start-local-pg: ## Start PostgreSQL via podman compose for local development
+	@echo "Ensuring PostgreSQL is running..."
+	@cd aerospike-cluster-manager && podman compose -f compose.dev.yaml up -d postgres
+	@echo "Waiting for PostgreSQL to be ready..."
+	@for i in $$(seq 1 30); do \
+		if podman exec postgres pg_isready -U aerospike -d aerospike_manager >/dev/null 2>&1; then \
+			echo "PostgreSQL is ready."; \
+			break; \
+		fi; \
+		if [ $$i -eq 30 ]; then \
+			echo "ERROR: PostgreSQL did not become ready in time."; \
+			exit 1; \
+		fi; \
+		sleep 1; \
+	done
+
+LOCAL_WEBHOOK_CERT_DIR ?= /tmp/acko-webhook-certs
+
+.PHONY: generate-local-certs
+generate-local-certs: ## Generate self-signed TLS certificates for local webhook server
+	@if [ ! -f "$(LOCAL_WEBHOOK_CERT_DIR)/tls.crt" ]; then \
+		echo "Generating self-signed webhook certificates..."; \
+		mkdir -p "$(LOCAL_WEBHOOK_CERT_DIR)"; \
+		openssl req -x509 -newkey rsa:2048 -keyout "$(LOCAL_WEBHOOK_CERT_DIR)/tls.key" \
+			-out "$(LOCAL_WEBHOOK_CERT_DIR)/tls.crt" -days 365 -nodes \
+			-subj "/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" 2>/dev/null; \
+		echo "Certificates generated at $(LOCAL_WEBHOOK_CERT_DIR)"; \
+	else \
+		echo "Webhook certificates already exist at $(LOCAL_WEBHOOK_CERT_DIR)"; \
+	fi
+
+.PHONY: install-default-templates
+install-default-templates: ## Apply default AerospikeClusterTemplates (minimal, soft-rack, hard-rack) to the cluster
+	@echo "==> Waiting for AerospikeClusterTemplate CRD to be established..."
+	@for i in 1 2 3 4 5 6 7 8 9 10 11 12; do \
+		kubectl wait --for=condition=Established crd/aerospikeclustertemplates.acko.io --timeout=5s 2>/dev/null && break || sleep 2; \
+	done
+	@echo "==> Installing default AerospikeClusterTemplates..."
+	@kubectl apply --server-side \
+		-f config/samples/acko_v1alpha1_template_dev.yaml \
+		-f config/samples/acko_v1alpha1_template_stage.yaml \
+		-f config/samples/acko_v1alpha1_template_prod.yaml
+	@echo "==> Default templates installed."
+
+.PHONY: run-local
+run-local: ensure-kind install install-default-templates start-local-pg generate-local-certs ## Run operator + cluster-manager (backend + frontend) concurrently against Kind cluster
+	@echo ""
+	@echo "==> Starting ACKO local development stack..."
+	@echo "    [operator]   go run ./cmd/main.go (webhook-cert: $(LOCAL_WEBHOOK_CERT_DIR))"
+	@echo "    [backend]    http://localhost:8000 (FastAPI)"
+	@echo "    [frontend]   http://localhost:3000 (Next.js)"
+	@echo ""
+	@ESC=$$'\033'; \
+	trap 'echo ""; echo "==> Shutting down..."; kill 0 2>/dev/null; cd aerospike-cluster-manager && podman compose -f compose.dev.yaml stop postgres 2>/dev/null; echo "==> All processes stopped."' EXIT; \
+	( go run -ldflags "$(LDFLAGS)" ./cmd/main.go \
+	  --webhook-cert-path="$(LOCAL_WEBHOOK_CERT_DIR)" --metrics-secure=false \
+	  2>&1 | sed -u "s/^/$${ESC}[34m[operator]$${ESC}[0m  /") & \
+	( cd aerospike-cluster-manager/backend && K8S_MANAGEMENT_ENABLED=true \
+	  uv run uvicorn aerospike_cluster_manager_api.main:app --reload 2>&1 \
+	  | sed -u "s/^/$${ESC}[32m[backend]$${ESC}[0m   /") & \
+	( cd aerospike-cluster-manager/frontend && npm run dev 2>&1 \
+	  | sed -u "s/^/$${ESC}[33m[frontend]$${ESC}[0m  /") & \
+	wait
+
+.PHONY: stop-local
+stop-local: ## Stop all run-local processes, PostgreSQL, and delete the Kind cluster
+	@echo "==> Stopping run-local processes..."
+	-@pkill -f 'go run.*./cmd/main.go' 2>/dev/null || true
+	-@pkill -f 'uvicorn aerospike_cluster_manager_api' 2>/dev/null || true
+	-@pkill -f 'next-router-worker\|next dev' 2>/dev/null || true
+	@echo "==> Stopping PostgreSQL..."
+	-@cd aerospike-cluster-manager && podman compose -f compose.dev.yaml down postgres
+	@echo "==> Deleting Kind cluster 'kind'..."
+	-@$(KIND) delete cluster --name kind
+	@echo "==> Done."
+
 .PHONY: setup-test-e2e
 setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
 	@command -v $(KIND) >/dev/null 2>&1 || { \
@@ -227,7 +316,7 @@ endif
 .PHONY: install
 install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
 	@out="$$( "$(KUSTOMIZE)" build config/crd 2>/dev/null || true )"; \
-	if [ -n "$$out" ]; then echo "$$out" | "$(KUBECTL)" apply -f -; else echo "No CRDs to install; skipping."; fi
+	if [ -n "$$out" ]; then echo "$$out" | "$(KUBECTL)" apply --server-side -f -; else echo "No CRDs to install; skipping."; fi
 
 .PHONY: uninstall
 uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.

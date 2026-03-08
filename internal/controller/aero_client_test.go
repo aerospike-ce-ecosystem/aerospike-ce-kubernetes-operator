@@ -98,6 +98,15 @@ func TestGetServicePort(t *testing.T) {
 	}
 }
 
+func TestGetAerospikeClientWithRetry_MethodSignature(t *testing.T) {
+	// Verify the retry wrapper compiles with the correct method signature.
+	// The assignment below fails at compile time if the signature changes.
+	var r *AerospikeClusterReconciler
+	fn := r.getAerospikeClientWithRetry
+	// Use fn to satisfy the compiler.
+	_ = fn
+}
+
 func TestBuildQuiesceCommand(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -33,7 +33,7 @@ func (r *AerospikeClusterReconciler) reconcileACL(
 	ctx context.Context,
 	cluster *ackov1alpha1.AerospikeCluster,
 ) (bool, error) {
-	log := logf.FromContext(ctx)
+	log := logf.FromContext(ctx).WithValues("cluster", cluster.Name)
 
 	if cluster.Spec.AerospikeAccessControl == nil {
 		return false, nil
@@ -68,23 +68,42 @@ func (r *AerospikeClusterReconciler) reconcileACL(
 	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventACLSyncStarted,
 		"ACL synchronization started")
 
-	aeroClient, err := r.getAerospikeClient(ctx, cluster)
+	aeroClient, err := r.getAerospikeClientWithRetry(ctx, cluster)
 	if err != nil {
 		metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "error").Inc()
 		return false, fmt.Errorf("ACL sync: connecting to cluster: %w", err)
 	}
 	defer closeAerospikeClient(aeroClient)
 
-	// Sync roles first (users may depend on roles)
+	// Sync roles first (users may depend on roles).
+	// Attempt ACL sync with a single retry for transient connection errors.
+	// During rolling restarts, the Aerospike cluster may briefly reject connections
+	// from nodes that are restarting.
 	if err := r.reconcileRoles(ctx, aeroClient, cluster); err != nil {
-		metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "error").Inc()
-		return false, fmt.Errorf("ACL sync roles: %w", err)
+		if isTransientAeroError(err) {
+			log.Info("Transient error during role sync, retrying once", "error", err)
+			if retryErr := r.reconcileRoles(ctx, aeroClient, cluster); retryErr != nil {
+				metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "error").Inc()
+				return false, fmt.Errorf("ACL sync roles (after retry): %w", retryErr)
+			}
+		} else {
+			metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "error").Inc()
+			return false, fmt.Errorf("ACL sync roles: %w", err)
+		}
 	}
 
-	// Sync users
+	// Sync users with the same single-retry pattern for transient errors.
 	if err := r.reconcileUsers(ctx, aeroClient, cluster); err != nil {
-		metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "error").Inc()
-		return false, fmt.Errorf("ACL sync users: %w", err)
+		if isTransientAeroError(err) {
+			log.Info("Transient error during user sync, retrying once", "error", err)
+			if retryErr := r.reconcileUsers(ctx, aeroClient, cluster); retryErr != nil {
+				metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "error").Inc()
+				return false, fmt.Errorf("ACL sync users (after retry): %w", retryErr)
+			}
+		} else {
+			metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "error").Inc()
+			return false, fmt.Errorf("ACL sync users: %w", err)
+		}
 	}
 
 	metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "success").Inc()
@@ -391,6 +410,19 @@ func privilegeSet(privs []aero.Privilege) map[string]aero.Privilege {
 		set[privilegeKey(p)] = p
 	}
 	return set
+}
+
+// isTransientAeroError checks if an Aerospike error is transient and worth retrying.
+// This includes connection resets, timeouts, and cluster-not-ready errors.
+func isTransientAeroError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "connection reset") ||
+		strings.Contains(msg, "timeout") ||
+		strings.Contains(msg, "i/o timeout") ||
+		strings.Contains(msg, "connection refused")
 }
 
 // newAdminPolicy returns an AdminPolicy with the standard operator timeout.

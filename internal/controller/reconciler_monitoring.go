@@ -38,6 +38,7 @@ func (r *AerospikeClusterReconciler) reconcileMonitoring(
 	cluster *ackov1alpha1.AerospikeCluster,
 ) error {
 	log := logf.FromContext(ctx)
+	log.V(1).Info("Reconciling monitoring resources", "cluster", cluster.Name)
 
 	monitoringEnabled := cluster.Spec.Monitoring != nil && cluster.Spec.Monitoring.Enabled
 
@@ -417,6 +418,19 @@ func defaultAlertRules(clusterName, namespace string) []any {
 					"annotations": map[string]any{
 						"summary":     fmt.Sprintf("K8s pod count differs from Aerospike cluster-size for cluster %s", clusterName),
 						"description": fmt.Sprintf("The number of ready K8s pods does not match the Aerospike cluster-size reported by asinfo for cluster %s.", clusterName),
+					},
+				},
+				map[string]any{
+					"alert": "AerospikeOperatorCircuitBreakerActive",
+					"expr":  fmt.Sprintf(`acko_circuit_breaker_active{namespace="%s",name="%s"} == 1`, namespace, clusterName),
+					"for":   "5m",
+					"labels": map[string]any{
+						"severity": "critical",
+						"cluster":  clusterName,
+					},
+					"annotations": map[string]any{
+						"summary":     fmt.Sprintf("Aerospike operator circuit breaker is active for cluster %s", clusterName),
+						"description": fmt.Sprintf("The operator has hit 10+ consecutive reconciliation failures for cluster %s/%s. Manual investigation required.", namespace, clusterName),
 					},
 				},
 			},

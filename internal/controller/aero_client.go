@@ -79,6 +79,43 @@ func (r *AerospikeClusterReconciler) getAerospikeClient(
 	return client, nil
 }
 
+// getAerospikeClientWithRetry wraps getAerospikeClient with retry logic using
+// exponential backoff (2s, 4s, 8s). This is useful during initial deployment
+// when DNS may not yet be resolving for the headless service.
+func (r *AerospikeClusterReconciler) getAerospikeClientWithRetry(
+	ctx context.Context,
+	cluster *ackov1alpha1.AerospikeCluster,
+) (*aero.Client, error) {
+	log := logf.FromContext(ctx)
+
+	const maxRetries = 3
+	var lastErr error
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			backoff := time.Duration(1<<uint(attempt)) * time.Second // 2s, 4s, 8s
+			log.V(1).Info("Retrying Aerospike client connection",
+				"attempt", attempt, "maxRetries", maxRetries, "backoff", backoff)
+
+			timer := time.NewTimer(backoff)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return nil, fmt.Errorf("context cancelled while retrying Aerospike connection: %w", ctx.Err())
+			case <-timer.C:
+			}
+		}
+
+		client, err := r.getAerospikeClient(ctx, cluster)
+		if err == nil {
+			return client, nil
+		}
+		lastErr = err
+	}
+
+	return nil, fmt.Errorf("failed after %d retries: %w", maxRetries, lastErr)
+}
+
 // closeAerospikeClient safely closes an Aerospike client.
 func closeAerospikeClient(client *aero.Client) {
 	if client != nil {

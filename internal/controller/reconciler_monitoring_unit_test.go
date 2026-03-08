@@ -97,6 +97,7 @@ func TestDefaultAlertRules(t *testing.T) {
 		"AerospikeHighMemoryUsage",
 		"AerospikeReconcileStale",
 		"AerospikeClusterSizeMismatch",
+		"AerospikeOperatorCircuitBreakerActive",
 	}
 
 	if len(ruleList) != len(expectedAlerts) {
@@ -146,8 +147,8 @@ func TestDefaultAlertRules_LabelSeverity(t *testing.T) {
 		}
 	}
 
-	if criticalCount != 2 {
-		t.Errorf("expected 2 critical alerts, got %d", criticalCount)
+	if criticalCount != 3 {
+		t.Errorf("expected 3 critical alerts, got %d", criticalCount)
 	}
 	if warningCount != 4 {
 		t.Errorf("expected 4 warning alerts, got %d", warningCount)

@@ -507,12 +507,18 @@ ui:
 # Default AerospikeClusterTemplates
 # =============================================================================
 defaultTemplates:
-  # -- Create pre-built AerospikeClusterTemplate resources in the release namespace.
+  # -- Create pre-built AerospikeClusterTemplate resources.
   # Three tiers are provided: minimal (dev), soft-rack (stage), hard-rack (prod).
-  # NOTE: AerospikeClusterTemplate is namespace-scoped. Templates created here are
-  # only accessible to AerospikeCluster resources in the same namespace (Release.Namespace).
-  # For cross-namespace use, apply templates manually: kubectl apply -f config/samples/acko_v1alpha1_template_*.yaml -n <namespace>
+  # NOTE: AerospikeClusterTemplate is namespace-scoped. Templates are only accessible
+  # to AerospikeCluster resources in the same namespace.
   enabled: true
+
+  # -- Namespaces where default templates will be created.
+  # If not set, templates are created only in the release namespace.
+  # Set this to include namespaces where AerospikeCluster resources will be deployed.
+  namespaces:
+    - aerospike
+    - default
 
   templates:
     minimal:

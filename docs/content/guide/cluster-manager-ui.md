@@ -49,6 +49,14 @@ kubectl -n aerospike-operator port-forward svc/acko-aerospike-ce-kubernetes-oper
 
 ![Create Cluster - Step 1 Basic](/img/ui/create-cluster-basic.png)
 
+**Step 3 — Monitoring & Options**: 아래 항목을 설정합니다:
+
+- **Prometheus Monitoring** — 메트릭 exporter sidecar 활성화 및 포트 설정
+- **Dynamic Config** — 재시작 없이 설정 변경 적용
+- **Network Access** — 클라이언트 접근 방식(Pod IP, Host Internal/External, Configured IP). `configuredIP` 선택 시 custom network names 입력 필드가 표시됩니다.
+- **Kubernetes NetworkPolicy** — K8s NetworkPolicy 자동 생성 (standard 또는 Cilium)
+- **Seeds Finder LoadBalancer** — 외부 시드 검색용 LoadBalancer 서비스 생성 (포트, 트래픽 정책 설정)
+
 **Step 8 — Review**: 모든 설정을 최종 확인한 후 **Create Cluster** 버튼으로 배포합니다.
 
 ![Create Cluster - Step 8 Review](/img/ui/create-cluster-review.png)
@@ -66,6 +74,14 @@ kubectl -n aerospike-operator port-forward svc/acko-aerospike-ce-kubernetes-oper
 **ACKO INFO** 탭에서는 Aerospike 노드 단위 상세 정보(Build, Edition, Uptime, Connections, Cluster Size)를 확인합니다.
 
 ![Cluster ACKO INFO](/img/ui/cluster-acko-info.png)
+
+### Disconnected State
+
+Aerospike 연결이 끊어진 경우 Overview 및 Browser 페이지에서 스켈레톤 로딩 대신 연결 해제 상태 화면이 표시됩니다. `WifiOff` 아이콘과 함께 재연결을 안내하는 메시지가 나타납니다.
+
+### Events Timeline
+
+클러스터 상세 페이지의 **Events** 탭에서 Kubernetes 이벤트를 확인합니다. 각 이벤트에는 타입, 이유, 메시지, 발생 횟수, 그리고 상대적 시간(예: "2m ago")이 표시됩니다. Transitional Phase에서는 자동으로 새로고침됩니다.
 
 ---
 

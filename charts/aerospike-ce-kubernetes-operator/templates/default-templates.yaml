@@ -1,11 +1,13 @@
 {{- if .Values.defaultTemplates.enabled }}
-{{- range $name, $spec := .Values.defaultTemplates.templates }}
+{{- $namespaces := .Values.defaultTemplates.namespaces | default (list $.Release.Namespace) }}
+{{- range $ns := $namespaces }}
+{{- range $name, $spec := $.Values.defaultTemplates.templates }}
 ---
 apiVersion: acko.io/v1alpha1
 kind: AerospikeClusterTemplate
 metadata:
   name: {{ $name }}
-  namespace: {{ $.Release.Namespace }}
+  namespace: {{ $ns }}
   labels:
     {{- include "aerospike-ce-kubernetes-operator.labels" $ | nindent 4 }}
     app.kubernetes.io/component: cluster-template
@@ -14,5 +16,6 @@ metadata:
     "helm.sh/hook-weight": "10"
 spec:
   {{- toYaml $spec | nindent 2 }}
+{{- end }}
 {{- end }}
 {{- end }}

@@ -509,16 +509,8 @@ ui:
 defaultTemplates:
   # -- Create pre-built AerospikeClusterTemplate resources.
   # Three tiers are provided: minimal (dev), soft-rack (stage), hard-rack (prod).
-  # NOTE: AerospikeClusterTemplate is namespace-scoped. Templates are only accessible
-  # to AerospikeCluster resources in the same namespace.
+  # NOTE: AerospikeClusterTemplate is cluster-scoped. Templates are accessible from all namespaces.
   enabled: true
-
-  # -- Namespaces where default templates will be created.
-  # If not set, templates are created only in the release namespace.
-  # Set this to include namespaces where AerospikeCluster resources will be deployed.
-  namespaces:
-    - aerospike
-    - default
 
   templates:
     minimal:

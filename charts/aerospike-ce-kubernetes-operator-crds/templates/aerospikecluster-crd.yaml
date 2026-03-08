@@ -8570,11 +8570,6 @@ spec:
                       resource.
                     minLength: 1
                     type: string
-                  namespace:
-                    description: |-
-                      Namespace is the namespace of the AerospikeClusterTemplate resource.
-                      If empty, defaults to the cluster's own namespace.
-                    type: string
                 required:
                 - name
                 type: object
@@ -17155,11 +17150,6 @@ spec:
                           resource.
                         minLength: 1
                         type: string
-                      namespace:
-                        description: |-
-                          Namespace is the namespace of the AerospikeClusterTemplate resource.
-                          If empty, defaults to the cluster's own namespace.
-                        type: string
                     required:
                     - name
                     type: object
@@ -17448,9 +17438,6 @@ spec:
                 properties:
                   name:
                     description: Name is the name of the referenced AerospikeClusterTemplate.
-                    type: string
-                  namespace:
-                    description: Namespace is the namespace of the referenced AerospikeClusterTemplate.
                     type: string
                   resourceVersion:
                     description: ResourceVersion is the resourceVersion of the template

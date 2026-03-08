@@ -14,7 +14,7 @@ spec:
     shortNames:
     - asct
     singular: aerospikeclustertemplate
-  scope: Namespaced
+  scope: Cluster
   versions:
   - additionalPrinterColumns:
     - jsonPath: .metadata.creationTimestamp

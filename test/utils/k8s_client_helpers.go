@@ -191,9 +191,10 @@ func GetTemplate(ctx context.Context, c client.Client, name, ns string) (*ackov1
 }
 
 // PatchTemplate applies a JSON merge patch to an AerospikeClusterTemplate.
-func PatchTemplate(ctx context.Context, c client.Client, name, ns string, patch []byte) error {
+// Templates are cluster-scoped, so no namespace is needed.
+func PatchTemplate(ctx context.Context, c client.Client, name string, patch []byte) error {
 	template := &ackov1alpha1.AerospikeClusterTemplate{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		ObjectMeta: metav1.ObjectMeta{Name: name},
 	}
 	return c.Patch(ctx, template, client.RawPatch(types.MergePatchType, patch))
 }

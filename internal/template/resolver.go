@@ -57,22 +57,19 @@ func FetchAndSnapshot(
 		return nil, false, nil
 	}
 
-	ns := resolveTemplateNamespace(cluster)
 	tmpl := &ackov1alpha1.AerospikeClusterTemplate{}
 	if err := reader.Get(ctx, types.NamespacedName{
-		Name:      cluster.Spec.TemplateRef.Name,
-		Namespace: ns,
+		Name: cluster.Spec.TemplateRef.Name,
 	}, tmpl); err != nil {
 		if errors.IsNotFound(err) {
-			return nil, false, ackoerrors.NewValidationf("template %q not found in namespace %q", cluster.Spec.TemplateRef.Name, ns)
+			return nil, false, ackoerrors.NewValidationf("template %q not found", cluster.Spec.TemplateRef.Name)
 		}
-		return nil, false, fmt.Errorf("fetching template %q in namespace %q: %w", cluster.Spec.TemplateRef.Name, ns, err)
+		return nil, false, fmt.Errorf("fetching template %q: %w", cluster.Spec.TemplateRef.Name, err)
 	}
 
 	specCopy := tmpl.Spec.DeepCopy()
 	snapshot := &ackov1alpha1.TemplateSnapshotStatus{
 		Name:              tmpl.Name,
-		Namespace:         tmpl.Namespace,
 		ResourceVersion:   tmpl.ResourceVersion,
 		SnapshotTimestamp: metav1.NewTime(time.Now()),
 		Synced:            true,
@@ -210,13 +207,4 @@ func Resolve(
 	}
 
 	return result, nil
-}
-
-// resolveTemplateNamespace returns the namespace to look up the template in.
-// Uses TemplateRef.Namespace if set, otherwise falls back to the cluster's namespace.
-func resolveTemplateNamespace(cluster *ackov1alpha1.AerospikeCluster) string {
-	if cluster.Spec.TemplateRef != nil && cluster.Spec.TemplateRef.Namespace != "" {
-		return cluster.Spec.TemplateRef.Namespace
-	}
-	return cluster.Namespace
 }

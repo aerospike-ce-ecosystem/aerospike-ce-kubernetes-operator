@@ -75,6 +75,8 @@ func (r *AerospikeClusterReconciler) tryDynamicConfigUpdate(
 		if err != nil {
 			log.Error(err, "Invalid dynamic config change", "change", change)
 			r.rollbackDynamicChanges(log, node, applied)
+			log.Info("Rolled back partial dynamic config changes, falling back to cold restart",
+				"appliedBeforeFailure", len(applied))
 			return false
 		}
 		log.Info("Applying dynamic config", "command", cmd, "index", i, "total", len(diff.Dynamic))
@@ -84,12 +86,16 @@ func (r *AerospikeClusterReconciler) tryDynamicConfigUpdate(
 			log.Error(err, "Dynamic config command failed", "command", cmd)
 			logAppliedChanges(log, applied, i, len(diff.Dynamic))
 			r.rollbackDynamicChanges(log, node, applied)
+			log.Info("Rolled back partial dynamic config changes, falling back to cold restart",
+				"appliedBeforeFailure", len(applied))
 			return false
 		}
 		if result != "ok" {
 			log.Info("Dynamic config command returned non-ok", "command", cmd, "result", result)
 			logAppliedChanges(log, applied, i, len(diff.Dynamic))
 			r.rollbackDynamicChanges(log, node, applied)
+			log.Info("Rolled back partial dynamic config changes, falling back to cold restart",
+				"appliedBeforeFailure", len(applied))
 			return false
 		}
 

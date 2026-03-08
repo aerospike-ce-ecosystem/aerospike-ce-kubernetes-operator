@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"reflect"
 	"slices"
 	"sync"
 	"time"
@@ -820,6 +821,7 @@ func (secretDataChangedPredicate) Update(e event.UpdateEvent) bool {
 	if !ok {
 		return false
 	}
-	// ResourceVersion change with different Data indicates an actual update.
-	return oldSecret.ResourceVersion != newSecret.ResourceVersion
+	// Compare actual Data content to avoid unnecessary reconciliation on
+	// metadata-only changes (e.g., label updates that bump ResourceVersion).
+	return !reflect.DeepEqual(oldSecret.Data, newSecret.Data)
 }

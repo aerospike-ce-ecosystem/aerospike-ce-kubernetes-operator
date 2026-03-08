@@ -99,20 +99,29 @@ func (r *AerospikeClusterReconciler) tryDynamicConfigUpdate(
 			return false
 		}
 
-		// Build rollback command using the old value
-		rollbackChange := configdiff.Change{
-			Path:      change.Path,
-			Context:   change.Context,
-			Key:       change.Key,
-			NewValue:  change.OldValue,
-			Namespace: change.Namespace,
-		}
-		rollbackCmd, rbErr := buildSetConfigCommand(rollbackChange)
-		if rbErr != nil {
-			// Cannot build rollback command — log but still track as applied
-			log.V(1).Info("Cannot build rollback command for applied change",
-				"change", change.Path, "oldValue", change.OldValue, "error", rbErr)
-			rollbackCmd = "" // empty means rollback not possible
+		// Build rollback command using the old value.
+		// OldValue may be nil when a new config key is being added (no previous value).
+		// In that case, rollback is not possible — the key cannot be "unset" via set-config.
+		var rollbackCmd string
+		if change.OldValue == nil {
+			log.V(1).Info("No old value for change, rollback not possible",
+				"change", change.Path)
+		} else {
+			rollbackChange := configdiff.Change{
+				Path:      change.Path,
+				Context:   change.Context,
+				Key:       change.Key,
+				NewValue:  change.OldValue,
+				Namespace: change.Namespace,
+			}
+			var rbErr error
+			rollbackCmd, rbErr = buildSetConfigCommand(rollbackChange)
+			if rbErr != nil {
+				// Cannot build rollback command — log but still track as applied
+				log.V(1).Info("Cannot build rollback command for applied change",
+					"change", change.Path, "oldValue", change.OldValue, "error", rbErr)
+				rollbackCmd = "" // empty means rollback not possible
+			}
 		}
 		applied = append(applied, appliedChange{change: change, rollback: rollbackCmd})
 	}

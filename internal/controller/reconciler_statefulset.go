@@ -196,7 +196,9 @@ func (r *AerospikeClusterReconciler) checkScaleDownReadiness(
 	}
 	readyCount := int32(0)
 	for i := range rackPods {
-		if isPodReady(&rackPods[i]) {
+		// Only count pods that will remain after scale-down (ordinal < targetReplicas).
+		// Pods being removed (ordinal >= targetReplicas) should not inflate the ready count.
+		if podOrdinal(rackPods[i].Name) < int(targetReplicas) && isPodReady(&rackPods[i]) {
 			readyCount++
 		}
 	}

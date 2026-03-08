@@ -110,6 +110,15 @@ spec:
           type: memory
 ```
 
+If the template lives in a different namespace (e.g. the operator namespace), specify `namespace` explicitly:
+
+```yaml
+spec:
+  templateRef:
+    name: hard-rack
+    namespace: aerospike-operator   # cross-namespace reference
+```
+
 You can still set `spec.image` or `spec.size` explicitly on the cluster to override the template:
 
 ```yaml

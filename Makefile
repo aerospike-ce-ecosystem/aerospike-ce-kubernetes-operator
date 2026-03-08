@@ -74,6 +74,11 @@ test: test-unit test-integration ## Run all tests (unit + integration).
 # - CERT_MANAGER_INSTALL_SKIP=true
 KIND_CLUSTER ?= aerospike-ce-kubernetes-operator-test-e2e
 
+.PHONY: setup-kind
+setup-kind: ## Delete existing Kind cluster and create a fresh one with kind-config.yaml (3-worker, zone labels)
+	@$(KIND) delete cluster --name kind 2>/dev/null || true
+	KIND_EXPERIMENTAL_PROVIDER=$(KIND_PROVIDER) $(KIND) create cluster --config kind-config.yaml --name kind
+
 .PHONY: setup-test-e2e
 setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
 	@command -v $(KIND) >/dev/null 2>&1 || { \

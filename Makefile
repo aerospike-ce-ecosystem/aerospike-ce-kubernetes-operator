@@ -180,6 +180,11 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 	- $(CONTAINER_TOOL) buildx rm aerospike-ce-kubernetes-operator-builder
 	rm Dockerfile.cross
 
+## Aliases (Podman terminology)
+.PHONY: container-build container-push
+container-build: docker-build  ## Alias for docker-build (Podman compatible)
+container-push: docker-push    ## Alias for docker-push (Podman compatible)
+
 .PHONY: build-installer
 build-installer: manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment.
 	mkdir -p dist
@@ -271,8 +276,7 @@ $(LOCALBIN):
 KUBECTL ?= kubectl
 KIND ?= kind
 # KIND_PROVIDER sets the container provider for Kind.
-# Override with `make setup-test-e2e KIND_PROVIDER=podman` for Podman.
-KIND_PROVIDER ?= docker
+KIND_PROVIDER ?= podman
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest

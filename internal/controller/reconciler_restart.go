@@ -36,6 +36,7 @@ func (r *AerospikeClusterReconciler) reconcileRollingRestart(
 	log := logf.FromContext(ctx)
 
 	stsName := utils.StatefulSetName(cluster.Name, rack.ID)
+	log = log.WithValues("rack", rack.ID, "statefulset", stsName)
 
 	sts := &appsv1.StatefulSet{}
 	if err := r.Get(ctx, types.NamespacedName{Name: stsName, Namespace: cluster.Namespace}, sts); err != nil {

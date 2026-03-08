@@ -263,7 +263,7 @@ var _ = Describe("reconcileMonitoring", func() {
 	})
 
 	Describe("defaultAlertRules", func() {
-		It("should generate 6 default alert rules", func() {
+		It("should generate 7 default alert rules", func() {
 			rules := defaultAlertRules("my-cluster", "default")
 			Expect(rules).To(HaveLen(1)) // one group
 
@@ -273,7 +273,7 @@ var _ = Describe("reconcileMonitoring", func() {
 
 			rulesList, ok := group["rules"].([]any)
 			Expect(ok).To(BeTrue())
-			Expect(rulesList).To(HaveLen(6))
+			Expect(rulesList).To(HaveLen(7))
 
 			// Verify rule names
 			expectedAlerts := []string{
@@ -283,6 +283,7 @@ var _ = Describe("reconcileMonitoring", func() {
 				"AerospikeHighMemoryUsage",
 				"AerospikeReconcileStale",
 				"AerospikeClusterSizeMismatch",
+				"AerospikeOperatorCircuitBreakerActive",
 			}
 			for i, rule := range rulesList {
 				r, ok := rule.(map[string]any)
@@ -301,6 +302,26 @@ var _ = Describe("reconcileMonitoring", func() {
 			expr := nodeDown["expr"].(string)
 			Expect(expr).To(ContainSubstring(`job="test-cluster-metrics"`))
 			Expect(expr).To(ContainSubstring(`namespace="prod"`))
+		})
+
+		It("should include circuit breaker alert with correct PromQL and severity", func() {
+			rules := defaultAlertRules("cb-cluster", "monitoring")
+			group := rules[0].(map[string]any)
+			rulesList := group["rules"].([]any)
+
+			// Circuit breaker alert is the last rule
+			cbRule := rulesList[len(rulesList)-1].(map[string]any)
+			Expect(cbRule["alert"]).To(Equal("AerospikeOperatorCircuitBreakerActive"))
+			Expect(cbRule["expr"]).To(Equal(`acko_circuit_breaker_active{namespace="monitoring",name="cb-cluster"} == 1`))
+			Expect(cbRule["for"]).To(Equal("5m"))
+
+			labels := cbRule["labels"].(map[string]any)
+			Expect(labels["severity"]).To(Equal("critical"))
+			Expect(labels["cluster"]).To(Equal("cb-cluster"))
+
+			annotations := cbRule["annotations"].(map[string]any)
+			Expect(annotations["summary"]).To(ContainSubstring("circuit breaker"))
+			Expect(annotations["description"]).To(ContainSubstring("monitoring/cb-cluster"))
 		})
 	})
 })

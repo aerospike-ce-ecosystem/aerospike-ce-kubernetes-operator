@@ -32,6 +32,9 @@ func (r *AerospikeClusterReconciler) reconcileNetworkPolicy(
 	ctx context.Context,
 	cluster *ackov1alpha1.AerospikeCluster,
 ) error {
+	log := logf.FromContext(ctx)
+	log.V(1).Info("Reconciling network policy", "cluster", cluster.Name)
+
 	npcEnabled := cluster.Spec.NetworkPolicyConfig != nil && cluster.Spec.NetworkPolicyConfig.Enabled
 	npcType := ackov1alpha1.NetworkPolicyTypeKubernetes
 	if cluster.Spec.NetworkPolicyConfig != nil && cluster.Spec.NetworkPolicyConfig.Type != "" {

@@ -26,7 +26,7 @@ func (r *AerospikeClusterReconciler) tryDynamicConfigUpdate(
 	oldConfig, newConfig map[string]any,
 	aeroClient *aero.Client,
 ) bool {
-	log := logf.FromContext(ctx)
+	log := logf.FromContext(ctx).WithValues("pod", pod.Name, "cluster", cluster.Name)
 
 	// Check if dynamic config update is enabled
 	if cluster.Spec.EnableDynamicConfigUpdate == nil || !*cluster.Spec.EnableDynamicConfigUpdate {
@@ -42,14 +42,20 @@ func (r *AerospikeClusterReconciler) tryDynamicConfigUpdate(
 	// If there are static changes, dynamic update alone is not sufficient
 	if diff.HasStaticChanges() {
 		log.Info("Config has static changes, dynamic update not sufficient",
-			"pod", pod.Name, "staticChanges", len(diff.Static))
+			"staticChanges", len(diff.Static))
 		return false
 	}
 
 	// Find the node corresponding to this pod
 	node := findNodeForPod(aeroClient, pod)
 	if node == nil {
-		log.Info("Could not find Aerospike node for pod, skipping dynamic update", "pod", pod.Name)
+		log.Info("Could not find Aerospike node for pod, skipping dynamic update")
+		return false
+	}
+
+	// Pre-flight: validate all changes before applying any
+	if err := validateDynamicChanges(diff.Dynamic); err != nil {
+		log.Error(err, "Pre-flight validation failed for dynamic config changes")
 		return false
 	}
 
@@ -57,18 +63,18 @@ func (r *AerospikeClusterReconciler) tryDynamicConfigUpdate(
 	for _, change := range diff.Dynamic {
 		cmd, err := buildSetConfigCommand(change)
 		if err != nil {
-			log.Error(err, "Invalid dynamic config change", "pod", pod.Name, "change", change)
+			log.Error(err, "Invalid dynamic config change", "change", change)
 			return false
 		}
-		log.Info("Applying dynamic config", "pod", pod.Name, "command", cmd)
+		log.Info("Applying dynamic config", "command", cmd)
 
 		result, err := asinfoCommandOnNode(node, cmd)
 		if err != nil {
-			log.Error(err, "Dynamic config command failed", "pod", pod.Name, "command", cmd)
+			log.Error(err, "Dynamic config command failed", "command", cmd)
 			return false
 		}
 		if result != "ok" {
-			log.Info("Dynamic config command returned non-ok", "pod", pod.Name, "command", cmd, "result", result)
+			log.Info("Dynamic config command returned non-ok", "command", cmd, "result", result)
 			return false
 		}
 	}
@@ -79,7 +85,7 @@ func (r *AerospikeClusterReconciler) tryDynamicConfigUpdate(
 
 	if desiredHash != "" {
 		if err := r.updatePodConfigHash(ctx, pod, desiredHash); err != nil {
-			log.Error(err, "Failed to update pod config hash after dynamic update", "pod", pod.Name)
+			log.Error(err, "Failed to update pod config hash after dynamic update")
 			// This is non-fatal; the pod may get restarted but config is already applied
 		}
 	}
@@ -87,7 +93,7 @@ func (r *AerospikeClusterReconciler) tryDynamicConfigUpdate(
 	metrics.DynamicConfigUpdatesTotal.WithLabelValues(cluster.Namespace, cluster.Name).Inc()
 	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventDynamicConfigApplied,
 		"Dynamic config applied to pod %s (%d changes)", pod.Name, len(diff.Dynamic))
-	log.Info("Dynamic config update successful", "pod", pod.Name, "changes", len(diff.Dynamic))
+	log.Info("Dynamic config update successful", "changes", len(diff.Dynamic))
 
 	// Update pod status with dynamic config status
 	r.updateDynamicConfigStatus(ctx, cluster, pod.Name, "Applied")
@@ -119,6 +125,23 @@ func buildSetConfigCommand(change configdiff.Change) (string, error) {
 
 	return fmt.Sprintf("set-config:context=%s;%s=%v",
 		change.Context, change.Key, change.NewValue), nil
+}
+
+// validateDynamicChanges performs pre-flight validation on all dynamic config
+// changes to catch obvious errors before applying any of them. This prevents
+// partial config state where some changes succeed and others fail.
+func validateDynamicChanges(changes []configdiff.Change) error {
+	var errs []string
+	for _, change := range changes {
+		if _, err := buildSetConfigCommand(change); err != nil {
+			errs = append(errs, err.Error())
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("pre-flight validation failed for %d change(s): %s",
+			len(errs), strings.Join(errs, "; "))
+	}
+	return nil
 }
 
 // findNodeForPod finds the Aerospike node that corresponds to a given pod by

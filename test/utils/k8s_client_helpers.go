@@ -180,3 +180,20 @@ func ConfigMapExists(ctx context.Context, c client.Client, name, ns string) (boo
 func PDBExists(ctx context.Context, c client.Client, name, ns string) (bool, error) {
 	return resourceExists(ctx, c, &policyv1.PodDisruptionBudget{}, name, ns)
 }
+
+// --- AerospikeClusterTemplate helpers ---
+
+// GetTemplate retrieves an AerospikeClusterTemplate by name and namespace.
+func GetTemplate(ctx context.Context, c client.Client, name, ns string) (*ackov1alpha1.AerospikeClusterTemplate, error) {
+	template := &ackov1alpha1.AerospikeClusterTemplate{}
+	err := c.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, template)
+	return template, err
+}
+
+// PatchTemplate applies a JSON merge patch to an AerospikeClusterTemplate.
+func PatchTemplate(ctx context.Context, c client.Client, name, ns string, patch []byte) error {
+	template := &ackov1alpha1.AerospikeClusterTemplate{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+	}
+	return c.Patch(ctx, template, client.RawPatch(types.MergePatchType, patch))
+}

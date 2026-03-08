@@ -21,11 +21,13 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackoerrors "github.com/ksr/aerospike-ce-kubernetes-operator/internal/errors"
 )
 
 const (
@@ -61,6 +63,9 @@ func FetchAndSnapshot(
 		Name:      cluster.Spec.TemplateRef.Name,
 		Namespace: ns,
 	}, tmpl); err != nil {
+		if errors.IsNotFound(err) {
+			return nil, false, ackoerrors.NewValidationf("template %q not found in namespace %q", cluster.Spec.TemplateRef.Name, ns)
+		}
 		return nil, false, fmt.Errorf("fetching template %q in namespace %q: %w", cluster.Spec.TemplateRef.Name, ns, err)
 	}
 

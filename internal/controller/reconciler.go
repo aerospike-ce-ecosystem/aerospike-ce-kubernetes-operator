@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	ackoerrors "github.com/ksr/aerospike-ce-kubernetes-operator/internal/errors"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/metrics"
 	aerotmpl "github.com/ksr/aerospike-ce-kubernetes-operator/internal/template"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
@@ -188,7 +189,7 @@ func (r *AerospikeClusterReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	// 6. Reconcile headless service
 	if err := r.reconcileHeadlessService(ctx, cluster); err != nil {
-		log.Error(err, "Failed to reconcile headless service")
+		log.Error(err, "Failed to reconcile headless service", "cluster", cluster.Name)
 		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventReconcileError, "Headless service: %v", err)
 		metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, metrics.ReasonService).Inc()
 		return r.handleReconcileError(ctx, cluster, err)
@@ -196,7 +197,7 @@ func (r *AerospikeClusterReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	// 6b. Reconcile per-pod services
 	if err := r.reconcilePodServices(ctx, cluster); err != nil {
-		log.Error(err, "Failed to reconcile per-pod services")
+		log.Error(err, "Failed to reconcile per-pod services", "cluster", cluster.Name)
 		metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, metrics.ReasonService).Inc()
 		return r.handleReconcileError(ctx, cluster, err)
 	}
@@ -293,12 +294,26 @@ func (r *AerospikeClusterReconciler) handleReconcileError(
 		return ctrl.Result{}, reconcileErr
 	}
 
-	latest.Status.FailedReconcileCount++
 	// Truncate error message to avoid bloating the status object.
 	errMsg := reconcileErr.Error()
 	if len(errMsg) > 256 {
 		errMsg = errMsg[:256] + "..."
 	}
+
+	// Validation errors are permanent and will never self-heal.
+	// Don't increment the circuit breaker counter for these.
+	if ackoerrors.IsValidation(reconcileErr) {
+		log.Info("Validation error detected, not incrementing circuit breaker",
+			"error", reconcileErr)
+		// Still update the error message for visibility.
+		latest.Status.LastReconcileError = errMsg
+		if err := r.Status().Update(updateCtx, latest); err != nil {
+			log.Error(err, "Failed to update validation error in status")
+		}
+		return ctrl.Result{}, reconcileErr
+	}
+
+	latest.Status.FailedReconcileCount++
 	latest.Status.LastReconcileError = errMsg
 
 	if err := r.Status().Update(updateCtx, latest); err != nil {
@@ -376,6 +391,7 @@ func (r *AerospikeClusterReconciler) reconcileCluster(
 	cluster *ackov1alpha1.AerospikeCluster,
 ) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
+	log.V(1).Info("Starting cluster reconciliation")
 	racks := r.getRacks(cluster)
 
 	// Pre-compute effective config and hash per rack.
@@ -461,7 +477,7 @@ func (r *AerospikeClusterReconciler) reconcileCluster(
 	for _, rack := range racks {
 		restarted, err := r.reconcileRollingRestart(ctx, cluster, &rack)
 		if err != nil {
-			log.Error(err, "Failed rolling restart", "rack", rack.ID)
+			log.Error(err, "Failed rolling restart", "rack", rack.ID, "statefulset", utils.StatefulSetName(cluster.Name, rack.ID))
 			metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, metrics.ReasonRestart).Inc()
 			return ctrl.Result{}, err
 		}
@@ -490,7 +506,7 @@ func (r *AerospikeClusterReconciler) reconcileCluster(
 		}
 	}
 	if synced, err := r.reconcileACL(ctx, cluster); err != nil {
-		log.Error(err, "Failed to reconcile ACL")
+		log.Error(err, "Failed to reconcile ACL", "cluster", cluster.Name)
 		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventACLSyncError, "ACL sync failed: %v", err)
 		metrics.ReconcileErrorsTotal.WithLabelValues(cluster.Namespace, cluster.Name, metrics.ReasonACL).Inc()
 		aclErr = err
@@ -540,6 +556,9 @@ func (r *AerospikeClusterReconciler) reconcileRacks(
 	racks []ackov1alpha1.Rack,
 	rackInfos []rackInfo,
 ) (bool, error) {
+	log := logf.FromContext(ctx)
+	log.V(1).Info("Reconciling racks", "count", len(racks))
+
 	scaleDownDeferred := false
 	for i, rack := range racks {
 		ri := rackInfos[i]

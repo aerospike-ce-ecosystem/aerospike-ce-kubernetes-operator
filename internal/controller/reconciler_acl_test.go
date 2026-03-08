@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -305,6 +306,46 @@ func TestRoleParsedPrivileges_UnknownCodeReturnsError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "bad-role") {
 		t.Errorf("error should mention role name, got: %v", err)
+	}
+}
+
+// --- isTransientAeroError tests ---
+
+func TestIsTransientAeroError_NilError(t *testing.T) {
+	if isTransientAeroError(nil) {
+		t.Error("expected false for nil error")
+	}
+}
+
+func TestIsTransientAeroError_TransientErrors(t *testing.T) {
+	transientMessages := []string{
+		"connection reset by peer",
+		"dial tcp 10.0.0.1:3000: connection refused",
+		"i/o timeout",
+		"read tcp 10.0.0.1:3000: timeout",
+		"querying roles: connection reset",
+	}
+	for _, msg := range transientMessages {
+		err := errors.New(msg)
+		if !isTransientAeroError(err) {
+			t.Errorf("expected true for transient error %q", msg)
+		}
+	}
+}
+
+func TestIsTransientAeroError_PermanentErrors(t *testing.T) {
+	permanentMessages := []string{
+		"role already exists",
+		"user does not exist",
+		"not authenticated",
+		"invalid privilege",
+		"unknown privilege code \"bad\"",
+	}
+	for _, msg := range permanentMessages {
+		err := errors.New(msg)
+		if isTransientAeroError(err) {
+			t.Errorf("expected false for permanent error %q", msg)
+		}
 	}
 }
 

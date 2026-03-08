@@ -683,7 +683,6 @@ func (r *AerospikeClusterReconciler) mapTemplateToCluster(ctx context.Context, o
 		if cl.Spec.TemplateRef == nil || cl.Spec.TemplateRef.Name != obj.GetName() {
 			continue
 		}
-
 		// Verify the cluster actually references a template in this namespace.
 		refNS := cl.Spec.TemplateRef.Namespace
 		if refNS == "" {

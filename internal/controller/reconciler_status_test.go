@@ -10,6 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/podutil"
 )
 
 func TestIsPodReady(t *testing.T) {
@@ -827,6 +828,197 @@ func TestStatusUnchanged(t *testing.T) {
 			ackov1alpha1.AerospikePhaseCompleted, "steady",
 		); got {
 			t.Fatalf("statusUnchanged() = true, want false when condition reason changed")
+		}
+	})
+}
+
+func TestBuildPodStatus(t *testing.T) {
+	t.Run("ready pod with annotations", func(t *testing.T) {
+		pod := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "demo-0",
+				Annotations: map[string]string{
+					"acko.io/config-hash":  "abc123",
+					"acko.io/podspec-hash": "def456",
+				},
+			},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{Name: podutil.AerospikeContainerName, Image: "aerospike:ce-8.1.1.1"},
+				},
+			},
+			Status: corev1.PodStatus{
+				Phase:  corev1.PodRunning,
+				PodIP:  "10.0.0.1",
+				HostIP: "192.168.1.1",
+				Conditions: []corev1.PodCondition{
+					{Type: corev1.PodReady, Status: corev1.ConditionTrue},
+				},
+			},
+		}
+		prev := ackov1alpha1.AerospikePodStatus{
+			NodeID:      "BB9ABC",
+			ClusterName: "test-cluster",
+		}
+
+		ps := buildPodStatus(pod, prev, "aerospike:ce-8.1.1.1", 3000, 1)
+
+		if !ps.IsRunningAndReady {
+			t.Error("expected pod to be running and ready")
+		}
+		if ps.PodIP != "10.0.0.1" {
+			t.Errorf("PodIP = %q, want %q", ps.PodIP, "10.0.0.1")
+		}
+		if ps.HostIP != "192.168.1.1" {
+			t.Errorf("HostIP = %q, want %q", ps.HostIP, "192.168.1.1")
+		}
+		if ps.Image != "aerospike:ce-8.1.1.1" {
+			t.Errorf("Image = %q, want %q", ps.Image, "aerospike:ce-8.1.1.1")
+		}
+		if ps.ServicePort != 3000 {
+			t.Errorf("ServicePort = %d, want 3000", ps.ServicePort)
+		}
+		if ps.Rack != 1 {
+			t.Errorf("Rack = %d, want 1", ps.Rack)
+		}
+		if ps.ConfigHash != "abc123" {
+			t.Errorf("ConfigHash = %q, want %q", ps.ConfigHash, "abc123")
+		}
+		if ps.PodSpecHash != "def456" {
+			t.Errorf("PodSpecHash = %q, want %q", ps.PodSpecHash, "def456")
+		}
+		// Preserved from prev
+		if ps.NodeID != "BB9ABC" {
+			t.Errorf("NodeID = %q, want %q", ps.NodeID, "BB9ABC")
+		}
+		if ps.ClusterName != "test-cluster" {
+			t.Errorf("ClusterName = %q, want %q", ps.ClusterName, "test-cluster")
+		}
+		// Ready pod clears UnstableSince
+		if ps.UnstableSince != nil {
+			t.Error("expected nil UnstableSince for ready pod")
+		}
+		// Ready pod clears dirty volumes
+		if len(ps.DirtyVolumes) != 0 {
+			t.Errorf("expected no dirty volumes for ready pod, got %v", ps.DirtyVolumes)
+		}
+	})
+
+	t.Run("not ready pod sets UnstableSince", func(t *testing.T) {
+		pod := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: "demo-0"},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{Name: podutil.AerospikeContainerName, Image: "aerospike:ce-8.1.1.1"},
+				},
+			},
+			Status: corev1.PodStatus{
+				Phase: corev1.PodPending,
+			},
+		}
+		prev := ackov1alpha1.AerospikePodStatus{}
+
+		ps := buildPodStatus(pod, prev, "aerospike:ce-8.1.1.1", 3000, 0)
+
+		if ps.IsRunningAndReady {
+			t.Error("expected pod to NOT be running and ready")
+		}
+		if ps.UnstableSince == nil {
+			t.Error("expected UnstableSince to be set for not-ready pod")
+		}
+	})
+
+	t.Run("not ready pod preserves existing UnstableSince", func(t *testing.T) {
+		earlier := metav1.NewTime(metav1.Now().Add(-5 * time.Minute))
+		pod := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: "demo-0"},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{Name: podutil.AerospikeContainerName, Image: "aerospike:ce-8.1.1.1"},
+				},
+			},
+			Status: corev1.PodStatus{
+				Phase: corev1.PodPending,
+			},
+		}
+		prev := ackov1alpha1.AerospikePodStatus{
+			UnstableSince: &earlier,
+		}
+
+		ps := buildPodStatus(pod, prev, "aerospike:ce-8.1.1.1", 3000, 0)
+
+		if ps.UnstableSince == nil {
+			t.Fatal("expected UnstableSince to be preserved")
+		}
+		if !ps.UnstableSince.Equal(&earlier) {
+			t.Errorf("UnstableSince = %v, want %v", ps.UnstableSince, earlier)
+		}
+	})
+
+	t.Run("uses actual container image not spec image", func(t *testing.T) {
+		pod := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: "demo-0"},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{Name: podutil.AerospikeContainerName, Image: "aerospike:ce-8.0.0.0"},
+				},
+			},
+			Status: corev1.PodStatus{
+				Phase: corev1.PodRunning,
+				Conditions: []corev1.PodCondition{
+					{Type: corev1.PodReady, Status: corev1.ConditionTrue},
+				},
+			},
+		}
+		prev := ackov1alpha1.AerospikePodStatus{}
+
+		ps := buildPodStatus(pod, prev, "aerospike:ce-8.1.1.1", 3000, 0)
+
+		if ps.Image != "aerospike:ce-8.0.0.0" {
+			t.Errorf("Image = %q, want actual container image %q", ps.Image, "aerospike:ce-8.0.0.0")
+		}
+	})
+
+	t.Run("not ready pod preserves dirty volumes", func(t *testing.T) {
+		pod := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: "demo-0"},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{Name: podutil.AerospikeContainerName, Image: "aerospike:ce-8.1.1.1"},
+				},
+			},
+			Status: corev1.PodStatus{Phase: corev1.PodPending},
+		}
+		prev := ackov1alpha1.AerospikePodStatus{
+			DirtyVolumes: []string{"data-vol", "index-vol"},
+		}
+
+		ps := buildPodStatus(pod, prev, "aerospike:ce-8.1.1.1", 3000, 0)
+
+		if len(ps.DirtyVolumes) != 2 {
+			t.Errorf("expected 2 dirty volumes, got %d", len(ps.DirtyVolumes))
+		}
+	})
+
+	t.Run("no annotations yields empty hashes", func(t *testing.T) {
+		pod := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: "demo-0"},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{Name: podutil.AerospikeContainerName, Image: "aerospike:ce-8.1.1.1"},
+				},
+			},
+			Status: corev1.PodStatus{Phase: corev1.PodPending},
+		}
+		prev := ackov1alpha1.AerospikePodStatus{}
+
+		ps := buildPodStatus(pod, prev, "aerospike:ce-8.1.1.1", 3000, 0)
+
+		if ps.ConfigHash != "" {
+			t.Errorf("ConfigHash = %q, want empty", ps.ConfigHash)
+		}
+		if ps.PodSpecHash != "" {
+			t.Errorf("PodSpecHash = %q, want empty", ps.PodSpecHash)
 		}
 	})
 }

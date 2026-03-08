@@ -42,10 +42,13 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Running unit tests
+      - name: Verify go.mod is tidy
         run: |
           go mod tidy
-          make test-unit
+          git diff --exit-code go.mod go.sum
+
+      - name: Running unit tests
+        run: make test-unit
 
   integration-test:
     name: Integration Tests (envtest)
@@ -60,6 +63,4 @@ jobs:
           go-version-file: go.mod
 
       - name: Running integration tests
-        run: |
-          go mod tidy
-          make test-integration
+        run: make test-integration

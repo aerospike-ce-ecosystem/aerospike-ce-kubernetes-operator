@@ -205,8 +205,8 @@ func (v *AerospikeClusterValidator) ValidateUpdate(ctx context.Context, oldClust
 		}
 	}
 
-	// Prevent renaming existing rack IDs (which would cause data loss).
-	// Adding or removing racks is fine, but changing an existing rack's ID is not.
+	// Prevent simultaneous addition and removal of rack IDs (which risks data loss
+	// from a rename-like operation). Pure additions or pure removals are fine.
 	if oldCluster.Spec.RackConfig != nil && cluster.Spec.RackConfig != nil {
 		oldIDs := make(map[int]bool, len(oldCluster.Spec.RackConfig.Racks))
 		for _, rack := range oldCluster.Spec.RackConfig.Racks {
@@ -216,13 +216,22 @@ func (v *AerospikeClusterValidator) ValidateUpdate(ctx context.Context, oldClust
 		for _, rack := range cluster.Spec.RackConfig.Racks {
 			newIDs[rack.ID] = true
 		}
-		// If the total rack count is unchanged but IDs differ, it's likely a rename
-		if len(oldIDs) == len(newIDs) {
-			for id := range oldIDs {
-				if !newIDs[id] {
-					return nil, fmt.Errorf("rackConfig rack IDs cannot be changed (rack ID %d was removed and replaced); remove old racks and add new ones in separate updates to avoid data loss", id)
-				}
+
+		// Collect IDs removed (in old but not new) and IDs added (in new but not old).
+		var removedIDs []int
+		for id := range oldIDs {
+			if !newIDs[id] {
+				removedIDs = append(removedIDs, id)
 			}
+		}
+		var addedIDs []int
+		for id := range newIDs {
+			if !oldIDs[id] {
+				addedIDs = append(addedIDs, id)
+			}
+		}
+		if len(removedIDs) > 0 && len(addedIDs) > 0 {
+			return nil, fmt.Errorf("cannot add new rack IDs %v and remove existing rack IDs %v in the same update; please do this in two separate steps (first add, then remove, or vice versa)", addedIDs, removedIDs)
 		}
 	}
 
@@ -677,6 +686,11 @@ func (v *AerospikeClusterValidator) validateReplicationFactor(cluster *Aerospike
 				continue
 			}
 			rfInt = int(val)
+		}
+		if rfInt < 1 {
+			errors = append(errors, fmt.Sprintf(
+				"namespace %q: replication-factor must be >= 1, got %d", nsName, rfInt))
+			continue
 		}
 		if rfInt > int(cluster.Spec.Size) {
 			errors = append(errors, fmt.Sprintf(

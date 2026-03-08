@@ -209,3 +209,82 @@ func TestDetermineRestartReason(t *testing.T) {
 		})
 	}
 }
+
+// --- filterUnrestarted tests ---
+
+func TestFilterUnrestarted_AllRestarted(t *testing.T) {
+	allPending := []string{"pod-0", "pod-1", "pod-2"}
+	podsToRestart := []*corev1.Pod{
+		{ObjectMeta: metav1.ObjectMeta{Name: "pod-0"}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "pod-1"}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "pod-2"}},
+	}
+
+	result := filterUnrestarted(allPending, nil, 3, podsToRestart)
+	if len(result) != 0 {
+		t.Errorf("expected empty, got %v", result)
+	}
+}
+
+func TestFilterUnrestarted_SomeFailed(t *testing.T) {
+	allPending := []string{"pod-2", "pod-1", "pod-0"}
+	podsToRestart := []*corev1.Pod{
+		{ObjectMeta: metav1.ObjectMeta{Name: "pod-2"}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "pod-1"}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "pod-0"}},
+	}
+
+	// pod-1 failed, pod-2 and pod-0 succeeded
+	result := filterUnrestarted(allPending, []string{"pod-1"}, 2, podsToRestart)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 remaining, got %v", result)
+	}
+	if result[0] != "pod-1" {
+		t.Errorf("expected pod-1 to remain, got %v", result)
+	}
+}
+
+func TestFilterUnrestarted_AllFailed(t *testing.T) {
+	allPending := []string{"pod-1", "pod-0"}
+	podsToRestart := []*corev1.Pod{
+		{ObjectMeta: metav1.ObjectMeta{Name: "pod-1"}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "pod-0"}},
+	}
+
+	result := filterUnrestarted(allPending, []string{"pod-1", "pod-0"}, 0, podsToRestart)
+	if len(result) != 2 {
+		t.Fatalf("expected 2 remaining, got %v", result)
+	}
+}
+
+func TestFilterUnrestarted_WithUnattemptedPods(t *testing.T) {
+	// 5 pending, only 2 attempted (batch size), 1 succeeded, 1 failed
+	allPending := []string{"pod-4", "pod-3", "pod-2", "pod-1", "pod-0"}
+	podsToRestart := []*corev1.Pod{
+		{ObjectMeta: metav1.ObjectMeta{Name: "pod-4"}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "pod-3"}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "pod-2"}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "pod-1"}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "pod-0"}},
+	}
+
+	// pod-4 succeeded, pod-3 failed, rest not attempted
+	result := filterUnrestarted(allPending, []string{"pod-3"}, 1, podsToRestart)
+	// Should contain: pod-3 (failed), pod-2, pod-1, pod-0 (not attempted)
+	if len(result) != 4 {
+		t.Fatalf("expected 4 remaining, got %v", result)
+	}
+	// pod-4 should not be in result (it was restarted successfully)
+	for _, name := range result {
+		if name == "pod-4" {
+			t.Error("pod-4 was successfully restarted, should not be in remaining")
+		}
+	}
+}
+
+func TestFilterUnrestarted_EmptyInputs(t *testing.T) {
+	result := filterUnrestarted(nil, nil, 0, nil)
+	if len(result) != 0 {
+		t.Errorf("expected empty for nil inputs, got %v", result)
+	}
+}

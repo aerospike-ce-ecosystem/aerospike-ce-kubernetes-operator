@@ -163,6 +163,7 @@ func (r *AerospikeClusterReconciler) populateStatus(
 		return 0, err
 	}
 
+	servicePort := int32(getServicePort(cluster))
 	podStatuses := make(map[string]ackov1alpha1.AerospikePodStatus, len(podList.Items))
 	readyCount := int32(0)
 
@@ -178,86 +179,12 @@ func (r *AerospikeClusterReconciler) populateStatus(
 			}
 		}
 
-		isReady := isPodReady(pod)
-		if isReady {
+		prev := cluster.Status.Pods[pod.Name]
+		ps := buildPodStatus(pod, prev, cluster.Spec.Image, servicePort, rackID)
+		podStatuses[pod.Name] = ps
+
+		if ps.IsRunningAndReady {
 			readyCount++
-		}
-
-		// Read hashes from pod annotations
-		configHash := ""
-		podSpecHash := ""
-		if pod.Annotations != nil {
-			configHash = pod.Annotations[utils.ConfigHashAnnotation]
-			podSpecHash = pod.Annotations[utils.PodSpecHashAnnotation]
-		}
-
-		// Use the actual running image from the pod, not the desired spec image.
-		// During rolling updates the pod may still run the old image.
-		podImage := cluster.Spec.Image
-		for _, c := range pod.Spec.Containers {
-			if c.Name == podutil.AerospikeContainerName {
-				podImage = c.Image
-				break
-			}
-		}
-
-		// Preserve dirty volumes from previous status; clear them once the pod is ready
-		// (meaning the init container has already wiped them during restart).
-		var dirtyVolumes []string
-		if prev, exists := cluster.Status.Pods[pod.Name]; exists && len(prev.DirtyVolumes) > 0 {
-			if !isReady {
-				dirtyVolumes = prev.DirtyVolumes
-			}
-			// else: pod is ready → init container completed wipe → clear dirty volumes
-		}
-
-		// Preserve Aerospike node info from previous status.
-		// These fields are refreshed via collectAerospikeInfo only when phase == Completed.
-		var nodeID, clusterName string
-		var accessEndpoints []string
-		var lastRestartReason *ackov1alpha1.RestartReason
-		var lastRestartTime *metav1.Time
-		var unstableSince *metav1.Time
-		if prev, exists := cluster.Status.Pods[pod.Name]; exists {
-			nodeID = prev.NodeID
-			clusterName = prev.ClusterName
-			accessEndpoints = prev.AccessEndpoints
-			lastRestartReason = prev.LastRestartReason
-			lastRestartTime = prev.LastRestartTime
-			if !isReady {
-				if prev.UnstableSince != nil {
-					unstableSince = prev.UnstableSince // preserve original timestamp
-				} else {
-					now := metav1.Now()
-					unstableSince = &now // first time NotReady
-				}
-			}
-			// else: pod is ready → clear UnstableSince (nil stays nil)
-		} else if !isReady {
-			now := metav1.Now()
-			unstableSince = &now // new pod, already NotReady
-		}
-
-		gateSatisfied, _ := findPodReadinessCondition(pod)
-
-		podStatuses[pod.Name] = ackov1alpha1.AerospikePodStatus{
-			PodIP:                  pod.Status.PodIP,
-			HostIP:                 pod.Status.HostIP,
-			Image:                  podImage,
-			PodPort:                int32(getServicePort(cluster)),
-			ServicePort:            int32(getServicePort(cluster)),
-			Rack:                   rackID,
-			IsRunningAndReady:      isReady,
-			ConfigHash:             configHash,
-			PodSpecHash:            podSpecHash,
-			DirtyVolumes:           dirtyVolumes,
-			NodeID:                 nodeID,
-			ClusterName:            clusterName,
-			AccessEndpoints:        accessEndpoints,
-			ReadinessGateSatisfied: gateSatisfied,
-			LastRestartReason:      lastRestartReason,
-			LastRestartTime:        lastRestartTime,
-			UnstableSince:          unstableSince,
 		}
 	}
 
@@ -275,6 +202,85 @@ func (r *AerospikeClusterReconciler) populateStatus(
 	setCondition(cluster, ackov1alpha1.ConditionReady, readyCount == cluster.Spec.Size, "AllPodsReady", fmt.Sprintf("%d/%d pods ready", readyCount, cluster.Spec.Size))
 
 	return readyCount, nil
+}
+
+// buildPodStatus constructs an AerospikePodStatus for a single pod.
+// It merges live pod state with preserved fields from the previous status
+// (Aerospike node info, dirty volumes, unstable timestamps, restart history).
+func buildPodStatus(
+	pod *corev1.Pod,
+	prev ackov1alpha1.AerospikePodStatus,
+	specImage string,
+	servicePort int32,
+	rackID int,
+) ackov1alpha1.AerospikePodStatus {
+	isReady := isPodReady(pod)
+
+	// Read hashes from pod annotations
+	var configHash, podSpecHash string
+	if pod.Annotations != nil {
+		configHash = pod.Annotations[utils.ConfigHashAnnotation]
+		podSpecHash = pod.Annotations[utils.PodSpecHashAnnotation]
+	}
+
+	// Use the actual running image from the pod, not the desired spec image.
+	// During rolling updates the pod may still run the old image.
+	podImage := specImage
+	for _, c := range pod.Spec.Containers {
+		if c.Name == podutil.AerospikeContainerName {
+			podImage = c.Image
+			break
+		}
+	}
+
+	// Preserve dirty volumes from previous status; clear them once the pod is ready
+	// (meaning the init container has already wiped them during restart).
+	var dirtyVolumes []string
+	if len(prev.DirtyVolumes) > 0 && !isReady {
+		dirtyVolumes = prev.DirtyVolumes
+	}
+
+	// Preserve Aerospike node info from previous status.
+	// These fields are refreshed via collectAerospikeInfo only when phase == Completed.
+	nodeID := prev.NodeID
+	clusterName := prev.ClusterName
+	accessEndpoints := prev.AccessEndpoints
+	lastRestartReason := prev.LastRestartReason
+	lastRestartTime := prev.LastRestartTime
+
+	// Track pod instability: set UnstableSince on first NotReady, preserve it
+	// while still NotReady, clear it when the pod becomes Ready.
+	var unstableSince *metav1.Time
+	if !isReady {
+		if prev.UnstableSince != nil {
+			unstableSince = prev.UnstableSince // preserve original timestamp
+		} else {
+			now := metav1.Now()
+			unstableSince = &now
+		}
+	}
+
+	gateSatisfied, _ := findPodReadinessCondition(pod)
+
+	return ackov1alpha1.AerospikePodStatus{
+		PodIP:                  pod.Status.PodIP,
+		HostIP:                 pod.Status.HostIP,
+		Image:                  podImage,
+		PodPort:                servicePort,
+		ServicePort:            servicePort,
+		Rack:                   rackID,
+		IsRunningAndReady:      isReady,
+		ConfigHash:             configHash,
+		PodSpecHash:            podSpecHash,
+		DirtyVolumes:           dirtyVolumes,
+		NodeID:                 nodeID,
+		ClusterName:            clusterName,
+		AccessEndpoints:        accessEndpoints,
+		ReadinessGateSatisfied: gateSatisfied,
+		LastRestartReason:      lastRestartReason,
+		LastRestartTime:        lastRestartTime,
+		UnstableSince:          unstableSince,
+	}
 }
 
 func isPodReady(pod *corev1.Pod) bool {

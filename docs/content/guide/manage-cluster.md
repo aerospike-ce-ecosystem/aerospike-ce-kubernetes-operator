@@ -65,6 +65,20 @@ Batch size accepts either an integer or a percentage string:
 A percentage string must include the `%` suffix (e.g., `"50%"`). The percentage is calculated against the total pod count per rack, rounded up to at least 1.
 :::
 
+#### Batch Restart Resilience
+
+When restarting multiple pods in a batch, the operator continues to the next pod if an individual pod restart fails, rather than aborting the entire batch. This means:
+
+- If 1 out of 3 pods in a batch fails to restart, the remaining 2 are still restarted
+- Failed pods are recorded and reported via a `RestartFailed` warning event
+- The operator returns an error only if **all** pods in the batch fail
+- On the next reconciliation, only the pods that were not successfully restarted are retried
+
+```bash
+# Check for restart failures
+kubectl get events --field-selector reason=RestartFailed -n aerospike
+```
+
 ### Scale Down Batch Size
 
 Control how many pods are removed simultaneously per rack during scale-down:
@@ -125,6 +139,24 @@ Most Aerospike service and namespace parameters are dynamically configurable. Ex
 | Service | `proto-fd-max`, `transaction-pending-limit`, `batch-max-buffers-per-queue` |
 | Namespace | `high-water-memory-pct`, `high-water-disk-pct`, `stop-writes-pct`, `nsup-period`, `default-ttl` |
 | Not Dynamic | `replication-factor`, `storage-engine type`, `name` (requires restart) |
+
+#### Rollback on Partial Failure
+
+When applying multiple dynamic config changes, the operator tracks each successfully applied change. If any change fails mid-way:
+
+1. The operator **rolls back** all previously applied changes in reverse order using the original values
+2. The rollback is best-effort — if a rollback command also fails, it is logged but does not block progress
+3. After rollback, the operator falls back to a **cold restart** to apply the correct configuration atomically
+
+This prevents the cluster from running with a partially applied configuration. You can observe rollback activity in the operator logs:
+
+```bash
+kubectl -n aerospike-operator logs -l control-plane=controller-manager | grep -i "rollback\|dynamic config"
+```
+
+#### Pre-flight Validation
+
+Before applying any dynamic changes, the operator validates all changes as a batch. If any change contains invalid characters (e.g., `;` or `:` in parameter values), the entire batch is rejected before any `set-config` command is sent. This prevents partial application due to obviously invalid input.
 
 #### Checking dynamicConfigStatus
 
@@ -225,6 +257,30 @@ kubectl -n aerospike patch asc aerospike-ce-3node --type merge -p '{"spec":{"pau
 # Resume
 kubectl -n aerospike patch asc aerospike-ce-3node --type merge -p '{"spec":{"paused":null}}'
 ```
+
+## Secret-Triggered ACL Sync
+
+The operator watches Kubernetes Secrets referenced by `aerospikeAccessControl.users[*].secretName`. When a Secret's data changes (e.g., password rotation), the operator automatically triggers a reconciliation to sync the updated password to Aerospike — **without any changes to the AerospikeCluster CR**.
+
+This enables zero-touch password rotation workflows:
+
+```bash
+# Rotate a user's password by updating the Secret
+kubectl -n aerospike create secret generic app-secret \
+  --from-literal=password='new-password-here' \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+The operator detects the Secret data change and runs an ACL sync to update the user's password in Aerospike. You can verify the sync via events:
+
+```bash
+kubectl get events --field-selector reason=ACLSyncStarted -n aerospike
+kubectl get events --field-selector reason=ACLSyncCompleted -n aerospike
+```
+
+:::info
+Only Secrets that are actively referenced by an AerospikeCluster's ACL configuration trigger reconciliation. Unrelated Secret changes in the same namespace are ignored.
+:::
 
 ## On-Demand Operations
 
@@ -379,6 +435,28 @@ storage:
           storageClass: standard
           size: 10Gi
       # Inherits cascadeDelete: true from filesystemVolumePolicy
+```
+
+#### PVC Cleanup Safety During Scale-Down
+
+During scale-down, the operator verifies that all scaled-down pods have fully terminated before deleting their PVCs. This prevents a race condition where a PVC is deleted while the pod's Aerospike process is still writing data.
+
+If any scaled-down pods are still running or terminating, PVC cleanup is **deferred** to the next reconciliation cycle. The operator logs this as:
+
+```
+Deferring PVC cleanup: scaled-down pods still terminating
+```
+
+Once all scaled-down pods are confirmed terminated, the operator deletes only PVCs for volumes with `cascadeDelete: true`. Non-cascade PVCs are always preserved.
+
+You can monitor PVC cleanup activity via events:
+
+```bash
+# Successful cleanup
+kubectl get events --field-selector reason=PVCCleanedUp -n aerospike
+
+# Failed cleanup
+kubectl get events --field-selector reason=PVCCleanupFailed -n aerospike
 ```
 
 ### Volume Init Methods
@@ -713,20 +791,74 @@ Each pod status includes:
 kubectl -n aerospike-operator logs -l control-plane=controller-manager -f
 ```
 
+### Circuit Breaker and Exponential Backoff
+
+The operator includes a built-in circuit breaker to prevent excessive retries on persistently failing clusters. After **10 consecutive reconciliation failures**, the operator enters a backoff state:
+
+| Consecutive Failures | Backoff Delay |
+|---------------------|---------------|
+| 1 | 2 seconds |
+| 2 | 4 seconds |
+| 3 | 8 seconds |
+| 5 | 32 seconds |
+| 8+ | ~4.3 minutes (capped at 256 seconds) |
+
+While the circuit breaker is active, a `CircuitBreakerActive` warning event is emitted with the failure count and last error. After a successful reconciliation, the counter resets and a `CircuitBreakerReset` event is emitted.
+
+```bash
+# Check if the circuit breaker is active
+kubectl get events --field-selector reason=CircuitBreakerActive -n aerospike
+
+# Check the failure count and last error
+kubectl -n aerospike get asc aerospike-ce-3node \
+  -o jsonpath='{.status.failedReconcileCount}{"\t"}{.status.lastReconcileError}'
+```
+
+:::info
+Validation errors (e.g., invalid spec) do **not** increment the circuit breaker counter. They are permanent errors that require user intervention to fix.
+:::
+
 ### Common Issues
 
 **Phase stuck at InProgress:**
 - Check operator logs for error details
 - Verify storage class exists: `kubectl get sc`
 - Verify image is pullable: `kubectl -n aerospike describe pod <pod-name>`
+- Check if the circuit breaker is active (see above) — the operator may be backing off
 
 **Pod CrashLoopBackOff:**
 - Check Aerospike logs: `kubectl -n aerospike logs <pod-name> -c aerospike`
 - Verify `aerospikeConfig` is valid (namespace names, storage paths)
 
+**PVCs not cleaned up after scale-down:**
+- The operator defers PVC deletion until all scaled-down pods have fully terminated
+- Check if pods are stuck in `Terminating` state: `kubectl -n aerospike get pods`
+- If pods are stuck, investigate the cause (finalizers, volume detach issues) and resolve the stuck pods first
+- PVC cleanup will proceed automatically on the next reconciliation after pods are gone
+
+**Dynamic config changes trigger a restart instead of applying at runtime:**
+- Verify `enableDynamicConfigUpdate: true` is set in the spec
+- Check if the changed parameters are static (e.g., `replication-factor`, `storage-engine type`) — static changes always require a restart
+- If a partial dynamic update failed, the operator rolls back applied changes and falls back to a cold restart. Check operator logs for `rollback` messages
+- Ensure parameter values do not contain `;` or `:` characters, which are invalid in `set-config` commands
+
 **Webhook rejection:**
 - Read the error message — the webhook validates CE constraints
 - Check [CE Validation Rules](./create-cluster#ce-validation-rules)
+- Common webhook errors:
+
+| Error Message | Cause | Fix |
+|---------------|-------|-----|
+| `spec.size must not exceed 8` | CE cluster size limit | Reduce `spec.size` to 8 or fewer |
+| `replication-factor N exceeds cluster size M` | RF larger than node count | Lower `replication-factor` or increase `spec.size` |
+| `must have at least one user with both 'sys-admin' and 'user-admin' roles` | Missing admin user for ACL management | Assign both roles to at least one user |
+| `user X references undefined role Y` | Custom role not declared | Add the role to `aerospikeAccessControl.roles` or use a built-in role |
+| `maximum 2 namespaces allowed` | CE namespace limit | Remove extra namespaces |
+
+**ACL sync failures:**
+- Check that referenced Secrets exist and contain a `password` key
+- Verify the admin user has both `sys-admin` and `user-admin` roles
+- Check `ACLSyncError` events: `kubectl get events --field-selector reason=ACLSyncError -n aerospike`
 
 ## Kubernetes Events
 
@@ -773,5 +905,9 @@ kubectl get events --field-selector involvedObject.kind=AerospikeCluster -n aero
 | `TemplateDrifted` | Warning | Cluster spec drifted from its template |
 | `TemplateResolutionError` | Warning | Failed to resolve or apply a ClusterTemplate |
 | `ValidationWarning` | Warning | Non-blocking validation warning detected |
+| `PVCCleanedUp` | Normal | Orphaned PVCs deleted after scale-down |
+| `PVCCleanupFailed` | Warning | Failed to delete orphaned PVCs after scale-down |
+| `CircuitBreakerActive` | Warning | Reconciliation backed off after consecutive failures |
+| `CircuitBreakerReset` | Normal | Circuit breaker reset after successful reconciliation |
 | `ReconcileError` | Warning | Reconciliation loop encountered an unrecoverable error |
 | `Operation` | Normal | On-demand operation event |

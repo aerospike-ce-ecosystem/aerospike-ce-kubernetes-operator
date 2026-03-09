@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -2902,7 +2903,7 @@ func TestValidateUpdate_RackIDRename(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for rack ID rename")
 	}
-	if !strings.Contains(err.Error(), "rack IDs cannot be changed") {
+	if !strings.Contains(err.Error(), "cannot add new rack IDs") {
 		t.Errorf("error = %q, want it to mention rack ID change", err.Error())
 	}
 }
@@ -3863,6 +3864,261 @@ func TestValidate_CE7ImageRejected(t *testing.T) {
 				t.Errorf("expected CE 7 rejection message, got: %v", err)
 			}
 		})
+	}
+}
+
+// --- Replication factor zero/negative-zero validation tests ---
+
+func TestValidate_ReplicationFactorNegativeZeroFloat(t *testing.T) {
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"namespaces": []any{
+						map[string]any{
+							"name":               "test",
+							"replication-factor": float64(math.Copysign(0, -1)),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error when replication-factor is float64(-0.0)")
+	}
+	if !strings.Contains(err.Error(), "replication-factor must be >= 1") {
+		t.Errorf("error should mention 'replication-factor must be >= 1', got: %v", err)
+	}
+}
+
+func TestValidate_ReplicationFactorIntZero(t *testing.T) {
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"namespaces": []any{
+						map[string]any{
+							"name":               "test",
+							"replication-factor": int(0),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error when replication-factor is int(0)")
+	}
+	if !strings.Contains(err.Error(), "replication-factor must be >= 1") {
+		t.Errorf("error should mention 'replication-factor must be >= 1', got: %v", err)
+	}
+}
+
+func TestValidate_ReplicationFactorFloatZero(t *testing.T) {
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"namespaces": []any{
+						map[string]any{
+							"name":               "test",
+							"replication-factor": float64(0.0),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err == nil {
+		t.Fatal("expected error when replication-factor is float64(0.0)")
+	}
+	if !strings.Contains(err.Error(), "replication-factor must be >= 1") {
+		t.Errorf("error should mention 'replication-factor must be >= 1', got: %v", err)
+	}
+}
+
+func TestValidate_ReplicationFactorIntOneAccepted(t *testing.T) {
+	v := &AerospikeClusterValidator{}
+	cluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
+			Size:  3,
+			Image: "aerospike:ce-8.1.1.1",
+			AerospikeConfig: &AerospikeConfigSpec{
+				Value: map[string]any{
+					"namespaces": []any{
+						map[string]any{
+							"name":               "test",
+							"replication-factor": int(1),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := v.validate(cluster)
+	if err != nil {
+		t.Errorf("unexpected error for replication-factor int(1): %v", err)
+	}
+}
+
+// --- Rack ID add+remove detection tests ---
+
+func TestValidateUpdate_RackRemoveAndAddDifferentCount_Increase(t *testing.T) {
+	v := &AerospikeClusterValidator{}
+	oldCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
+			Size:  4,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks: []Rack{
+					{ID: 1},
+					{ID: 2},
+				},
+			},
+		},
+	}
+	// Remove rack 1, add rack 2 and 3 (count changes 2→3)
+	newCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
+			Size:  6,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks: []Rack{
+					{ID: 2},
+					{ID: 3},
+					{ID: 4},
+				},
+			},
+		},
+	}
+
+	_, err := v.ValidateUpdate(context.Background(), oldCluster, newCluster)
+	if err == nil {
+		t.Fatal("expected error when adding and removing rack IDs simultaneously (count increase)")
+	}
+	if !strings.Contains(err.Error(), "cannot add new rack IDs") {
+		t.Errorf("error should mention 'cannot add new rack IDs', got: %v", err)
+	}
+}
+
+func TestValidateUpdate_RackRemoveAndAddDifferentCount_Decrease(t *testing.T) {
+	v := &AerospikeClusterValidator{}
+	oldCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
+			Size:  6,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks: []Rack{
+					{ID: 1},
+					{ID: 2},
+					{ID: 3},
+				},
+			},
+		},
+	}
+	// Remove rack 1 and 2, add rack 4 (count changes 3→2)
+	newCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
+			Size:  4,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks: []Rack{
+					{ID: 3},
+					{ID: 4},
+				},
+			},
+		},
+	}
+
+	_, err := v.ValidateUpdate(context.Background(), oldCluster, newCluster)
+	if err == nil {
+		t.Fatal("expected error when adding and removing rack IDs simultaneously (count decrease)")
+	}
+	if !strings.Contains(err.Error(), "cannot add new rack IDs") {
+		t.Errorf("error should mention 'cannot add new rack IDs', got: %v", err)
+	}
+}
+
+func TestValidateUpdate_RackOnlyAddOK(t *testing.T) {
+	v := &AerospikeClusterValidator{}
+	oldCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
+			Size:  4,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks: []Rack{
+					{ID: 1},
+				},
+			},
+		},
+	}
+	newCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
+			Size:  6,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks: []Rack{
+					{ID: 1},
+					{ID: 2},
+					{ID: 3},
+				},
+			},
+		},
+	}
+
+	_, err := v.ValidateUpdate(context.Background(), oldCluster, newCluster)
+	if err != nil {
+		t.Errorf("unexpected error for rack-only addition: %v", err)
+	}
+}
+
+func TestValidateUpdate_RackOnlyRemoveOK(t *testing.T) {
+	v := &AerospikeClusterValidator{}
+	oldCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
+			Size:  6,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks: []Rack{
+					{ID: 1},
+					{ID: 2},
+					{ID: 3},
+				},
+			},
+		},
+	}
+	newCluster := &AerospikeCluster{
+		Spec: AerospikeClusterSpec{
+			Size:  4,
+			Image: "aerospike:ce-8.1.1.1",
+			RackConfig: &RackConfig{
+				Racks: []Rack{
+					{ID: 1},
+				},
+			},
+		},
+	}
+
+	_, err := v.ValidateUpdate(context.Background(), oldCluster, newCluster)
+	if err != nil {
+		t.Errorf("unexpected error for rack-only removal: %v", err)
 	}
 }
 

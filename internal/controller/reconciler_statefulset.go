@@ -142,6 +142,14 @@ func (r *AerospikeClusterReconciler) reconcileStatefulSet(
 		// Apply scale-down batch size: only scale down a batch at a time.
 		batchSize := r.getScaleDownBatchSize(cluster, oldReplicas-rackSize)
 		targetReplicas = max(oldReplicas-batchSize, rackSize)
+
+		deferred, err := r.checkScaleDownReadiness(ctx, cluster, rack.ID, targetReplicas)
+		if err != nil {
+			return false, err
+		}
+		if deferred {
+			return true, nil
+		}
 	}
 
 	existing.Spec.Replicas = &targetReplicas
@@ -164,27 +172,89 @@ func (r *AerospikeClusterReconciler) reconcileStatefulSet(
 			"Rack %d scaled from %d to %d replicas", rack.ID, oldReplicas, targetReplicas)
 	}
 
-	// Cleanup orphaned PVCs after StatefulSet update so pods terminate first.
-	// Only delete PVCs for volumes with cascadeDelete enabled; preserve all others.
+	// Cleanup orphaned PVCs after scale-down.
 	if scaleDown {
-		log.Info("Scale-down detected, cleaning up orphaned cascade-delete PVCs",
-			"name", stsName, "old", oldReplicas, "new", targetReplicas)
-		deleted, err := storage.DeleteOrphanedCascadeDeletePVCs(
-			ctx, r.Client, cluster.Namespace, stsName, targetReplicas, storageSpec)
-		if err != nil {
-			log.Error(err, "Failed to delete orphaned cascade PVCs", "statefulset", stsName)
-			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventPVCCleanupFailed,
-				"Failed to delete orphaned cascade PVCs for %s: %v", stsName, err)
-			// Non-fatal: PVCs will be cleaned up on next reconcile
-		} else if deleted > 0 {
-			log.Info("Deleted orphaned cascade-delete PVCs",
-				"statefulset", stsName, "count", deleted)
-			r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventPVCCleanedUp,
-				"Deleted %d orphaned PVC(s) for %s after scale-down", deleted, stsName)
-		}
+		r.cleanupOrphanedPVCsAfterScaleDown(ctx, cluster, rack.ID, stsName, targetReplicas, oldReplicas, storageSpec)
 	}
 
 	return false, nil
+}
+
+// checkScaleDownReadiness verifies that pods which will remain after scale-down are ready.
+// Returns (deferred, error). deferred=true means the scale-down should be retried later.
+func (r *AerospikeClusterReconciler) checkScaleDownReadiness(
+	ctx context.Context,
+	cluster *ackov1alpha1.AerospikeCluster,
+	rackID int,
+	targetReplicas int32,
+) (bool, error) {
+	log := logf.FromContext(ctx)
+
+	rackPods, err := r.listRackPods(ctx, cluster, rackID)
+	if err != nil {
+		return false, fmt.Errorf("listing rack pods for scale-down readiness check: %w", err)
+	}
+	readyCount := int32(0)
+	for i := range rackPods {
+		// Only count pods that will remain after scale-down (ordinal < targetReplicas).
+		// Pods being removed (ordinal >= targetReplicas) should not inflate the ready count.
+		if podOrdinal(rackPods[i].Name) < int(targetReplicas) && isPodReady(&rackPods[i]) {
+			readyCount++
+		}
+	}
+	if readyCount < targetReplicas {
+		log.Info("Not enough ready pods for safe scale-down, deferring",
+			"rack", rackID, "readyPods", readyCount, "targetReplicas", targetReplicas)
+		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventScaleDownDeferred,
+			"Scale-down deferred for rack %d: only %d/%d target pods are ready",
+			rackID, readyCount, targetReplicas)
+		return true, nil
+	}
+	log.V(1).Info("Scale-down readiness check passed",
+		"rack", rackID, "readyPods", readyCount, "targetReplicas", targetReplicas)
+	return false, nil
+}
+
+// cleanupOrphanedPVCsAfterScaleDown verifies pods have terminated and then deletes orphaned PVCs.
+// Pod termination is asynchronous — PVCs are only deleted once all scaled-down pods are gone.
+func (r *AerospikeClusterReconciler) cleanupOrphanedPVCsAfterScaleDown(
+	ctx context.Context,
+	cluster *ackov1alpha1.AerospikeCluster,
+	rackID int,
+	stsName string,
+	targetReplicas, oldReplicas int32,
+	storageSpec *ackov1alpha1.AerospikeStorageSpec,
+) {
+	log := logf.FromContext(ctx)
+
+	rackPods, listErr := r.listRackPods(ctx, cluster, rackID)
+	if listErr != nil {
+		log.Error(listErr, "Failed to list rack pods for PVC cleanup check, deferring PVC cleanup",
+			"statefulset", stsName)
+		return
+	}
+
+	for i := range rackPods {
+		if podOrdinal(rackPods[i].Name) >= int(targetReplicas) {
+			log.Info("Deferring PVC cleanup: scaled-down pods still terminating",
+				"statefulset", stsName, "targetReplicas", targetReplicas)
+			return
+		}
+	}
+
+	log.Info("All scaled-down pods terminated, cleaning up orphaned cascade-delete PVCs",
+		"name", stsName, "old", oldReplicas, "new", targetReplicas)
+	deleted, err := storage.DeleteOrphanedCascadeDeletePVCs(
+		ctx, r.Client, cluster.Namespace, stsName, targetReplicas, storageSpec)
+	if err != nil {
+		log.Error(err, "Failed to delete orphaned cascade PVCs", "statefulset", stsName)
+		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventPVCCleanupFailed,
+			"Failed to delete orphaned cascade PVCs for %s: %v", stsName, err)
+	} else if deleted > 0 {
+		log.Info("Deleted orphaned cascade-delete PVCs", "statefulset", stsName, "count", deleted)
+		r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventPVCCleanedUp,
+			"Deleted %d orphaned PVC(s) for %s after scale-down", deleted, stsName)
+	}
 }
 
 func (r *AerospikeClusterReconciler) buildStatefulSet(

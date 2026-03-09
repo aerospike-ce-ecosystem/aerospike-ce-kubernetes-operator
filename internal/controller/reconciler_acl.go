@@ -39,13 +39,10 @@ func (r *AerospikeClusterReconciler) reconcileACL(
 		return false, nil
 	}
 
-	// Skip if ACL spec hasn't changed since the last successful reconcile.
-	// Return true (synced) because ACL is already in sync from the previous reconcile.
-	if cluster.Status.Phase == ackov1alpha1.AerospikePhaseCompleted &&
-		cluster.Status.ObservedGeneration == cluster.Generation {
-		log.V(1).Info("ACL spec unchanged, skipping sync")
-		return true, nil
-	}
+	log.V(1).Info("Starting ACL sync",
+		"namespace", cluster.Namespace,
+		"generation", cluster.Generation,
+		"observedGeneration", cluster.Status.ObservedGeneration)
 
 	// Check if any pod is ready before attempting ACL sync.
 	podList, err := r.listClusterPods(ctx, cluster)
@@ -76,34 +73,21 @@ func (r *AerospikeClusterReconciler) reconcileACL(
 	defer closeAerospikeClient(aeroClient)
 
 	// Sync roles first (users may depend on roles).
-	// Attempt ACL sync with a single retry for transient connection errors.
-	// During rolling restarts, the Aerospike cluster may briefly reject connections
-	// from nodes that are restarting.
-	if err := r.reconcileRoles(ctx, aeroClient, cluster); err != nil {
-		if isTransientAeroError(err) {
-			log.Info("Transient error during role sync, retrying once", "error", err)
-			if retryErr := r.reconcileRoles(ctx, aeroClient, cluster); retryErr != nil {
-				metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "error").Inc()
-				return false, fmt.Errorf("ACL sync roles (after retry): %w", retryErr)
-			}
-		} else {
-			metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "error").Inc()
-			return false, fmt.Errorf("ACL sync roles: %w", err)
-		}
+	// Retry once on transient connection errors (connection reset, timeout, etc.)
+	// that may occur during rolling restarts when nodes are briefly unavailable.
+	if err := retryOnTransient(func() error {
+		return r.reconcileRoles(ctx, aeroClient, cluster)
+	}); err != nil {
+		metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "error").Inc()
+		return false, fmt.Errorf("ACL sync roles: %w", err)
 	}
 
 	// Sync users with the same single-retry pattern for transient errors.
-	if err := r.reconcileUsers(ctx, aeroClient, cluster); err != nil {
-		if isTransientAeroError(err) {
-			log.Info("Transient error during user sync, retrying once", "error", err)
-			if retryErr := r.reconcileUsers(ctx, aeroClient, cluster); retryErr != nil {
-				metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "error").Inc()
-				return false, fmt.Errorf("ACL sync users (after retry): %w", retryErr)
-			}
-		} else {
-			metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "error").Inc()
-			return false, fmt.Errorf("ACL sync users: %w", err)
-		}
+	if err := retryOnTransient(func() error {
+		return r.reconcileUsers(ctx, aeroClient, cluster)
+	}); err != nil {
+		metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "error").Inc()
+		return false, fmt.Errorf("ACL sync users: %w", err)
 	}
 
 	metrics.ACLSyncTotal.WithLabelValues(cluster.Namespace, cluster.Name, "success").Inc()
@@ -222,9 +206,10 @@ func (r *AerospikeClusterReconciler) reconcileUsers(
 			return fmt.Errorf("syncing roles for user %s: %w", userSpec.Name, err)
 		}
 
-		// Attempt password change. This only runs when spec generation
-		// has changed (guarded by the generation check above), so it won't
-		// run every reconcile cycle. The server is idempotent for same-value changes.
+		// Always attempt password change. The Aerospike server's ChangePassword
+		// is idempotent — it's a no-op when the password hasn't changed.
+		// This ensures Secret-based password updates are applied even though
+		// Secret changes don't increment the CR's generation.
 		if err := aeroClient.ChangePassword(adminPolicy, userSpec.Name, password); err != nil {
 			log.Error(err, "Password change failed (non-fatal, continuing)", "user", userSpec.Name)
 		}

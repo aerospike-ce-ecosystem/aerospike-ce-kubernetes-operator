@@ -139,6 +139,12 @@ func placeholderForNetworkType(t v1alpha1.AerospikeNetworkType) string {
 		return "MY_NODE_IP"
 	case v1alpha1.AerospikeNetworkTypePod:
 		return "MY_POD_IP"
+	case v1alpha1.AerospikeNetworkTypeConfiguredIP:
+		// configuredIP addresses are injected via pod annotations at startup,
+		// not via config template placeholders. Returning "" intentionally skips
+		// placeholder injection so the init container can set the address from
+		// the annotation value instead.
+		return ""
 	default:
 		return ""
 	}

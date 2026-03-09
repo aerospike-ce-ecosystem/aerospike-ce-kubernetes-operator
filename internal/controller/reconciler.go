@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"reflect"
 	"slices"
 	"sync"
 	"time"
@@ -678,6 +679,14 @@ func (r *AerospikeClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(r.mapTemplateToCluster),
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
+		// Watch Secrets referenced by AerospikeCluster ACL users.
+		// Secret data changes (e.g., password rotation) don't increment the CR's
+		// generation, so an explicit watch is needed to trigger ACL re-sync.
+		Watches(
+			&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.mapSecretToCluster),
+			builder.WithPredicates(secretDataChangedPredicate{}),
+		).
 		Named("aerospikecluster").
 		WithOptions(controller.Options{MaxConcurrentReconciles: 2}).
 		Complete(r)
@@ -751,4 +760,68 @@ func (statefulSetReadyReplicasPredicate) Update(e event.UpdateEvent) bool {
 		return false
 	}
 	return oldSTS.Status.ReadyReplicas != newSTS.Status.ReadyReplicas
+}
+
+// mapSecretToCluster maps a Secret change to the AerospikeCluster(s) that
+// reference it via aerospikeAccessControl.users[*].secretName.
+func (r *AerospikeClusterReconciler) mapSecretToCluster(ctx context.Context, obj client.Object) []reconcile.Request {
+	log := logf.FromContext(ctx)
+	secretName := obj.GetName()
+	secretNamespace := obj.GetNamespace()
+
+	// List AerospikeClusters in the same namespace as the Secret.
+	clusterList := &ackov1alpha1.AerospikeClusterList{}
+	if err := r.List(ctx, clusterList, client.InNamespace(secretNamespace)); err != nil {
+		log.Error(err, "Failed to list clusters for secret watch",
+			"secret", secretName, "namespace", secretNamespace)
+		return nil
+	}
+
+	var requests []reconcile.Request
+	for i := range clusterList.Items {
+		cl := &clusterList.Items[i]
+		if cl.Spec.AerospikeAccessControl == nil {
+			continue
+		}
+		for _, user := range cl.Spec.AerospikeAccessControl.Users {
+			if user.SecretName == secretName {
+				log.V(1).Info("Secret referenced by AerospikeCluster ACL, enqueuing reconcile",
+					"secret", secretName, "cluster", cl.Name)
+				requests = append(requests, reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Namespace: cl.Namespace,
+						Name:      cl.Name,
+					},
+				})
+				break // one match per cluster is enough
+			}
+		}
+	}
+	return requests
+}
+
+// secretDataChangedPredicate triggers only on Update events where the Secret's
+// Data or StringData has changed. Create and Delete events are ignored since
+// new Secrets don't need immediate ACL sync and deleted Secrets will cause
+// errors that are surfaced during the next scheduled reconcile.
+type secretDataChangedPredicate struct {
+	predicate.Funcs
+}
+
+func (secretDataChangedPredicate) Create(_ event.CreateEvent) bool   { return false }
+func (secretDataChangedPredicate) Delete(_ event.DeleteEvent) bool   { return false }
+func (secretDataChangedPredicate) Generic(_ event.GenericEvent) bool { return false }
+
+func (secretDataChangedPredicate) Update(e event.UpdateEvent) bool {
+	oldSecret, ok := e.ObjectOld.(*corev1.Secret)
+	if !ok {
+		return false
+	}
+	newSecret, ok := e.ObjectNew.(*corev1.Secret)
+	if !ok {
+		return false
+	}
+	// Compare actual Data content to avoid unnecessary reconciliation on
+	// metadata-only changes (e.g., label updates that bump ResourceVersion).
+	return !reflect.DeepEqual(oldSecret.Data, newSecret.Data)
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	aero "github.com/aerospike/aerospike-client-go/v8"
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -15,6 +16,13 @@ import (
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/configdiff"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/metrics"
 )
+
+// appliedChange tracks a successfully applied dynamic config change along with
+// the command needed to roll it back.
+type appliedChange struct {
+	change   configdiff.Change
+	rollback string // the set-config command to revert this change; empty if rollback not possible
+}
 
 // tryDynamicConfigUpdate attempts to apply config changes dynamically without
 // restarting pods. Returns true if all changes were applied dynamically and
@@ -59,24 +67,63 @@ func (r *AerospikeClusterReconciler) tryDynamicConfigUpdate(
 		return false
 	}
 
-	// Apply each dynamic change
-	for _, change := range diff.Dynamic {
+	// Apply each dynamic change, tracking successfully applied changes for rollback.
+	var applied []appliedChange
+
+	for i, change := range diff.Dynamic {
 		cmd, err := buildSetConfigCommand(change)
 		if err != nil {
 			log.Error(err, "Invalid dynamic config change", "change", change)
+			r.rollbackDynamicChanges(log, node, applied)
+			log.Info("Rolled back partial dynamic config changes, falling back to cold restart",
+				"appliedBeforeFailure", len(applied))
 			return false
 		}
-		log.Info("Applying dynamic config", "command", cmd)
+		log.Info("Applying dynamic config", "command", cmd, "index", i, "total", len(diff.Dynamic))
 
 		result, err := asinfoCommandOnNode(node, cmd)
 		if err != nil {
 			log.Error(err, "Dynamic config command failed", "command", cmd)
+			logAppliedChanges(log, applied, i, len(diff.Dynamic))
+			r.rollbackDynamicChanges(log, node, applied)
+			log.Info("Rolled back partial dynamic config changes, falling back to cold restart",
+				"appliedBeforeFailure", len(applied))
 			return false
 		}
 		if result != "ok" {
 			log.Info("Dynamic config command returned non-ok", "command", cmd, "result", result)
+			logAppliedChanges(log, applied, i, len(diff.Dynamic))
+			r.rollbackDynamicChanges(log, node, applied)
+			log.Info("Rolled back partial dynamic config changes, falling back to cold restart",
+				"appliedBeforeFailure", len(applied))
 			return false
 		}
+
+		// Build rollback command using the old value.
+		// OldValue may be nil when a new config key is being added (no previous value).
+		// In that case, rollback is not possible — the key cannot be "unset" via set-config.
+		var rollbackCmd string
+		if change.OldValue == nil {
+			log.V(1).Info("No old value for change, rollback not possible",
+				"change", change.Path)
+		} else {
+			rollbackChange := configdiff.Change{
+				Path:      change.Path,
+				Context:   change.Context,
+				Key:       change.Key,
+				NewValue:  change.OldValue,
+				Namespace: change.Namespace,
+			}
+			var rbErr error
+			rollbackCmd, rbErr = buildSetConfigCommand(rollbackChange)
+			if rbErr != nil {
+				// Cannot build rollback command — log but still track as applied
+				log.V(1).Info("Cannot build rollback command for applied change",
+					"change", change.Path, "oldValue", change.OldValue, "error", rbErr)
+				rollbackCmd = "" // empty means rollback not possible
+			}
+		}
+		applied = append(applied, appliedChange{change: change, rollback: rollbackCmd})
 	}
 
 	// All dynamic changes applied successfully — update the config hash annotation
@@ -197,4 +244,66 @@ func (r *AerospikeClusterReconciler) updateDynamicConfigStatus(
 		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventDynamicConfigStatusFailed,
 			"Failed to update dynamic config status for pod %s: %v", podName, err)
 	}
+}
+
+// rollbackDynamicChanges attempts to revert previously applied dynamic config changes.
+// This is best-effort: if rollback fails, it is logged but does not cause an error.
+// The caller will fall back to a cold restart which applies the correct config.
+func (r *AerospikeClusterReconciler) rollbackDynamicChanges(
+	log logr.Logger,
+	node *aero.Node,
+	applied []appliedChange,
+) {
+	if len(applied) == 0 {
+		return
+	}
+
+	log.Info("Attempting rollback of applied dynamic config changes", "count", len(applied))
+
+	rollbackFailed := 0
+	for i := len(applied) - 1; i >= 0; i-- {
+		ac := applied[i]
+		if ac.rollback == "" {
+			log.Info("No rollback command available for change, skipping",
+				"change", ac.change.Path, "appliedValue", ac.change.NewValue)
+			rollbackFailed++
+			continue
+		}
+
+		log.Info("Rolling back dynamic config change", "command", ac.rollback, "change", ac.change.Path)
+		result, err := asinfoCommandOnNode(node, ac.rollback)
+		if err != nil {
+			log.Error(err, "Rollback command failed", "command", ac.rollback, "change", ac.change.Path)
+			rollbackFailed++
+			continue
+		}
+		if result != "ok" {
+			log.Info("Rollback command returned non-ok", "command", ac.rollback, "result", result, "change", ac.change.Path)
+			rollbackFailed++
+			continue
+		}
+		log.Info("Successfully rolled back dynamic config change", "change", ac.change.Path)
+	}
+
+	if rollbackFailed > 0 {
+		log.Info("Some rollback commands failed, cold restart will apply correct config",
+			"failedRollbacks", rollbackFailed, "totalApplied", len(applied))
+	} else {
+		log.Info("All applied dynamic config changes rolled back successfully")
+	}
+}
+
+// logAppliedChanges logs which changes were successfully applied before a failure,
+// so operators can investigate partial config state if needed.
+func logAppliedChanges(log logr.Logger, applied []appliedChange, failedIdx, total int) {
+	if len(applied) == 0 {
+		return
+	}
+	paths := make([]string, 0, len(applied))
+	for _, ac := range applied {
+		paths = append(paths, fmt.Sprintf("%s=%v", ac.change.Path, ac.change.NewValue))
+	}
+	log.Info("Dynamic config partially applied before failure",
+		"appliedCount", len(applied), "failedAtIndex", failedIdx, "totalChanges", total,
+		"appliedChanges", strings.Join(paths, ", "))
 }

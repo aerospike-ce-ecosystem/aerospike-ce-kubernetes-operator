@@ -1,5 +1,5 @@
 ---
-sidebar_position: 6
+sidebar_position: 8
 title: Cluster Manager UI
 ---
 
@@ -82,6 +82,45 @@ Aerospike 연결이 끊어진 경우 Overview 및 Browser 페이지에서 스켈
 ### Events Timeline
 
 클러스터 상세 페이지의 **Events** 탭에서 Kubernetes 이벤트를 확인합니다. 각 이벤트에는 타입, 이유, 메시지, 발생 횟수, 그리고 상대적 시간(예: "2m ago")이 표시됩니다. Transitional Phase에서는 자동으로 새로고침됩니다.
+
+### Event Category Filtering
+
+이벤트 타임라인에서 카테고리별 필터링이 가능합니다. 11개 카테고리로 자동 분류됩니다:
+
+| Category | Description | Example Events |
+|----------|-------------|----------------|
+| **Lifecycle** | 클러스터 생성/삭제 | ClusterCreated, ClusterDeletionStarted |
+| **Rolling Restart** | 롤링 리스타트 | RollingRestartStarted/Completed, PodRestarted |
+| **Configuration** | 설정 변경 | ConfigMapCreated, DynamicConfigApplied |
+| **ACL Security** | 접근 제어 | ACLSyncStarted/Completed/Failed |
+| **Scaling** | 스케일 업/다운 | RackScaled, PVCCleanupCompleted |
+| **Rack Management** | 랙 관리 | StatefulSetCreated, RackRemoved |
+| **Network** | 네트워크 리소스 | ServiceCreated, PDBCreated, NetworkPolicyCreated |
+| **Monitoring** | 모니터링 설정 | MonitoringConfigured |
+| **Template** | 템플릿 동기화 | TemplateApplied, TemplateOutOfSync |
+| **Circuit Breaker** | 서킷 브레이커 | CircuitBreakerActive/Reset |
+
+카테고리 필터 칩을 클릭하여 특정 유형의 이벤트만 표시할 수 있습니다.
+
+### Configuration Drift Detection
+
+클러스터 상세 페이지에서 **Config Status** 카드가 현재 설정의 동기화 상태를 표시합니다:
+
+- **In Sync** — 원하는 설정(spec)과 적용된 설정(appliedSpec)이 일치
+- **Config Drift Detected** — spec과 appliedSpec 사이에 차이 발견
+
+변경된 필드 목록과 Pod별 설정 해시 버전이 표시됩니다. 여러 해시 그룹이 있으면 일부 Pod가 아직 이전 설정으로 실행 중임을 의미합니다.
+
+### Reconciliation Health & Circuit Breaker
+
+Reconciliation 실패가 발생하면 **Reconciliation Health** 카드가 나타납니다:
+
+- **Progress Bar** — 서킷 브레이커 임계값(10회)까지의 실패 진행도
+- **Backoff Timer** — 서킷 브레이커 활성화 시 다음 재시도까지의 예상 시간
+- **Error Details** — 마지막 reconciliation 에러 메시지
+- **Reset Button** — 서킷 브레이커 수동 리셋 (no-op 패치로 재시도 트리거)
+
+서킷 브레이커는 연속 10회 실패 시 자동 활성화되며, 지수 백오프(30s × 2^n, 최대 300s)로 재시도합니다.
 
 ---
 

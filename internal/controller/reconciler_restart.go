@@ -140,48 +140,86 @@ func (r *AerospikeClusterReconciler) reconcileRollingRestart(
 		}
 	}
 
-	// Restart up to batchSize pods
-	restarted := int32(0)
-	for _, pod := range podsToRestart {
-		if restarted >= batchSize {
-			break
-		}
+	// Restart up to batchSize pods, continuing on individual pod failures.
+	restarted, failedPods := r.restartPodBatch(ctx, cluster, podsToRestart, sts, desiredHash,
+		batchSize, oldConfig, newConfig, &aeroClient)
 
-		// 1. Try dynamic config update first (no restart needed)
-		if oldConfig != nil && newConfig != nil {
-			// Lazily create the Aerospike client once for all pods.
-			if aeroClient == nil {
-				var clientErr error
-				aeroClient, clientErr = r.getAerospikeClient(ctx, cluster)
-				if clientErr != nil {
-					log.V(1).Info("Could not create Aerospike client for dynamic config, will fall back to restart", "error", clientErr)
-				}
-			}
-			if aeroClient != nil && r.tryDynamicConfigUpdate(ctx, cluster, pod, oldConfig, newConfig, aeroClient) {
-				log.Info("Dynamic config update succeeded, no restart needed", "pod", pod.Name)
-				continue
-			}
-		}
-
-		// 2. Restart pod (warm or cold)
-		if err := r.restartPod(ctx, cluster, pod, sts, desiredHash); err != nil {
-			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventRestartFailed,
-				"Failed to restart pod %s: %v", pod.Name, err)
-			return false, err
-		}
-
-		restarted++
+	// Update PendingRestartPods to only include pods that were NOT successfully restarted.
+	if len(failedPods) > 0 || restarted > 0 {
+		remaining := filterUnrestarted(pendingNames, failedPods, restarted, podsToRestart)
+		cluster.Status.PendingRestartPods = remaining
 	}
 
-	// Emit RollingRestartCompleted only when the batch covered all remaining pods.
-	// In batch-mode restarts this fires on the last batch; intermediate batches skip it.
-	// len(podsToRestart) > 0 is guaranteed by the early-return above.
+	// If all attempted pods failed, return error to signal a full batch failure.
+	if len(failedPods) > 0 && restarted == 0 {
+		return false, fmt.Errorf("all %d pod restart(s) in batch failed: %v",
+			len(failedPods), strings.Join(failedPods, ", "))
+	}
+
+	if len(failedPods) > 0 {
+		log.Info("Partial batch restart failure, some pods restarted successfully",
+			"restarted", restarted, "failed", len(failedPods), "failedPods", strings.Join(failedPods, ", "))
+	}
+
 	if restarted >= int32(len(podsToRestart)) {
 		r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventRollingRestartCompleted,
 			"Rolling restart completed for rack %d: all %d pods restarted", rack.ID, restarted)
 	}
 
 	return restarted > 0, nil
+}
+
+// restartPodBatch attempts to restart up to batchSize pods, trying dynamic config first.
+// Returns the count of successfully restarted pods and names of failed pods.
+func (r *AerospikeClusterReconciler) restartPodBatch(
+	ctx context.Context,
+	cluster *ackov1alpha1.AerospikeCluster,
+	podsToRestart []*corev1.Pod,
+	sts *appsv1.StatefulSet,
+	desiredHash string,
+	batchSize int32,
+	oldConfig, newConfig map[string]any,
+	aeroClient **aero.Client,
+) (int32, []string) {
+	log := logf.FromContext(ctx)
+
+	restarted := int32(0)
+	var failedPods []string
+	attempted := int32(0)
+
+	for _, pod := range podsToRestart {
+		if attempted >= batchSize {
+			break
+		}
+
+		// 1. Try dynamic config update first (no restart needed)
+		if oldConfig != nil && newConfig != nil {
+			if *aeroClient == nil {
+				var clientErr error
+				*aeroClient, clientErr = r.getAerospikeClient(ctx, cluster)
+				if clientErr != nil {
+					log.V(1).Info("Could not create Aerospike client for dynamic config, will fall back to restart", "error", clientErr)
+				}
+			}
+			if *aeroClient != nil && r.tryDynamicConfigUpdate(ctx, cluster, pod, oldConfig, newConfig, *aeroClient) {
+				log.Info("Dynamic config update succeeded, no restart needed", "pod", pod.Name)
+				continue
+			}
+		}
+
+		// 2. Restart pod (warm or cold)
+		attempted++
+		if err := r.restartPod(ctx, cluster, pod, sts, desiredHash); err != nil {
+			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventRestartFailed,
+				"Failed to restart pod %s: %v", pod.Name, err)
+			failedPods = append(failedPods, pod.Name)
+			log.Error(err, "Pod restart failed, continuing with next pod", "pod", pod.Name)
+			continue
+		}
+		restarted++
+	}
+
+	return restarted, failedPods
 }
 
 // restartPod attempts a warm restart first, falling back to cold restart.
@@ -469,6 +507,36 @@ func (r *AerospikeClusterReconciler) listRackPods(
 	})
 
 	return podList.Items, nil
+}
+
+// filterUnrestarted returns the pod names that were not successfully restarted.
+// This includes failed pods and pods that were pending but not attempted in the current batch.
+func filterUnrestarted(allPending []string, failedPods []string, restarted int32, podsToRestart []*corev1.Pod) []string {
+	// Build a set of successfully restarted pod names.
+	// Successfully restarted = attempted in batch AND not in failedPods.
+	failedSet := make(map[string]bool, len(failedPods))
+	for _, name := range failedPods {
+		failedSet[name] = true
+	}
+
+	restartedSet := make(map[string]bool)
+	for _, pod := range podsToRestart {
+		if !failedSet[pod.Name] {
+			restartedSet[pod.Name] = true
+		}
+		// Only count up to 'restarted' successes (the rest were not attempted)
+		if int32(len(restartedSet)) >= restarted {
+			break
+		}
+	}
+
+	var remaining []string
+	for _, name := range allPending {
+		if !restartedSet[name] {
+			remaining = append(remaining, name)
+		}
+	}
+	return remaining
 }
 
 // podOrdinal extracts the ordinal index from a StatefulSet pod name (e.g., "sts-0" → 0).

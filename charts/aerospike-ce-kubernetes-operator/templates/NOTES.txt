@@ -138,10 +138,10 @@ consider enabling it (ui.networkPolicy.enabled=true).
 {{- end }}
 
 Check UI pod status:
-  kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=ui -n {{ .Release.Namespace }}
+  kubectl get pods -l app.kubernetes.io/name=aerospike-cluster-manager,app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
 
 View UI logs:
-  kubectl logs -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=ui -n {{ .Release.Namespace }} -f
+  kubectl logs -l app.kubernetes.io/name=aerospike-cluster-manager,app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }} -f
 
 {{- if and .Values.ui.persistence.enabled .Values.ui.postgresql.enabled }}
 

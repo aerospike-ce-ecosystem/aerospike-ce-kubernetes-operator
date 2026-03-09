@@ -63,7 +63,7 @@ disable-model-invocation: false
 | `service.proto-fd-max` | 15000 |
 | `network.service/fabric/heartbeat.port` | 3000 / 3001 / 3002 |
 | `heartbeat.mode` | mesh |
-| `monitoring.exporterImage` | `aerospike/aerospike-prometheus-exporter:v1.16.1` |
+| `monitoring.exporterImage` | `aerospike/aerospike-prometheus-exporter:1.16.1` |
 | `monitoring.port` | 9145 |
 
 ### CE 제약 (위반 시 거부)

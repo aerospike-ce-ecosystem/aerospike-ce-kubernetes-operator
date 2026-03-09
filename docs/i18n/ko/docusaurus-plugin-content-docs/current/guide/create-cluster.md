@@ -255,7 +255,7 @@ spec:
 | `aerospikeConfig.network.heartbeat.port` | `3002` | 하트비트 포트 |
 | `aerospikeConfig.network.heartbeat.mode` | `mesh` | 하트비트 모드 |
 | `aerospikeConfig.network.fabric.port` | `3001` | 패브릭(노드 간 통신) 포트 |
-| `monitoring.exporterImage` | `aerospike/aerospike-prometheus-exporter:v1.16.1` | 익스포터 이미지 (모니터링 활성화 시) |
+| `monitoring.exporterImage` | `aerospike/aerospike-prometheus-exporter:1.16.1` | 익스포터 이미지 (모니터링 활성화 시) |
 | `monitoring.port` | `9145` | 익스포터 메트릭 포트 (모니터링 활성화 시) |
 | `monitoring.serviceMonitor.interval` | `30s` | 스크래핑 주기 (ServiceMonitor 활성화 시) |
 | `podSpec.multiPodPerHost` | `false` | 노드당 하나의 파드 (hostNetwork 활성화 시) |

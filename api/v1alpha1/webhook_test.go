@@ -1970,7 +1970,7 @@ func TestValidate_MonitoringValidConfig(t *testing.T) {
 			Image: "aerospike:ce-8.1.1.1",
 			Monitoring: &AerospikeMonitoringSpec{
 				Enabled:       true,
-				ExporterImage: "aerospike/aerospike-prometheus-exporter:v1.16.1",
+				ExporterImage: "aerospike/aerospike-prometheus-exporter:1.16.1",
 				Port:          9145,
 			},
 		},
@@ -2027,7 +2027,7 @@ func TestDefaultMonitoring_DefaultImageVersion(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	expected := "aerospike/aerospike-prometheus-exporter:v1.16.1"
+	expected := "aerospike/aerospike-prometheus-exporter:1.16.1"
 	if cluster.Spec.Monitoring.ExporterImage != expected {
 		t.Errorf("ExporterImage = %q, want %q", cluster.Spec.Monitoring.ExporterImage, expected)
 	}

@@ -9,7 +9,7 @@ spec:
 
   monitoring:
     enabled: true
-    exporterImage: aerospike/aerospike-prometheus-exporter:v1.16.1
+    exporterImage: aerospike/aerospike-prometheus-exporter:1.16.1
     port: 9145
     resources:
       requests:

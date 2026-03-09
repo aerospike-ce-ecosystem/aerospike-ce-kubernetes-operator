@@ -10,7 +10,7 @@ spec:
     최소 3개 이상의 멀티 랙 구성을 권장하며, 완전한 데이터 로컬리티와 장애 도메인 격리를 제공합니다.
 
   image: aerospike:ce-8.1.1.1   # Default image; clusters can override with spec.image
-  size: 6                         # Default cluster size; clusters can override with spec.size
+  size: 3                         # Default cluster size; clusters can override with spec.size (로컬 테스트용; 프로덕션에서는 6 이상 권장)
 
   # Monitoring: Prometheus exporter sidecar with ServiceMonitor
   monitoring:
@@ -40,15 +40,6 @@ spec:
       - key: "aerospike"
         operator: "Exists"
         effect: "NoSchedule"
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: "aerospike"
-                operator: In
-                values:
-                  - "true"
-
   storage:
     storageClassName: local-path     # Local storage for performance
     localPVRequired: true            # Enforce WaitForFirstConsumer binding

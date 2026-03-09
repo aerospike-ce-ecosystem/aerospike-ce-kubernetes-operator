@@ -42,6 +42,6 @@ docs/.cache-loader/
 .claude/worktrees/
 
 # Helm chart dependencies and build artifacts
-charts/aerospike-ce-kubernetes-operator/charts/*.tgz
-charts/aerospike-ce-kubernetes-operator/Chart.lock
+# Note: bundled sub-chart tgz and Chart.lock ARE committed so that
+# `helm install` works without running `helm dependency update` first.
 dist/charts/

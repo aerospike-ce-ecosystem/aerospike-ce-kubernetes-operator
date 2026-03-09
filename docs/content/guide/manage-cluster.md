@@ -638,6 +638,61 @@ spec:
     egress: "1Gbps"
 ```
 
+## HorizontalPodAutoscaler (HPA)
+
+AerospikeCluster supports the `scale` subresource, which enables integration with Kubernetes HPA. The operator exposes `status.selector` and `status.size` for HPA compatibility.
+
+### Create an HPA
+
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: aerospike-hpa
+  namespace: aerospike
+spec:
+  scaleTargetRef:
+    apiVersion: acko.io/v1alpha1
+    kind: AerospikeCluster
+    name: aerospike-ce-3node
+  minReplicas: 2
+  maxReplicas: 8    # CE maximum
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+```
+
+```bash
+kubectl apply -f hpa.yaml
+```
+
+### Check HPA Status
+
+```bash
+kubectl -n aerospike get hpa aerospike-hpa
+```
+
+:::warning
+The CE edition has a maximum cluster size of 8 nodes. Set `maxReplicas` to 8 or fewer.
+HPA scales `spec.size`, which triggers the operator's normal scaling logic (rack-aware distribution, migration-aware scale-down).
+:::
+
+:::note
+When using HPA, avoid manually changing `spec.size` — let the autoscaler manage it. If you need to temporarily override, pause the HPA first.
+:::
+
+---
+
 ## Pod Disruption Budget
 
 By default, the operator creates a PodDisruptionBudget to protect the cluster during maintenance.

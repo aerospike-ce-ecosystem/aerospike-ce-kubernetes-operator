@@ -144,6 +144,95 @@ Set 행을 클릭하면 레코드 브라우저로 이동합니다. **Add filter*
 
 ---
 
+## Record Browser
+
+**Browser** 탭에서 Aerospike 레코드를 조회, 생성, 수정, 삭제할 수 있습니다.
+
+- Namespace와 Set을 선택하여 레코드를 스캔
+- 페이지네이션을 통한 대량 레코드 탐색
+- 개별 레코드의 Bin 값을 인라인 편집
+- PK(Primary Key)로 레코드 직접 조회
+- Secondary Index 기반 필터를 추가하여 조건부 스캔
+
+---
+
+## AQL Terminal
+
+**Terminal** 탭에서 Monaco Editor 기반의 AQL(Aerospike Query Language) 터미널을 제공합니다.
+
+- AQL 명령어 직접 입력 및 실행
+- 구문 하이라이팅 및 자동 완성
+- 실행 결과를 테이블/JSON 형식으로 표시
+
+---
+
+## UDF Management
+
+**UDFs** 탭에서 Lua User-Defined Function을 관리합니다.
+
+- 등록된 UDF 모듈 목록 확인
+- 새로운 Lua UDF 파일 업로드
+- UDF 모듈 삭제
+
+---
+
+## User & Role Management
+
+**Admin** 탭에서 Aerospike 접근 제어(ACL)를 관리합니다.
+
+- 사용자 목록 조회, 생성, 삭제, 비밀번호 변경
+- 역할(Role) 목록 조회, 생성, 삭제
+- 역할별 권한(Privilege) 관리
+- 사용자-역할 매핑
+
+---
+
+## K8s Cluster Management
+
+`ui.k8s.enabled=true`일 때, **K8s Clusters** 페이지에서 `AerospikeCluster` CR을 GUI로 관리합니다.
+
+### Cluster List
+
+모든 네임스페이스의 AerospikeCluster를 카드 형식으로 표시합니다. 각 카드에 Phase, 노드 수, 이미지, 생성 시간이 표시됩니다.
+
+### Create Cluster Wizard
+
+**Scratch Mode** (9단계) 또는 **Template Mode** (3단계)로 클러스터를 생성합니다:
+
+1. **Creation Mode** — Scratch 또는 Template 선택
+2. **Basic** — 이름, 네임스페이스, 이미지, 노드 수
+3. **Namespace & Storage** — Aerospike 네임스페이스 및 볼륨 구성
+4. **Monitoring & Options** — Prometheus, Dynamic Config, NetworkPolicy, Seeds Finder LB
+5. **Resources** — CPU/Memory requests/limits
+6. **Security & ACL** — 역할 및 사용자 구성
+7. **Rolling Update** — 배치 크기, PDB, Max Unavailable
+8. **Rack Config** — 랙별 zone/region/storage/affinity 설정
+9. **Advanced** — Node selector, tolerations, bandwidth, readiness gate, pod metadata
+10. **Review** — 전체 설정 확인 및 배포
+
+### Cluster Detail
+
+클러스터 선택 시 다음 정보와 작업이 제공됩니다:
+
+- **Overview** — Phase, Health, Conditions, Pod 목록
+- **Events Timeline** — 11개 카테고리별 필터링 가능한 K8s 이벤트
+- **Config Drift Detection** — spec vs appliedSpec 비교, Pod별 config hash 그룹핑
+- **Reconciliation Health** — 서킷 브레이커 상태, 실패 횟수, 백오프 타이머
+- **Pod Logs** — 개별 Pod 로그 조회
+- **YAML Export** — 클러스터 CR을 클린 YAML로 내보내기
+- **Operations** — Scale, Edit, Warm Restart, Pod Restart, Pause/Resume, Delete, HPA 관리, Template Resync
+
+### Template Management
+
+**K8s Templates** 페이지에서 cluster-scoped `AerospikeClusterTemplate` 리소스를 관리합니다:
+
+- 템플릿 목록 조회 (참조 클러스터 수 표시)
+- 새 템플릿 생성
+- 템플릿 상세 정보 조회
+- 참조 클러스터가 없는 템플릿 삭제
+
+---
+
 ## Configuration Options
 
 | Parameter | Description | Default |

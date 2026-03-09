@@ -26,7 +26,7 @@ apiVersion: acko.io/v1alpha1
 kind: AerospikeClusterTemplate
 metadata:
   name: hard-rack
-  namespace: default
+  # AerospikeClusterTemplate은 클러스터 스코프 리소스입니다 (namespace 불필요)
 spec:
   # 모든 hard-rack 클러스터에 걸쳐 Aerospike 이미지와 기본 클러스터 크기를 표준화
   image: aerospike:ce-8.1.1.1

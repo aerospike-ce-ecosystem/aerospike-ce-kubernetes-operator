@@ -26,7 +26,7 @@ apiVersion: acko.io/v1alpha1
 kind: AerospikeClusterTemplate
 metadata:
   name: hard-rack
-  namespace: default
+  # AerospikeClusterTemplate is cluster-scoped (no namespace)
 spec:
   # Standardize the Aerospike image and default cluster size across all hard-rack clusters
   image: aerospike:ce-8.1.1.1
@@ -110,13 +110,12 @@ spec:
           type: memory
 ```
 
-If the template lives in a different namespace (e.g. the operator namespace), specify `namespace` explicitly:
+Since `AerospikeClusterTemplate` is cluster-scoped, you only need the template name — no namespace qualifier is required:
 
 ```yaml
 spec:
   templateRef:
     name: hard-rack
-    namespace: aerospike-operator   # cross-namespace reference
 ```
 
 You can still set `spec.image` or `spec.size` explicitly on the cluster to override the template:

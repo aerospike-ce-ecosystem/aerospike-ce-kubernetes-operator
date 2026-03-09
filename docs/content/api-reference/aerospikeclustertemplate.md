@@ -38,6 +38,7 @@ This page documents the `AerospikeClusterTemplate` Custom Resource Definition (C
 
 | Field | Type | Description |
 |---|---|---|
+| `description` | string | Human-readable description of the template's purpose or target environment (max 500 characters). |
 | `aerospikeConfig` | [TemplateAerospikeConfig](#templateaerospikeconfig) | Aerospike configuration defaults |
 | `scheduling` | [TemplateScheduling](#templatescheduling) | Pod scheduling defaults |
 | `storage` | [TemplateStorage](#templatestorage) | Data volume defaults |

@@ -43,7 +43,7 @@ kubectl -n aerospike-operator port-forward svc/acko-aerospike-ce-kubernetes-oper
 
 ## Create Cluster
 
-사이드바의 **Create Cluster** 또는 우상단 버튼으로 클러스터 생성 마법사를 시작합니다. 총 8단계로 구성됩니다:
+사이드바의 **Create Cluster** 또는 우상단 버튼으로 클러스터 생성 마법사를 시작합니다. 총 9단계로 구성됩니다:
 
 **Step 1 — Basic**: 클러스터 이름, K8s 네임스페이스, 노드 수(1-8), Aerospike 이미지를 설정합니다.
 
@@ -51,11 +51,11 @@ kubectl -n aerospike-operator port-forward svc/acko-aerospike-ce-kubernetes-oper
 
 **Step 3 — Monitoring & Options**: 아래 항목을 설정합니다:
 
-- **Prometheus Monitoring** — 메트릭 exporter sidecar 활성화 및 포트 설정
+- **Prometheus Monitoring** — 메트릭 exporter sidecar 활성화 및 포트 설정. 추가 구성: exporter 이미지, 메트릭 라벨, exporter 리소스(CPU/메모리), ServiceMonitor(enabled/interval/labels), PrometheusRule(enabled/labels)
 - **Dynamic Config** — 재시작 없이 설정 변경 적용
 - **Network Access** — 클라이언트 접근 방식(Pod IP, Host Internal/External, Configured IP). `configuredIP` 선택 시 custom network names 입력 필드가 표시됩니다.
 - **Kubernetes NetworkPolicy** — K8s NetworkPolicy 자동 생성 (standard 또는 Cilium)
-- **Seeds Finder LoadBalancer** — 외부 시드 검색용 LoadBalancer 서비스 생성 (포트, 트래픽 정책 설정)
+- **Seeds Finder LoadBalancer** — 외부 시드 검색용 LoadBalancer 서비스 생성 (포트, 트래픽 정책, 어노테이션, 라벨, source ranges 설정)
 
 **Step 8 — Review**: 모든 설정을 최종 확인한 후 **Create Cluster** 버튼으로 배포합니다.
 

@@ -84,8 +84,14 @@ helm install acko oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-ope
 | `ui.serviceAccount.create` | UI Pod용 ServiceAccount 생성 | `true` |
 | `ui.networkPolicy.enabled` | UI Pod 네트워크 트래픽 제한 | `false` |
 | `ui.image.pullPolicy` | 이미지 풀 정책 | `IfNotPresent` |
+| `ui.service.annotations` | 서비스 어노테이션 (클라우드 LB 설정 등) | `{}` |
+| `ui.resources.requests.cpu` | UI 컨테이너 CPU 요청 | `100m` |
+| `ui.resources.requests.memory` | UI 컨테이너 메모리 요청 | `256Mi` |
+| `ui.resources.limits.cpu` | UI 컨테이너 CPU 제한 | `200m` |
+| `ui.resources.limits.memory` | UI 컨테이너 메모리 제한 | `512Mi` |
 | `ui.persistence.storageClassName` | PostgreSQL PVC 스토리지 클래스 | `""` (기본값) |
 | `ui.postgresql.existingSecret` | 데이터베이스 자격 증명에 기존 Secret 사용 | `""` |
+| `ui.extraEnv` | UI 컨테이너에 추가할 환경 변수 목록 | `[]` |
 
 :::tip
 프로브, 보안 컨텍스트, 톨러레이션, 어피니티, 오토스케일링 등 전체 설정 옵션 목록은 다음 명령으로 확인할 수 있습니다.

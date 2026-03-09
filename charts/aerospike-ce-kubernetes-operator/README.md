@@ -114,6 +114,38 @@ kubectl port-forward svc/<release-name>-acko-ui 3000:3000 -n aerospike-operator
 # Open http://localhost:3000
 ```
 
+#### Customizing the UI deployment
+
+You can customize the UI with service annotations, resource defaults, and extra environment variables:
+
+```bash
+helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
+  --version 0.1.0 \
+  --namespace aerospike-operator --create-namespace \
+  --set ui.enabled=true \
+  --set ui.service.type=LoadBalancer \
+  --set ui.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"=nlb \
+  --set ui.resources.requests.cpu=200m \
+  --set ui.resources.requests.memory=512Mi \
+  --set ui.resources.limits.cpu=500m \
+  --set ui.resources.limits.memory=1Gi
+```
+
+Extra environment variables can be passed via `ui.extraEnv`:
+
+```yaml
+ui:
+  enabled: true
+  extraEnv:
+    - name: LOG_LEVEL
+      value: DEBUG
+    - name: CUSTOM_VAR
+      valueFrom:
+        secretKeyRef:
+          name: my-secret
+          key: value
+```
+
 ### Full example
 
 ```bash
@@ -274,6 +306,7 @@ See [values.yaml](values.yaml) for all available configuration options with desc
 | `podDisruptionBudget` | PDB for operator pods |
 | `autoscaling` | HPA for operator pods |
 | `ui` | Aerospike Cluster Manager web UI |
+| `defaultTemplates` | Pre-built AerospikeClusterTemplates (dev, stage, prod) |
 
 ## Uninstall
 

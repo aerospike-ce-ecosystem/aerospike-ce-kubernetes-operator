@@ -197,6 +197,26 @@ kubectl -n aerospike run asinfo-client --rm -it --restart=Never \
 </TabItem>
 </Tabs>
 
+## Deploy with Cluster Manager UI (Optional)
+
+Add `--set ui.enabled=true` to the Helm install command to deploy the web-based management UI alongside the operator:
+
+```bash
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
+  -n aerospike-operator --create-namespace \
+  --set certManagerSubchart.enabled=true \
+  --set ui.enabled=true
+```
+
+Access the UI via port-forward:
+
+```bash
+kubectl -n aerospike-operator port-forward svc/aerospike-ce-kubernetes-operator-ui 3000:3000
+# Open http://localhost:3000
+```
+
+The UI provides a visual wizard for creating and managing Aerospike clusters, record browsing, AQL terminal, and more. See the [Cluster Manager UI](./guide/cluster-manager-ui) guide for details.
+
 ## Next Steps
 
 - [Installation Guide](./guide/install) — detailed installation options (Helm, Kustomize)

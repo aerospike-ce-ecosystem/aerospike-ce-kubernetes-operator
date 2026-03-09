@@ -197,9 +197,30 @@ kubectl -n aerospike run asinfo-client --rm -it --restart=Never \
 </TabItem>
 </Tabs>
 
+## 클러스터 매니저 UI와 함께 배포 (선택사항)
+
+Helm 설치 명령에 `--set ui.enabled=true`를 추가하면 오퍼레이터와 함께 웹 기반 관리 UI를 배포할 수 있습니다:
+
+```bash
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
+  -n aerospike-operator --create-namespace \
+  --set certManagerSubchart.enabled=true \
+  --set ui.enabled=true
+```
+
+포트 포워딩으로 UI에 접근:
+
+```bash
+kubectl -n aerospike-operator port-forward svc/aerospike-ce-kubernetes-operator-ui 3000:3000
+# http://localhost:3000 접속
+```
+
+UI는 Aerospike 클러스터 생성/관리를 위한 시각적 마법사, 레코드 브라우저, AQL 터미널 등을 제공합니다. 자세한 내용은 [클러스터 매니저 UI](./guide/cluster-manager-ui) 가이드를 참조하세요.
+
 ## 다음 단계
 
 - [설치 가이드](./guide/install) — 상세한 설치 방법 (Helm, Kustomize)
 - [클러스터 생성](./guide/create-cluster) — 샘플 설정 및 CRD 필드 참조
 - [클러스터 관리](./guide/manage-cluster) — 스케일링, 롤링 업데이트, 모니터링
+- [클러스터 매니저 UI](./guide/cluster-manager-ui) — 웹 기반 GUI로 레코드 탐색, 클러스터 관리, AQL 실행
 - [API 레퍼런스](./api-reference/aerospikecluster) — 전체 CRD 타입 문서

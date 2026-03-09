@@ -13,6 +13,8 @@ Deploy, scale, and perform rolling updates of Aerospike CE clusters via a custom
 - Access control (ACL) with Kubernetes Secrets integration
 - Pod Disruption Budget for safe maintenance
 - Mesh heartbeat auto-configuration
+- Rack-node selection with zone/region affinity and rackLabel scheduling
+- Optional web UI (Aerospike Cluster Manager) deployable via Helm (`ui.enabled=true`)
 
 ### CE Limitations
 

@@ -241,6 +241,24 @@ podLabels: {}
 # =============================================================================
 # UI - Aerospike Cluster Manager
 # =============================================================================
+# The Aerospike Cluster Manager is a full-stack web dashboard deployed alongside
+# the operator. It provides a visual interface for monitoring and managing
+# Aerospike clusters in Kubernetes. The UI communicates with the Kubernetes API
+# (via its own ServiceAccount/RBAC) to read and manage AerospikeCluster CRDs
+# created by the operator. It does NOT communicate directly with the operator pod.
+#
+# Architecture:
+#   [Browser] -> [UI Frontend :3000] -> [UI Backend :8000] -> [K8s API Server]
+#                                                               |
+#                                        [Operator] <----------+
+#                                            |
+#                                     [AerospikeCluster Pods]
+#
+# The UI requires a PostgreSQL database for storing session and configuration data.
+# By default, an embedded PostgreSQL sidecar is deployed. For production, consider
+# using an external PostgreSQL instance (set ui.postgresql.enabled=false and
+# provide ui.env.databaseUrl).
+# =============================================================================
 ui:
   # -- Enable the Aerospike Cluster Manager web UI.
   # Deploys a full-stack management dashboard alongside the operator.
@@ -279,12 +297,22 @@ ui:
   # Service
   # =============================================================================
   service:
-    # -- Service type
+    # -- Service type (ClusterIP, NodePort, or LoadBalancer)
     type: ClusterIP
-    # -- Frontend port
+    # -- Frontend port (Next.js web UI)
     frontendPort: 3000
-    # -- Backend port
+    # -- Backend port (FastAPI REST API)
     backendPort: 8000
+    # -- Annotations to add to the UI Service.
+    # Useful for cloud load balancer configuration, DNS controllers, etc.
+    # Example (AWS NLB):
+    #   annotations:
+    #     service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    #     service.beta.kubernetes.io/aws-load-balancer-scheme: internal
+    # Example (GCP Internal LB):
+    #   annotations:
+    #     cloud.google.com/load-balancer-type: Internal
+    annotations: {}
 
   # =============================================================================
   # Ingress
@@ -306,7 +334,14 @@ ui:
     tls: []
 
   # =============================================================================
-  # PostgreSQL
+  # PostgreSQL (Embedded Sidecar)
+  # =============================================================================
+  # The UI backend requires a PostgreSQL database for storing cluster connection
+  # metadata and session data. By default, a PostgreSQL container runs as a
+  # sidecar in the same pod. For production deployments, disable this sidecar
+  # and point ui.env.databaseUrl to a managed PostgreSQL instance (e.g., RDS,
+  # Cloud SQL, AlloyDB).
+  # NOTE: The embedded sidecar is single-instance only and incompatible with HPA.
   # =============================================================================
   postgresql:
     # -- Deploy an embedded PostgreSQL sidecar container.
@@ -358,12 +393,16 @@ ui:
   # =============================================================================
   # Resources
   # =============================================================================
+  # -- CPU and memory resource requests/limits for the UI container.
+  # The UI is a lightweight Next.js + FastAPI application; these defaults
+  # are suitable for most deployments. Increase limits if serving many
+  # concurrent users or running complex queries.
   resources:
     requests:
       cpu: 100m
       memory: 256Mi
     limits:
-      cpu: 500m
+      cpu: 200m
       memory: 512Mi
 
   # =============================================================================
@@ -384,8 +423,16 @@ ui:
         - ALL
 
   # =============================================================================
-  # Probes (backend /api/health checks both frontend and backend health)
+  # Probes
   # =============================================================================
+  # The /api/health endpoint on the backend port performs a comprehensive health
+  # check covering both the FastAPI backend and the Next.js frontend. The startup
+  # probe allows up to 150s (30 * 5s) for initial boot (DB migrations, etc.)
+  # before liveness checks begin.
+  # =============================================================================
+
+  # -- Liveness probe configuration for the UI container.
+  # Restarts the container if it becomes unresponsive.
   livenessProbe:
     httpGet:
       path: /api/health
@@ -394,6 +441,8 @@ ui:
     periodSeconds: 20
     timeoutSeconds: 5
 
+  # -- Readiness probe configuration for the UI container.
+  # Removes the pod from Service endpoints until it is ready to serve traffic.
   readinessProbe:
     httpGet:
       path: /api/health
@@ -402,6 +451,9 @@ ui:
     periodSeconds: 10
     timeoutSeconds: 5
 
+  # -- Startup probe configuration for the UI container.
+  # Allows slow-starting containers to finish initialization before liveness
+  # checks begin. failureThreshold * periodSeconds = max startup time.
   startupProbe:
     httpGet:
       path: /api/health
@@ -492,7 +544,18 @@ ui:
   # =============================================================================
   # Extra Environment Variables
   # =============================================================================
-  # -- Extra environment variables to set on the UI container
+  # -- Extra environment variables to set on the UI container.
+  # These are added in addition to the default env vars from the ConfigMap and Secret.
+  # Supports standard Kubernetes env var syntax including valueFrom references.
+  # Example:
+  #   extraEnv:
+  #     - name: TZ
+  #       value: "Asia/Seoul"
+  #     - name: EXTERNAL_API_KEY
+  #       valueFrom:
+  #         secretKeyRef:
+  #           name: my-secret
+  #           key: api-key
   extraEnv: []
 
   # =============================================================================

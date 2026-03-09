@@ -238,11 +238,25 @@ Set 행을 클릭하면 레코드 브라우저로 이동합니다. **Add filter*
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `ui.enabled` | UI 활성화 | `false` |
+| `ui.replicaCount` | UI 레플리카 수 | `1` |
+| `ui.image.repository` | UI 컨테이너 이미지 | `ghcr.io/kimsoungryoul/aerospike-cluster-manager` |
+| `ui.image.tag` | 이미지 태그 | `latest` |
 | `ui.service.type` | 서비스 타입 | `ClusterIP` |
+| `ui.service.frontendPort` | 프론트엔드 (Next.js) 포트 | `3000` |
+| `ui.service.backendPort` | 백엔드 (FastAPI) 포트 | `8000` |
+| `ui.service.annotations` | 서비스 어노테이션 (클라우드 LB 설정 등) | `{}` |
 | `ui.ingress.enabled` | Ingress 생성 | `false` |
 | `ui.persistence.enabled` | PostgreSQL PVC 사용 | `true` |
+| `ui.persistence.size` | PVC 스토리지 크기 | `1Gi` |
 | `ui.k8s.enabled` | K8s 클러스터 관리 기능 | `true` |
 | `ui.rbac.create` | ClusterRole/Binding 자동 생성 | `true` |
+| `ui.resources.requests.cpu` | UI 컨테이너 CPU 요청 | `100m` |
+| `ui.resources.requests.memory` | UI 컨테이너 메모리 요청 | `256Mi` |
+| `ui.resources.limits.cpu` | UI 컨테이너 CPU 제한 | `200m` |
+| `ui.resources.limits.memory` | UI 컨테이너 메모리 제한 | `512Mi` |
+| `ui.postgresql.enabled` | 내장 PostgreSQL 사이드카 배포 | `true` |
+| `ui.env.databaseUrl` | 외부 PostgreSQL URL (`postgresql.enabled=false` 일 때) | `""` |
+| `ui.extraEnv` | UI 컨테이너에 추가할 환경 변수 목록 | `[]` |
 
 전체 옵션 확인:
 

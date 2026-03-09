@@ -222,6 +222,37 @@ kubectl apply -f config/samples/aerospike-cluster-with-template.yaml
 
 ---
 
+## Managing templates via Cluster Manager UI
+
+When the Cluster Manager UI is enabled (`ui.enabled=true` and `ui.k8s.enabled=true`), templates can be managed entirely from the web interface without `kubectl`. The **K8s Templates** page supports:
+
+- **Create** — guided wizard to define all template fields (image, size, resources, scheduling, storage, monitoring, network, Aerospike config)
+- **View** — template detail page showing the full resolved spec and a list of clusters referencing it
+- **Edit** — patch/update templates directly from the UI (requires RBAC permissions for `patch` and `update` on `AerospikeClusterTemplate`)
+- **Delete** — remove unused templates (blocked if any cluster still references the template)
+- **Resync** — trigger template resync on individual clusters from the cluster detail page
+
+See the [Cluster Manager UI — Template Management](cluster-manager-ui.md#template-management) section for full details.
+
+---
+
+## `usedBy` status field
+
+The operator tracks which clusters reference each template in the `status.usedBy` field:
+
+```bash
+kubectl get aerospikeclustertemplate hard-rack -o jsonpath='{.status.usedBy}'
+```
+
+Example output:
+```json
+["hard-rack-cluster", "prod-cluster-east", "prod-cluster-west"]
+```
+
+This field is automatically updated when clusters are created, deleted, or their `templateRef` is changed. The Cluster Manager UI displays this count on the template list page and the full list on the template detail page. A template cannot be deleted while `usedBy` is non-empty.
+
+---
+
 ## Install via Helm
 
 Use the `defaultTemplates.enabled=true` option to automatically create all three template tiers in the release namespace:

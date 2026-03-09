@@ -96,6 +96,9 @@ setup-kind: ## Delete existing Kind cluster and create a fresh one with kind-con
 .PHONY: run-local
 run-local: manifests helm-sync-crds ## Deploy operator + cluster-manager UI into a fresh Kind cluster via Helm
 	@echo ""
+	@echo "==> [0/7] Refreshing Helm sub-chart dependency (CRD bundle)..."
+	helm dep update charts/aerospike-ce-kubernetes-operator
+	@echo ""
 	@echo "==> [1/7] Creating fresh Kind cluster..."
 	-@$(KIND) delete cluster --name kind 2>/dev/null || true
 	KIND_EXPERIMENTAL_PROVIDER=$(KIND_PROVIDER) $(KIND) create cluster --config kind-config.yaml --name kind
@@ -257,8 +260,9 @@ HELM_PACKAGE_DIR ?= dist/charts
 CHART_REGISTRY ?= oci://ghcr.io/kimsoungryoul/charts
 
 .PHONY: helm-sync-crds
-helm-sync-crds: manifests ## Sync generated CRDs into aerospike-ce-kubernetes-operator-crds chart templates/ (with helm.sh/resource-policy: keep).
+helm-sync-crds: manifests ## Sync generated CRDs into aerospike-ce-kubernetes-operator-crds chart templates/ and refresh bundled tgz.
 	bash hack/helm-sync-crds.sh
+	helm dep update charts/aerospike-ce-kubernetes-operator
 
 .PHONY: helm-lint
 helm-lint: ## Lint both Helm charts (aerospike-ce-kubernetes-operator-crds and aerospike-ce-kubernetes-operator).

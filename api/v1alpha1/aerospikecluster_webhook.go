@@ -767,8 +767,7 @@ func (v *AerospikeClusterValidator) validateRackConfig(rackConfig *RackConfig) [
 
 	rackIDs := make(map[int]bool)
 	rackLabels := make(map[string]bool)
-	nodeNames := make(map[string]int)
-	for i, rack := range rackConfig.Racks {
+	for _, rack := range rackConfig.Racks {
 		if rack.ID <= 0 {
 			errors = append(errors, fmt.Sprintf("rack ID must be > 0, got %d (rack ID 0 is reserved for the default rack)", rack.ID))
 		}
@@ -783,16 +782,6 @@ func (v *AerospikeClusterValidator) validateRackConfig(rackConfig *RackConfig) [
 				errors = append(errors, fmt.Sprintf("duplicate rackLabel %q in rackConfig; each rack must have a unique rackLabel", rack.RackLabel))
 			}
 			rackLabels[rack.RackLabel] = true
-		}
-
-		// Validate NodeName uniqueness across racks
-		if rack.NodeName != "" {
-			if prevIdx, exists := nodeNames[rack.NodeName]; exists {
-				errors = append(errors, fmt.Sprintf(
-					"rackConfig.racks[%d] and racks[%d] both constrained to node %q; each rack must use a different nodeName",
-					prevIdx, i, rack.NodeName))
-			}
-			nodeNames[rack.NodeName] = i
 		}
 	}
 

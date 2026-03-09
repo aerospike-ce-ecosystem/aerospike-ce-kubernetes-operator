@@ -2823,8 +2823,11 @@ func TestValidate_StorageAbsolutePathOK(t *testing.T) {
 	}
 }
 
-// --- Rack node name uniqueness tests ---
+// --- Rack node name tests ---
 
+// TestValidate_DuplicateRackNodeName verifies that multiple racks sharing the same
+// nodeName is allowed (e.g. soft-rack / preferred anti-affinity deploys all racks
+// on the same node intentionally).
 func TestValidate_DuplicateRackNodeName(t *testing.T) {
 	v := &AerospikeClusterValidator{}
 	cluster := &AerospikeCluster{
@@ -2834,18 +2837,15 @@ func TestValidate_DuplicateRackNodeName(t *testing.T) {
 			RackConfig: &RackConfig{
 				Racks: []Rack{
 					{ID: 1, NodeName: "node-1"},
-					{ID: 2, NodeName: "node-1"}, // duplicate
+					{ID: 2, NodeName: "node-1"}, // same node — valid for preferred anti-affinity
 				},
 			},
 		},
 	}
 
 	_, err := v.validate(cluster)
-	if err == nil {
-		t.Fatal("expected error for duplicate node names")
-	}
-	if !strings.Contains(err.Error(), "both constrained to node") {
-		t.Errorf("error = %q, want it to mention duplicate node constraint", err.Error())
+	if err != nil {
+		t.Errorf("unexpected error for racks sharing the same nodeName: %v", err)
 	}
 }
 

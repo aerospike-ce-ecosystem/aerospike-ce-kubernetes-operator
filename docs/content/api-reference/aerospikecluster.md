@@ -487,7 +487,7 @@ Prometheus monitoring configuration.
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `enabled` | bool | `false` | Enable Prometheus exporter sidecar. |
-| `exporterImage` | string | `aerospike/aerospike-prometheus-exporter:v1.16.1` | Exporter container image. |
+| `exporterImage` | string | `aerospike/aerospike-prometheus-exporter:1.16.1` | Exporter container image. |
 | `port` | int32 | `9145` | Metrics port. |
 | `resources` | [ResourceRequirements](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#resources) | — | Exporter resource limits. |
 | `env` | [][EnvVar](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#environment-variables) | — | Additional environment variables for the exporter container. |

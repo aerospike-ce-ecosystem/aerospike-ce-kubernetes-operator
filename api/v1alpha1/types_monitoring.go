@@ -28,7 +28,7 @@ type AerospikeMonitoringSpec struct {
 	Enabled bool `json:"enabled,omitempty"`
 
 	// ExporterImage is the Aerospike Prometheus exporter container image.
-	// Defaults to "aerospike/aerospike-prometheus-exporter:v1.16.1".
+	// Defaults to "aerospike/aerospike-prometheus-exporter:1.16.1".
 	// +optional
 	ExporterImage string `json:"exporterImage,omitempty"`
 

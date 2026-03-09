@@ -4,7 +4,6 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.1
-    "helm.sh/resource-policy": keep
   name: aerospikeclustertemplates.acko.io
 spec:
   group: acko.io
@@ -338,7 +337,7 @@ spec:
                   exporterImage:
                     description: |-
                       ExporterImage is the Aerospike Prometheus exporter container image.
-                      Defaults to "aerospike/aerospike-prometheus-exporter:v1.16.1".
+                      Defaults to "aerospike/aerospike-prometheus-exporter:1.16.1".
                     type: string
                   metricLabels:
                     additionalProperties:

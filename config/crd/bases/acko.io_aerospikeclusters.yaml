@@ -445,7 +445,7 @@ spec:
                   exporterImage:
                     description: |-
                       ExporterImage is the Aerospike Prometheus exporter container image.
-                      Defaults to "aerospike/aerospike-prometheus-exporter:v1.16.1".
+                      Defaults to "aerospike/aerospike-prometheus-exporter:1.16.1".
                     type: string
                   metricLabels:
                     additionalProperties:
@@ -899,7 +899,7 @@ spec:
                       exporterImage:
                         description: |-
                           ExporterImage is the Aerospike Prometheus exporter container image.
-                          Defaults to "aerospike/aerospike-prometheus-exporter:v1.16.1".
+                          Defaults to "aerospike/aerospike-prometheus-exporter:1.16.1".
                         type: string
                       metricLabels:
                         additionalProperties:
@@ -8972,7 +8972,7 @@ spec:
                       exporterImage:
                         description: |-
                           ExporterImage is the Aerospike Prometheus exporter container image.
-                          Defaults to "aerospike/aerospike-prometheus-exporter:v1.16.1".
+                          Defaults to "aerospike/aerospike-prometheus-exporter:1.16.1".
                         type: string
                       metricLabels:
                         additionalProperties:
@@ -9430,7 +9430,7 @@ spec:
                           exporterImage:
                             description: |-
                               ExporterImage is the Aerospike Prometheus exporter container image.
-                              Defaults to "aerospike/aerospike-prometheus-exporter:v1.16.1".
+                              Defaults to "aerospike/aerospike-prometheus-exporter:1.16.1".
                             type: string
                           metricLabels:
                             additionalProperties:
@@ -17730,7 +17730,7 @@ spec:
                           exporterImage:
                             description: |-
                               ExporterImage is the Aerospike Prometheus exporter container image.
-                              Defaults to "aerospike/aerospike-prometheus-exporter:v1.16.1".
+                              Defaults to "aerospike/aerospike-prometheus-exporter:1.16.1".
                             type: string
                           metricLabels:
                             additionalProperties:

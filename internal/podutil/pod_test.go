@@ -183,7 +183,7 @@ func TestInjectPodAntiAffinity_AppendsToExistingAntiAffinity(t *testing.T) {
 func TestBuildExporterSidecar_Basic(t *testing.T) {
 	monitoring := &v1alpha1.AerospikeMonitoringSpec{
 		Enabled:       true,
-		ExporterImage: "aerospike/aerospike-prometheus-exporter:v1.16.1",
+		ExporterImage: "aerospike/aerospike-prometheus-exporter:1.16.1",
 		Port:          9145,
 	}
 

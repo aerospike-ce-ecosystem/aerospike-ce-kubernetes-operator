@@ -487,7 +487,7 @@ Prometheus 모니터링 설정입니다.
 | 필드 | 타입 | 기본값 | 설명 |
 |---|---|---|---|
 | `enabled` | bool | `false` | Prometheus 익스포터 사이드카 활성화. |
-| `exporterImage` | string | `aerospike/aerospike-prometheus-exporter:v1.16.1` | 익스포터 컨테이너 이미지. |
+| `exporterImage` | string | `aerospike/aerospike-prometheus-exporter:1.16.1` | 익스포터 컨테이너 이미지. |
 | `port` | int32 | `9145` | 메트릭 포트. |
 | `resources` | [ResourceRequirements](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#resources) | — | 익스포터 리소스 제한. |
 | `env` | [][EnvVar](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#environment-variables) | — | 익스포터 컨테이너의 추가 환경 변수. |

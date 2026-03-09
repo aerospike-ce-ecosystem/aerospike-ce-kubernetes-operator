@@ -40,7 +40,7 @@ const (
 	defaultProtoFdMax    = 15000
 	defaultHeartbeatMode = "mesh"
 
-	defaultExporterImage  = "aerospike/aerospike-prometheus-exporter:v1.16.1"
+	defaultExporterImage  = "aerospike/aerospike-prometheus-exporter:1.16.1"
 	defaultExporterPort   = int32(9145)
 	defaultScrapeInterval = "30s"
 )

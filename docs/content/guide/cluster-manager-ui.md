@@ -224,12 +224,55 @@ Set 행을 클릭하면 레코드 브라우저로 이동합니다. **Add filter*
 
 ### Template Management
 
-**K8s Templates** 페이지에서 cluster-scoped `AerospikeClusterTemplate` 리소스를 관리합니다:
+**K8s Templates** 페이지에서 cluster-scoped `AerospikeClusterTemplate` 리소스의 전체 라이프사이클을 관리합니다.
 
-- 템플릿 목록 조회 (참조 클러스터 수 표시)
-- 새 템플릿 생성
-- 템플릿 상세 정보 조회
-- 참조 클러스터가 없는 템플릿 삭제
+#### Creating Templates
+
+**+ Create Template** 버튼으로 새 템플릿을 생성합니다. 마법사에서 다음 항목을 설정할 수 있습니다:
+
+- **Basic** — 템플릿 이름, 기본 Aerospike 이미지, 기본 클러스터 크기
+- **Resources** — CPU/Memory requests 및 limits
+- **Storage** — 스토리지 클래스, 볼륨 크기, 로컬 PV 옵션
+- **Scheduling** — Pod 스케줄링 제약 조건 (아래 참조)
+- **Monitoring** — Prometheus exporter 사이드카, ServiceMonitor, PrometheusRule
+- **Network** — 네트워크 접근 정책 (accessType, fabricType)
+- **Aerospike Config** — 서비스 설정, 네임스페이스 기본값
+
+#### Viewing Templates
+
+템플릿 목록 페이지에서 각 템플릿 카드에 참조 클러스터 수(`usedBy` count)가 표시됩니다. 카드를 클릭하면 상세 페이지에서 전체 설정과 해당 템플릿을 참조하는 클러스터 목록을 확인할 수 있습니다.
+
+#### Editing Templates (Patch/Update)
+
+템플릿 상세 페이지에서 **Edit** 버튼으로 편집 다이얼로그를 열 수 있습니다. RBAC 수정을 통해 `AerospikeClusterTemplate` 리소스에 대한 `patch` 및 `update` 권한이 UI 서비스 어카운트에 부여되어, UI에서 직접 템플릿을 수정할 수 있습니다.
+
+편집 가능한 필드:
+- 기본 이미지 및 클러스터 크기
+- 리소스 requests/limits
+- 스토리지 설정
+- 스케줄링 설정
+- 모니터링 설정
+- 네트워크 정책
+- Aerospike 설정
+
+#### Deleting Templates
+
+참조 클러스터가 없는 템플릿만 삭제할 수 있습니다. 클러스터가 아직 참조 중인 경우, 먼저 해당 클러스터의 `templateRef`를 제거하거나 다른 템플릿으로 변경해야 합니다.
+
+#### Template Scheduling Configuration
+
+템플릿의 `scheduling` 섹션에서 다음 스케줄링 제약 조건을 설정할 수 있습니다:
+
+| Field | Description |
+|-------|-------------|
+| `podAntiAffinityLevel` | Pod anti-affinity 수준: `none`, `preferred`, `required`. `required`이면 노드당 하나의 Aerospike Pod만 배치됩니다. |
+| `tolerations` | Kubernetes tolerations 배열. 테인트가 있는 노드에서도 Pod를 스케줄링할 수 있습니다. |
+| `nodeAffinity` | 노드 라벨 기반 스케줄링 제약 조건. 특정 노드 풀에 Pod를 배치합니다. |
+| `topologySpreadConstraints` | 토폴로지 도메인(zone, region 등)에 걸쳐 Pod를 균등 분배합니다. |
+
+#### Template Resync
+
+템플릿을 수정한 후, 이를 참조하는 기존 클러스터는 자동으로 업데이트되지 않습니다. 클러스터 상세 페이지의 **Template Resync** 버튼을 클릭하면 최신 템플릿 설정을 클러스터에 다시 적용합니다. 내부적으로 `acko.io/resync-template=true` 어노테이션을 추가하여 오퍼레이터가 템플릿을 다시 가져오도록 트리거합니다.
 
 ---
 

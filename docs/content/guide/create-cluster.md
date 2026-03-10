@@ -211,11 +211,17 @@ spec:
       requests:
         cpu: "100m"
         memory: "64Mi"
+    metricLabels:
+      environment: production
     serviceMonitor:
       enabled: true
       interval: "30s"
       labels:
         release: prometheus    # Match your Prometheus Operator selector
+    prometheusRule:
+      enabled: true
+      labels:
+        release: prometheus    # Match your Prometheus Operator ruleSelector
 
   storage:
     volumes:
@@ -238,7 +244,7 @@ spec:
           filesize: 4294967296
 ```
 
-**Use case:** Production with Prometheus/Grafana observability. The operator injects an exporter sidecar into each pod and creates a ServiceMonitor automatically.
+**Use case:** Production with Prometheus/Grafana observability. The operator injects an exporter sidecar into each pod, creates a ServiceMonitor for automatic discovery, and generates a PrometheusRule with built-in alerts (NodeDown, StopWrites, HighDiskUsage, HighMemoryUsage). You can replace the built-in alerts with custom rules using `prometheusRule.customRules`. See the [Monitoring guide](monitoring.md) for details.
 
 </TabItem>
 </Tabs>

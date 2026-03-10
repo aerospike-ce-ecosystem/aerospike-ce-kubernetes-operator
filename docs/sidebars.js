@@ -18,6 +18,8 @@ const sidebars = {
         'guide/networking',
         'guide/advanced-configuration',
         'guide/cluster-templates',
+        'guide/templates',
+        'guide/operations',
         'guide/cluster-manager-ui',
         'guide/glossary',
       ],

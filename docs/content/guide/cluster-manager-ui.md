@@ -17,6 +17,10 @@ helm install acko oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-ope
   --set ui.enabled=true
 ```
 
+:::note RBAC permissions
+`ui.rbac.create=true`(기본값)일 때, Helm 차트가 생성하는 ClusterRole에는 `autoscaling` API 그룹의 `horizontalpodautoscalers` 리소스에 대한 전체 접근 권한이 포함됩니다. 이 권한은 UI에서 HPA를 생성, 조회, 삭제하는 데 필요합니다.
+:::
+
 UI 파드 확인:
 
 ```bash
@@ -187,6 +191,35 @@ Set 행을 클릭하면 레코드 브라우저로 이동합니다. **Add filter*
 
 ---
 
+## HPA (Horizontal Pod Autoscaler) Management
+
+클러스터 상세 페이지에서 AerospikeCluster 리소스를 대상으로 하는 HorizontalPodAutoscaler(HPA)를 관리할 수 있습니다. HPA는 CPU 또는 메모리 사용량에 따라 클러스터 크기를 자동으로 조정합니다.
+
+### HPA 생성
+
+클러스터 상세 페이지의 작업 메뉴에서 **HPA 관리**를 선택하여 새 HPA를 생성합니다. 다음 항목을 설정할 수 있습니다:
+
+- **최소 레플리카(Min Replicas)** — 자동 스케일링 시 유지할 최소 Pod 수
+- **최대 레플리카(Max Replicas)** — 허용할 최대 Pod 수
+- **CPU 목표 사용률(CPU Target Utilization)** — 스케일 아웃을 트리거하는 평균 CPU 사용률(%)
+- **메모리 목표 사용률(Memory Target Utilization)** — 스케일 아웃을 트리거하는 평균 메모리 사용률(%)
+
+생성된 HPA는 해당 AerospikeCluster를 `scaleTargetRef`로 참조합니다.
+
+### HPA 조회
+
+클러스터에 연결된 HPA가 존재하면 현재 레플리카 수, 목표 메트릭, 현재 메트릭 값을 확인할 수 있습니다.
+
+### HPA 삭제
+
+더 이상 자동 스케일링이 필요하지 않은 경우 UI에서 HPA를 삭제할 수 있습니다. 삭제 후에는 수동 스케일링으로 전환됩니다.
+
+:::note
+HPA 관리 기능을 사용하려면 UI의 ClusterRole에 `autoscaling` API 그룹에 대한 권한이 필요합니다. `ui.rbac.create=true`(기본값)일 때 자동으로 설정됩니다.
+:::
+
+---
+
 ## K8s Cluster Management
 
 `ui.k8s.enabled=true`일 때, **K8s Clusters** 페이지에서 `AerospikeCluster` CR을 GUI로 관리합니다.
@@ -292,7 +325,7 @@ Set 행을 클릭하면 레코드 브라우저로 이동합니다. **Add filter*
 | `ui.persistence.enabled` | PostgreSQL PVC 사용 | `true` |
 | `ui.persistence.size` | PVC 스토리지 크기 | `1Gi` |
 | `ui.k8s.enabled` | K8s 클러스터 관리 기능 | `true` |
-| `ui.rbac.create` | ClusterRole/Binding 자동 생성 | `true` |
+| `ui.rbac.create` | ClusterRole/Binding 자동 생성 (AerospikeCluster, Template, HPA 관리 권한 포함) | `true` |
 | `ui.resources.requests.cpu` | UI 컨테이너 CPU 요청 | `100m` |
 | `ui.resources.requests.memory` | UI 컨테이너 메모리 요청 | `256Mi` |
 | `ui.resources.limits.cpu` | UI 컨테이너 CPU 제한 | `200m` |

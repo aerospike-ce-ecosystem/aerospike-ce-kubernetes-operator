@@ -19,6 +19,7 @@ const sidebars = {
         'guide/cluster-templates',
         'guide/cluster-manager-ui',
         'guide/glossary',
+        'guide/troubleshooting',
       ],
     },
     {

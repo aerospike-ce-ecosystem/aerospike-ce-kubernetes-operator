@@ -14,7 +14,7 @@ rules:
     verbs: ["get"]
   - apiGroups: ["acko.io"]
     resources: ["aerospikeclustertemplates"]
-    verbs: ["create", "delete", "get", "list", "watch"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
   - apiGroups: ["acko.io"]
     resources: ["aerospikeclustertemplates/status"]
     verbs: ["get"]
@@ -39,4 +39,7 @@ rules:
   - apiGroups: [""]
     resources: ["nodes"]
     verbs: ["get", "list"]
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
 {{- end }}

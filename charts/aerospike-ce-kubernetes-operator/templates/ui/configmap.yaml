@@ -9,6 +9,11 @@ metadata:
 data:
   CORS_ORIGINS: {{ .Values.ui.env.corsOrigins | quote }}
   LOG_LEVEL: {{ .Values.ui.env.logLevel | quote }}
+  LOG_FORMAT: {{ .Values.ui.env.logFormat | quote }}
   K8S_MANAGEMENT_ENABLED: {{ .Values.ui.k8s.enabled | quote }}
   BACKEND_URL: "http://localhost:{{ .Values.ui.service.backendPort }}"
+  DB_POOL_SIZE: {{ .Values.ui.env.dbPoolSize | quote }}
+  DB_POOL_OVERFLOW: {{ .Values.ui.env.dbPoolOverflow | quote }}
+  DB_POOL_TIMEOUT: {{ .Values.ui.env.dbPoolTimeout | quote }}
+  K8S_API_TIMEOUT: {{ .Values.ui.env.k8sApiTimeout | quote }}
 {{- end }}

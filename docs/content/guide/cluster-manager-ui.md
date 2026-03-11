@@ -208,7 +208,6 @@ Set 행을 클릭하면 레코드 브라우저로 이동합니다. **Add filter*
 Aerospike Pod 자체에 커스텀 labels와 annotations를 추가합니다. 서비스 메시 사이드카 주입(예: Istio), 모니터링 레이블 셀렉터, 비용 할당 태그에 활용됩니다.
 
 ---
-
 ## HPA (Horizontal Pod Autoscaler) Management
 
 클러스터 상세 페이지에서 AerospikeCluster 리소스를 대상으로 하는 HorizontalPodAutoscaler(HPA)를 관리할 수 있습니다. HPA는 CPU 또는 메모리 사용량에 따라 클러스터 크기를 자동으로 조정합니다.

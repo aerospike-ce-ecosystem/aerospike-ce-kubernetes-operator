@@ -22,6 +22,7 @@ const sidebars = {
         'guide/operations',
         'guide/cluster-manager-ui',
         'guide/glossary',
+        'guide/troubleshooting',
       ],
     },
     {

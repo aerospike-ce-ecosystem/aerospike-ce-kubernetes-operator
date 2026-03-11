@@ -42,6 +42,8 @@ storage:
   cleanupThreads: 2
 ```
 
+자세한 내용은 아래 [로컬 스토리지](#로컬-스토리지) 섹션을 참조하세요.
+
 ---
 
 ## 볼륨 타입
@@ -289,3 +291,133 @@ spec:
 ```bash
 kubectl apply -f config/samples/aerospike-cluster-storage-advanced.yaml
 ```
+
+---
+
+## 로컬 스토리지
+
+로컬 영구 볼륨(로컬 PV)은 노드에 바인딩된 스토리지로 높은 I/O 성능을 제공하지만, 파드가 다른 노드로 마이그레이션되면 생존할 수 없습니다. 오퍼레이터는 로컬 스토리지를 올바르게 처리하기 위해 `localStorageClasses`와 `deleteLocalStorageOnRestart` 두 가지 필드를 제공합니다.
+
+### 로컬 스토리지 사용 시기
+
+- **고성능 워크로드** -- 로컬 NVMe 또는 SSD 스토리지가 가장 낮은 지연 시간을 제공
+- **베어메탈 클러스터** -- 직접 연결된 스토리지가 있는 노드
+- **비용 최적화** -- 데이터가 Aerospike 레벨에서 복제될 때 네트워크 연결 스토리지 오버헤드 회피
+
+:::warning
+로컬 PV는 특정 노드에 종속됩니다. 파드가 다른 노드로 재스케줄링되면 이전 PV를 다시 연결할 수 없습니다. `deleteLocalStorageOnRestart`가 활성화되면 오퍼레이터가 이를 자동으로 처리합니다.
+:::
+
+### 설정
+
+#### `localStorageClasses`
+
+오퍼레이터가 로컬 스토리지로 취급해야 하는 StorageClass 이름 목록입니다. 이러한 클래스로 프로비저닝된 PVC는 파드 재시작 시 특별한 처리를 받습니다.
+
+일반적인 로컬 StorageClass 예시:
+- `local-path` (Rancher Local Path Provisioner)
+- `openebs-hostpath` (OpenEBS)
+- `local-storage` (Kubernetes `local` 볼륨 플러그인)
+
+#### `deleteLocalStorageOnRestart`
+
+`true`로 설정하면, 콜드 재시작 시 파드를 삭제하기 **전에** 로컬 스토리지 클래스로 프로비저닝된 PVC를 삭제합니다. 이렇게 하면 파드가 재스케줄링되는 노드에서 PVC가 다시 프로비저닝됩니다.
+
+이 설정이 없으면, 파드가 다른 노드로 재스케줄링될 경우 로컬 PV가 원래 노드에서만 사용 가능하기 때문에 `Pending` 상태에서 멈출 수 있습니다.
+
+### 설정 예제
+
+```yaml
+apiVersion: acko.io/v1alpha1
+kind: AerospikeCluster
+metadata:
+  name: aerospike-local-storage
+  namespace: aerospike
+spec:
+  size: 3
+  image: aerospike:ce-8.1.1.1
+
+  storage:
+    localStorageClasses:
+      - local-path
+      - openebs-hostpath
+    deleteLocalStorageOnRestart: true
+
+    filesystemVolumePolicy:
+      initMethod: deleteFiles
+      cascadeDelete: true
+
+    volumes:
+      - name: data-vol
+        source:
+          persistentVolume:
+            storageClass: local-path
+            size: 50Gi
+        aerospike:
+          path: /opt/aerospike/data
+
+  aerospikeConfig:
+    namespaces:
+      - name: data
+        replication-factor: 2
+        storage-engine:
+          type: device
+          file: /opt/aerospike/data/data.dat
+          filesize: 42949672960
+```
+
+### 동작 원리
+
+콜드 재시작(이미지 변경, 설정 변경, PodRestart 오퍼레이션) 시:
+
+1. 오퍼레이터가 `localStorageClasses`에 나열된 스토리지 클래스로 프로비저닝된 PVC를 식별합니다
+2. `deleteLocalStorageOnRestart`가 `true`이면 해당 PVC를 파드보다 **먼저** 삭제합니다
+3. 파드가 삭제됩니다
+4. Kubernetes가 파드를 스케줄링합니다 (다른 노드일 수 있음)
+5. StorageClass 프로비저너가 대상 노드에 새 로컬 PV를 생성합니다
+6. 파드가 새 볼륨으로 시작됩니다
+
+:::info
+로컬 PVC 삭제가 실패하면, 오퍼레이터는 `LocalPVCDeleteFailed` 경고 이벤트를 발행하고 파드 재시작을 계속합니다. PVC는 다음 리컨실레이션에서 정리됩니다.
+:::
+
+### 랙 설정과 로컬 스토리지
+
+랙 인식 배포에서 로컬 스토리지를 사용할 때, `localStorageClasses`와 `rackLabel` 스케줄링을 결합하여 로컬 스토리지가 있는 노드에 파드가 배치되도록 합니다:
+
+```yaml
+spec:
+  storage:
+    localStorageClasses:
+      - local-path
+    deleteLocalStorageOnRestart: true
+    volumes:
+      - name: data-vol
+        source:
+          persistentVolume:
+            storageClass: local-path
+            size: 50Gi
+        aerospike:
+          path: /opt/aerospike/data
+
+  rackConfig:
+    racks:
+      - id: 1
+        rackLabel: zone-a    # acko.io/rack=zone-a 레이블이 있고 로컬 스토리지가 있는 노드
+      - id: 2
+        rackLabel: zone-b
+```
+
+### 로컬 스토리지 vs 네트워크 연결 스토리지
+
+| 측면 | 로컬 스토리지 | 네트워크 연결 (EBS, PD 등) |
+|------|-------------|--------------------------|
+| **지연 시간** | 가장 낮음 (직접 연결) | 높음 (네트워크 왕복) |
+| **파드 마이그레이션** | PVC를 삭제하고 재프로비저닝 필요 | PVC가 자동으로 재연결 |
+| **데이터 내구성** | 노드 수준에서만 | 노드 라이프사이클과 독립적 |
+| **비용** | 낮음 (네트워크 스토리지 비용 없음) | 높음 (프로비저닝된 IOPS, 처리량) |
+| **적합한 용도** | 고처리량, Aerospike 복제 데이터 | 단일 복제본 또는 상태 유지 워크로드 |
+
+:::tip
+로컬 스토리지 사용 시 Aerospike에서 항상 `replication-factor: 2` 이상으로 설정하여 노드 장애 시 데이터가 보존되도록 하세요. 손실된 로컬 PV의 데이터는 다른 노드의 복제본에서 복구됩니다.
+:::

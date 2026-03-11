@@ -214,6 +214,37 @@ kubectl apply -f config/samples/aerospike-cluster-with-template.yaml
 
 ---
 
+## 클러스터 매니저 UI를 통한 템플릿 관리
+
+클러스터 매니저 UI가 활성화된 경우(`ui.enabled=true` 및 `ui.k8s.enabled=true`), `kubectl` 없이 웹 인터페이스에서 직접 템플릿을 관리할 수 있습니다. **K8s Templates** 페이지에서 다음 기능을 지원합니다:
+
+- **생성** — 안내형 마법사로 모든 템플릿 필드 정의 (이미지, 크기, 리소스, 스케줄링, 스토리지, 모니터링, 네트워크, Aerospike 설정)
+- **조회** — 템플릿 상세 페이지에서 전체 해석된 spec과 참조 클러스터 목록 확인
+- **편집** — UI에서 직접 템플릿 패치/업데이트 (RBAC에서 `AerospikeClusterTemplate`에 대한 `patch` 및 `update` 권한 필요)
+- **삭제** — 미사용 템플릿 제거 (클러스터가 아직 참조 중이면 차단됨)
+- **재동기화** — 클러스터 상세 페이지에서 개별 클러스터에 대해 템플릿 재동기화 트리거
+
+자세한 내용은 [클러스터 매니저 UI — 템플릿 관리](cluster-manager-ui.md#k8s-클러스터-관리) 섹션을 참조하세요.
+
+---
+
+## `usedBy` 상태 필드
+
+오퍼레이터는 각 템플릿을 참조하는 클러스터를 `status.usedBy` 필드에서 추적합니다:
+
+```bash
+kubectl get aerospikeclustertemplate hard-rack -o jsonpath='{.status.usedBy}'
+```
+
+출력 예시:
+```json
+["hard-rack-cluster", "prod-cluster-east", "prod-cluster-west"]
+```
+
+이 필드는 클러스터가 생성, 삭제되거나 `templateRef`가 변경될 때 자동으로 업데이트됩니다. 클러스터 매니저 UI는 템플릿 목록 페이지에서 이 수를 표시하고, 템플릿 상세 페이지에서 전체 목록을 표시합니다. `usedBy`가 비어 있지 않은 한 템플릿을 삭제할 수 없습니다.
+
+---
+
 ## Helm으로 설치
 
 `defaultTemplates.enabled=true` 옵션을 사용하면 릴리스 네임스페이스에 세 가지 티어 템플릿이 자동으로 생성됩니다:

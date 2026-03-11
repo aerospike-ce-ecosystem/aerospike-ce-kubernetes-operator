@@ -42,6 +42,8 @@ storage:
   cleanupThreads: 2
 ```
 
+See [Local Storage](#local-storage) below for a detailed explanation.
+
 ---
 
 ## Volume Types
@@ -300,3 +302,133 @@ Apply it with:
 ```bash
 kubectl apply -f config/samples/aerospike-cluster-storage-advanced.yaml
 ```
+
+---
+
+## Local Storage
+
+Local persistent volumes (local PVs) are node-bound storage that provide high I/O performance but do not survive pod migration to a different node. The operator provides two fields to handle local storage correctly: `localStorageClasses` and `deleteLocalStorageOnRestart`.
+
+### When to Use Local Storage
+
+- **High-performance workloads** -- local NVMe or SSD storage provides the lowest latency
+- **Bare-metal clusters** -- nodes with directly attached storage
+- **Cost optimization** -- avoid network-attached storage overhead when data is replicated at the Aerospike level
+
+:::warning
+Local PVs are tied to a specific node. If a pod is rescheduled to a different node, it cannot reattach the old PV. The operator handles this automatically when `deleteLocalStorageOnRestart` is enabled.
+:::
+
+### Configuration
+
+#### `localStorageClasses`
+
+A list of StorageClass names that the operator should treat as local storage. Any PVC backed by one of these classes receives special handling during pod restarts.
+
+Common local StorageClass examples:
+- `local-path` (Rancher Local Path Provisioner)
+- `openebs-hostpath` (OpenEBS)
+- `local-storage` (Kubernetes `local` volume plugin)
+
+#### `deleteLocalStorageOnRestart`
+
+When set to `true`, the operator deletes PVCs backed by local storage classes **before** deleting the pod during a cold restart. This forces the PVC to be re-provisioned on whichever node the pod is rescheduled to.
+
+Without this setting, the pod would be stuck in `Pending` state if rescheduled to a different node, because the local PV is only available on the original node.
+
+### Example Configuration
+
+```yaml
+apiVersion: acko.io/v1alpha1
+kind: AerospikeCluster
+metadata:
+  name: aerospike-local-storage
+  namespace: aerospike
+spec:
+  size: 3
+  image: aerospike:ce-8.1.1.1
+
+  storage:
+    localStorageClasses:
+      - local-path
+      - openebs-hostpath
+    deleteLocalStorageOnRestart: true
+
+    filesystemVolumePolicy:
+      initMethod: deleteFiles
+      cascadeDelete: true
+
+    volumes:
+      - name: data-vol
+        source:
+          persistentVolume:
+            storageClass: local-path
+            size: 50Gi
+        aerospike:
+          path: /opt/aerospike/data
+
+  aerospikeConfig:
+    namespaces:
+      - name: data
+        replication-factor: 2
+        storage-engine:
+          type: device
+          file: /opt/aerospike/data/data.dat
+          filesize: 42949672960
+```
+
+### How It Works
+
+During a cold restart (image change, config change, or PodRestart operation):
+
+1. The operator identifies PVCs backed by storage classes listed in `localStorageClasses`
+2. If `deleteLocalStorageOnRestart` is `true`, those PVCs are deleted **before** the pod
+3. The pod is deleted
+4. Kubernetes schedules the pod (possibly on a different node)
+5. The StorageClass provisioner creates a new local PV on the target node
+6. The pod starts with a fresh volume
+
+:::info
+If local PVC deletion fails, the operator emits a `LocalPVCDeleteFailed` warning event and proceeds with the pod restart. The PVC will be cleaned up on the next reconciliation.
+:::
+
+### Local Storage with Rack Configuration
+
+When using local storage with rack-aware deployments, combine `localStorageClasses` with `rackLabel` scheduling to ensure pods are placed on nodes with local storage available:
+
+```yaml
+spec:
+  storage:
+    localStorageClasses:
+      - local-path
+    deleteLocalStorageOnRestart: true
+    volumes:
+      - name: data-vol
+        source:
+          persistentVolume:
+            storageClass: local-path
+            size: 50Gi
+        aerospike:
+          path: /opt/aerospike/data
+
+  rackConfig:
+    racks:
+      - id: 1
+        rackLabel: zone-a    # Nodes with acko.io/rack=zone-a and local storage
+      - id: 2
+        rackLabel: zone-b
+```
+
+### Local Storage vs Network-Attached Storage
+
+| Aspect | Local Storage | Network-Attached (EBS, PD, etc.) |
+|--------|--------------|----------------------------------|
+| **Latency** | Lowest (direct-attached) | Higher (network round-trip) |
+| **Pod migration** | PVC must be deleted and re-provisioned | PVC reattaches automatically |
+| **Data durability** | Node-level only | Independent of node lifecycle |
+| **Cost** | Lower (no network storage fees) | Higher (provisioned IOPS, throughput) |
+| **Best for** | High-throughput, Aerospike-replicated data | Single-replica or stateful workloads |
+
+:::tip
+When using local storage, always set `replication-factor: 2` or higher in Aerospike to ensure data survives node failures. The data on a lost local PV is recovered from replicas on other nodes.
+:::

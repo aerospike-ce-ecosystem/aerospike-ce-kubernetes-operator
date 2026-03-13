@@ -174,12 +174,20 @@ func (r *AerospikeClusterReconciler) updateMigrationStatus(
 	}
 	defer closeAerospikeClient(aeroClient)
 
-	perNode, err := MigrateStatsPerNode(aeroClient)
+	perNode, err := MigrateStatsPerNode(log, aeroClient)
 	if err != nil {
 		log.V(1).Info("Migration stats query failed (non-fatal)", "err", err)
 		return
 	}
 
+	applyMigrationStats(cluster, perNode)
+}
+
+// applyMigrationStats applies per-node migration statistics to the cluster status.
+// It sets MigratingRecords on pods whose IP matches a key in perNode, clears
+// MigratingRecords on pods not present in perNode, and updates the cluster-level
+// MigrationStatus and MigrationComplete condition.
+func applyMigrationStats(cluster *ackov1alpha1.AerospikeCluster, perNode map[string]int64) {
 	// Build pod-IP → pod-name lookup.
 	podIPToPodName := make(map[string]string, len(cluster.Status.Pods))
 	for podName, ps := range cluster.Status.Pods {
@@ -200,8 +208,19 @@ func (r *AerospikeClusterReconciler) updateMigrationStatus(
 		// Update per-pod migration info.
 		if podName, ok := podIPToPodName[nodeIP]; ok {
 			if ps, exists := cluster.Status.Pods[podName]; exists {
-				r := remaining // capture for pointer
-				ps.MigratingRecords = &r
+				remainingVal := remaining // capture for pointer
+				ps.MigratingRecords = &remainingVal
+				cluster.Status.Pods[podName] = ps
+			}
+		}
+	}
+
+	// Clear MigratingRecords for pods whose IP was not found in the migration stats
+	// (e.g., node was unreachable or not yet part of the cluster).
+	for podName, ps := range cluster.Status.Pods {
+		if _, found := perNode[ps.PodIP]; !found {
+			if ps.MigratingRecords != nil {
+				ps.MigratingRecords = nil
 				cluster.Status.Pods[podName] = ps
 			}
 		}

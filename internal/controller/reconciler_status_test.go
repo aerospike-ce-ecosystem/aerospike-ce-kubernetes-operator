@@ -1023,6 +1023,194 @@ func TestBuildPodStatus(t *testing.T) {
 	})
 }
 
+func TestApplyMigrationStats(t *testing.T) {
+	findCondition := func(cluster *ackov1alpha1.AerospikeCluster, condType string) *metav1.Condition {
+		for i := range cluster.Status.Conditions {
+			if cluster.Status.Conditions[i].Type == condType {
+				return &cluster.Status.Conditions[i]
+			}
+		}
+		return nil
+	}
+
+	t.Run("sets per-pod MigratingRecords and cluster-level totals", func(t *testing.T) {
+		cluster := &ackov1alpha1.AerospikeCluster{
+			Status: ackov1alpha1.AerospikeClusterStatus{
+				Pods: map[string]ackov1alpha1.AerospikePodStatus{
+					"pod-0": {PodIP: "10.0.0.1"},
+					"pod-1": {PodIP: "10.0.0.2"},
+					"pod-2": {PodIP: "10.0.0.3"},
+				},
+			},
+		}
+		perNode := map[string]int64{
+			"10.0.0.1": 100,
+			"10.0.0.2": 0,
+			"10.0.0.3": 50,
+		}
+
+		applyMigrationStats(cluster, perNode)
+
+		// Check per-pod values.
+		if got := cluster.Status.Pods["pod-0"].MigratingRecords; got == nil || *got != 100 {
+			t.Errorf("pod-0 MigratingRecords = %v, want 100", got)
+		}
+		if got := cluster.Status.Pods["pod-1"].MigratingRecords; got == nil || *got != 0 {
+			t.Errorf("pod-1 MigratingRecords = %v, want 0", got)
+		}
+		if got := cluster.Status.Pods["pod-2"].MigratingRecords; got == nil || *got != 50 {
+			t.Errorf("pod-2 MigratingRecords = %v, want 50", got)
+		}
+
+		// Check cluster-level totals.
+		if cluster.Status.MigrationStatus == nil {
+			t.Fatal("MigrationStatus is nil")
+		}
+		if cluster.Status.MigrationStatus.RemainingRecords != 150 {
+			t.Errorf("RemainingRecords = %d, want 150", cluster.Status.MigrationStatus.RemainingRecords)
+		}
+		if !cluster.Status.MigrationStatus.InProgress {
+			t.Error("InProgress should be true when remaining > 0")
+		}
+
+		// Check condition.
+		cond := findCondition(cluster, ackov1alpha1.ConditionMigrationComplete)
+		if cond == nil {
+			t.Fatal("MigrationComplete condition not found")
+		}
+		if cond.Status != metav1.ConditionFalse {
+			t.Errorf("MigrationComplete = %q, want False", cond.Status)
+		}
+	})
+
+	t.Run("all zero remaining sets InProgress=false and MigrationComplete=True", func(t *testing.T) {
+		cluster := &ackov1alpha1.AerospikeCluster{
+			Status: ackov1alpha1.AerospikeClusterStatus{
+				Pods: map[string]ackov1alpha1.AerospikePodStatus{
+					"pod-0": {PodIP: "10.0.0.1"},
+					"pod-1": {PodIP: "10.0.0.2"},
+				},
+			},
+		}
+		perNode := map[string]int64{
+			"10.0.0.1": 0,
+			"10.0.0.2": 0,
+		}
+
+		applyMigrationStats(cluster, perNode)
+
+		if cluster.Status.MigrationStatus.InProgress {
+			t.Error("InProgress should be false when all remaining are zero")
+		}
+		if cluster.Status.MigrationStatus.RemainingRecords != 0 {
+			t.Errorf("RemainingRecords = %d, want 0", cluster.Status.MigrationStatus.RemainingRecords)
+		}
+
+		cond := findCondition(cluster, ackov1alpha1.ConditionMigrationComplete)
+		if cond == nil {
+			t.Fatal("MigrationComplete condition not found")
+		}
+		if cond.Status != metav1.ConditionTrue {
+			t.Errorf("MigrationComplete = %q, want True", cond.Status)
+		}
+	})
+
+	t.Run("clears stale MigratingRecords for pods not in perNode", func(t *testing.T) {
+		staleVal := int64(999)
+		cluster := &ackov1alpha1.AerospikeCluster{
+			Status: ackov1alpha1.AerospikeClusterStatus{
+				Pods: map[string]ackov1alpha1.AerospikePodStatus{
+					"pod-0": {PodIP: "10.0.0.1"},
+					"pod-1": {PodIP: "10.0.0.2", MigratingRecords: &staleVal},
+					"pod-2": {PodIP: "10.0.0.3", MigratingRecords: &staleVal},
+				},
+			},
+		}
+		// Only pod-0 responded; pod-1 and pod-2 are missing from perNode.
+		perNode := map[string]int64{
+			"10.0.0.1": 42,
+		}
+
+		applyMigrationStats(cluster, perNode)
+
+		// pod-0 should be set.
+		if got := cluster.Status.Pods["pod-0"].MigratingRecords; got == nil || *got != 42 {
+			t.Errorf("pod-0 MigratingRecords = %v, want 42", got)
+		}
+		// pod-1 and pod-2 should be cleared.
+		if got := cluster.Status.Pods["pod-1"].MigratingRecords; got != nil {
+			t.Errorf("pod-1 MigratingRecords = %v, want nil (stale cleared)", got)
+		}
+		if got := cluster.Status.Pods["pod-2"].MigratingRecords; got != nil {
+			t.Errorf("pod-2 MigratingRecords = %v, want nil (stale cleared)", got)
+		}
+	})
+
+	t.Run("pods already nil MigratingRecords stay nil", func(t *testing.T) {
+		cluster := &ackov1alpha1.AerospikeCluster{
+			Status: ackov1alpha1.AerospikeClusterStatus{
+				Pods: map[string]ackov1alpha1.AerospikePodStatus{
+					"pod-0": {PodIP: "10.0.0.1"},
+				},
+			},
+		}
+		// Empty perNode (partial failure scenario).
+		perNode := map[string]int64{}
+
+		applyMigrationStats(cluster, perNode)
+
+		if got := cluster.Status.Pods["pod-0"].MigratingRecords; got != nil {
+			t.Errorf("pod-0 MigratingRecords = %v, want nil", got)
+		}
+	})
+
+	t.Run("node IP not matching any pod is ignored", func(t *testing.T) {
+		cluster := &ackov1alpha1.AerospikeCluster{
+			Status: ackov1alpha1.AerospikeClusterStatus{
+				Pods: map[string]ackov1alpha1.AerospikePodStatus{
+					"pod-0": {PodIP: "10.0.0.1"},
+				},
+			},
+		}
+		perNode := map[string]int64{
+			"10.0.0.1":   10,
+			"10.0.0.100": 20, // no matching pod
+		}
+
+		applyMigrationStats(cluster, perNode)
+
+		// Total should include the unmatched node.
+		if cluster.Status.MigrationStatus.RemainingRecords != 30 {
+			t.Errorf("RemainingRecords = %d, want 30", cluster.Status.MigrationStatus.RemainingRecords)
+		}
+		// pod-0 should still be set.
+		if got := cluster.Status.Pods["pod-0"].MigratingRecords; got == nil || *got != 10 {
+			t.Errorf("pod-0 MigratingRecords = %v, want 10", got)
+		}
+	})
+
+	t.Run("empty perNode with no pods", func(t *testing.T) {
+		cluster := &ackov1alpha1.AerospikeCluster{
+			Status: ackov1alpha1.AerospikeClusterStatus{
+				Pods: map[string]ackov1alpha1.AerospikePodStatus{},
+			},
+		}
+		perNode := map[string]int64{}
+
+		applyMigrationStats(cluster, perNode)
+
+		if cluster.Status.MigrationStatus == nil {
+			t.Fatal("MigrationStatus should not be nil")
+		}
+		if cluster.Status.MigrationStatus.InProgress {
+			t.Error("InProgress should be false for empty perNode")
+		}
+		if cluster.Status.MigrationStatus.RemainingRecords != 0 {
+			t.Errorf("RemainingRecords = %d, want 0", cluster.Status.MigrationStatus.RemainingRecords)
+		}
+	})
+}
+
 func TestUnstableSince(t *testing.T) {
 	now := metav1.Now()
 	earlier := metav1.NewTime(now.Add(-5 * time.Minute))

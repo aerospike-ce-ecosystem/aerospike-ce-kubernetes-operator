@@ -111,6 +111,16 @@ var (
 		[]string{"namespace", "name"},
 	)
 
+	// ClusterMigratingRecords reports the total number of partition records
+	// remaining to be migrated across all nodes in the cluster.
+	ClusterMigratingRecords = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "acko_cluster_migrating_records",
+			Help: "Total partition records remaining to be migrated across all cluster nodes",
+		},
+		[]string{"namespace", "name"},
+	)
+
 	// CircuitBreakerActive reports whether the circuit breaker is active (1) or inactive (0)
 	// for each AerospikeCluster. The circuit breaker activates after consecutive reconcile failures
 	// exceed the threshold (default 10).
@@ -177,6 +187,7 @@ func CleanupClusterMetrics(namespace, name string) {
 	DynamicConfigUpdatesTotal.Delete(labels)
 	LastReconcileTimestamp.Delete(labels)
 	ClusterASSize.Delete(labels)
+	ClusterMigratingRecords.Delete(labels)
 	ScaleDownDeferralsTotal.Delete(labels)
 	CircuitBreakerActive.Delete(labels)
 
@@ -205,6 +216,7 @@ func init() {
 		ReconcileErrorsTotal,
 		LastReconcileTimestamp,
 		ClusterASSize,
+		ClusterMigratingRecords,
 		ScaleDownDeferralsTotal,
 		CircuitBreakerActive,
 	)

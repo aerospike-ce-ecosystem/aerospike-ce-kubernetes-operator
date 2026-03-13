@@ -464,6 +464,23 @@ type AerospikeClusterStatus struct {
 	// Cleared on successful reconciliation.
 	// +optional
 	LastReconcileError string `json:"lastReconcileError,omitempty"`
+
+	// MigrationStatus tracks data migration progress across the cluster.
+	// Updated on each successful reconciliation by querying Aerospike nodes
+	// for partition migration statistics.
+	// +optional
+	MigrationStatus *MigrationStatus `json:"migrationStatus,omitempty"`
+}
+
+// MigrationStatus represents the current data migration state of the cluster.
+type MigrationStatus struct {
+	// InProgress indicates if any data migration is currently happening.
+	InProgress bool `json:"inProgress"`
+	// RemainingRecords is the total number of partition records still to be migrated
+	// across all nodes (0 = complete).
+	RemainingRecords int64 `json:"remainingRecords"`
+	// LastChecked is the timestamp of the last migration check.
+	LastChecked metav1.Time `json:"lastChecked"`
 }
 
 // AerospikePodStatus holds per-pod status information.
@@ -526,6 +543,12 @@ type AerospikePodStatus struct {
 	// Reset to nil when the pod returns to Ready. Useful for alerting on long-running instability.
 	// +optional
 	UnstableSince *metav1.Time `json:"unstableSince,omitempty"`
+
+	// MigratingRecords is the number of partition records this pod is currently migrating.
+	// Populated by querying the node's migrate_partitions_remaining statistic.
+	// Nil if the node is unreachable or migration info is unavailable.
+	// +optional
+	MigratingRecords *int64 `json:"migratingRecords,omitempty"`
 }
 
 // +kubebuilder:object:root=true

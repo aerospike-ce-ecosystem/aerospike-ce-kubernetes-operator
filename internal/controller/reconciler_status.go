@@ -117,6 +117,11 @@ func (r *AerospikeClusterReconciler) updateStatusAndPhase(
 		r.updateAerospikeClusterSize(ctx, latest)
 	}
 
+	// Update migration status on completion.
+	if phase == ackov1alpha1.AerospikePhaseCompleted {
+		r.updateMigrationStatus(ctx, latest)
+	}
+
 	// Update Prometheus metrics
 	metrics.ClusterPhase.WithLabelValues(latest.Namespace, latest.Name).Set(metrics.PhaseToFloat(string(phase)))
 	metrics.ClusterReadyPods.WithLabelValues(latest.Namespace, latest.Name).Set(float64(readyCount))
@@ -124,6 +129,9 @@ func (r *AerospikeClusterReconciler) updateStatusAndPhase(
 		metrics.LastReconcileTimestamp.WithLabelValues(latest.Namespace, latest.Name).Set(float64(latest.Status.LastReconcileTime.Unix()))
 	}
 	metrics.ClusterASSize.WithLabelValues(latest.Namespace, latest.Name).Set(float64(latest.Status.AerospikeClusterSize))
+	if latest.Status.MigrationStatus != nil {
+		metrics.ClusterMigratingRecords.WithLabelValues(latest.Namespace, latest.Name).Set(float64(latest.Status.MigrationStatus.RemainingRecords))
+	}
 
 	return r.Status().Update(ctx, latest)
 }
@@ -148,6 +156,67 @@ func (r *AerospikeClusterReconciler) updateAerospikeClusterSize(
 		return
 	}
 	cluster.Status.AerospikeClusterSize = int32(size)
+}
+
+// updateMigrationStatus queries the Aerospike cluster for per-node migration statistics
+// and populates both the cluster-level MigrationStatus and per-pod MigratingRecords fields.
+// Failure is non-fatal: the previous values are preserved.
+func (r *AerospikeClusterReconciler) updateMigrationStatus(
+	ctx context.Context,
+	cluster *ackov1alpha1.AerospikeCluster,
+) {
+	log := logf.FromContext(ctx)
+
+	aeroClient, err := r.getAerospikeClient(ctx, cluster)
+	if err != nil {
+		log.V(1).Info("Could not connect to Aerospike for migration status (non-fatal)", "err", err)
+		return
+	}
+	defer closeAerospikeClient(aeroClient)
+
+	perNode, err := MigrateStatsPerNode(aeroClient)
+	if err != nil {
+		log.V(1).Info("Migration stats query failed (non-fatal)", "err", err)
+		return
+	}
+
+	// Build pod-IP → pod-name lookup.
+	podIPToPodName := make(map[string]string, len(cluster.Status.Pods))
+	for podName, ps := range cluster.Status.Pods {
+		if ps.PodIP != "" {
+			podIPToPodName[ps.PodIP] = podName
+		}
+	}
+
+	var totalRemaining int64
+	anyMigrating := false
+
+	for nodeIP, remaining := range perNode {
+		totalRemaining += remaining
+		if remaining > 0 {
+			anyMigrating = true
+		}
+
+		// Update per-pod migration info.
+		if podName, ok := podIPToPodName[nodeIP]; ok {
+			if ps, exists := cluster.Status.Pods[podName]; exists {
+				r := remaining // capture for pointer
+				ps.MigratingRecords = &r
+				cluster.Status.Pods[podName] = ps
+			}
+		}
+	}
+
+	now := metav1.Now()
+	cluster.Status.MigrationStatus = &ackov1alpha1.MigrationStatus{
+		InProgress:       anyMigrating,
+		RemainingRecords: totalRemaining,
+		LastChecked:      now,
+	}
+
+	// Update the MigrationComplete condition based on actual migration state.
+	setCondition(cluster, ackov1alpha1.ConditionMigrationComplete, !anyMigrating,
+		"MigrationComplete", fmt.Sprintf("Remaining partitions: %d", totalRemaining))
 }
 
 // populateStatus fills in the cluster's status fields and returns the ready pod count.
@@ -247,6 +316,7 @@ func buildPodStatus(
 	accessEndpoints := prev.AccessEndpoints
 	lastRestartReason := prev.LastRestartReason
 	lastRestartTime := prev.LastRestartTime
+	migratingRecords := prev.MigratingRecords
 
 	// Track pod instability: set UnstableSince on first NotReady, preserve it
 	// while still NotReady, clear it when the pod becomes Ready.
@@ -280,6 +350,7 @@ func buildPodStatus(
 		LastRestartReason:      lastRestartReason,
 		LastRestartTime:        lastRestartTime,
 		UnstableSince:          unstableSince,
+		MigratingRecords:       migratingRecords,
 	}
 }
 

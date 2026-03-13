@@ -107,6 +107,32 @@ func parseMigrateStat(stats, key string) int64 {
 	return 0
 }
 
+// MigrateStatsPerNode returns the migrate_partitions_remaining count for each node
+// in the cluster. The map is keyed by the node's host IP address.
+func MigrateStatsPerNode(client *aero.Client) (map[string]int64, error) {
+	nodes := client.GetNodes()
+	if len(nodes) == 0 {
+		return nil, fmt.Errorf("no nodes available in Aerospike cluster")
+	}
+
+	result := make(map[string]int64, len(nodes))
+	for _, node := range nodes {
+		if node == nil {
+			continue
+		}
+		stats, err := asinfoCommandOnNode(node, "statistics")
+		if err != nil {
+			return nil, fmt.Errorf("statistics command on node %s failed: %w", node.GetName(), err)
+		}
+		remaining := parseMigrateStat(stats, "migrate_partitions_remaining")
+		host := node.GetHost()
+		if host != nil {
+			result[host.Name] = remaining
+		}
+	}
+	return result, nil
+}
+
 // ClusterSize returns the number of nodes in the Aerospike cluster as reported by asinfo.
 // Returns 0 and an error if the cluster is unreachable or the response cannot be parsed.
 func ClusterSize(client *aero.Client) (int, error) {

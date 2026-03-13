@@ -470,10 +470,34 @@ ui:
     corsOrigins: ""
     # -- Log level (DEBUG, INFO, WARNING, ERROR)
     logLevel: "INFO"
+    # -- Log format: "text" for human-readable output, "json" for structured logging
+    logFormat: "text"
     # -- External PostgreSQL connection URL.
     # Only used when postgresql.enabled is false.
     # Example: "postgresql://user:pass@db-host:5432/aerospike_manager"
     databaseUrl: ""
+    # -- DB connection pool size
+    dbPoolSize: 5
+    # -- Max overflow connections beyond pool size
+    dbPoolOverflow: 10
+    # -- Pool checkout timeout in seconds
+    dbPoolTimeout: 30
+    # -- Kubernetes API request timeout in seconds
+    k8sApiTimeout: 30
+
+  # =============================================================================
+  # Monitoring - ServiceMonitor (Prometheus Operator)
+  # =============================================================================
+  metrics:
+    serviceMonitor:
+      # -- Create a ServiceMonitor resource for the UI backend metrics endpoint
+      enabled: false
+      # -- Scrape interval (e.g., "30s")
+      interval: 30s
+      # -- Scrape timeout (e.g., "10s")
+      scrapeTimeout: 10s
+      # -- Additional labels for the ServiceMonitor (useful for Prometheus selection)
+      labels: {}
 
   # =============================================================================
   # Scheduling

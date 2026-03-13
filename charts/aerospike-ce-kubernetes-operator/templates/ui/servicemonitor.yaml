@@ -1,0 +1,25 @@
+{{- if and .Values.ui.enabled .Values.ui.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "aerospike-ce-kubernetes-operator.ui.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "aerospike-ce-kubernetes-operator.ui.labels" . | nindent 4 }}
+    {{- with .Values.ui.metrics.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  endpoints:
+    - port: backend
+      scheme: http
+      {{- with .Values.ui.metrics.serviceMonitor.interval }}
+      interval: {{ . }}
+      {{- end }}
+      {{- with .Values.ui.metrics.serviceMonitor.scrapeTimeout }}
+      scrapeTimeout: {{ . }}
+      {{- end }}
+  selector:
+    matchLabels:
+      {{- include "aerospike-ce-kubernetes-operator.ui.selectorLabels" . | nindent 6 }}
+{{- end }}

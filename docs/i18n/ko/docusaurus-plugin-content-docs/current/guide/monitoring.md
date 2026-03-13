@@ -7,7 +7,7 @@ title: 모니터링
 
 이 가이드에서는 클러스터별 Prometheus 모니터링 설정을 다룹니다: exporter 사이드카, ServiceMonitor, 기본 및 커스텀 알림 규칙이 포함된 PrometheusRule, 메트릭 라벨.
 
-**오퍼레이터 수준**의 모니터링(오퍼레이터 자체를 위한 ServiceMonitor, PrometheusRule, Grafana 대시보드)은 [설치 — Observability](install.md#observability) 섹션을 참조하세요.
+**오퍼레이터 수준**의 모니터링(오퍼레이터 자체를 위한 ServiceMonitor, PrometheusRule, Grafana 대시보드)은 [설치 — 모니터링](install.md#모니터링-선택사항) 섹션을 참조하세요.
 
 ---
 

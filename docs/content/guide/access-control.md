@@ -139,6 +139,96 @@ Privileges follow the format: `<code>[.<namespace>[.<set>]]`
 - `read-write.myns` — read-write on the `myns` namespace
 - `write.myns.myset` — write on the `myset` set within `myns`
 
+## Role Whitelists (IP Allowlisting)
+
+Each custom role can include a `whitelist` field to restrict which client IP addresses are allowed to authenticate with that role. Whitelisted CIDRs apply at the Aerospike server level, providing an additional layer of network-based access control beyond Kubernetes NetworkPolicy.
+
+```yaml
+spec:
+  aerospikeAccessControl:
+    roles:
+      - name: internal-reader
+        privileges:
+          - read.data
+        whitelist:
+          - "10.0.0.0/8"         # Allow only internal network
+          - "172.16.0.0/12"
+      - name: monitoring-role
+        privileges:
+          - read
+        whitelist:
+          - "10.100.0.0/16"      # Allow only the monitoring subnet
+    users:
+      - name: admin
+        secretName: admin-secret
+        roles:
+          - sys-admin
+          - user-admin
+      - name: internal-app
+        secretName: internal-app-secret
+        roles:
+          - internal-reader
+      - name: prometheus
+        secretName: prometheus-secret
+        roles:
+          - monitoring-role
+```
+
+**When to use whitelists:**
+
+- Restrict database access to specific application subnets
+- Limit monitoring access to the Prometheus/Grafana network range
+- Add defense-in-depth alongside Kubernetes NetworkPolicy
+
+:::note
+Whitelists apply per role. If a user has multiple roles, the user can connect from any IP allowed by any of their assigned roles. Built-in roles (e.g., `read-write`) do not support whitelists -- you must create a custom role to use this feature.
+:::
+
+## Admin Policy
+
+The `adminPolicy` field configures the timeout for admin API operations (user/role creation, password changes, etc.) performed by the operator. This is useful when the Aerospike cluster is under heavy load and admin operations may take longer than the default 2-second timeout.
+
+```yaml
+spec:
+  aerospikeAccessControl:
+    adminPolicy:
+      timeout: 5000    # 5 seconds (default: 2000ms)
+    users:
+      - name: admin
+        secretName: admin-secret
+        roles:
+          - sys-admin
+          - user-admin
+```
+
+| Field | Default | Range | Description |
+|-------|---------|-------|-------------|
+| `timeout` | `2000` | 100 -- 30000 ms | Admin operation timeout in milliseconds |
+
+Increase this value if you see `ACLSyncError` events with timeout-related error messages, especially during initial cluster creation with many users/roles or under heavy load.
+
+## Password Rotation
+
+The operator watches Kubernetes Secrets referenced by `aerospikeAccessControl.users[*].secretName`. When a Secret's data changes, the operator automatically syncs the updated password to Aerospike without requiring any change to the AerospikeCluster CR.
+
+```bash
+# Rotate a user's password by updating the Secret
+kubectl -n aerospike create secret generic app-secret \
+  --from-literal=password='new-password-here' \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+Verify the sync via events:
+
+```bash
+kubectl get events --field-selector reason=ACLSyncStarted -n aerospike
+kubectl get events --field-selector reason=ACLSyncCompleted -n aerospike
+```
+
+:::info
+Only Secrets actively referenced by an AerospikeCluster's ACL configuration trigger reconciliation. Unrelated Secret changes in the same namespace are ignored.
+:::
+
 ## Webhook Validation Rules
 
 The operator's admission webhook enforces the following ACL rules:

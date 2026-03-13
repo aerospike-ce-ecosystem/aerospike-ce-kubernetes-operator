@@ -239,24 +239,125 @@ If a restart is blocked waiting for the gate, a `ReadinessGateBlocking` warning 
 kubectl -n aerospike get events --field-selector reason=ReadinessGateBlocking
 ```
 
-## Pausing Reconciliation
+## Pausing and Resuming Reconciliation
 
-Temporarily stop the operator from reconciling:
+Temporarily stop the operator from reconciling a cluster by setting `spec.paused: true`. While paused, the operator skips all reconciliation for this cluster -- no scaling, rolling restarts, config changes, or ACL syncs will be performed. The cluster phase changes to `Paused` and the `ReconciliationPaused` condition is set to `True`.
 
-```yaml
-spec:
-  paused: true
-```
+**When to pause:**
 
-While paused, the operator skips all reconciliation. Set back to `false` (or remove the field) to resume.
+- During planned infrastructure maintenance (node upgrades, storage migrations)
+- To prevent the operator from interfering with manual debugging
+- Before making multiple spec changes that you want to apply as a single batch
+- When investigating a stuck cluster without the operator retrying
 
 ```bash
-# Pause
+# Pause reconciliation
 kubectl -n aerospike patch asc aerospike-ce-3node --type merge -p '{"spec":{"paused":true}}'
 
-# Resume
+# Verify paused state
+kubectl -n aerospike get asc aerospike-ce-3node -o jsonpath='{.status.phase}'
+# Output: Paused
+```
+
+To resume reconciliation, set `paused` to `false` or remove it entirely. The operator immediately begins reconciling the cluster toward its desired state:
+
+```bash
+# Resume reconciliation
 kubectl -n aerospike patch asc aerospike-ce-3node --type merge -p '{"spec":{"paused":null}}'
 ```
+
+:::warning
+Pausing does not stop the Aerospike cluster itself -- pods continue running and serving traffic. It only stops the operator from making changes to the cluster's Kubernetes resources.
+:::
+
+## Cluster Status and Conditions
+
+The operator provides detailed status information through the `status` subresource. Understanding these fields helps with monitoring and troubleshooting.
+
+### Phase
+
+The `status.phase` field provides a high-level view of what the operator is doing:
+
+```bash
+kubectl -n aerospike get asc
+```
+
+| Phase | Meaning |
+|---|---|
+| `Completed` | Cluster is healthy and matches the desired spec |
+| `InProgress` | Generic reconciliation in progress |
+| `ScalingUp` | Adding pods to the cluster |
+| `ScalingDown` | Removing pods from the cluster |
+| `WaitingForMigration` | Scale-down deferred until data migration completes |
+| `RollingRestart` | Rolling restart in progress (config/image/podSpec change) |
+| `ACLSync` | ACL roles and users are being synchronized |
+| `Paused` | Reconciliation paused by user |
+| `Deleting` | Cluster teardown in progress |
+| `Error` | Unrecoverable error; check `status.lastReconcileError` |
+
+The `status.phaseReason` field provides additional context (e.g., "Rolling restart in progress for rack 1").
+
+### Health
+
+The `status.health` field gives a quick "ready/total" summary:
+
+```bash
+kubectl -n aerospike get asc aerospike-ce-3node -o jsonpath='{.status.health}'
+# Output: 3/3
+```
+
+A value of `2/3` means 2 out of 3 pods are ready. This maps to the `HEALTH` column in `kubectl get asc` output.
+
+### Conditions
+
+The operator maintains six condition types that provide a detailed breakdown of cluster health:
+
+```bash
+kubectl -n aerospike get asc aerospike-ce-3node -o jsonpath='{.status.conditions}' | jq .
+```
+
+| Condition | True When |
+|---|---|
+| `Available` | At least one pod is ready to serve requests |
+| `Ready` | All desired pods are running and ready |
+| `ConfigApplied` | All pods have the desired Aerospike configuration |
+| `ACLSynced` | ACL roles and users match the spec |
+| `MigrationComplete` | No data migrations are pending |
+| `ReconciliationPaused` | `spec.paused` is `true` |
+
+**Example: Checking if a cluster is fully operational**
+
+A cluster is fully healthy when `Ready`, `ConfigApplied`, `MigrationComplete`, and `ACLSynced` (if ACL is configured) are all `True`:
+
+```bash
+kubectl -n aerospike get asc aerospike-ce-3node \
+  -o jsonpath='{range .status.conditions[*]}{.type}={.status}{"\n"}{end}'
+```
+
+Expected healthy output:
+```
+Available=True
+Ready=True
+ConfigApplied=True
+ACLSynced=True
+MigrationComplete=True
+ReconciliationPaused=False
+```
+
+### Aerospike Cluster Size vs Kubernetes Pod Count
+
+The `status.aerospikeClusterSize` field reflects the cluster size as reported by Aerospike's `asinfo` command. This may temporarily differ from `status.size` (the number of ready Kubernetes pods) during:
+
+- Rolling restarts (a pod is being replaced)
+- Network partitions (split-brain scenarios)
+- Pod startup (Aerospike has not yet joined the mesh)
+
+```bash
+kubectl -n aerospike get asc aerospike-ce-3node \
+  -o jsonpath='K8s pods: {.status.size}, Aerospike cluster-size: {.status.aerospikeClusterSize}'
+```
+
+If these values diverge for an extended period, investigate pod connectivity and mesh heartbeat configuration.
 
 ## Secret-Triggered ACL Sync
 

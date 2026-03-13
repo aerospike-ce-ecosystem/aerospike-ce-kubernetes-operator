@@ -7,7 +7,7 @@ title: Monitoring
 
 This guide covers per-cluster Prometheus monitoring: the exporter sidecar, ServiceMonitor, PrometheusRule with built-in and custom alert rules, and metric labels.
 
-For **operator-level** monitoring (ServiceMonitor, PrometheusRule, and Grafana dashboard for the operator itself), see the [Install — Observability](install.md#observability) section.
+For **operator-level** monitoring (ServiceMonitor, PrometheusRule, and Grafana dashboard for the operator itself), see the [Install — Monitoring](install.md#monitoring-optional) section.
 
 ---
 

@@ -212,12 +212,32 @@ kubectl -n aerospike get asc aerospike-ce-3node \
   -o jsonpath='{.status.pods}' | jq 'to_entries[] | {pod: .key, migrating: .value.migratingRecords}'
 ```
 
+**jsonpath로 빠르게 확인:**
+
+```bash
+# 마이그레이션 진행 중인지 확인 (true/false 반환)
+kubectl -n aerospike get asc aerospike-ce-3node \
+  -o jsonpath='InProgress={.status.migrationStatus.inProgress} Remaining={.status.migrationStatus.remainingRecords}'
+
+# MigrationComplete 조건 직접 확인
+kubectl -n aerospike get asc aerospike-ce-3node \
+  -o jsonpath='{range .status.conditions[?(@.type=="MigrationComplete")]}{.status}{end}'
+```
+
 **Prometheus 메트릭:**
 
 오퍼레이터는 `acko_cluster_migrating_records`를 `namespace`와 `name` 레이블이 있는 Prometheus 게이지 메트릭으로 노출합니다. 장기 마이그레이션에 대한 알림 설정이 가능합니다:
 
 ```promql
+# 30분 이상 마이그레이션이 진행 중일 때 알림
 acko_cluster_migrating_records{namespace="aerospike", name="aerospike-ce-3node"} > 0
+
+# 마이그레이션 진행 속도 추적 (초당 마이그레이션된 레코드)
+rate(acko_cluster_migrating_records[5m])
+
+# 멈춘 마이그레이션 알림 (남은 레코드가 줄어들지 않음)
+deriv(acko_cluster_migrating_records[10m]) >= 0
+  and acko_cluster_migrating_records > 0
 ```
 
 :::tip

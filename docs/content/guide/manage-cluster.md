@@ -359,7 +359,7 @@ kubectl -n aerospike get asc aerospike-ce-3node \
 
 If these values diverge for an extended period, investigate pod connectivity and mesh heartbeat configuration.
 
-### Migration Status
+### Migration Status Monitoring
 
 The operator tracks data migration progress in `status.migrationStatus`. On each reconciliation, it queries every Aerospike node's `migrate_partitions_remaining` statistic and aggregates the results.
 
@@ -394,12 +394,32 @@ kubectl -n aerospike get asc aerospike-ce-3node \
   -o jsonpath='{.status.pods}' | jq 'to_entries[] | {pod: .key, migrating: .value.migratingRecords}'
 ```
 
+**Quick check via jsonpath:**
+
+```bash
+# Check if migration is in progress (returns true/false)
+kubectl -n aerospike get asc aerospike-ce-3node \
+  -o jsonpath='InProgress={.status.migrationStatus.inProgress} Remaining={.status.migrationStatus.remainingRecords}'
+
+# Check MigrationComplete condition directly
+kubectl -n aerospike get asc aerospike-ce-3node \
+  -o jsonpath='{range .status.conditions[?(@.type=="MigrationComplete")]}{.status}{end}'
+```
+
 **Prometheus metric:**
 
 The operator exposes `acko_cluster_migrating_records` as a Prometheus gauge metric with `namespace` and `name` labels. This enables alerting on long-running migrations:
 
 ```promql
+# Alert when migration has been running for more than 30 minutes
 acko_cluster_migrating_records{namespace="aerospike", name="aerospike-ce-3node"} > 0
+
+# Track migration progress rate (records migrated per second)
+rate(acko_cluster_migrating_records[5m])
+
+# Alert on stalled migration (remaining records not decreasing)
+deriv(acko_cluster_migrating_records[10m]) >= 0
+  and acko_cluster_migrating_records > 0
 ```
 
 :::tip

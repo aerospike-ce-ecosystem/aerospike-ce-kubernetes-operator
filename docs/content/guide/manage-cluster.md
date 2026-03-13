@@ -359,6 +359,53 @@ kubectl -n aerospike get asc aerospike-ce-3node \
 
 If these values diverge for an extended period, investigate pod connectivity and mesh heartbeat configuration.
 
+### Migration Status
+
+The operator tracks data migration progress in `status.migrationStatus`. On each reconciliation, it queries every Aerospike node's `migrate_partitions_remaining` statistic and aggregates the results.
+
+**When does migration occur?**
+
+- **Scaling up/down** — adding or removing nodes triggers partition rebalancing.
+- **Rolling restarts** — each restarted node must re-receive its partition copies.
+- **Rack changes** — moving pods between racks redistributes data.
+- **Replication factor changes** — increasing RF creates new replica copies.
+
+**Checking migration status:**
+
+```bash
+# Cluster-level migration status
+kubectl -n aerospike get asc aerospike-ce-3node \
+  -o jsonpath='{.status.migrationStatus}' | jq .
+```
+
+Example output:
+```json
+{
+  "inProgress": true,
+  "remainingRecords": 142857,
+  "lastChecked": "2026-03-13T10:30:00Z"
+}
+```
+
+**Per-pod migration records:**
+
+```bash
+kubectl -n aerospike get asc aerospike-ce-3node \
+  -o jsonpath='{.status.pods}' | jq 'to_entries[] | {pod: .key, migrating: .value.migratingRecords}'
+```
+
+**Prometheus metric:**
+
+The operator exposes `acko_cluster_migrating_records` as a Prometheus gauge metric with `namespace` and `name` labels. This enables alerting on long-running migrations:
+
+```promql
+acko_cluster_migrating_records{namespace="aerospike", name="aerospike-ce-3node"} > 0
+```
+
+:::tip
+The `MigrationComplete` condition in `status.conditions` is set to `True` when `migrationStatus.remainingRecords` reaches 0. Use it for simple health checks without parsing the full migration status.
+:::
+
 ## Secret-Triggered ACL Sync
 
 The operator watches Kubernetes Secrets referenced by `aerospikeAccessControl.users[*].secretName`. When a Secret's data changes (e.g., password rotation), the operator automatically triggers a reconciliation to sync the updated password to Aerospike — **without any changes to the AerospikeCluster CR**.
@@ -940,6 +987,7 @@ Each pod status includes:
 | `lastRestartReason` | Why the pod was last restarted: `ConfigChanged`, `ImageChanged`, `PodSpecChanged`, `ManualRestart`, `WarmRestart` |
 | `lastRestartTime` | Timestamp of the last operator-initiated restart |
 | `unstableSince` | First time this pod became NotReady; reset when Ready |
+| `migratingRecords` | Number of partition records this pod is currently migrating; `nil` if unreachable |
 
 ### Check Operator Logs
 

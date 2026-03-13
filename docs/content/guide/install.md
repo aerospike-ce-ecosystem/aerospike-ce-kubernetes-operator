@@ -378,7 +378,20 @@ helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts
 
 [Aerospike Cluster Manager](https://github.com/KimSoungRyoul/aerospike-cluster-manager) is a web-based GUI for managing Aerospike CE clusters — record browsing, query building, index management, K8s cluster lifecycle, and more.
 
-Enable the UI when installing the operator:
+### Relationship Between Operator and Cluster Manager
+
+The Aerospike CE Kubernetes Operator and the Aerospike Cluster Manager are two separate components that work together:
+
+- **Operator** (`aerospike-ce-kubernetes-operator`): A Kubernetes controller that watches `AerospikeCluster` and `AerospikeClusterTemplate` custom resources and reconciles the desired state — creating StatefulSets, Services, ConfigMaps, and performing rolling updates, scaling, and rack management.
+- **Cluster Manager** (`aerospike-cluster-manager`): A web application (Next.js frontend + FastAPI backend) that provides a GUI for interacting with both Aerospike clusters (data operations, monitoring) and the Kubernetes API (cluster lifecycle via CRDs).
+
+When `ui.enabled=true` is set in the Helm chart, the Cluster Manager is deployed as a separate Deployment in the same namespace as the operator. It communicates with:
+1. **Aerospike clusters** directly via the Aerospike wire protocol for data operations (record browsing, AQL, index management, UDF management).
+2. **Kubernetes API** for cluster lifecycle operations (create, scale, edit, delete `AerospikeCluster` CRs), which the operator then reconciles.
+
+The operator functions independently of the Cluster Manager — you can manage clusters entirely via `kubectl` and YAML manifests. The Cluster Manager simply provides a convenient GUI layer on top.
+
+### Enabling the Cluster Manager
 
 ```bash
 helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \

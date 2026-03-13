@@ -29,6 +29,25 @@ Applied to PVC volumes with `volumeMode: Block`.
 
 Same fields as `filesystemVolumePolicy`. The recommended `initMethod` for block devices is `blkdiscard` (fast, hardware-accelerated) and `blkdiscardWithHeaderCleanup` for `wipeMethod`.
 
+### cleanupThreads
+
+Controls the maximum number of concurrent threads used during volume initialization (`initMethod`) and wipe (`wipeMethod`) operations. Higher values speed up volume preparation at the cost of increased I/O load.
+
+| Value | Behavior |
+|-------|----------|
+| `1` (default) | One volume at a time -- safe, low I/O impact |
+| `2` -- `4` | Moderate parallelism -- good for clusters with multiple volumes |
+| `>4` | Aggressive -- only use with high-throughput storage backends |
+
+```yaml
+storage:
+  cleanupThreads: 2
+```
+
+:::tip
+Increase `cleanupThreads` if you have many volumes per pod and want faster pod startup. Keep it at 1 if your storage backend has limited IOPS or if volume initialization causes I/O contention with running workloads.
+:::
+
 ### localStorageClasses
 
 List of StorageClass names considered "local" storage (e.g., `local-path`, `openebs-hostpath`). Local PVCs are deleted before pod restart to ensure a clean state.

@@ -125,8 +125,9 @@ Observed state of the Aerospike CE cluster.
 
 | Field | Type | Description |
 |---|---|---|
-| `phase` | string | Cluster phase: `InProgress`, `Completed`, `Error`, `ScalingUp`, `ScalingDown`, `RollingRestart`, `ACLSync`, `Paused`, `Deleting`. |
-| `size` | int32 | Current cluster size. |
+| `phase` | string | Cluster phase: `InProgress`, `Completed`, `Error`, `ScalingUp`, `ScalingDown`, `WaitingForMigration`, `RollingRestart`, `ACLSync`, `Paused`, `Deleting`. |
+| `size` | int32 | Current number of ready pods. |
+| `health` | string | Human-readable pod readiness summary in `ready/total` format (e.g., `3/3`). |
 | `conditions` | [][Condition](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/conditions/) | Latest observations of cluster state. |
 | `pods` | map[string][AerospikePodStatus](#aerospikepodstatus) | Per-pod status information, keyed by pod name. |
 | `observedGeneration` | int64 | Most recent generation observed by the controller. |
@@ -140,6 +141,8 @@ Observed state of the Aerospike CE cluster.
 | `pendingRestartPods` | []string | Pods queued for restart in the current rolling restart. Cleared when complete. |
 | `lastReconcileTime` | [Time](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/object-meta/#System) | Timestamp of the last successful reconciliation. |
 | `templateSnapshot` | [TemplateSnapshotStatus](#templatesnapshotstatus) | Resolved template spec at last sync time. |
+| `failedReconcileCount` | int32 | Number of consecutive failed reconciliations. Reset to 0 on success. When this exceeds the circuit breaker threshold (default 10), the operator backs off exponentially. |
+| `lastReconcileError` | string | Error message from the most recent failed reconciliation. Cleared on success. |
 
 ---
 

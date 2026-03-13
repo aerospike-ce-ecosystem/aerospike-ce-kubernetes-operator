@@ -259,6 +259,185 @@ spec:
 
 ---
 
+## Pod Customization
+
+The `spec.podSpec` field provides access to several Kubernetes pod-level features beyond scheduling. This section covers sidecar containers, init containers, security contexts, service accounts, and image pull secrets.
+
+### Custom Sidecars
+
+Add sidecar containers to every Aerospike pod. These run alongside the main Aerospike server container and share the pod's network namespace and volumes.
+
+```yaml
+spec:
+  podSpec:
+    sidecars:
+      - name: log-forwarder
+        image: fluent/fluent-bit:latest
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+        volumeMounts:
+          - name: aerospike-logs
+            mountPath: /var/log/aerospike
+            readOnly: true
+  storage:
+    volumes:
+      - name: aerospike-logs
+        source:
+          emptyDir: {}
+        aerospike:
+          path: /var/log/aerospike
+        sidecars:
+          - containerName: log-forwarder
+            path: /var/log/aerospike
+            readOnly: true
+```
+
+:::tip
+When using the monitoring exporter sidecar (`spec.monitoring.enabled: true`), the operator automatically adds it. You do not need to include it in the `sidecars` list.
+:::
+
+### Init Containers
+
+Add init containers that run before the Aerospike server starts. These execute after the operator's built-in init container (which handles volume initialization).
+
+**Use cases:** Pre-populating data, setting file permissions, downloading configuration from external sources, waiting for dependencies.
+
+```yaml
+spec:
+  podSpec:
+    initContainers:
+      - name: set-permissions
+        image: busybox:1.36
+        command: ["sh", "-c", "chown -R 1000:1000 /opt/aerospike/data"]
+        volumeMounts:
+          - name: data-vol
+            mountPath: /opt/aerospike/data
+  storage:
+    volumes:
+      - name: data-vol
+        source:
+          persistentVolume:
+            storageClass: standard
+            size: 50Gi
+        aerospike:
+          path: /opt/aerospike/data
+        initContainers:
+          - containerName: set-permissions
+            path: /opt/aerospike/data
+```
+
+### Security Context
+
+Set pod-level and container-level security attributes to meet your organization's security policies.
+
+**Pod-level security context** applies to all containers in the pod:
+
+```yaml
+spec:
+  podSpec:
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      runAsNonRoot: true
+```
+
+**Container-level security context** applies only to the Aerospike server container:
+
+```yaml
+spec:
+  podSpec:
+    aerospikeContainer:
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: false
+        capabilities:
+          drop:
+            - ALL
+```
+
+### Service Account
+
+Specify a custom ServiceAccount for Aerospike pods. This is useful when pods need access to cloud provider APIs (e.g., for backup/restore via IAM roles) or when running in a namespace with restricted RBAC.
+
+```yaml
+spec:
+  podSpec:
+    serviceAccountName: aerospike-sa
+```
+
+### Image Pull Secrets
+
+Reference Kubernetes Secrets containing container registry credentials. Required when pulling from private registries.
+
+```yaml
+spec:
+  podSpec:
+    imagePullSecrets:
+      - name: my-registry-secret
+```
+
+Create the secret first:
+
+```bash
+kubectl -n aerospike create secret docker-registry my-registry-secret \
+  --docker-server=registry.example.com \
+  --docker-username=myuser \
+  --docker-password=mypassword
+```
+
+---
+
+## Secret and ConfigMap Volumes
+
+In addition to PVC, emptyDir, and hostPath volumes, you can mount Kubernetes Secrets and ConfigMaps directly into Aerospike pods. This is useful for TLS certificates, custom configuration files, or credential injection.
+
+### Secret Volume
+
+Mount a Kubernetes Secret as files in the Aerospike container:
+
+```yaml
+spec:
+  storage:
+    volumes:
+      - name: aerospike-creds
+        source:
+          secret:
+            secretName: aerospike-credentials
+            items:
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
+        aerospike:
+          path: /opt/aerospike/certs
+          readOnly: true
+```
+
+### ConfigMap Volume
+
+Mount a ConfigMap to provide additional configuration files:
+
+```yaml
+spec:
+  storage:
+    volumes:
+      - name: custom-config
+        source:
+          configMap:
+            name: aerospike-custom-config
+        aerospike:
+          path: /opt/aerospike/custom
+          readOnly: true
+```
+
+---
+
 ## Rack-level Overrides
 
 Each rack in `spec.rackConfig.racks` can override cluster-level settings for `aerospikeConfig`, `storage`, and `podSpec`. This enables heterogeneous configurations across failure domains.

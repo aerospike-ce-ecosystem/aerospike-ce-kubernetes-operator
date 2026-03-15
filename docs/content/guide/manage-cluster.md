@@ -382,7 +382,7 @@ Example output:
 ```json
 {
   "inProgress": true,
-  "remainingRecords": 142857,
+  "remainingPartitions": 142857,
   "lastChecked": "2026-03-13T10:30:00Z"
 }
 ```
@@ -391,7 +391,7 @@ Example output:
 
 ```bash
 kubectl -n aerospike get asc aerospike-ce-3node \
-  -o jsonpath='{.status.pods}' | jq 'to_entries[] | {pod: .key, migrating: .value.migratingRecords}'
+  -o jsonpath='{.status.pods}' | jq 'to_entries[] | {pod: .key, migrating: .value.migratingPartitions}'
 ```
 
 **Quick check via jsonpath:**
@@ -399,7 +399,7 @@ kubectl -n aerospike get asc aerospike-ce-3node \
 ```bash
 # Check if migration is in progress (returns true/false)
 kubectl -n aerospike get asc aerospike-ce-3node \
-  -o jsonpath='InProgress={.status.migrationStatus.inProgress} Remaining={.status.migrationStatus.remainingRecords}'
+  -o jsonpath='InProgress={.status.migrationStatus.inProgress} Remaining={.status.migrationStatus.remainingPartitions}'
 
 # Check MigrationComplete condition directly
 kubectl -n aerospike get asc aerospike-ce-3node \
@@ -423,7 +423,7 @@ deriv(acko_cluster_migrating_records[10m]) >= 0
 ```
 
 :::tip
-The `MigrationComplete` condition in `status.conditions` is set to `True` when `migrationStatus.remainingRecords` reaches 0. Use it for simple health checks without parsing the full migration status.
+The `MigrationComplete` condition in `status.conditions` is set to `True` when `migrationStatus.remainingPartitions` reaches 0. Use it for simple health checks without parsing the full migration status.
 :::
 
 ## Secret-Triggered ACL Sync
@@ -1007,7 +1007,7 @@ Each pod status includes:
 | `lastRestartReason` | Why the pod was last restarted: `ConfigChanged`, `ImageChanged`, `PodSpecChanged`, `ManualRestart`, `WarmRestart` |
 | `lastRestartTime` | Timestamp of the last operator-initiated restart |
 | `unstableSince` | First time this pod became NotReady; reset when Ready |
-| `migratingRecords` | Number of partition records this pod is currently migrating; `nil` if unreachable |
+| `migratingPartitions` | Number of partitions this pod is currently migrating; `nil` if unreachable |
 
 ### Check Operator Logs
 

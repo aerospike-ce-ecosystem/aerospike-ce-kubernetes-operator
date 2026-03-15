@@ -200,7 +200,7 @@ kubectl -n aerospike get asc aerospike-ce-3node \
 ```json
 {
   "inProgress": true,
-  "remainingRecords": 142857,
+  "remainingPartitions": 142857,
   "lastChecked": "2026-03-13T10:30:00Z"
 }
 ```
@@ -209,7 +209,7 @@ kubectl -n aerospike get asc aerospike-ce-3node \
 
 ```bash
 kubectl -n aerospike get asc aerospike-ce-3node \
-  -o jsonpath='{.status.pods}' | jq 'to_entries[] | {pod: .key, migrating: .value.migratingRecords}'
+  -o jsonpath='{.status.pods}' | jq 'to_entries[] | {pod: .key, migrating: .value.migratingPartitions}'
 ```
 
 **jsonpath로 빠르게 확인:**
@@ -217,7 +217,7 @@ kubectl -n aerospike get asc aerospike-ce-3node \
 ```bash
 # 마이그레이션 진행 중인지 확인 (true/false 반환)
 kubectl -n aerospike get asc aerospike-ce-3node \
-  -o jsonpath='InProgress={.status.migrationStatus.inProgress} Remaining={.status.migrationStatus.remainingRecords}'
+  -o jsonpath='InProgress={.status.migrationStatus.inProgress} Remaining={.status.migrationStatus.remainingPartitions}'
 
 # MigrationComplete 조건 직접 확인
 kubectl -n aerospike get asc aerospike-ce-3node \
@@ -241,7 +241,7 @@ deriv(acko_cluster_migrating_records[10m]) >= 0
 ```
 
 :::tip
-`status.conditions`의 `MigrationComplete` 조건은 `migrationStatus.remainingRecords`가 0에 도달하면 `True`로 설정됩니다. 전체 마이그레이션 상태를 파싱하지 않고 간단한 상태 확인에 활용하세요.
+`status.conditions`의 `MigrationComplete` 조건은 `migrationStatus.remainingPartitions`가 0에 도달하면 `True`로 설정됩니다. 전체 마이그레이션 상태를 파싱하지 않고 간단한 상태 확인에 활용하세요.
 :::
 
 ## 재조정 일시 중지
@@ -743,7 +743,7 @@ kubectl -n aerospike get asc aerospike-ce-3node -o jsonpath='{.status.pods}' | j
 | `lastRestartReason` | 파드가 마지막으로 재시작된 이유: `ConfigChanged`, `ImageChanged`, `PodSpecChanged`, `ManualRestart`, `WarmRestart` |
 | `lastRestartTime` | 오퍼레이터에 의한 마지막 재시작 타임스탬프 |
 | `unstableSince` | 이 파드가 처음 NotReady가 된 시점; Ready 시 초기화 |
-| `migratingRecords` | 이 파드가 현재 마이그레이션 중인 파티션 레코드 수; 접근 불가 시 `nil` |
+| `migratingPartitions` | 이 파드가 현재 마이그레이션 중인 파티션 수; 접근 불가 시 `nil` |
 
 ### 오퍼레이터 로그 확인
 

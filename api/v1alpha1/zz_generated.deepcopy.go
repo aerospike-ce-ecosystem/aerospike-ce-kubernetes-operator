@@ -800,8 +800,8 @@ func (in *AerospikePodStatus) DeepCopyInto(out *AerospikePodStatus) {
 		in, out := &in.UnstableSince, &out.UnstableSince
 		*out = (*in).DeepCopy()
 	}
-	if in.MigratingRecords != nil {
-		in, out := &in.MigratingRecords, &out.MigratingRecords
+	if in.MigratingPartitions != nil {
+		in, out := &in.MigratingPartitions, &out.MigratingPartitions
 		*out = new(int64)
 		**out = **in
 	}

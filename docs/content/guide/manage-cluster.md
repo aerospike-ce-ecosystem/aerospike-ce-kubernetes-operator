@@ -415,7 +415,7 @@ The operator exposes `acko_cluster_migrating_records` as a Prometheus gauge metr
 acko_cluster_migrating_records{namespace="aerospike", name="aerospike-ce-3node"} > 0
 
 # Track migration progress rate (records migrated per second)
-rate(acko_cluster_migrating_records[5m])
+deriv(acko_cluster_migrating_records[5m])
 
 # Alert on stalled migration (remaining records not decreasing)
 deriv(acko_cluster_migrating_records[10m]) >= 0

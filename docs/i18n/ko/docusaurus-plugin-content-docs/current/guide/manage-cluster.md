@@ -233,7 +233,7 @@ kubectl -n aerospike get asc aerospike-ce-3node \
 acko_cluster_migrating_records{namespace="aerospike", name="aerospike-ce-3node"} > 0
 
 # 마이그레이션 진행 속도 추적 (초당 마이그레이션된 레코드)
-rate(acko_cluster_migrating_records[5m])
+deriv(acko_cluster_migrating_records[5m])
 
 # 멈춘 마이그레이션 알림 (남은 레코드가 줄어들지 않음)
 deriv(acko_cluster_migrating_records[10m]) >= 0

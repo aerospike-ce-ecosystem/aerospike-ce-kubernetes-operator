@@ -108,11 +108,11 @@ func parseMigrateStat(stats, key string) int64 {
 	return 0
 }
 
-// MigrateStatsPerNode returns the migrate_partitions_remaining count for each node
+// migrateStatsPerNode returns the migrate_partitions_remaining count for each node
 // in the cluster. The map is keyed by the node's host IP address.
 // If a single node is unreachable, the error is logged and that node is skipped.
 // An error is returned only if ALL nodes fail.
-func MigrateStatsPerNode(log logr.Logger, client *aero.Client) (map[string]int64, error) {
+func migrateStatsPerNode(log logr.Logger, client *aero.Client) (map[string]int64, error) {
 	nodes := client.GetNodes()
 	if len(nodes) == 0 {
 		return nil, fmt.Errorf("no nodes available in Aerospike cluster")

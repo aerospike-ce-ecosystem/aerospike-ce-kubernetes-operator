@@ -476,9 +476,9 @@ type AerospikeClusterStatus struct {
 type MigrationStatus struct {
 	// InProgress indicates if any data migration is currently happening.
 	InProgress bool `json:"inProgress"`
-	// RemainingRecords is the total number of partition records still to be migrated
-	// across all nodes (0 = complete).
-	RemainingRecords int64 `json:"remainingRecords"`
+	// RemainingPartitions is the total number of partitions still to be migrated
+	// across all nodes (from migrate_partitions_remaining). 0 = complete.
+	RemainingPartitions int64 `json:"remainingPartitions"`
 	// LastChecked is the timestamp of the last migration check.
 	LastChecked metav1.Time `json:"lastChecked"`
 }
@@ -544,11 +544,11 @@ type AerospikePodStatus struct {
 	// +optional
 	UnstableSince *metav1.Time `json:"unstableSince,omitempty"`
 
-	// MigratingRecords is the number of partition records this pod is currently migrating.
+	// MigratingPartitions is the number of partitions this pod is currently migrating.
 	// Populated by querying the node's migrate_partitions_remaining statistic.
 	// Nil if the node is unreachable or migration info is unavailable.
 	// +optional
-	MigratingRecords *int64 `json:"migratingRecords,omitempty"`
+	MigratingPartitions *int64 `json:"migratingPartitions,omitempty"`
 }
 
 // +kubebuilder:object:root=true

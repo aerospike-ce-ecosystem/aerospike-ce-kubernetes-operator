@@ -111,9 +111,9 @@ var (
 		[]string{"namespace", "name"},
 	)
 
-	// ClusterMigratingRecords reports the total number of partition records
+	// ClusterMigratingPartitions reports the total number of partitions
 	// remaining to be migrated across all nodes in the cluster.
-	ClusterMigratingRecords = prometheus.NewGaugeVec(
+	ClusterMigratingPartitions = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "acko_cluster_migrating_records",
 			Help: "Total partition records remaining to be migrated across all cluster nodes",
@@ -187,7 +187,7 @@ func CleanupClusterMetrics(namespace, name string) {
 	DynamicConfigUpdatesTotal.Delete(labels)
 	LastReconcileTimestamp.Delete(labels)
 	ClusterASSize.Delete(labels)
-	ClusterMigratingRecords.Delete(labels)
+	ClusterMigratingPartitions.Delete(labels)
 	ScaleDownDeferralsTotal.Delete(labels)
 	CircuitBreakerActive.Delete(labels)
 
@@ -216,7 +216,7 @@ func init() {
 		ReconcileErrorsTotal,
 		LastReconcileTimestamp,
 		ClusterASSize,
-		ClusterMigratingRecords,
+		ClusterMigratingPartitions,
 		ScaleDownDeferralsTotal,
 		CircuitBreakerActive,
 	)

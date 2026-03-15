@@ -408,18 +408,18 @@ kubectl -n aerospike get asc aerospike-ce-3node \
 
 **Prometheus metric:**
 
-The operator exposes `acko_cluster_migrating_records` as a Prometheus gauge metric with `namespace` and `name` labels. This enables alerting on long-running migrations:
+The operator exposes `acko_cluster_migrating_partitions` as a Prometheus gauge metric with `namespace` and `name` labels. This enables alerting on long-running migrations:
 
 ```promql
 # Alert when migration has been running for more than 30 minutes
-acko_cluster_migrating_records{namespace="aerospike", name="aerospike-ce-3node"} > 0
+acko_cluster_migrating_partitions{namespace="aerospike", name="aerospike-ce-3node"} > 0
 
-# Track migration progress rate (records migrated per second)
-deriv(acko_cluster_migrating_records[5m])
+# Track migration progress rate (partitions migrated per second)
+deriv(acko_cluster_migrating_partitions[5m])
 
-# Alert on stalled migration (remaining records not decreasing)
-deriv(acko_cluster_migrating_records[10m]) >= 0
-  and acko_cluster_migrating_records > 0
+# Alert on stalled migration (remaining partitions not decreasing)
+deriv(acko_cluster_migrating_partitions[10m]) >= 0
+  and acko_cluster_migrating_partitions > 0
 ```
 
 :::tip

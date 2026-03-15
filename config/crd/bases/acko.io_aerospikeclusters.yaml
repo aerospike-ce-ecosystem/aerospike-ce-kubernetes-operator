@@ -17260,16 +17260,16 @@ spec:
                       check.
                     format: date-time
                     type: string
-                  remainingRecords:
+                  remainingPartitions:
                     description: |-
-                      RemainingRecords is the total number of partition records still to be migrated
+                      RemainingPartitions is the total number of partitions still to be migrated
                       across all nodes (0 = complete).
                     format: int64
                     type: integer
                 required:
                 - inProgress
                 - lastChecked
-                - remainingRecords
+                - remainingPartitions
                 type: object
               observedGeneration:
                 description: ObservedGeneration is the most recent generation observed
@@ -17408,9 +17408,9 @@ spec:
                         last restarted by the operator.
                       format: date-time
                       type: string
-                    migratingRecords:
+                    migratingPartitions:
                       description: |-
-                        MigratingRecords is the number of partition records this pod is currently migrating.
+                        MigratingPartitions is the number of partitions this pod is currently migrating.
                         Populated by querying the node's migrate_partitions_remaining statistic.
                         Nil if the node is unreachable or migration info is unavailable.
                       format: int64

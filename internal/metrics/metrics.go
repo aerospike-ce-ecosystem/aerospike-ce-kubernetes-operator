@@ -115,8 +115,8 @@ var (
 	// remaining to be migrated across all nodes in the cluster.
 	ClusterMigratingPartitions = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "acko_cluster_migrating_records",
-			Help: "Total partition records remaining to be migrated across all cluster nodes",
+			Name: "acko_cluster_migrating_partitions",
+			Help: "Total partitions remaining to be migrated across all cluster nodes",
 		},
 		[]string{"namespace", "name"},
 	)

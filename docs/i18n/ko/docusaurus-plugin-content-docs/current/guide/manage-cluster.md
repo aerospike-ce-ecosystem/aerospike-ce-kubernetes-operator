@@ -226,18 +226,18 @@ kubectl -n aerospike get asc aerospike-ce-3node \
 
 **Prometheus 메트릭:**
 
-오퍼레이터는 `acko_cluster_migrating_records`를 `namespace`와 `name` 레이블이 있는 Prometheus 게이지 메트릭으로 노출합니다. 장기 마이그레이션에 대한 알림 설정이 가능합니다:
+오퍼레이터는 `acko_cluster_migrating_partitions`를 `namespace`와 `name` 레이블이 있는 Prometheus 게이지 메트릭으로 노출합니다. 장기 마이그레이션에 대한 알림 설정이 가능합니다:
 
 ```promql
 # 30분 이상 마이그레이션이 진행 중일 때 알림
-acko_cluster_migrating_records{namespace="aerospike", name="aerospike-ce-3node"} > 0
+acko_cluster_migrating_partitions{namespace="aerospike", name="aerospike-ce-3node"} > 0
 
-# 마이그레이션 진행 속도 추적 (초당 마이그레이션된 레코드)
-deriv(acko_cluster_migrating_records[5m])
+# 마이그레이션 진행 속도 추적 (초당 마이그레이션된 파티션)
+deriv(acko_cluster_migrating_partitions[5m])
 
-# 멈춘 마이그레이션 알림 (남은 레코드가 줄어들지 않음)
-deriv(acko_cluster_migrating_records[10m]) >= 0
-  and acko_cluster_migrating_records > 0
+# 멈춘 마이그레이션 알림 (남은 파티션이 줄어들지 않음)
+deriv(acko_cluster_migrating_partitions[10m]) >= 0
+  and acko_cluster_migrating_partitions > 0
 ```
 
 :::tip

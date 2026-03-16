@@ -273,7 +273,7 @@ ui:
     # -- Container image repository
     repository: ghcr.io/kimsoungryoul/aerospike-cluster-manager
     # -- Container image tag. UI is versioned independently from the operator.
-    tag: "latest"
+    tag: "v0.3.6"
     # -- Image pull policy
     pullPolicy: IfNotPresent
 

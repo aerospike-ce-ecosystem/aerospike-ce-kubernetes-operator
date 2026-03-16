@@ -17245,6 +17245,32 @@ spec:
                   reconciliation.
                 format: date-time
                 type: string
+              migrationStatus:
+                description: |-
+                  MigrationStatus tracks data migration progress across the cluster.
+                  Updated on each successful reconciliation by querying Aerospike nodes
+                  for partition migration statistics.
+                properties:
+                  inProgress:
+                    description: InProgress indicates if any data migration is currently
+                      happening.
+                    type: boolean
+                  lastChecked:
+                    description: LastChecked is the timestamp of the last migration
+                      check.
+                    format: date-time
+                    type: string
+                  remainingPartitions:
+                    description: |-
+                      RemainingPartitions is the total number of partitions still to be migrated
+                      across all nodes (0 = complete).
+                    format: int64
+                    type: integer
+                required:
+                - inProgress
+                - lastChecked
+                - remainingPartitions
+                type: object
               observedGeneration:
                 description: ObservedGeneration is the most recent generation observed
                   by the controller.
@@ -17382,6 +17408,13 @@ spec:
                         last restarted by the operator.
                       format: date-time
                       type: string
+                    migratingPartitions:
+                      description: |-
+                        MigratingPartitions is the number of partitions this pod is currently migrating.
+                        Populated by querying the node's migrate_partitions_remaining statistic.
+                        Nil if the node is unreachable or migration info is unavailable.
+                      format: int64
+                      type: integer
                     nodeID:
                       description: |-
                         NodeID is the Aerospike-assigned node identifier (e.g. "BB9020012AC4202").

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	aero "github.com/aerospike/aerospike-client-go/v8"
+	"github.com/go-logr/logr"
 )
 
 // AsinfoCommand executes an asinfo command on a specific node.
@@ -105,6 +106,42 @@ func parseMigrateStat(stats, key string) int64 {
 		}
 	}
 	return 0
+}
+
+// migrateStatsPerNode returns the migrate_partitions_remaining count for each node
+// in the cluster. The map is keyed by the node's host IP address.
+// If a single node is unreachable, the error is logged and that node is skipped.
+// An error is returned only if ALL nodes fail.
+func migrateStatsPerNode(log logr.Logger, client *aero.Client) (map[string]int64, error) {
+	nodes := client.GetNodes()
+	if len(nodes) == 0 {
+		return nil, fmt.Errorf("no nodes available in Aerospike cluster")
+	}
+
+	result := make(map[string]int64, len(nodes))
+	var errCount int
+	for _, node := range nodes {
+		if node == nil {
+			continue
+		}
+		stats, err := asinfoCommandOnNode(node, "statistics")
+		if err != nil {
+			errCount++
+			log.V(1).Info("Skipping node: statistics command failed", "node", node.GetName(), "error", err)
+			continue
+		}
+		remaining := parseMigrateStat(stats, "migrate_partitions_remaining")
+		host := node.GetHost()
+		if host != nil {
+			result[host.Name] = remaining
+		}
+	}
+
+	// If every node failed, return an error.
+	if errCount > 0 && len(result) == 0 {
+		return nil, fmt.Errorf("all %d node(s) failed to respond to statistics command", errCount)
+	}
+	return result, nil
 }
 
 // ClusterSize returns the number of nodes in the Aerospike cluster as reported by asinfo.

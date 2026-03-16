@@ -10,6 +10,7 @@ const sidebars = {
       collapsed: false,
       items: [
         'guide/install',
+        'guide/helm-values',
         'guide/create-cluster',
         'guide/manage-cluster',
         'guide/storage',
@@ -17,7 +18,6 @@ const sidebars = {
         'guide/access-control',
         'guide/networking',
         'guide/advanced-configuration',
-        'guide/cluster-templates',
         'guide/templates',
         'guide/operations',
         'guide/cluster-manager-ui',

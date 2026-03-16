@@ -140,6 +140,21 @@ Aerospike CE 클러스터의 관측된 상태입니다.
 | `pendingRestartPods` | []string | 현재 롤링 리스타트에서 재시작 대기 중인 파드. 완료 시 비워짐. |
 | `lastReconcileTime` | [Time](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/object-meta/#System) | 마지막 성공적인 재조정의 타임스탬프. |
 | `templateSnapshot` | [TemplateSnapshotStatus](#templatesnapshotstatus) | 마지막 동기화 시점의 해결된 템플릿 스펙. |
+| `failedReconcileCount` | int32 | 연속 재조정 실패 횟수. 성공 시 0으로 초기화. 서킷 브레이커 임계값(기본 10)을 초과하면 오퍼레이터가 지수 백오프. |
+| `lastReconcileError` | string | 가장 최근 실패한 재조정의 오류 메시지. 성공 시 비워짐. |
+| `migrationStatus` | [MigrationStatus](#migrationstatus) | 클러스터 레벨 데이터 마이그레이션 진행 상태. 각 재조정 시 Aerospike 노드의 파티션 마이그레이션 통계를 조회하여 업데이트. |
+
+---
+
+## MigrationStatus
+
+클러스터의 현재 데이터 마이그레이션 상태를 추적합니다.
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `inProgress` | bool | 데이터 마이그레이션이 현재 진행 중인지 여부. |
+| `remainingPartitions` | int64 | 전체 노드에서 아직 마이그레이션되어야 할 파티션 총 수. `0`이면 마이그레이션 완료. |
+| `lastChecked` | [Time](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/object-meta/#System) | 마지막 마이그레이션 상태 확인 타임스탬프. |
 
 ---
 
@@ -183,6 +198,7 @@ Aerospike CE 클러스터의 관측된 상태입니다.
 | `lastRestartReason` | [RestartReason](#restartreason) | 오퍼레이터에 의해 파드가 마지막으로 재시작된 이유. |
 | `lastRestartTime` | [Time](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/object-meta/#System) | 오퍼레이터에 의해 파드가 마지막으로 재시작된 시점. |
 | `unstableSince` | [Time](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/object-meta/#System) | 이 파드가 처음 NotReady가 된 시점. Ready로 돌아가면 `nil`로 초기화. |
+| `migratingPartitions` | *int64 | 이 파드가 현재 마이그레이션 중인 파티션 수. 노드의 `migrate_partitions_remaining` 통계를 조회하여 채워짐. 접근 불가 시 `nil`. |
 
 ---
 

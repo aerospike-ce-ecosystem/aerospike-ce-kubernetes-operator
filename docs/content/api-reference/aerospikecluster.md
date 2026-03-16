@@ -143,6 +143,19 @@ Observed state of the Aerospike CE cluster.
 | `templateSnapshot` | [TemplateSnapshotStatus](#templatesnapshotstatus) | Resolved template spec at last sync time. |
 | `failedReconcileCount` | int32 | Number of consecutive failed reconciliations. Reset to 0 on success. When this exceeds the circuit breaker threshold (default 10), the operator backs off exponentially. |
 | `lastReconcileError` | string | Error message from the most recent failed reconciliation. Cleared on success. |
+| `migrationStatus` | [MigrationStatus](#migrationstatus) | Cluster-level data migration progress. Updated on each reconciliation by querying Aerospike nodes for partition migration statistics. |
+
+---
+
+## MigrationStatus
+
+Tracks the current data migration state of the cluster.
+
+| Field | Type | Description |
+|---|---|---|
+| `inProgress` | bool | Whether any data migration is currently happening. |
+| `remainingPartitions` | int64 | Total number of partitions still to be migrated across all nodes. `0` means migration is complete. |
+| `lastChecked` | [Time](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/object-meta/#System) | Timestamp of the last migration status check. |
 
 ---
 
@@ -186,6 +199,7 @@ Per-pod status information.
 | `lastRestartReason` | [RestartReason](#restartreason) | Reason the pod was last restarted by the operator. |
 | `lastRestartTime` | [Time](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/object-meta/#System) | When the pod was last restarted by the operator. |
 | `unstableSince` | [Time](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/object-meta/#System) | First time this pod became NotReady. Reset to `nil` when Ready. |
+| `migratingPartitions` | *int64 | Number of partitions this pod is currently migrating. Populated by querying the node's `migrate_partitions_remaining` statistic. `nil` if unreachable. |
 
 ---
 

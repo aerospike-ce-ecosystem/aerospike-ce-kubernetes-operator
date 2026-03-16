@@ -177,6 +177,73 @@ Pod-2 삭제 → Pod-2 Running → Gate=False (마이그레이션 중) → Gate=
 kubectl -n aerospike get events --field-selector reason=ReadinessGateBlocking
 ```
 
+## 마이그레이션 상태 모니터링
+
+오퍼레이터는 `status.migrationStatus`에서 데이터 마이그레이션 진행 상태를 추적합니다. 각 재조정 시 모든 Aerospike 노드의 `migrate_partitions_remaining` 통계를 조회하여 결과를 집계합니다.
+
+**마이그레이션이 발생하는 시점:**
+
+- **스케일 업/다운** — 노드 추가 또는 제거 시 파티션 리밸런싱 발생.
+- **롤링 리스타트** — 재시작된 각 노드가 파티션 사본을 다시 수신해야 함.
+- **랙 변경** — 랙 간 파드 이동 시 데이터 재분배.
+- **Replication factor 변경** — RF 증가 시 새 복제본 생성.
+
+**마이그레이션 상태 확인:**
+
+```bash
+# 클러스터 레벨 마이그레이션 상태
+kubectl -n aerospike get asc aerospike-ce-3node \
+  -o jsonpath='{.status.migrationStatus}' | jq .
+```
+
+출력 예시:
+```json
+{
+  "inProgress": true,
+  "remainingPartitions": 142857,
+  "lastChecked": "2026-03-13T10:30:00Z"
+}
+```
+
+**파드별 마이그레이션 레코드:**
+
+```bash
+kubectl -n aerospike get asc aerospike-ce-3node \
+  -o jsonpath='{.status.pods}' | jq 'to_entries[] | {pod: .key, migrating: .value.migratingPartitions}'
+```
+
+**jsonpath로 빠르게 확인:**
+
+```bash
+# 마이그레이션 진행 중인지 확인 (true/false 반환)
+kubectl -n aerospike get asc aerospike-ce-3node \
+  -o jsonpath='InProgress={.status.migrationStatus.inProgress} Remaining={.status.migrationStatus.remainingPartitions}'
+
+# MigrationComplete 조건 직접 확인
+kubectl -n aerospike get asc aerospike-ce-3node \
+  -o jsonpath='{range .status.conditions[?(@.type=="MigrationComplete")]}{.status}{end}'
+```
+
+**Prometheus 메트릭:**
+
+오퍼레이터는 `acko_cluster_migrating_partitions`를 `namespace`와 `name` 레이블이 있는 Prometheus 게이지 메트릭으로 노출합니다. 장기 마이그레이션에 대한 알림 설정이 가능합니다:
+
+```promql
+# 30분 이상 마이그레이션이 진행 중일 때 알림
+acko_cluster_migrating_partitions{namespace="aerospike", name="aerospike-ce-3node"} > 0
+
+# 마이그레이션 진행 속도 추적 (초당 마이그레이션된 파티션)
+deriv(acko_cluster_migrating_partitions[5m])
+
+# 멈춘 마이그레이션 알림 (남은 파티션이 줄어들지 않음)
+deriv(acko_cluster_migrating_partitions[10m]) >= 0
+  and acko_cluster_migrating_partitions > 0
+```
+
+:::tip
+`status.conditions`의 `MigrationComplete` 조건은 `migrationStatus.remainingPartitions`가 0에 도달하면 `True`로 설정됩니다. 전체 마이그레이션 상태를 파싱하지 않고 간단한 상태 확인에 활용하세요.
+:::
+
 ## 재조정 일시 중지
 
 오퍼레이터의 재조정을 임시로 중지합니다:
@@ -676,6 +743,7 @@ kubectl -n aerospike get asc aerospike-ce-3node -o jsonpath='{.status.pods}' | j
 | `lastRestartReason` | 파드가 마지막으로 재시작된 이유: `ConfigChanged`, `ImageChanged`, `PodSpecChanged`, `ManualRestart`, `WarmRestart` |
 | `lastRestartTime` | 오퍼레이터에 의한 마지막 재시작 타임스탬프 |
 | `unstableSince` | 이 파드가 처음 NotReady가 된 시점; Ready 시 초기화 |
+| `migratingPartitions` | 이 파드가 현재 마이그레이션 중인 파티션 수; 접근 불가 시 `nil` |
 
 ### 오퍼레이터 로그 확인
 

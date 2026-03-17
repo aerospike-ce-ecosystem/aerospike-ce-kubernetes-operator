@@ -259,6 +259,185 @@ spec:
 
 ---
 
+## 파드 커스터마이징
+
+`spec.podSpec` 필드는 스케줄링 외에도 여러 Kubernetes 파드 수준 기능에 대한 접근을 제공합니다. 이 섹션에서는 사이드카 컨테이너, init 컨테이너, 보안 컨텍스트, 서비스 어카운트, 이미지 풀 시크릿을 다룹니다.
+
+### 커스텀 사이드카
+
+모든 Aerospike 파드에 사이드카 컨테이너를 추가합니다. 메인 Aerospike 서버 컨테이너와 함께 실행되며 파드의 네트워크 네임스페이스와 볼륨을 공유합니다.
+
+```yaml
+spec:
+  podSpec:
+    sidecars:
+      - name: log-forwarder
+        image: fluent/fluent-bit:latest
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+        volumeMounts:
+          - name: aerospike-logs
+            mountPath: /var/log/aerospike
+            readOnly: true
+  storage:
+    volumes:
+      - name: aerospike-logs
+        source:
+          emptyDir: {}
+        aerospike:
+          path: /var/log/aerospike
+        sidecars:
+          - containerName: log-forwarder
+            path: /var/log/aerospike
+            readOnly: true
+```
+
+:::tip
+모니터링 exporter 사이드카(`spec.monitoring.enabled: true`)를 사용할 때, 오퍼레이터가 자동으로 추가합니다. `sidecars` 목록에 포함할 필요가 없습니다.
+:::
+
+### Init 컨테이너
+
+Aerospike 서버가 시작되기 전에 실행되는 init 컨테이너를 추가합니다. 오퍼레이터의 내장 init 컨테이너(볼륨 초기화 처리) 이후에 실행됩니다.
+
+**사용 사례:** 데이터 사전 채우기, 파일 권한 설정, 외부 소스에서 설정 다운로드, 의존성 대기.
+
+```yaml
+spec:
+  podSpec:
+    initContainers:
+      - name: set-permissions
+        image: busybox:1.36
+        command: ["sh", "-c", "chown -R 1000:1000 /opt/aerospike/data"]
+        volumeMounts:
+          - name: data-vol
+            mountPath: /opt/aerospike/data
+  storage:
+    volumes:
+      - name: data-vol
+        source:
+          persistentVolume:
+            storageClass: standard
+            size: 50Gi
+        aerospike:
+          path: /opt/aerospike/data
+        initContainers:
+          - containerName: set-permissions
+            path: /opt/aerospike/data
+```
+
+### 보안 컨텍스트
+
+조직의 보안 정책을 충족하기 위해 파드 수준 및 컨테이너 수준 보안 속성을 설정합니다.
+
+**파드 수준 보안 컨텍스트**는 파드의 모든 컨테이너에 적용됩니다:
+
+```yaml
+spec:
+  podSpec:
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      runAsNonRoot: true
+```
+
+**컨테이너 수준 보안 컨텍스트**는 Aerospike 서버 컨테이너에만 적용됩니다:
+
+```yaml
+spec:
+  podSpec:
+    aerospikeContainer:
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: false
+        capabilities:
+          drop:
+            - ALL
+```
+
+### 서비스 어카운트
+
+Aerospike 파드에 커스텀 ServiceAccount를 지정합니다. 파드가 클라우드 프로바이더 API에 접근해야 할 때(예: IAM 역할을 통한 백업/복원) 또는 제한된 RBAC가 있는 네임스페이스에서 실행할 때 유용합니다.
+
+```yaml
+spec:
+  podSpec:
+    serviceAccountName: aerospike-sa
+```
+
+### 이미지 풀 시크릿
+
+컨테이너 레지스트리 자격 증명이 포함된 Kubernetes Secret을 참조합니다. 프라이빗 레지스트리에서 이미지를 가져올 때 필요합니다.
+
+```yaml
+spec:
+  podSpec:
+    imagePullSecrets:
+      - name: my-registry-secret
+```
+
+먼저 시크릿을 생성합니다:
+
+```bash
+kubectl -n aerospike create secret docker-registry my-registry-secret \
+  --docker-server=registry.example.com \
+  --docker-username=myuser \
+  --docker-password=mypassword
+```
+
+---
+
+## Secret 및 ConfigMap 볼륨
+
+PVC, emptyDir, hostPath 볼륨 외에도 Kubernetes Secret과 ConfigMap을 Aerospike 파드에 직접 마운트할 수 있습니다. TLS 인증서, 커스텀 설정 파일, 자격 증명 주입에 유용합니다.
+
+### Secret 볼륨
+
+Kubernetes Secret을 Aerospike 컨테이너의 파일로 마운트합니다:
+
+```yaml
+spec:
+  storage:
+    volumes:
+      - name: aerospike-creds
+        source:
+          secret:
+            secretName: aerospike-credentials
+            items:
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
+        aerospike:
+          path: /opt/aerospike/certs
+          readOnly: true
+```
+
+### ConfigMap 볼륨
+
+추가 설정 파일을 제공하기 위해 ConfigMap을 마운트합니다:
+
+```yaml
+spec:
+  storage:
+    volumes:
+      - name: custom-config
+        source:
+          configMap:
+            name: aerospike-custom-config
+        aerospike:
+          path: /opt/aerospike/custom
+          readOnly: true
+```
+
+---
+
 ## 랙 수준 오버라이드
 
 `spec.rackConfig.racks`의 각 랙은 클러스터 수준 설정인 `aerospikeConfig`, `storage`, `podSpec`을 오버라이드할 수 있습니다. 이를 통해 장애 도메인 간에 이기종 구성이 가능합니다.

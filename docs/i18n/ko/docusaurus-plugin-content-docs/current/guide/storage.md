@@ -192,6 +192,7 @@ spec:
   image: aerospike:ce-8.1.1.1
 
   storage:
+    # 글로벌 볼륨 정책: 볼륨별 오버라이드가 없으면 모든 영구 볼륨에 적용
     filesystemVolumePolicy:
       initMethod: deleteFiles
       wipeMethod: deleteFiles
@@ -200,6 +201,7 @@ spec:
       initMethod: blkdiscard
       wipeMethod: blkdiscardWithHeaderCleanup
 
+    # 로컬 스토리지 인식: 파드 재시작 전 로컬 PVC 삭제
     localStorageClasses:
       - local-path
       - openebs-hostpath
@@ -208,6 +210,7 @@ spec:
     cleanupThreads: 2
 
     volumes:
+      # 커스텀 메타데이터가 있는 PVC (PVC 자체의 라벨 및 어노테이션)
       - name: data-vol
         source:
           persistentVolume:
@@ -222,8 +225,10 @@ spec:
                 volume.kubernetes.io/storage-provisioner: "ebs.csi.aws.com"
         aerospike:
           path: /opt/aerospike/data
+        # 볼륨별 오버라이드: 글로벌 정책의 deleteFiles 대신 dd 사용
         initMethod: dd
 
+      # 블록 디바이스 볼륨 (blockVolumePolicy 기본값 사용)
       - name: sindex-vol
         source:
           persistentVolume:
@@ -232,18 +237,22 @@ spec:
             volumeMode: Block
         aerospike:
           path: /opt/aerospike/sindex
+        # initMethod 미설정 → blockVolumePolicy.initMethod (blkdiscard)로 폴백
 
+      # 고급 마운트 옵션이 있는 볼륨
       - name: shared-data
         source:
           emptyDir: {}
         aerospike:
           path: /opt/aerospike/shared
+          readOnly: false
           subPath: "aerospike-data"
         sidecars:
           - containerName: aerospike-prometheus-exporter
             path: /shared
             readOnly: true
 
+      # HostPath 볼륨 (개발/테스트 전용)
       - name: host-logs
         source:
           hostPath:
@@ -252,6 +261,7 @@ spec:
         aerospike:
           path: /opt/aerospike/logs
 
+      # mountPropagation이 있는 볼륨
       - name: csi-data
         source:
           persistentVolume:
@@ -261,6 +271,7 @@ spec:
           path: /opt/aerospike/csi
           mountPropagation: HostToContainer
 
+      # 로컬 스토리지 볼륨
       - name: local-data
         source:
           persistentVolume:

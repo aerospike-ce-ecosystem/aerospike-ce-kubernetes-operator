@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	aero "github.com/aerospike/aerospike-client-go/v8"
 	appsv1 "k8s.io/api/apps/v1"
@@ -22,6 +23,10 @@ import (
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/storage"
 	"github.com/ksr/aerospike-ce-kubernetes-operator/internal/utils"
 )
+
+// maxPodUnstableDuration is the threshold after which a pod stuck in a non-ready
+// state is skipped from the rolling restart to avoid blocking healthy pods.
+const maxPodUnstableDuration = 10 * time.Minute
 
 // reconcileRollingRestart checks if pods need restart due to config changes.
 // Returns true if a restart was triggered (caller should requeue).
@@ -95,6 +100,20 @@ func (r *AerospikeClusterReconciler) reconcileRollingRestart(
 			}
 		}
 
+		// Skip pods that have been in a non-ready state longer than the threshold.
+		// This prevents a stuck pod from blocking healthy pods in the same rack.
+		if ps, ok := cluster.Status.Pods[pod.Name]; ok && ps.UnstableSince != nil {
+			if time.Since(ps.UnstableSince.Time) > maxPodUnstableDuration {
+				log.Info("Pod stuck in non-ready state beyond threshold, skipping restart",
+					"pod", pod.Name, "unstableSince", ps.UnstableSince.Time,
+					"threshold", maxPodUnstableDuration)
+				r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventRestartFailed,
+					"Pod %s stuck in non-ready state since %v (>%v), skipping restart",
+					pod.Name, ps.UnstableSince.Time, maxPodUnstableDuration)
+				continue
+			}
+		}
+
 		currentHash := ""
 		if pod.Annotations != nil {
 			currentHash = pod.Annotations[utils.ConfigHashAnnotation]
@@ -128,16 +147,9 @@ func (r *AerospikeClusterReconciler) reconcileRollingRestart(
 		}
 	}()
 
-	// If readiness gates are enabled, hold the next batch until all previously
-	// restarted pods in this rack have their "acko.io/aerospike-ready" gate satisfied.
-	// This ensures data migrations finish before the next pod is taken offline.
-	if isReadinessGateEnabled(cluster) {
-		if blocked, blockedPod := anyPodGateUnsatisfied(cluster, rackPods); blocked {
-			log.Info("Readiness gate not yet satisfied, delaying next restart", "pod", blockedPod, "rack", rack.ID)
-			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventReadinessGateBlocking,
-				"Rolling restart paused: pod %s readiness gate not yet satisfied (rack %d)", blockedPod, rack.ID)
-			return true, nil
-		}
+	// Hold the next batch when migration or readiness gates are blocking.
+	if r.isBatchBlocked(ctx, cluster, rack.ID, rackPods) {
+		return true, nil
 	}
 
 	// Restart up to batchSize pods, continuing on individual pod failures.
@@ -169,8 +181,19 @@ func (r *AerospikeClusterReconciler) reconcileRollingRestart(
 	return restarted > 0, nil
 }
 
+// podDynamicUpdate tracks a pod that received a successful dynamic config update,
+// along with the node and applied changes needed for cross-pod rollback.
+type podDynamicUpdate struct {
+	podName string
+	node    *aero.Node
+	applied []appliedChange
+}
+
 // restartPodBatch attempts to restart up to batchSize pods, trying dynamic config first.
-// Returns the count of successfully restarted pods and names of failed pods.
+// Dynamic config updates count against the batch size limit. If any pod fails a cold/warm
+// restart after other pods were dynamically updated in the same batch, those dynamic
+// updates are rolled back for consistency.
+// Returns the count of successfully processed pods and names of failed pods.
 func (r *AerospikeClusterReconciler) restartPodBatch(
 	ctx context.Context,
 	cluster *ackov1alpha1.AerospikeCluster,
@@ -186,11 +209,13 @@ func (r *AerospikeClusterReconciler) restartPodBatch(
 	restarted := int32(0)
 	var failedPods []string
 	attempted := int32(0)
+	var dynamicUpdated []podDynamicUpdate
 
 	for _, pod := range podsToRestart {
 		if attempted >= batchSize {
 			break
 		}
+		attempted++
 
 		// 1. Try dynamic config update first (no restart needed)
 		if oldConfig != nil && newConfig != nil {
@@ -201,14 +226,17 @@ func (r *AerospikeClusterReconciler) restartPodBatch(
 					log.V(1).Info("Could not create Aerospike client for dynamic config, will fall back to restart", "error", clientErr)
 				}
 			}
-			if *aeroClient != nil && r.tryDynamicConfigUpdate(ctx, cluster, pod, oldConfig, newConfig, *aeroClient) {
-				log.Info("Dynamic config update succeeded, no restart needed", "pod", pod.Name)
-				continue
+			if *aeroClient != nil {
+				if ok, node, applied := r.tryDynamicConfigUpdate(ctx, cluster, pod, oldConfig, newConfig, *aeroClient); ok {
+					log.Info("Dynamic config update succeeded, no restart needed", "pod", pod.Name)
+					dynamicUpdated = append(dynamicUpdated, podDynamicUpdate{podName: pod.Name, node: node, applied: applied})
+					restarted++
+					continue
+				}
 			}
 		}
 
 		// 2. Restart pod (warm or cold)
-		attempted++
 		if err := r.restartPod(ctx, cluster, pod, sts, desiredHash); err != nil {
 			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventRestartFailed,
 				"Failed to restart pod %s: %v", pod.Name, err)
@@ -217,6 +245,18 @@ func (r *AerospikeClusterReconciler) restartPodBatch(
 			continue
 		}
 		restarted++
+	}
+
+	// Cross-pod rollback: if any cold/warm restart failed AND dynamic updates were
+	// applied in this batch, roll back those dynamic changes for consistency.
+	// The failed pods will be retried in the next reconcile and get the correct
+	// config via cold restart.
+	if len(failedPods) > 0 && len(dynamicUpdated) > 0 {
+		log.Info("Rolling back dynamic config updates due to batch restart failures",
+			"dynamicUpdated", len(dynamicUpdated), "failedPods", len(failedPods))
+		for _, du := range dynamicUpdated {
+			r.rollbackDynamicChanges(log, du.node, du.applied)
+		}
 	}
 
 	return restarted, failedPods
@@ -256,8 +296,11 @@ func (r *AerospikeClusterReconciler) restartPod(
 	}
 
 	// Update config hash annotation so next reconcile won't re-restart this pod.
+	// If this fails, return the error so the reconciler requeues rather than
+	// looping back through warm restart on every reconcile (hash mismatch).
 	if err := r.updatePodConfigHash(ctx, pod, desiredHash); err != nil {
 		log.Error(err, "Failed to update pod config hash after warm restart", "pod", pod.Name)
+		return fmt.Errorf("warm restart succeeded but config hash update failed for pod %s: %w", pod.Name, err)
 	}
 	metrics.WarmRestartsTotal.WithLabelValues(cluster.Namespace, cluster.Name).Inc()
 	r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventPodWarmRestarted,
@@ -537,6 +580,51 @@ func filterUnrestarted(allPending []string, failedPods []string, restarted int32
 		}
 	}
 	return remaining
+}
+
+// isBatchBlocked returns true when the next restart batch should wait:
+//   - readiness gates are enabled and a previously restarted pod has not yet satisfied its gate, OR
+//   - readiness gates are disabled and a migration check confirms migration is active.
+//
+// Connection failures from migration checks are treated as non-blocking (logged as warnings)
+// to avoid deadlocking the restart when the cluster is temporarily unreachable.
+func (r *AerospikeClusterReconciler) isBatchBlocked(
+	ctx context.Context,
+	cluster *ackov1alpha1.AerospikeCluster,
+	rackID int,
+	rackPods []corev1.Pod,
+) bool {
+	log := logf.FromContext(ctx)
+
+	if isReadinessGateEnabled(cluster) {
+		if blocked, blockedPod := anyPodGateUnsatisfied(cluster, rackPods); blocked {
+			log.Info("Readiness gate not yet satisfied, delaying next restart", "pod", blockedPod, "rack", rackID)
+			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventReadinessGateBlocking,
+				"Rolling restart paused: pod %s readiness gate not yet satisfied (rack %d)", blockedPod, rackID)
+			return true
+		}
+		return false
+	}
+
+	// Direct migration check when readiness gates are not enabled.
+	migrating, err := r.isMigrationInProgress(ctx, cluster)
+	if err != nil {
+		// Connection failure: log a warning but proceed. The cluster may be
+		// unreachable during the early phase of a rolling restart (e.g. first pod
+		// is still coming up). Blocking here could deadlock the restart.
+		log.V(1).Info("Migration check failed during rolling restart, proceeding with caution",
+			"error", err, "rack", rackID)
+		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventMigrationCheckFailed,
+			"Rolling restart rack %d: migration check failed (%v), proceeding", rackID, err)
+		return false
+	}
+	if migrating {
+		log.Info("Data migration in progress, delaying next restart batch", "rack", rackID)
+		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventRollingRestartStarted,
+			"Rolling restart paused for rack %d: data migration in progress", rackID)
+		return true
+	}
+	return false
 }
 
 // podOrdinal extracts the ordinal index from a StatefulSet pod name (e.g., "sts-0" → 0).

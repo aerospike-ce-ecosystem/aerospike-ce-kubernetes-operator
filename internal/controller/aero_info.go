@@ -78,7 +78,7 @@ func IsMigratingOnAnyNode(client *aero.Client) (bool, error) {
 		}
 		stats, err := asinfoCommandOnNode(node, "statistics")
 		if err != nil {
-			return false, fmt.Errorf("statistics command on node %s failed: %w", node.GetName(), err)
+			return true, fmt.Errorf("statistics command on node %s failed: %w", node.GetName(), err)
 		}
 		remaining := parseMigrateStat(stats, "migrate_partitions_remaining")
 		if remaining > 0 {

@@ -54,6 +54,9 @@ const (
 	EventReadinessGateSatisfied = "ReadinessGateSatisfied"
 	EventReadinessGateBlocking  = "ReadinessGateBlocking"
 
+	// Migration checks
+	EventMigrationCheckFailed = "MigrationCheckFailed"
+
 	// PVC cleanup
 	EventPVCCleanedUp     = "PVCCleanedUp"
 	EventPVCCleanupFailed = "PVCCleanupFailed"

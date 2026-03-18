@@ -73,8 +73,12 @@ func (d *AerospikeClusterDefaulter) Default(ctx context.Context, cluster *Aerosp
 		cluster.Spec.AerospikeConfig.Value = make(map[string]any)
 	}
 
-	d.defaultServiceConfig(cluster)
-	d.defaultNetworkConfig(cluster)
+	if err := d.defaultServiceConfig(cluster); err != nil {
+		return err
+	}
+	if err := d.defaultNetworkConfig(cluster); err != nil {
+		return err
+	}
 	d.defaultMonitoring(cluster)
 	d.defaultHostNetwork(cluster)
 
@@ -82,10 +86,14 @@ func (d *AerospikeClusterDefaulter) Default(ctx context.Context, cluster *Aerosp
 }
 
 // defaultServiceConfig sets defaults in aerospikeConfig.service.
-func (d *AerospikeClusterDefaulter) defaultServiceConfig(cluster *AerospikeCluster) {
+// Returns an error if the "service" key exists but is not a map.
+func (d *AerospikeClusterDefaulter) defaultServiceConfig(cluster *AerospikeCluster) error {
 	config := cluster.Spec.AerospikeConfig.Value
 
-	serviceSection := getOrCreateMapSection(config, "service")
+	serviceSection, err := getOrCreateMapSection(config, "service")
+	if err != nil {
+		return err
+	}
 
 	if _, exists := serviceSection["cluster-name"]; !exists {
 		serviceSection["cluster-name"] = cluster.Name
@@ -96,13 +104,18 @@ func (d *AerospikeClusterDefaulter) defaultServiceConfig(cluster *AerospikeClust
 	}
 
 	config["service"] = serviceSection
+	return nil
 }
 
 // defaultNetworkConfig sets defaults in aerospikeConfig.network.
-func (d *AerospikeClusterDefaulter) defaultNetworkConfig(cluster *AerospikeCluster) {
+// Returns an error if the "network" key (or any sub-section key) exists but is not a map.
+func (d *AerospikeClusterDefaulter) defaultNetworkConfig(cluster *AerospikeCluster) error {
 	config := cluster.Spec.AerospikeConfig.Value
 
-	networkSection := getOrCreateMapSection(config, "network")
+	networkSection, err := getOrCreateMapSection(config, "network")
+	if err != nil {
+		return err
+	}
 
 	// Default values for each network sub-section.
 	networkDefaults := map[string]map[string]any{
@@ -112,7 +125,10 @@ func (d *AerospikeClusterDefaulter) defaultNetworkConfig(cluster *AerospikeClust
 	}
 
 	for name, defs := range networkDefaults {
-		section := getOrCreateMapSection(networkSection, name)
+		section, err := getOrCreateMapSection(networkSection, name)
+		if err != nil {
+			return err
+		}
 		for k, v := range defs {
 			if _, exists := section[k]; !exists {
 				section[k] = v
@@ -122,6 +138,7 @@ func (d *AerospikeClusterDefaulter) defaultNetworkConfig(cluster *AerospikeClust
 	}
 
 	config["network"] = networkSection
+	return nil
 }
 
 // defaultMonitoring sets default values for the monitoring spec when enabled.
@@ -161,15 +178,17 @@ func (d *AerospikeClusterDefaulter) defaultHostNetwork(cluster *AerospikeCluster
 }
 
 // getOrCreateMapSection returns the sub-map at key or creates a new one.
-func getOrCreateMapSection(m map[string]any, key string) map[string]any {
+// Returns an error when the key exists but is not a map (indicating invalid config).
+func getOrCreateMapSection(m map[string]any, key string) (map[string]any, error) {
 	if existing, ok := m[key]; ok {
 		if existingMap, ok := existing.(map[string]any); ok {
-			return existingMap
+			return existingMap, nil
 		}
+		return nil, fmt.Errorf("config key %q has type %T, expected map", key, existing)
 	}
 	newMap := make(map[string]any)
 	m[key] = newMap
-	return newMap
+	return newMap, nil
 }
 
 // +kubebuilder:webhook:path=/validate-acko-io-v1alpha1-aerospikecluster,mutating=false,failurePolicy=fail,sideEffects=None,groups=acko.io,resources=aerospikeclusters,verbs=create;update,versions=v1alpha1,name=vaerospikecluster.kb.io,admissionReviewVersions=v1
@@ -625,6 +644,8 @@ func parseMajorVersion(image string) (int, error) {
 	if !ok {
 		return 0, fmt.Errorf("tag %q does not contain a version", tag)
 	}
+	// Strip leading 'v' to handle tags like "v8.1.1" in addition to "8.1.1".
+	before = strings.TrimPrefix(before, "v")
 	return strconv.Atoi(before)
 }
 

@@ -39,6 +39,16 @@ import (
 const (
 	defaultReconcileRetryInterval = 5 * time.Second
 
+	// restartRequeueInterval is the requeue interval used after a rolling restart
+	// batch. Pod restart (delete + recreate + readiness) typically takes 30-60s,
+	// so polling every 5s is wasteful.
+	restartRequeueInterval = 15 * time.Second
+
+	// migrationRequeueInterval is the requeue interval used when scale-down or
+	// rolling restart is deferred due to active data migrations. Migrations can
+	// take minutes to hours, so polling every 5s creates unnecessary API server load.
+	migrationRequeueInterval = 30 * time.Second
+
 	// podReadyPollInterval is the requeue interval used when reconciliation
 	// completes successfully but not all pods are ready yet. The controller
 	// does not watch pod readiness events directly, so periodic polling is
@@ -435,7 +445,7 @@ func (r *AerospikeClusterReconciler) reconcileCluster(
 		return ctrl.Result{}, err
 	} else if deferred {
 		log.Info("Scale-down deferred due to data migration, requeuing")
-		return ctrl.Result{RequeueAfter: defaultReconcileRetryInterval}, nil
+		return ctrl.Result{RequeueAfter: migrationRequeueInterval}, nil
 	}
 
 	// Clean up removed racks
@@ -490,7 +500,7 @@ func (r *AerospikeClusterReconciler) reconcileCluster(
 				}
 				log.V(1).Info("Conflict setting RollingRestart phase, continuing reconcile", "rack", rack.ID)
 			}
-			return ctrl.Result{RequeueAfter: defaultReconcileRetryInterval}, nil
+			return ctrl.Result{RequeueAfter: restartRequeueInterval}, nil
 		}
 	}
 

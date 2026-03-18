@@ -215,12 +215,29 @@ func (r *AerospikeClusterReconciler) reconcileUsers(
 		}
 	}
 
-	// Drop orphaned users (protect the admin user the operator connects as)
+	// Drop orphaned users (protect the admin user the operator connects as).
+	// Also protect the previously-configured admin user when the admin user name is
+	// being changed: if we dropped the old admin before the new one is fully operational,
+	// the operator would lose its connection credentials on the next reconcile.
 	adminUser := utils.FindAdminUser(cluster.Spec.AerospikeAccessControl)
+	var prevAdminUser *ackov1alpha1.AerospikeUserSpec
+	if cluster.Status.AppliedSpec != nil {
+		prevAdminUser = utils.FindAdminUser(cluster.Status.AppliedSpec.AerospikeAccessControl)
+	}
 	for _, user := range existingUsers {
 		if !desiredUsers[user.User] {
-			// Protect the connected admin user
+			// Protect the connected admin user.
 			if adminUser != nil && user.User == adminUser.Name {
+				continue
+			}
+			// Protect the previously-configured admin user during a rename to avoid
+			// locking the operator out before the new admin user is established.
+			if prevAdminUser != nil && user.User == prevAdminUser.Name && prevAdminUser.Name != adminUser.Name {
+				log.Info("Skipping drop of previous admin user during rename — ensure new admin is operational before next reconcile",
+					"previousAdmin", prevAdminUser.Name, "newAdmin", adminUser.Name)
+				r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventACLSyncError,
+					"Admin user rename detected: previous admin %q not dropped yet. Ensure new admin %q is operational, then remove the old user manually.",
+					prevAdminUser.Name, adminUser.Name)
 				continue
 			}
 			log.Info("Dropping orphaned user", "user", user.User)

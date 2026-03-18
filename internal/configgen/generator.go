@@ -50,7 +50,11 @@ func generateConfigCore(config map[string]any, writeNetwork networkWriter) (stri
 			if !ok {
 				return "", fmt.Errorf("logging must be a list")
 			}
-			b.WriteString(generateLoggingSection(logs))
+			logStr, err := generateLoggingSection(logs)
+			if err != nil {
+				return "", err
+			}
+			b.WriteString(logStr)
 
 		case SectionSecurity:
 			continue
@@ -159,18 +163,20 @@ func writeMapEntries(b *strings.Builder, m map[string]any, indent int) {
 //   - "console" or "stderr" -- generates a `console { ... }` block
 //   - "syslog" -- generates a `syslog { ... }` block
 //   - anything else -- treated as a file path, generating `file <name> { ... }`
-func generateLoggingSection(logs []any) string {
+//
+// Returns an error when any entry is not a map or is missing the required "name" key.
+func generateLoggingSection(logs []any) (string, error) {
 	var b strings.Builder
 	b.WriteString("logging {\n")
 
-	for _, entry := range logs {
+	for i, entry := range logs {
 		logMap, ok := entry.(map[string]any)
 		if !ok {
-			continue
+			return "", fmt.Errorf("logging entry %d is not a map (got %T)", i, entry)
 		}
 		name, _ := logMap["name"].(string)
 		if name == "" {
-			continue
+			return "", fmt.Errorf("logging entry %d is missing the required \"name\" key", i)
 		}
 
 		// Determine sink type from the name field.
@@ -201,7 +207,7 @@ func generateLoggingSection(logs []any) string {
 	}
 
 	b.WriteString("}\n")
-	return b.String()
+	return b.String(), nil
 }
 
 // formatValue formats a config value for aerospike.conf output.

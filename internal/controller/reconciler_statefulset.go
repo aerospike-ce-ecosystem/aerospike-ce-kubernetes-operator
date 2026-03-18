@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"strconv"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -112,12 +114,16 @@ func (r *AerospikeClusterReconciler) reconcileStatefulSet(
 	if scaleDown {
 		migrating, err := r.isMigrationInProgress(ctx, cluster)
 		if err != nil {
-			// Connection failure is non-fatal: log the error and proceed with
-			// the scale-down. This avoids permanently blocking the operator
-			// when the Aerospike cluster is unreachable (e.g. during initial deploy).
-			log.V(1).Info("Could not check migration status before scale-down, proceeding cautiously",
+			// Connection failure: treat as migrating to avoid scale-down during
+			// an unreachable cluster state (network blip, DNS delay, etc.).
+			// The operator will requeue and retry.
+			log.V(1).Info("Could not check migration status before scale-down, deferring scale-down",
 				"error", err, "rack", rack.ID)
-		} else if migrating {
+			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventScaleDownDeferred,
+				"Scale-down deferred for rack %d: migration check failed (%v)", rack.ID, err)
+			return true, nil
+		}
+		if migrating {
 			log.Info("Data migration in progress, deferring scale-down",
 				"rack", rack.ID, "currentReplicas", oldReplicas, "desiredReplicas", rackSize)
 			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventScaleDownDeferred,
@@ -328,6 +334,20 @@ func (r *AerospikeClusterReconciler) cleanupRemovedRacks(
 				log.Error(err, "Failed to delete cascade PVCs for removed rack", "statefulset", sts.Name)
 				r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventPVCCleanupFailed,
 					"Failed to delete cascade PVCs for removed rack %s: %v", sts.Name, err)
+			}
+			// Delete the associated ConfigMap for the removed rack.
+			// The ConfigMap name is derived from the StatefulSet name suffix (rackID).
+			rackIDStr := strings.TrimPrefix(sts.Name, cluster.Name+"-")
+			if rackID, convErr := strconv.Atoi(rackIDStr); convErr == nil {
+				cmName := utils.ConfigMapName(cluster.Name, rackID)
+				cm := &corev1.ConfigMap{}
+				if getErr := r.Get(ctx, types.NamespacedName{Name: cmName, Namespace: cluster.Namespace}, cm); getErr == nil {
+					if delErr := r.Delete(ctx, cm); delErr != nil && !errors.IsNotFound(delErr) {
+						log.Error(delErr, "Failed to delete ConfigMap for removed rack", "configmap", cmName)
+					} else {
+						log.Info("Deleted ConfigMap for removed rack", "configmap", cmName)
+					}
+				}
 			}
 			if err := r.Delete(ctx, sts); err != nil && !errors.IsNotFound(err) {
 				return err

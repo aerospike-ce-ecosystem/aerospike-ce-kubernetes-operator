@@ -155,6 +155,9 @@ func DeletePVCsForStatefulSet(ctx context.Context, c client.Client, namespace, s
 
 	for i := range pvcs {
 		if err := c.Delete(ctx, &pvcs[i]); err != nil {
+			if kerrors.IsNotFound(err) {
+				continue // already deleted (concurrent deletion)
+			}
 			return fmt.Errorf("deleting PVC %s: %w", pvcs[i].Name, err)
 		}
 	}

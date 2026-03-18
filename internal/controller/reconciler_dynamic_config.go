@@ -25,46 +25,48 @@ type appliedChange struct {
 }
 
 // tryDynamicConfigUpdate attempts to apply config changes dynamically without
-// restarting pods. Returns true if all changes were applied dynamically and
-// no restart is needed.
+// restarting pods. Returns (true, node, applied) if all changes were applied
+// dynamically and no restart is needed. On failure, the applied changes for
+// that pod are rolled back internally before returning (false, nil, nil).
+// The returned node and applied slice are used by callers for cross-pod rollback.
 func (r *AerospikeClusterReconciler) tryDynamicConfigUpdate(
 	ctx context.Context,
 	cluster *ackov1alpha1.AerospikeCluster,
 	pod *corev1.Pod,
 	oldConfig, newConfig map[string]any,
 	aeroClient *aero.Client,
-) bool {
+) (bool, *aero.Node, []appliedChange) {
 	log := logf.FromContext(ctx).WithValues("pod", pod.Name, "cluster", cluster.Name)
 
 	// Check if dynamic config update is enabled
 	if cluster.Spec.EnableDynamicConfigUpdate == nil || !*cluster.Spec.EnableDynamicConfigUpdate {
-		return false
+		return false, nil, nil
 	}
 
 	// Diff the configs
 	diff := configdiff.Diff(oldConfig, newConfig)
 	if !diff.HasChanges() {
-		return true // No changes at all
+		return true, nil, nil // No changes at all
 	}
 
 	// If there are static changes, dynamic update alone is not sufficient
 	if diff.HasStaticChanges() {
 		log.Info("Config has static changes, dynamic update not sufficient",
 			"staticChanges", len(diff.Static))
-		return false
+		return false, nil, nil
 	}
 
 	// Find the node corresponding to this pod
 	node := findNodeForPod(aeroClient, pod)
 	if node == nil {
 		log.Info("Could not find Aerospike node for pod, skipping dynamic update")
-		return false
+		return false, nil, nil
 	}
 
 	// Pre-flight: validate all changes before applying any
 	if err := validateDynamicChanges(diff.Dynamic); err != nil {
 		log.Error(err, "Pre-flight validation failed for dynamic config changes")
-		return false
+		return false, nil, nil
 	}
 
 	// Apply each dynamic change, tracking successfully applied changes for rollback.
@@ -77,7 +79,7 @@ func (r *AerospikeClusterReconciler) tryDynamicConfigUpdate(
 			r.rollbackDynamicChanges(log, node, applied)
 			log.Info("Rolled back partial dynamic config changes, falling back to cold restart",
 				"appliedBeforeFailure", len(applied))
-			return false
+			return false, nil, nil
 		}
 		log.Info("Applying dynamic config", "command", cmd, "index", i, "total", len(diff.Dynamic))
 
@@ -88,7 +90,7 @@ func (r *AerospikeClusterReconciler) tryDynamicConfigUpdate(
 			r.rollbackDynamicChanges(log, node, applied)
 			log.Info("Rolled back partial dynamic config changes, falling back to cold restart",
 				"appliedBeforeFailure", len(applied))
-			return false
+			return false, nil, nil
 		}
 		if result != "ok" {
 			log.Info("Dynamic config command returned non-ok", "command", cmd, "result", result)
@@ -96,7 +98,7 @@ func (r *AerospikeClusterReconciler) tryDynamicConfigUpdate(
 			r.rollbackDynamicChanges(log, node, applied)
 			log.Info("Rolled back partial dynamic config changes, falling back to cold restart",
 				"appliedBeforeFailure", len(applied))
-			return false
+			return false, nil, nil
 		}
 
 		// Build rollback command using the old value.
@@ -145,7 +147,7 @@ func (r *AerospikeClusterReconciler) tryDynamicConfigUpdate(
 	// Update pod status with dynamic config status
 	r.updateDynamicConfigStatus(ctx, cluster, pod.Name, "Applied")
 
-	return true
+	return true, node, applied
 }
 
 // buildSetConfigCommand builds the asinfo set-config command for a change.

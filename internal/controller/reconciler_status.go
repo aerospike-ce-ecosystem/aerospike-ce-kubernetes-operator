@@ -338,6 +338,8 @@ func buildPodStatus(
 	lastRestartReason := prev.LastRestartReason
 	lastRestartTime := prev.LastRestartTime
 	migratingPartitions := prev.MigratingPartitions
+	dynamicConfigStatus := prev.DynamicConfigStatus
+	initializedVolumes := prev.InitializedVolumes
 
 	// Track pod instability: set UnstableSince on first NotReady, preserve it
 	// while still NotReady, clear it when the pod becomes Ready.
@@ -372,6 +374,8 @@ func buildPodStatus(
 		LastRestartTime:        lastRestartTime,
 		UnstableSince:          unstableSince,
 		MigratingPartitions:    migratingPartitions,
+		DynamicConfigStatus:    dynamicConfigStatus,
+		InitializedVolumes:     initializedVolumes,
 	}
 }
 
@@ -440,6 +444,18 @@ func setCondition(cluster *ackov1alpha1.AerospikeCluster, condType string, statu
 	cluster.Status.Conditions = append(cluster.Status.Conditions, newCond)
 }
 
+// removeCondition removes a condition from the cluster's status conditions slice.
+// No-op if the condition is not present.
+func removeCondition(cluster *ackov1alpha1.AerospikeCluster, condType string) {
+	conditions := cluster.Status.Conditions[:0]
+	for _, c := range cluster.Status.Conditions {
+		if c.Type != condType {
+			conditions = append(conditions, c)
+		}
+	}
+	cluster.Status.Conditions = conditions
+}
+
 // setFineGrainedConditions sets all fine-grained status conditions:
 // ConfigApplied, ReconciliationPaused, ACLSynced, MigrationComplete.
 // Called from updateStatusAndPhase after populateStatus.
@@ -465,7 +481,7 @@ func setFineGrainedConditions(cluster *ackov1alpha1.AerospikeCluster, o StatusUp
 	setCondition(cluster, ackov1alpha1.ConditionReconciliationPaused, o.Paused,
 		"ReconciliationPaused", "Reconciliation is paused by user (spec.paused=true)")
 
-	// ACLSynced — only set if ACL is configured
+	// ACLSynced — only set if ACL is configured; cleared when ACL is removed.
 	if cluster.Spec.AerospikeAccessControl != nil {
 		if o.ACLErr != nil {
 			setCondition(cluster, ackov1alpha1.ConditionACLSynced, false,
@@ -477,16 +493,20 @@ func setFineGrainedConditions(cluster *ackov1alpha1.AerospikeCluster, o StatusUp
 			setCondition(cluster, ackov1alpha1.ConditionACLSynced, false,
 				"ACLSyncPending", "ACL sync skipped: no ready pods available")
 		}
+	} else {
+		// ACL was removed: clear any stale ACLSynced condition to avoid confusion.
+		removeCondition(cluster, ackov1alpha1.ConditionACLSynced)
 	}
 
-	// MigrationComplete — set to False while rolling restart is in progress.
-	// When phase == Completed, updateMigrationStatus → applyMigrationStats will
-	// overwrite this condition with the actual migration state from the Aerospike
-	// cluster. We still set it here so that non-Completed phases (e.g., RollingRestart)
-	// always have a MigrationComplete=False condition.
+	// MigrationComplete — set to False while rolling restart is in progress,
+	// True otherwise as a default. When phase == Completed, updateMigrationStatus
+	// → applyMigrationStats will overwrite this with the actual cluster migration state.
 	if o.RestartInProgress {
 		setCondition(cluster, ackov1alpha1.ConditionMigrationComplete, false,
 			"MigrationComplete", "Rolling restart in progress")
+	} else {
+		setCondition(cluster, ackov1alpha1.ConditionMigrationComplete, true,
+			"MigrationComplete", "No rolling restart in progress")
 	}
 }
 

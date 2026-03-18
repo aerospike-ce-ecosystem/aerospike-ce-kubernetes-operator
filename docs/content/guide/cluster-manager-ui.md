@@ -90,6 +90,18 @@ kubectl -n aerospike-operator port-forward svc/acko-aerospike-ce-kubernetes-oper
 
 ![Cluster ACKO INFO](/img/ui/cluster-acko-info.png)
 
+### Migration Status Display
+
+클러스터가 스케일링이나 설정 변경 등으로 파티션 마이그레이션이 진행 중일 때, Overview 페이지에서 실시간 마이그레이션 상태를 확인할 수 있습니다.
+
+- **실시간 진행률** — 남은 파티션 수와 프로그레스 바로 마이그레이션 진행 상황을 표시합니다.
+- **Pod별 마이그레이션 분석** — 각 Pod가 마이그레이션하고 있는 파티션 수를 Pod 테이블에서 확인할 수 있습니다.
+- **자동 새로고침** — 마이그레이션이 활성화된 동안 5초 간격으로 자동 갱신됩니다.
+- **시각적 표시** — 프로그레스 바와 상태 배지로 마이그레이션 상태를 직관적으로 표현합니다.
+- **랙 토폴로지 통합** — 랙 토폴로지 뷰에서 마이그레이션 중인 Pod가 하이라이트됩니다.
+
+마이그레이션이 완료되면 상태 표시가 자동으로 사라지며, 클러스터가 안정(Stable) 상태로 전환됩니다.
+
 ### Disconnected State
 
 Aerospike 연결이 끊어진 경우 Overview 및 Browser 페이지에서 스켈레톤 로딩 대신 연결 해제 상태 화면이 표시됩니다. `WifiOff` 아이콘과 함께 재연결을 안내하는 메시지가 나타납니다.

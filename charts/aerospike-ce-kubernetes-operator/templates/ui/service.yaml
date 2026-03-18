@@ -17,10 +17,12 @@ spec:
       port: {{ .Values.ui.service.frontendPort }}
       targetPort: frontend
       protocol: TCP
+      appProtocol: http
     - name: backend
       port: {{ .Values.ui.service.backendPort }}
       targetPort: backend
       protocol: TCP
+      appProtocol: http
   selector:
     {{- include "aerospike-ce-kubernetes-operator.ui.selectorLabels" . | nindent 4 }}
 {{- end }}

@@ -66,6 +66,125 @@ helm show values oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-oper
 ```
 
 </TabItem>
+<TabItem value="helm-gitops" label="Helm + GitOps (ArgoCD / Flux)">
+
+GitOps 환경에서는 오퍼레이터 라이프사이클과 독립적으로 관리할 수 있도록 CRD를 별도로 설치합니다.
+
+**Step 1: 클러스터당 한 번 CRD 설치**
+
+```bash
+helm install aerospike-ce-kubernetes-operator-crds oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator-crds \
+  --version 0.1.0
+```
+
+CRD는 `helm.sh/resource-policy: keep` 어노테이션이 있어 `helm uninstall` 시에도 **삭제되지 않아** 클러스터 데이터를 보호합니다.
+
+**Step 2: 오퍼레이터 설치 (CRD 설치 건너뛰기)**
+
+```bash
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
+  --version 0.1.0 \
+  --set crds.install=false \
+  -n aerospike-operator --create-namespace
+```
+
+**ArgoCD 예제 (sync-wave)**
+
+```yaml
+# Application 1: CRDs — 자동 정리하지 않음
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: aerospike-ce-kubernetes-operator-crds
+  annotations:
+    argocd.argoproj.io/sync-options: Replace=true
+spec:
+  source:
+    repoURL: ghcr.io/kimsoungryoul/charts
+    chart: aerospike-ce-kubernetes-operator-crds
+    targetRevision: "0.1.0"
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+---
+# Application 2: Operator
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: aerospike-ce-kubernetes-operator
+spec:
+  source:
+    repoURL: ghcr.io/kimsoungryoul/charts
+    chart: aerospike-ce-kubernetes-operator
+    targetRevision: "0.1.0"
+    helm:
+      values: |
+        crds:
+          install: false
+  destination:
+    namespace: aerospike-operator
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+```
+
+**Flux 예제**
+
+```yaml
+# HelmRepository (OCI) — 두 HelmRelease가 공유
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: aerospike-ce-kubernetes-operator
+  namespace: flux-system
+spec:
+  type: oci
+  url: oci://ghcr.io/kimsoungryoul/charts
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: aerospike-ce-kubernetes-operator-crds
+  namespace: flux-system
+spec:
+  chart:
+    spec:
+      chart: aerospike-ce-kubernetes-operator-crds
+      version: "0.1.0"
+      sourceRef:
+        kind: HelmRepository
+        name: aerospike-ce-kubernetes-operator
+  install:
+    crds: CreateReplace
+  upgrade:
+    crds: CreateReplace
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: aerospike-ce-kubernetes-operator
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: aerospike-ce-kubernetes-operator-crds
+  targetNamespace: aerospike-operator
+  chart:
+    spec:
+      chart: aerospike-ce-kubernetes-operator
+      version: "0.1.0"
+      sourceRef:
+        kind: HelmRepository
+        name: aerospike-ce-kubernetes-operator
+  values:
+    crds:
+      install: false
+```
+
+</TabItem>
 <TabItem value="local-build" label="로컬 빌드">
 
 소스에서 직접 빌드하는 개발자/기여자용 방법입니다.
@@ -255,11 +374,20 @@ helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts
 
 ## Cluster Manager UI (선택사항)
 
-[Aerospike Cluster Manager](https://github.com/KimSoungRyoul/aerospike-cluster-manager)는 Aerospike CE 클러스터의 레코드 탐색, 인덱스 관리, AQL 쿼리 실행, 모니터링을 위한 웹 기반 GUI 도구입니다.
+[Aerospike Cluster Manager](https://github.com/KimSoungRyoul/aerospike-cluster-manager)는 Aerospike CE 클러스터를 관리하기 위한 웹 기반 GUI입니다 -- 레코드 탐색, 쿼리 빌더, 인덱스 관리, K8s 클러스터 라이프사이클 등을 제공합니다.
 
-**주요 기능:** 클러스터 대시보드, 네임스페이스/셋 탐색, 레코드 CRUD, 쿼리 빌더, 보조 인덱스 관리, 사용자/역할 관리, UDF 관리, AQL 터미널.
+### 오퍼레이터와 클러스터 매니저의 관계
 
-UI는 Helm 차트에 내장되어 오퍼레이터와 함께 배포됩니다. 클러스터 연결 프로필을 저장하기 위한 임베디드 PostgreSQL 사이드카(PVC 포함)가 함께 실행됩니다.
+Aerospike CE Kubernetes Operator와 Aerospike Cluster Manager는 함께 동작하는 두 개의 별도 컴포넌트입니다:
+
+- **오퍼레이터** (`aerospike-ce-kubernetes-operator`): `AerospikeCluster`와 `AerospikeClusterTemplate` 커스텀 리소스를 감시하고 원하는 상태를 조정하는 Kubernetes 컨트롤러입니다 -- StatefulSet, Service, ConfigMap을 생성하고 롤링 업데이트, 스케일링, 랙 관리를 수행합니다.
+- **클러스터 매니저** (`aerospike-cluster-manager`): Aerospike 클러스터(데이터 작업, 모니터링)와 Kubernetes API(CRD를 통한 클러스터 라이프사이클)를 모두 다루는 GUI를 제공하는 웹 애플리케이션(Next.js 프론트엔드 + FastAPI 백엔드)입니다.
+
+Helm 차트에서 `ui.enabled=true`를 설정하면 클러스터 매니저가 오퍼레이터와 동일한 네임스페이스에 별도 Deployment로 배포됩니다. 클러스터 매니저는 다음과 통신합니다:
+1. **Aerospike 클러스터** — 데이터 작업(레코드 탐색, AQL, 인덱스 관리, UDF 관리)을 위해 Aerospike 와이어 프로토콜로 직접 통신
+2. **Kubernetes API** — 클러스터 라이프사이클 작업(`AerospikeCluster` CR의 생성, 스케일, 편집, 삭제)을 위해 통신하며, 이후 오퍼레이터가 조정
+
+오퍼레이터는 클러스터 매니저와 독립적으로 동작합니다 -- `kubectl`과 YAML 매니페스트만으로도 클러스터를 완전히 관리할 수 있습니다. 클러스터 매니저는 단순히 편리한 GUI 레이어를 제공합니다.
 
 ### UI 활성화
 

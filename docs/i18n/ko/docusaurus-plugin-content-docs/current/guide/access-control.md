@@ -139,6 +139,96 @@ spec:
 - `read-write.myns` — `myns` 네임스페이스에 대한 읽기/쓰기
 - `write.myns.myset` — `myns` 내 `myset` 셋에 대한 쓰기
 
+## 역할 화이트리스트 (IP 허용 목록)
+
+각 커스텀 역할에 `whitelist` 필드를 포함하여 해당 역할로 인증할 수 있는 클라이언트 IP 주소를 제한할 수 있습니다. 화이트리스트 CIDR은 Aerospike 서버 레벨에서 적용되어, Kubernetes NetworkPolicy 외에 추가적인 네트워크 기반 접근 제어 계층을 제공합니다.
+
+```yaml
+spec:
+  aerospikeAccessControl:
+    roles:
+      - name: internal-reader
+        privileges:
+          - read.data
+        whitelist:
+          - "10.0.0.0/8"         # 내부 네트워크만 허용
+          - "172.16.0.0/12"
+      - name: monitoring-role
+        privileges:
+          - read
+        whitelist:
+          - "10.100.0.0/16"      # 모니터링 서브넷만 허용
+    users:
+      - name: admin
+        secretName: admin-secret
+        roles:
+          - sys-admin
+          - user-admin
+      - name: internal-app
+        secretName: internal-app-secret
+        roles:
+          - internal-reader
+      - name: prometheus
+        secretName: prometheus-secret
+        roles:
+          - monitoring-role
+```
+
+**화이트리스트 사용 시기:**
+
+- 데이터베이스 접근을 특정 애플리케이션 서브넷으로 제한
+- 모니터링 접근을 Prometheus/Grafana 네트워크 범위로 제한
+- Kubernetes NetworkPolicy와 함께 심층 방어 구현
+
+:::note
+화이트리스트는 역할별로 적용됩니다. 사용자가 여러 역할을 가진 경우, 할당된 역할 중 하나라도 허용하는 IP에서 접속할 수 있습니다. 내장 역할(예: `read-write`)은 화이트리스트를 지원하지 않으므로, 이 기능을 사용하려면 커스텀 역할을 생성해야 합니다.
+:::
+
+## Admin 정책
+
+`adminPolicy` 필드는 오퍼레이터가 수행하는 관리 API 작업(사용자/역할 생성, 비밀번호 변경 등)의 타임아웃을 설정합니다. Aerospike 클러스터가 높은 부하 상태에 있고 관리 작업이 기본 2초 타임아웃보다 오래 걸릴 수 있을 때 유용합니다.
+
+```yaml
+spec:
+  aerospikeAccessControl:
+    adminPolicy:
+      timeout: 5000    # 5초 (기본값: 2000ms)
+    users:
+      - name: admin
+        secretName: admin-secret
+        roles:
+          - sys-admin
+          - user-admin
+```
+
+| 필드 | 기본값 | 범위 | 설명 |
+|------|--------|------|------|
+| `timeout` | `2000` | 100 -- 30000 ms | 관리 작업 타임아웃 (밀리초) |
+
+특히 다수의 사용자/역할이 있는 초기 클러스터 생성 시 또는 높은 부하 상태에서 타임아웃 관련 오류 메시지와 함께 `ACLSyncError` 이벤트가 발생하면 이 값을 증가시키세요.
+
+## 비밀번호 교체
+
+오퍼레이터는 `aerospikeAccessControl.users[*].secretName`에서 참조하는 Kubernetes Secret을 감시합니다. Secret의 데이터가 변경되면 오퍼레이터는 AerospikeCluster CR을 변경할 필요 없이 업데이트된 비밀번호를 Aerospike에 자동으로 동기화합니다.
+
+```bash
+# Secret을 업데이트하여 사용자 비밀번호 교체
+kubectl -n aerospike create secret generic app-secret \
+  --from-literal=password='new-password-here' \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+이벤트를 통해 동기화를 확인합니다:
+
+```bash
+kubectl get events --field-selector reason=ACLSyncStarted -n aerospike
+kubectl get events --field-selector reason=ACLSyncCompleted -n aerospike
+```
+
+:::info
+AerospikeCluster의 ACL 설정에서 활발히 참조하는 Secret만 재조정을 트리거합니다. 동일한 네임스페이스의 관련 없는 Secret 변경은 무시됩니다.
+:::
+
 ## Webhook 검증 규칙
 
 오퍼레이터의 admission webhook은 다음 ACL 규칙을 적용합니다.

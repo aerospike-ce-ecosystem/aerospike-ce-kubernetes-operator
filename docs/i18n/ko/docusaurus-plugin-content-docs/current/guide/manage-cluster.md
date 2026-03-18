@@ -65,6 +65,20 @@ spec:
 퍼센트 문자열은 `%` 접미사를 포함해야 합니다 (예: `"50%"`). 퍼센트는 랙당 총 파드 수에 대해 계산되며, 최소 1로 올림됩니다.
 :::
 
+#### 배치 재시작 복원력
+
+여러 파드를 배치로 재시작할 때, 개별 파드 재시작이 실패하면 전체 배치를 중단하지 않고 다음 파드로 계속 진행합니다:
+
+- 배치의 3개 파드 중 1개가 재시작에 실패해도 나머지 2개는 정상적으로 재시작됩니다
+- 실패한 파드는 `RestartFailed` 경고 이벤트로 기록 및 보고됩니다
+- 배치의 **모든** 파드가 실패한 경우에만 오류를 반환합니다
+- 다음 재조정에서 성공적으로 재시작되지 않은 파드만 재시도됩니다
+
+```bash
+# 재시작 실패 확인
+kubectl get events --field-selector reason=RestartFailed -n aerospike
+```
+
 ### 스케일 다운 배치 크기
 
 스케일 다운 시 랙당 동시에 제거하는 파드 수를 제어합니다:
@@ -115,6 +129,49 @@ spec:
 ```
 
 활성화하면, 오퍼레이터가 Aerospike의 `set-config` 명령을 사용하여 가능한 경우 런타임에 설정 변경을 적용합니다. 동적으로 적용할 수 없는 변경만 롤링 재시작을 트리거합니다.
+
+#### 동적으로 변경 가능한 설정
+
+대부분의 Aerospike service 및 namespace 파라미터는 동적으로 변경 가능합니다. 예시:
+
+| 카테고리 | 동적 파라미터 |
+|----------|--------------|
+| Service | `proto-fd-max`, `transaction-pending-limit`, `batch-max-buffers-per-queue` |
+| Namespace | `high-water-memory-pct`, `high-water-disk-pct`, `stop-writes-pct`, `nsup-period`, `default-ttl` |
+| 동적 아님 | `replication-factor`, `storage-engine type`, `name` (재시작 필요) |
+
+#### 부분 실패 시 롤백
+
+여러 동적 설정 변경을 적용할 때, 오퍼레이터는 성공적으로 적용된 각 변경을 추적합니다. 중간에 변경이 실패하면:
+
+1. 오퍼레이터가 이전에 적용된 모든 변경을 원래 값으로 **역순 롤백**합니다
+2. 롤백은 최선 노력(best-effort)입니다 — 롤백 명령도 실패하면 로그에 기록하지만 진행을 차단하지 않습니다
+3. 롤백 후 올바른 설정을 원자적으로 적용하기 위해 **콜드 리스타트**로 폴백합니다
+
+이를 통해 부분적으로 적용된 설정으로 클러스터가 실행되는 것을 방지합니다. 오퍼레이터 로그에서 롤백 활동을 확인할 수 있습니다:
+
+```bash
+kubectl -n aerospike-operator logs -l control-plane=controller-manager | grep -i "rollback\|dynamic config"
+```
+
+#### 사전 검증
+
+동적 변경을 적용하기 전, 오퍼레이터는 모든 변경을 배치로 검증합니다. 파라미터 값에 잘못된 문자(예: `;` 또는 `:`)가 포함되어 있으면 `set-config` 명령이 전송되기 전에 전체 배치가 거부됩니다. 이를 통해 명백히 잘못된 입력으로 인한 부분 적용을 방지합니다.
+
+#### dynamicConfigStatus 확인
+
+`enableDynamicConfigUpdate: true`로 설정 변경 후 파드별 상태를 확인합니다:
+
+```bash
+kubectl -n aerospike get asc aerospike-ce-3node -o jsonpath='{.status.pods}' | jq '.[] | {name: .podName, dynamicConfig: .dynamicConfigStatus}'
+```
+
+| 상태 | 의미 |
+|--------|---------|
+| `Applied` | 런타임에 동적 설정이 성공적으로 적용됨 |
+| `Failed` | 동적 업데이트 실패 — 롤링 리스타트가 트리거됨 |
+| `Pending` | 오퍼레이터의 변경 적용 대기 중 |
+| (비어있음) | 동적 설정 변경이 시도되지 않음 |
 
 ## Pod Readiness Gates
 
@@ -244,24 +301,149 @@ deriv(acko_cluster_migrating_partitions[10m]) >= 0
 `status.conditions`의 `MigrationComplete` 조건은 `migrationStatus.remainingPartitions`가 0에 도달하면 `True`로 설정됩니다. 전체 마이그레이션 상태를 파싱하지 않고 간단한 상태 확인에 활용하세요.
 :::
 
-## 재조정 일시 중지
+## 클러스터 상태 및 Conditions
 
-오퍼레이터의 재조정을 임시로 중지합니다:
+오퍼레이터는 `status` 서브리소스를 통해 상세한 상태 정보를 제공합니다. 이 필드들을 이해하면 모니터링과 트러블슈팅에 도움이 됩니다.
 
-```yaml
-spec:
-  paused: true
-```
+### Phase
 
-일시 중지된 동안 오퍼레이터는 모든 재조정을 건너뜁니다. 다시 `false`로 설정하거나 필드를 제거하면 재개됩니다.
+`status.phase` 필드는 오퍼레이터가 수행 중인 작업에 대한 높은 수준의 뷰를 제공합니다:
 
 ```bash
-# 일시 중지
+kubectl -n aerospike get asc
+```
+
+| Phase | 의미 |
+|---|---|
+| `Completed` | 클러스터가 정상이며 원하는 스펙과 일치 |
+| `InProgress` | 일반적인 재조정 진행 중 |
+| `ScalingUp` | 클러스터에 파드 추가 중 |
+| `ScalingDown` | 클러스터에서 파드 제거 중 |
+| `WaitingForMigration` | 데이터 마이그레이션 완료까지 스케일 다운 보류 |
+| `RollingRestart` | 롤링 리스타트 진행 중 (설정/이미지/파드스펙 변경) |
+| `ACLSync` | ACL 역할 및 사용자 동기화 중 |
+| `Paused` | 사용자에 의해 재조정 일시 중지됨 |
+| `Deleting` | 클러스터 해체 진행 중 |
+| `Error` | 복구 불가능한 오류; `status.lastReconcileError` 확인 |
+
+`status.phaseReason` 필드는 추가 컨텍스트를 제공합니다 (예: "Rolling restart in progress for rack 1").
+
+### Health
+
+`status.health` 필드는 "준비됨/전체" 형태의 빠른 요약을 제공합니다:
+
+```bash
+kubectl -n aerospike get asc aerospike-ce-3node -o jsonpath='{.status.health}'
+# 출력: 3/3
+```
+
+`2/3` 값은 3개 파드 중 2개가 준비되었음을 의미합니다. `kubectl get asc` 출력의 `HEALTH` 컬럼에 매핑됩니다.
+
+### Conditions
+
+오퍼레이터는 클러스터 상태의 상세한 분석을 제공하는 6가지 조건 유형을 유지합니다:
+
+```bash
+kubectl -n aerospike get asc aerospike-ce-3node -o jsonpath='{.status.conditions}' | jq .
+```
+
+| Condition | True인 경우 |
+|---|---|
+| `Available` | 최소 하나의 파드가 요청을 처리할 준비됨 |
+| `Ready` | 모든 원하는 파드가 실행 중이며 준비됨 |
+| `ConfigApplied` | 모든 파드에 원하는 Aerospike 설정이 적용됨 |
+| `ACLSynced` | ACL 역할과 사용자가 스펙과 일치 |
+| `MigrationComplete` | 보류 중인 데이터 마이그레이션이 없음 |
+| `ReconciliationPaused` | `spec.paused`가 `true` |
+
+**예시: 클러스터가 완전히 정상인지 확인**
+
+`Ready`, `ConfigApplied`, `MigrationComplete`, `ACLSynced`(ACL 설정된 경우)가 모두 `True`이면 완전히 정상입니다:
+
+```bash
+kubectl -n aerospike get asc aerospike-ce-3node \
+  -o jsonpath='{range .status.conditions[*]}{.type}={.status}{"\n"}{end}'
+```
+
+예상 정상 출력:
+```
+Available=True
+Ready=True
+ConfigApplied=True
+ACLSynced=True
+MigrationComplete=True
+ReconciliationPaused=False
+```
+
+### Aerospike 클러스터 크기 vs Kubernetes 파드 수
+
+`status.aerospikeClusterSize` 필드는 Aerospike의 `asinfo` 명령이 보고하는 클러스터 크기를 반영합니다. 다음 상황에서 `status.size`(준비된 Kubernetes 파드 수)와 일시적으로 다를 수 있습니다:
+
+- 롤링 리스타트 (파드가 교체되는 중)
+- 네트워크 파티션 (split-brain 시나리오)
+- 파드 시작 (Aerospike가 아직 mesh에 참여하지 않음)
+
+```bash
+kubectl -n aerospike get asc aerospike-ce-3node \
+  -o jsonpath='K8s pods: {.status.size}, Aerospike cluster-size: {.status.aerospikeClusterSize}'
+```
+
+이 값들이 장시간 다르면 파드 연결성과 mesh heartbeat 설정을 조사하세요.
+
+## Secret 트리거 ACL 동기화
+
+오퍼레이터는 `aerospikeAccessControl.users[*].secretName`으로 참조되는 Kubernetes Secret을 감시합니다. Secret의 데이터가 변경되면(예: 비밀번호 교체) AerospikeCluster CR에 대한 변경 없이 오퍼레이터가 자동으로 재조정을 트리거하여 업데이트된 비밀번호를 Aerospike에 동기화합니다.
+
+이를 통해 제로 터치 비밀번호 교체 워크플로우를 구현할 수 있습니다:
+
+```bash
+# Secret 업데이트로 사용자 비밀번호 교체
+kubectl -n aerospike create secret generic app-secret \
+  --from-literal=password='new-password-here' \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+오퍼레이터가 Secret 데이터 변경을 감지하고 Aerospike에서 사용자 비밀번호를 업데이트하는 ACL 동기화를 실행합니다. 이벤트로 동기화를 확인할 수 있습니다:
+
+```bash
+kubectl get events --field-selector reason=ACLSyncStarted -n aerospike
+kubectl get events --field-selector reason=ACLSyncCompleted -n aerospike
+```
+
+:::info
+AerospikeCluster의 ACL 설정에서 실제로 참조하는 Secret만 재조정을 트리거합니다. 동일 네임스페이스의 관련 없는 Secret 변경은 무시됩니다.
+:::
+
+## 재조정 일시 중지 및 재개
+
+`spec.paused: true`를 설정하여 오퍼레이터가 클러스터를 재조정하지 않도록 임시로 중지할 수 있습니다. 일시 중지된 동안 스케일링, 롤링 리스타트, 설정 변경, ACL 동기화 등 모든 재조정이 수행되지 않습니다. 클러스터 phase가 `Paused`로 변경되고 `ReconciliationPaused` 조건이 `True`로 설정됩니다.
+
+**일시 중지가 필요한 경우:**
+
+- 계획된 인프라 유지보수 중 (노드 업그레이드, 스토리지 마이그레이션)
+- 수동 디버깅 중 오퍼레이터의 간섭 방지
+- 단일 배치로 적용하려는 여러 스펙 변경 전
+- 오퍼레이터의 재시도 없이 멈춘 클러스터를 조사할 때
+
+```bash
+# 재조정 일시 중지
 kubectl -n aerospike patch asc aerospike-ce-3node --type merge -p '{"spec":{"paused":true}}'
 
-# 재개
+# 일시 중지 상태 확인
+kubectl -n aerospike get asc aerospike-ce-3node -o jsonpath='{.status.phase}'
+# 출력: Paused
+```
+
+재조정을 재개하려면 `paused`를 `false`로 설정하거나 완전히 제거합니다. 오퍼레이터가 즉시 원하는 상태를 향해 클러스터를 재조정하기 시작합니다:
+
+```bash
+# 재조정 재개
 kubectl -n aerospike patch asc aerospike-ce-3node --type merge -p '{"spec":{"paused":null}}'
 ```
+
+:::warning
+일시 중지는 Aerospike 클러스터 자체를 중지하지 않습니다 — 파드는 계속 실행되며 트래픽을 처리합니다. 오퍼레이터가 클러스터의 Kubernetes 리소스를 변경하는 것만 중지됩니다.
+:::
 
 ## 온디맨드 오퍼레이션
 
@@ -416,6 +598,28 @@ storage:
           storageClass: standard
           size: 10Gi
       # filesystemVolumePolicy에서 cascadeDelete: true 상속
+```
+
+#### 스케일 다운 시 PVC 정리 안전성
+
+스케일 다운 중 오퍼레이터는 PVC를 삭제하기 전에 모든 스케일 다운된 파드가 완전히 종료되었는지 확인합니다. 이는 파드의 Aerospike 프로세스가 아직 데이터를 쓰는 중에 PVC가 삭제되는 경합 조건을 방지합니다.
+
+스케일 다운된 파드가 아직 실행 중이거나 종료 중이면 PVC 정리는 다음 재조정 사이클로 **지연**됩니다. 오퍼레이터는 다음과 같이 로그를 남깁니다:
+
+```
+Deferring PVC cleanup: scaled-down pods still terminating
+```
+
+모든 스케일 다운된 파드가 종료 확인되면 오퍼레이터는 `cascadeDelete: true`인 볼륨의 PVC만 삭제합니다. 비 cascade PVC는 항상 보존됩니다.
+
+이벤트로 PVC 정리 활동을 모니터링할 수 있습니다:
+
+```bash
+# 성공적인 정리
+kubectl get events --field-selector reason=PVCCleanedUp -n aerospike
+
+# 실패한 정리
+kubectl get events --field-selector reason=PVCCleanupFailed -n aerospike
 ```
 
 ### 볼륨 초기화 방법
@@ -597,6 +801,61 @@ spec:
     egress: "1Gbps"
 ```
 
+## HorizontalPodAutoscaler (HPA)
+
+AerospikeCluster는 `scale` 서브리소스를 지원하여 Kubernetes HPA와 통합할 수 있습니다. 오퍼레이터는 HPA 호환성을 위해 `status.selector`와 `status.size`를 노출합니다.
+
+### HPA 생성
+
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: aerospike-hpa
+  namespace: aerospike
+spec:
+  scaleTargetRef:
+    apiVersion: acko.io/v1alpha1
+    kind: AerospikeCluster
+    name: aerospike-ce-3node
+  minReplicas: 2
+  maxReplicas: 8    # CE 최대값
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+```
+
+```bash
+kubectl apply -f hpa.yaml
+```
+
+### HPA 상태 확인
+
+```bash
+kubectl -n aerospike get hpa aerospike-hpa
+```
+
+:::warning
+CE 에디션은 최대 클러스터 크기가 8 노드입니다. `maxReplicas`를 8 이하로 설정하세요.
+HPA는 `spec.size`를 스케일링하며, 이는 오퍼레이터의 일반적인 스케일링 로직(랙 인식 분배, 마이그레이션 인식 스케일 다운)을 트리거합니다.
+:::
+
+:::note
+HPA를 사용할 때는 `spec.size`를 수동으로 변경하지 마세요 — 오토스케일러가 관리하도록 합니다. 일시적으로 오버라이드해야 하면 먼저 HPA를 일시 중지하세요.
+:::
+
+---
+
 ## Pod Disruption Budget
 
 기본적으로 오퍼레이터는 유지보수 중 클러스터를 보호하기 위해 PodDisruptionBudget을 생성합니다.
@@ -751,6 +1010,33 @@ kubectl -n aerospike get asc aerospike-ce-3node -o jsonpath='{.status.pods}' | j
 kubectl -n aerospike-operator logs -l control-plane=controller-manager -f
 ```
 
+### 서킷 브레이커와 지수 백오프
+
+오퍼레이터는 지속적으로 실패하는 클러스터에 대한 과도한 재시도를 방지하기 위해 내장 서킷 브레이커를 포함합니다. **10회 연속 재조정 실패** 후 오퍼레이터가 백오프 상태에 진입합니다:
+
+| 연속 실패 횟수 | 백오프 지연 |
+|---------------------|---------------|
+| 1 | 2초 |
+| 2 | 4초 |
+| 3 | 8초 |
+| 5 | 32초 |
+| 8+ | ~4.3분 (256초 상한) |
+
+서킷 브레이커가 활성화된 동안 `CircuitBreakerActive` 경고 이벤트가 실패 횟수 및 마지막 오류와 함께 발생합니다. 재조정이 성공하면 카운터가 리셋되고 `CircuitBreakerReset` 이벤트가 발생합니다.
+
+```bash
+# 서킷 브레이커 활성 여부 확인
+kubectl get events --field-selector reason=CircuitBreakerActive -n aerospike
+
+# 실패 횟수와 마지막 오류 확인
+kubectl -n aerospike get asc aerospike-ce-3node \
+  -o jsonpath='{.status.failedReconcileCount}{"\t"}{.status.lastReconcileError}'
+```
+
+:::info
+검증 오류(예: 잘못된 스펙)는 서킷 브레이커 카운터를 증가시키지 **않습니다**. 이는 사용자 개입이 필요한 영구적 오류입니다.
+:::
+
 ### 일반적인 문제
 
 **Phase가 InProgress에서 멈춤:**
@@ -811,5 +1097,9 @@ kubectl get events --field-selector involvedObject.kind=AerospikeCluster -n aero
 | `TemplateDrifted` | Warning | 클러스터 스펙이 템플릿에서 드리프트됨 |
 | `TemplateResolutionError` | Warning | ClusterTemplate 해결 또는 적용 실패 |
 | `ValidationWarning` | Warning | 비차단 검증 경고 감지 |
+| `PVCCleanedUp` | Normal | 스케일 다운 후 고아 PVC 삭제 |
+| `PVCCleanupFailed` | Warning | 스케일 다운 후 고아 PVC 삭제 실패 |
+| `CircuitBreakerActive` | Warning | 연속 실패 후 재조정 백오프 |
+| `CircuitBreakerReset` | Normal | 성공적인 재조정 후 서킷 브레이커 리셋 |
 | `ReconcileError` | Warning | 재조정 루프에서 복구 불가능한 오류 발생 |
 | `Operation` | Normal | 온디맨드 오퍼레이션 이벤트 |

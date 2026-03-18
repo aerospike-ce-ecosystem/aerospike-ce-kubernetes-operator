@@ -200,6 +200,45 @@ spec:
       enabled: true
       labels:
         release: prometheus
+      customRules:
+        - name: aerospike-production-alerts
+          rules:
+            - alert: AerospikeNodeDown
+              expr: up{job=~".*aerospike-production.*"} == 0
+              for: 3m
+              labels:
+                severity: critical
+                team: platform
+              annotations:
+                summary: "Aerospike node {{ $labels.instance }} is down"
+            - alert: AerospikeStopWrites
+              expr: aerospike_namespace_stop_writes{job=~".*aerospike-production.*"} == 1
+              for: 30s
+              labels:
+                severity: critical
+                team: platform
+              annotations:
+                summary: "Stop-writes on namespace {{ $labels.ns }} ({{ $labels.instance }})"
+            - alert: AerospikeHighDiskUsage
+              expr: aerospike_namespace_device_used_bytes / aerospike_namespace_device_total_bytes > 0.85
+              for: 5m
+              labels:
+                severity: warning
+              annotations:
+                summary: "Disk usage above 85% on {{ $labels.ns }}"
+            - alert: AerospikeHighMemoryUsage
+              expr: aerospike_namespace_memory_used_bytes / aerospike_namespace_memory_size > 0.85
+              for: 5m
+              labels:
+                severity: warning
+              annotations:
+                summary: "Memory usage above 85% on {{ $labels.ns }}"
+        - name: aerospike-production-recording
+          rules:
+            - record: aerospike:tps:read:rate5m
+              expr: rate(aerospike_namespace_client_read_success[5m])
+            - record: aerospike:tps:write:rate5m
+              expr: rate(aerospike_namespace_client_write_success[5m])
 
   aerospikeConfig:
     service:
@@ -217,6 +256,29 @@ spec:
         port: 3002
       fabric:
         port: 3001
+```
+
+적용:
+
+```bash
+kubectl apply -f aerospike-production.yaml
+```
+
+모니터링 리소스 확인:
+
+```bash
+# Exporter 사이드카가 실행 중인지 확인
+kubectl -n aerospike get pods -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range .spec.containers[*]}{.name}{" "}{end}{"\n"}{end}'
+
+# ServiceMonitor 생성 확인
+kubectl -n aerospike get servicemonitor
+
+# PrometheusRule 생성 확인
+kubectl -n aerospike get prometheusrule
+
+# Prometheus가 타겟을 스크레이핑하고 있는지 확인
+kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9090:9090
+# http://localhost:9090/targets에서 aerospike 타겟을 확인하세요
 ```
 
 ---

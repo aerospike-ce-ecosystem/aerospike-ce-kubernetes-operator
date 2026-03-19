@@ -84,7 +84,7 @@ kubectl -n cert-manager wait --for=condition=Available deployment/cert-manager -
 #### Option A: From OCI Registry (Recommended)
 
 ```sh
-helm install aerospike-operator oci://ghcr.io/kimsoungryoul/aerospike-operator \
+helm install aerospike-operator oci://ghcr.io/aerospike-ce-ecosystem/aerospike-operator \
   --version 0.1.0 \
   -n aerospike-operator --create-namespace
 ```
@@ -317,7 +317,7 @@ make setup-test-e2e
 make docker-build
 
 # 3. Kind 클러스터에 이미지 로드
-kind load docker-image ghcr.io/kimsoungryoul/aerospike-ce-kubernetes-operator:latest \
+kind load docker-image ghcr.io/aerospike-ce-ecosystem/aerospike-ce-kubernetes-operator:latest \
   --name aerospike-ce-kubernetes-operator-test-e2e
 
 # 4. CRD 설치 및 오퍼레이터 배포
@@ -329,7 +329,7 @@ make deploy
 
 ## TODO
 
-- [ ] Register OCI repository on [Artifact Hub](https://artifacthub.io/) — Add repository with Kind: **OCI**, URL: `oci://ghcr.io/kimsoungryoul/aerospike-operator`
+- [ ] Register OCI repository on [Artifact Hub](https://artifacthub.io/) — Add repository with Kind: **OCI**, URL: `oci://ghcr.io/aerospike-ce-ecosystem/aerospike-operator`
 
 ## License
 

@@ -50,7 +50,7 @@ helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
 CRDs and the operator are installed together. `crds.install=true` is the default.
 
 ```bash
-helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
+helm install acko oci://ghcr.io/aerospike-ce-ecosystem/charts/acko \
   --version 0.1.0 \
   --namespace aerospike-operator --create-namespace
 ```
@@ -62,11 +62,11 @@ approach for GitOps workflows to control CRD lifecycle independently.
 
 ```bash
 # Step 1: Install CRDs (once per cluster)
-helm install acko-crds oci://ghcr.io/kimsoungryoul/charts/acko-crds \
+helm install acko-crds oci://ghcr.io/aerospike-ce-ecosystem/charts/acko-crds \
   --version 0.1.0
 
 # Step 2: Install operator (skip CRD installation)
-helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
+helm install acko oci://ghcr.io/aerospike-ce-ecosystem/charts/acko \
   --version 0.1.0 \
   --set crds.install=false \
   --namespace aerospike-operator --create-namespace
@@ -82,7 +82,7 @@ helm install acko ./charts/acko \
 ### With monitoring enabled
 
 ```bash
-helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
+helm install acko oci://ghcr.io/aerospike-ce-ecosystem/charts/acko \
   --version 0.1.0 \
   --namespace aerospike-operator --create-namespace \
   --set serviceMonitor.enabled=true \
@@ -93,7 +93,7 @@ helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
 ### With Cilium network policy
 
 ```bash
-helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
+helm install acko oci://ghcr.io/aerospike-ce-ecosystem/charts/acko \
   --version 0.1.0 \
   --namespace aerospike-operator --create-namespace \
   --set cilium.enabled=true
@@ -102,7 +102,7 @@ helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
 ### With Cluster Manager UI
 
 ```bash
-helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
+helm install acko oci://ghcr.io/aerospike-ce-ecosystem/charts/acko \
   --version 0.1.0 \
   --namespace aerospike-operator --create-namespace \
   --set ui.enabled=true
@@ -119,7 +119,7 @@ kubectl port-forward svc/<release-name>-acko-ui 3000:3000 -n aerospike-operator
 You can customize the UI with service annotations, resource defaults, and extra environment variables:
 
 ```bash
-helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
+helm install acko oci://ghcr.io/aerospike-ce-ecosystem/charts/acko \
   --version 0.1.0 \
   --namespace aerospike-operator --create-namespace \
   --set ui.enabled=true \
@@ -149,7 +149,7 @@ ui:
 ### Full example
 
 ```bash
-helm install acko oci://ghcr.io/kimsoungryoul/charts/acko \
+helm install acko oci://ghcr.io/aerospike-ce-ecosystem/charts/acko \
   --version 0.1.0 \
   --namespace aerospike-operator --create-namespace \
   --set serviceMonitor.enabled=true \
@@ -172,7 +172,7 @@ metadata:
     argocd.argoproj.io/sync-options: Replace=true
 spec:
   source:
-    repoURL: ghcr.io/kimsoungryoul/charts
+    repoURL: ghcr.io/aerospike-ce-ecosystem/charts
     chart: acko-crds
     targetRevision: "0.1.0"
   syncPolicy:
@@ -187,7 +187,7 @@ metadata:
   name: acko
 spec:
   source:
-    repoURL: ghcr.io/kimsoungryoul/charts
+    repoURL: ghcr.io/aerospike-ce-ecosystem/charts
     chart: acko
     targetRevision: "0.1.0"
     helm:
@@ -215,7 +215,7 @@ metadata:
   namespace: flux-system
 spec:
   type: oci
-  url: oci://ghcr.io/kimsoungryoul/charts
+  url: oci://ghcr.io/aerospike-ce-ecosystem/charts
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease

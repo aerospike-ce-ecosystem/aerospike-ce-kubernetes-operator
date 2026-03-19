@@ -5,9 +5,9 @@ type: application
 version: 0.1.2
 appVersion: "0.1.2"
 kubeVersion: ">=1.26.0-0"
-home: https://github.com/kimsoungryoul/aerospike-ce-kubernetes-operator
+home: https://github.com/aerospike-ce-ecosystem/aerospike-ce-kubernetes-operator
 sources:
-  - https://github.com/kimsoungryoul/aerospike-ce-kubernetes-operator
+  - https://github.com/aerospike-ce-ecosystem/aerospike-ce-kubernetes-operator
 keywords:
   - aerospike
   - operator
@@ -15,8 +15,8 @@ keywords:
   - nosql
   - kubernetes
 maintainers:
-  - name: kimsoungryoul
-    url: https://github.com/kimsoungryoul
+  - name: aerospike-ce-ecosystem
+    url: https://github.com/aerospike-ce-ecosystem
 dependencies:
   - name: aerospike-ce-kubernetes-operator-crds
     version: "0.1.2"

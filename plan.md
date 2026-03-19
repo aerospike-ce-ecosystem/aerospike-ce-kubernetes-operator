@@ -4,8 +4,8 @@
 >
 > 작성일: 2026-02-22 (P0 구현 완료: 2026-02-23, P1 구현 완료: 2026-02-23)
 > 참고: https://aerospike.com/docs/kubernetes/
-> PR(P0): https://github.com/KimSoungRyoul/aerospike-ce-kubernetes-operator/pull/7
-> PR(P1): https://github.com/KimSoungRyoul/aerospike-ce-kubernetes-operator/pull/10
+> PR(P0): https://github.com/aerospike-ce-ecosystem/aerospike-ce-kubernetes-operator/pull/7
+> PR(P1): https://github.com/aerospike-ce-ecosystem/aerospike-ce-kubernetes-operator/pull/10
 
 ---
 
@@ -112,7 +112,7 @@
 
 ### P0: Configure Aerospike Cluster (가장 중요) ✅ 완료
 
-> **구현 완료**: 2026-02-23 | PR: [#7](https://github.com/KimSoungRyoul/aerospike-ce-kubernetes-operator/pull/7) (`feature/p0-implementation`)
+> **구현 완료**: 2026-02-23 | PR: [#7](https://github.com/aerospike-ce-ecosystem/aerospike-ce-kubernetes-operator/pull/7) (`feature/p0-implementation`)
 
 #### 1. On-Demand Operations (spec.operations) ✅
 > AKO 문서: https://aerospike.com/docs/kubernetes/manage/node-maintenance/
@@ -246,7 +246,7 @@ spec:
 
 ### P1: Storage 고급 기능 ✅ 완료
 
-> **구현 완료**: 2026-02-23 | PR: [#10](https://github.com/KimSoungRyoul/aerospike-ce-kubernetes-operator/pull/10) (`feature/p1-storage-advanced`)
+> **구현 완료**: 2026-02-23 | PR: [#10](https://github.com/aerospike-ce-ecosystem/aerospike-ce-kubernetes-operator/pull/10) (`feature/p1-storage-advanced`)
 
 #### 7. Global Volume Policy (filesystemVolumePolicy / blockVolumePolicy) ✅
 > AKO 문서: https://aerospike.com/docs/kubernetes/manage/storage/overview/

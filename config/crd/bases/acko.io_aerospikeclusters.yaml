@@ -17263,7 +17263,7 @@ spec:
                   remainingPartitions:
                     description: |-
                       RemainingPartitions is the total number of partitions still to be migrated
-                      across all nodes (0 = complete).
+                      across all nodes (from migrate_partitions_remaining). 0 = complete.
                     format: int64
                     type: integer
                 required:

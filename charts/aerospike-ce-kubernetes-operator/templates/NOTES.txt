@@ -3,7 +3,7 @@ Aerospike CE Kubernetes Operator has been installed.
 
 NOTE: CRD installation is disabled (crds.install=false).
 Ensure acko-crds is installed separately before creating AerospikeCluster resources:
-  helm install acko-crds oci://ghcr.io/kimsoungryoul/charts/acko-crds --version {{ .Chart.Version }}
+  helm install acko-crds oci://ghcr.io/aerospike-ce-ecosystem/charts/acko-crds --version {{ .Chart.Version }}
 {{- end }}
 
 Release: {{ .Release.Name }}
@@ -151,4 +151,4 @@ PostgreSQL data will persist across pod restarts.
 {{- end }}
 
 For more examples, visit:
-  https://github.com/kimsoungryoul/aerospike-ce-kubernetes-operator/tree/main/config/samples
+  https://github.com/aerospike-ce-ecosystem/aerospike-ce-kubernetes-operator/tree/main/config/samples

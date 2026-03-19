@@ -6,10 +6,10 @@ import {themes as prismThemes} from 'prism-react-renderer';
 const config = {
   title: 'ACKO',
   tagline: 'Aerospike CE Kubernetes Operator',
-  url: process.env.DOCS_URL || 'https://kimsoungryoul.github.io',
+  url: process.env.DOCS_URL || 'https://aerospike-ce-ecosystem.github.io',
   baseUrl: '/aerospike-ce-kubernetes-operator/',
 
-  organizationName: process.env.ORG_NAME || 'KimSoungRyoul',
+  organizationName: process.env.ORG_NAME || 'aerospike-ce-ecosystem',
   projectName: 'aerospike-ce-kubernetes-operator',
 
   onBrokenLinks: 'throw',
@@ -34,7 +34,7 @@ const config = {
           routeBasePath: '/',
           sidebarPath: './sidebars.js',
           editUrl:
-            'https://github.com/KimSoungRyoul/aerospike-ce-kubernetes-operator/tree/main/docs/',
+            'https://github.com/aerospike-ce-ecosystem/aerospike-ce-kubernetes-operator/tree/main/docs/',
         },
         blog: false,
         theme: {
@@ -64,7 +64,7 @@ const config = {
             position: 'right',
           },
           {
-            href: 'https://github.com/KimSoungRyoul/aerospike-ce-kubernetes-operator',
+            href: 'https://github.com/aerospike-ce-ecosystem/aerospike-ce-kubernetes-operator',
             label: 'GitHub',
             position: 'right',
           },
@@ -86,7 +86,7 @@ const config = {
             items: [
               {
                 label: 'GitHub',
-                href: 'https://github.com/KimSoungRyoul/aerospike-ce-kubernetes-operator',
+                href: 'https://github.com/aerospike-ce-ecosystem/aerospike-ce-kubernetes-operator',
               },
               {
                 label: 'Aerospike',

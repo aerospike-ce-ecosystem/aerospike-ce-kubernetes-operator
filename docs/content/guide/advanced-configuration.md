@@ -1,5 +1,5 @@
 ---
-sidebar_position: 5
+sidebar_position: 7
 title: Advanced Configuration
 ---
 
@@ -568,6 +568,38 @@ spec:
         region: us-west-2
         rackLabel: high-perf
 ```
+
+### Soft Rack Support
+
+Multiple racks can share the same `nodeName`. This enables "soft rack" deployments where rack-awareness is used for logical data distribution, but the underlying pods may run on the same Kubernetes node. This is useful in environments with limited nodes (e.g., development or staging) where you still want Aerospike to treat pods as belonging to separate racks for replication purposes.
+
+```yaml
+spec:
+  rackConfig:
+    racks:
+      - id: 1
+        nodeName: worker-1
+      - id: 2
+        nodeName: worker-1    # Same node as rack 1 — allowed
+      - id: 3
+        nodeName: worker-2
+```
+
+**When to use soft racks:**
+
+- **Staging environments** with fewer nodes than racks -- rack-awareness is preserved logically even though pods share a node.
+- **Preferred anti-affinity** deployments where the scheduler may co-locate racks on the same node when resources are constrained.
+- **Single-node development** clusters that need to test multi-rack behavior.
+
+:::caution
+While soft racks allow replica distribution across logical racks, co-located racks on the same physical node do not provide true fault isolation. If the shared node fails, all racks on that node are lost simultaneously. Use hard anti-affinity (`rackLabel` with unique nodes) for production fault tolerance.
+:::
+
+**Validation rules:**
+
+- `nodeName` does **not** require uniqueness across racks (unlike `rackLabel`, which must be unique).
+- `rackLabel` must still be unique across all racks -- use `nodeName` instead of `rackLabel` when you need shared-node racks.
+- Rack IDs must remain unique regardless of the scheduling strategy.
 
 ---
 

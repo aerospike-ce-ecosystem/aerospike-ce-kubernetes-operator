@@ -1,5 +1,5 @@
 ---
-sidebar_position: 2.5
+sidebar_position: 13
 title: Helm Values Reference
 ---
 

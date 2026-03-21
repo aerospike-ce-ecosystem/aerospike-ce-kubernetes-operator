@@ -28,7 +28,7 @@ func (r *AerospikeClusterReconciler) isMigrationInProgress(
 	}
 	defer closeAerospikeClient(aeroClient)
 
-	migrating, err := IsMigratingOnAnyNode(aeroClient)
+	migrating, err := isMigratingOnAnyNode(aeroClient)
 	if err != nil {
 		log.V(1).Info("Migration check failed", "error", err)
 		return false, err

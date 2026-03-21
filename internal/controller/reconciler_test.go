@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	ackov1alpha1 "github.com/ksr/aerospike-ce-kubernetes-operator/api/v1alpha1"
@@ -322,5 +323,66 @@ func TestSetPhaseUpdatesPendingRestartPodsWhenPhaseUnchanged(t *testing.T) {
 
 	if len(updated.Status.PendingRestartPods) != 2 || updated.Status.PendingRestartPods[0] != "demo-2" || updated.Status.PendingRestartPods[1] != "demo-1" {
 		t.Fatalf("PendingRestartPods = %v, want [demo-2 demo-1]", updated.Status.PendingRestartPods)
+	}
+}
+
+func TestTruncateUTF8(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		maxBytes int
+		want     string
+	}{
+		{
+			name:     "short ASCII string unchanged",
+			input:    "hello",
+			maxBytes: 256,
+			want:     "hello",
+		},
+		{
+			name:     "exact limit ASCII unchanged",
+			input:    strings.Repeat("a", 256),
+			maxBytes: 256,
+			want:     strings.Repeat("a", 256),
+		},
+		{
+			name:     "long ASCII truncated",
+			input:    strings.Repeat("a", 300),
+			maxBytes: 256,
+			want:     strings.Repeat("a", 256) + "...",
+		},
+		{
+			name:     "empty string unchanged",
+			input:    "",
+			maxBytes: 256,
+			want:     "",
+		},
+		{
+			name:     "multi-byte at boundary not split",
+			input:    strings.Repeat("a", 255) + "한글",
+			maxBytes: 256,
+			want:     strings.Repeat("a", 255) + "...",
+		},
+		{
+			name:     "multi-byte fully fits",
+			input:    strings.Repeat("a", 253) + "한",
+			maxBytes: 256,
+			want:     strings.Repeat("a", 253) + "한",
+		},
+		{
+			name:     "all multi-byte truncated",
+			input:    strings.Repeat("한", 100),
+			maxBytes: 10,
+			want:     strings.Repeat("한", 3) + "...",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := truncateUTF8(tc.input, tc.maxBytes)
+			if got != tc.want {
+				t.Errorf("truncateUTF8(%q, %d) = %q, want %q", tc.input, tc.maxBytes, got, tc.want)
+			}
+		})
 	}
 }

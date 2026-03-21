@@ -8,6 +8,7 @@ import (
 	"slices"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -306,10 +307,7 @@ func (r *AerospikeClusterReconciler) handleReconcileError(
 	}
 
 	// Truncate error message to avoid bloating the status object.
-	errMsg := reconcileErr.Error()
-	if len(errMsg) > 256 {
-		errMsg = errMsg[:256] + "..."
-	}
+	errMsg := truncateUTF8(reconcileErr.Error(), 256)
 
 	// Validation errors are permanent and will never self-heal.
 	// Don't increment the circuit breaker counter for these.
@@ -834,4 +832,17 @@ func (secretDataChangedPredicate) Update(e event.UpdateEvent) bool {
 	// Compare actual Data content to avoid unnecessary reconciliation on
 	// metadata-only changes (e.g., label updates that bump ResourceVersion).
 	return !reflect.DeepEqual(oldSecret.Data, newSecret.Data)
+}
+
+// truncateUTF8 truncates s to at most maxBytes bytes without splitting
+// multi-byte UTF-8 characters. If truncation occurs, "..." is appended.
+func truncateUTF8(s string, maxBytes int) string {
+	if len(s) <= maxBytes {
+		return s
+	}
+	truncated := s[:maxBytes]
+	for len(truncated) > 0 && !utf8.ValidString(truncated) {
+		truncated = truncated[:len(truncated)-1]
+	}
+	return truncated + "..."
 }

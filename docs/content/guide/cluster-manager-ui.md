@@ -174,6 +174,24 @@ Aerospike 연결이 끊어진 경우 Overview 및 Browser 페이지에서 스켈
 
 Config Drift API는 `desiredConfig`과 `appliedConfig` 필드를 통해 실제 설정 값을 반환하므로, UI에서 상세한 diff 비교가 가능합니다.
 
+Drift가 감지되면 **Force Reconcile** 버튼으로 오퍼레이터에 재조정을 요청할 수 있습니다. 이 버튼은 CR에 `acko.io/force-reconcile` 어노테이션을 추가하여 즉시 reconciliation을 트리거합니다.
+
+### PVC / Storage Status
+
+클러스터 상세 페이지에서 **Storage (PVCs)** 카드가 해당 클러스터의 PersistentVolumeClaim 상태를 표시합니다:
+
+- **Status Badge** — Bound (초록), Pending (노랑), Released (파랑), Failed (빨강)
+- **Capacity** — 프로비저닝된 스토리지 용량
+- **Storage Class** — 사용된 Kubernetes StorageClass
+- **Access Modes** — ReadWriteOnce, ReadWriteMany 등
+- **Volume Name** — 바인딩된 PersistentVolume 이름
+
+### Export / Import
+
+**Export** — 클러스터 상세 페이지의 Spec 섹션에서 **Export** 버튼으로 CR을 JSON 파일로 다운로드합니다.
+
+**Import** — 클러스터 리스트 페이지에서 **Import CR** 버튼으로 기존 CR JSON을 붙여넣기하거나 파일을 업로드하여 클러스터를 생성합니다. 메타데이터 필드(`uid`, `resourceVersion`, `managedFields`)는 자동으로 제거됩니다.
+
 ### Reconciliation Health & Circuit Breaker
 
 Reconciliation 실패가 발생하면 **Reconciliation Health** 카드가 나타납니다:

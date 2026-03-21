@@ -78,6 +78,40 @@ kubectl -n aerospike-operator port-forward svc/acko-aerospike-ce-kubernetes-oper
 
 ---
 
+## Cluster List
+
+K8s Clusters 페이지에서 모든 AerospikeCluster를 카드 형태로 조회합니다. 각 카드에는 다음 정보가 표시됩니다:
+
+- **Phase Badge** — 클러스터 상태 (Completed, InProgress, Error, ScalingUp 등)
+- **Node Count** — 현재 클러스터 노드 수
+- **Image** — 사용 중인 Aerospike 이미지
+- **Age** — 클러스터 생성 후 경과 시간
+- **Template Drift Badge** — 참조 중인 AerospikeClusterTemplate와 설정이 다를 때 경고 표시
+- **Failed Reconcile Count Badge** — 연속 Reconciliation 실패 횟수 (stuck 클러스터 식별용)
+
+---
+
+## Edit Cluster
+
+Edit 다이얼로그는 diff 기반 패치를 사용하여 변경된 필드만 적용합니다. 지원하는 편집 항목:
+
+- **Image / Size** — 이미지 변경 및 스케일링
+- **Resources** — CPU/Memory requests/limits 설정
+- **ACL (Access Control)** — ACL 활성화/비활성화, 역할 관리(권한, CIDR Whitelist), 사용자 관리(K8s Secret 비밀번호)
+- **Aerospike Config** — JSON 편집기로 Aerospike 설정 직접 수정
+- **Dynamic Config** — 재시작 없는 설정 변경 활성화
+- **Monitoring** — Prometheus exporter, ServiceMonitor, PrometheusRule 설정
+- **Network** — Access Type, Fabric Type, NetworkPolicy 자동 생성, Bandwidth 제한
+- **Storage** — 멀티 볼륨 관리 (PVC, EmptyDir, Secret, ConfigMap, HostPath)
+- **Pod Scheduling** — NodeSelector, Tolerations, Affinity, Host Network, Service Account
+- **Topology Spread** — Pod 분산 제약 조건
+- **Security Context** — runAsUser, fsGroup, supplementalGroups
+- **Sidecars / Init Containers** — 커스텀 컨테이너 추가
+- **Service Metadata** — Pod Service, Headless Service 라벨/어노테이션
+- **Seeds Finder Services** — LoadBalancer 시드 검색 서비스
+
+---
+
 ## Cluster Overview
 
 클러스터를 선택하면 Overview 탭이 표시됩니다. 클러스터 Phase, Pod Ready 수, 헬스 조건(Stable / Config Applied / Available / ACL Synced), Pod 목록을 한눈에 확인합니다.
@@ -137,6 +171,8 @@ Aerospike 연결이 끊어진 경우 Overview 및 Browser 페이지에서 스켈
 - **Config Drift Detected** — spec과 appliedSpec 사이에 차이 발견
 
 변경된 필드 목록과 Pod별 설정 해시 버전이 표시됩니다. 여러 해시 그룹이 있으면 일부 Pod가 아직 이전 설정으로 실행 중임을 의미합니다.
+
+Config Drift API는 `desiredConfig`과 `appliedConfig` 필드를 통해 실제 설정 값을 반환하므로, UI에서 상세한 diff 비교가 가능합니다.
 
 ### Reconciliation Health & Circuit Breaker
 

@@ -346,10 +346,10 @@ func TestTruncateUTF8(t *testing.T) {
 			want:     strings.Repeat("a", 256),
 		},
 		{
-			name:     "long ASCII truncated",
+			name:     "long ASCII truncated within budget",
 			input:    strings.Repeat("a", 300),
 			maxBytes: 256,
-			want:     strings.Repeat("a", 256) + "...",
+			want:     strings.Repeat("a", 253) + "...",
 		},
 		{
 			name:     "empty string unchanged",
@@ -361,7 +361,7 @@ func TestTruncateUTF8(t *testing.T) {
 			name:     "multi-byte at boundary not split",
 			input:    strings.Repeat("a", 255) + "한글",
 			maxBytes: 256,
-			want:     strings.Repeat("a", 255) + "...",
+			want:     strings.Repeat("a", 253) + "...",
 		},
 		{
 			name:     "multi-byte fully fits",
@@ -373,7 +373,7 @@ func TestTruncateUTF8(t *testing.T) {
 			name:     "all multi-byte truncated",
 			input:    strings.Repeat("한", 100),
 			maxBytes: 10,
-			want:     strings.Repeat("한", 3) + "...",
+			want:     strings.Repeat("한", 2) + "...",
 		},
 	}
 

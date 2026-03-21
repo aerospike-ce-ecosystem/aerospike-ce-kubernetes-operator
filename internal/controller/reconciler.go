@@ -835,14 +835,17 @@ func (secretDataChangedPredicate) Update(e event.UpdateEvent) bool {
 }
 
 // truncateUTF8 truncates s to at most maxBytes bytes without splitting
-// multi-byte UTF-8 characters. If truncation occurs, "..." is appended.
+// multi-byte UTF-8 characters. If truncation occurs, "..." is appended
+// within the maxBytes budget.
 func truncateUTF8(s string, maxBytes int) string {
 	if len(s) <= maxBytes {
 		return s
 	}
-	truncated := s[:maxBytes]
+	const suffix = "..."
+	limit := max(maxBytes-len(suffix), 0)
+	truncated := s[:limit]
 	for len(truncated) > 0 && !utf8.ValidString(truncated) {
 		truncated = truncated[:len(truncated)-1]
 	}
-	return truncated + "..."
+	return truncated + suffix
 }

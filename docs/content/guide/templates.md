@@ -1,5 +1,5 @@
 ---
-sidebar_position: 8
+sidebar_position: 9
 title: Template Management
 ---
 
@@ -38,6 +38,46 @@ Templates follow a **snapshot model**:
 :::info
 `AerospikeClusterTemplate` is a **cluster-scoped** resource. It does not belong to any namespace. Reference it by name only.
 :::
+
+### Cross-Namespace Template Resolution
+
+Because `AerospikeClusterTemplate` is cluster-scoped, any `AerospikeCluster` in any namespace can reference the same template by name. There is no need for namespace qualification or cross-namespace RBAC grants -- the operator resolves templates at the cluster scope regardless of where the referencing `AerospikeCluster` CR lives.
+
+```yaml
+# Namespace: team-alpha
+apiVersion: acko.io/v1alpha1
+kind: AerospikeCluster
+metadata:
+  name: alpha-cluster
+  namespace: team-alpha
+spec:
+  templateRef:
+    name: hard-rack          # References the cluster-scoped template
+  aerospikeConfig:
+    namespaces:
+      - name: alpha-data
+        storage-engine:
+          type: memory
+---
+# Namespace: team-beta (same template, different namespace)
+apiVersion: acko.io/v1alpha1
+kind: AerospikeCluster
+metadata:
+  name: beta-cluster
+  namespace: team-beta
+spec:
+  templateRef:
+    name: hard-rack          # Same template as team-alpha
+  aerospikeConfig:
+    namespaces:
+      - name: beta-data
+        storage-engine:
+          type: memory
+```
+
+Both clusters share the same template defaults (image, size, resources, scheduling, monitoring, etc.) while maintaining independent configurations and lifecycle. Template sync status (`status.templateSnapshot.synced`) is tracked per cluster, so resyncing one cluster does not affect the other.
+
+This design enables platform teams to define organization-wide templates once and let application teams in different namespaces consume them without coordination overhead.
 
 ---
 

@@ -44,7 +44,7 @@ kubectl -n cert-manager wait --for=condition=Available deployment/cert-manager-w
 The simplest installation method using the published OCI Helm chart.
 
 ```bash
-helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/aerospike-ce-ecosystem/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace
 ```
 
@@ -53,7 +53,7 @@ helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts
 You can override default values:
 
 ```bash
-helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/aerospike-ce-ecosystem/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set replicaCount=2 \
   --set resources.limits.memory=256Mi
@@ -62,7 +62,7 @@ helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts
 To see all available values:
 
 ```bash
-helm show values oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator
+helm show values oci://ghcr.io/aerospike-ce-ecosystem/charts/aerospike-ce-kubernetes-operator
 ```
 
 </TabItem>
@@ -74,7 +74,7 @@ of the operator lifecycle.
 **Step 1: Install CRDs once per cluster**
 
 ```bash
-helm install aerospike-ce-kubernetes-operator-crds oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator-crds \
+helm install aerospike-ce-kubernetes-operator-crds oci://ghcr.io/aerospike-ce-ecosystem/charts/aerospike-ce-kubernetes-operator-crds \
   --version 0.1.0
 ```
 
@@ -84,7 +84,7 @@ on `helm uninstall`, protecting your cluster data.
 **Step 2: Install the operator (skip CRD installation)**
 
 ```bash
-helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/aerospike-ce-ecosystem/charts/aerospike-ce-kubernetes-operator \
   --version 0.1.0 \
   --set crds.install=false \
   -n aerospike-operator --create-namespace
@@ -102,7 +102,7 @@ metadata:
     argocd.argoproj.io/sync-options: Replace=true
 spec:
   source:
-    repoURL: ghcr.io/kimsoungryoul/charts
+    repoURL: ghcr.io/aerospike-ce-ecosystem/charts
     chart: aerospike-ce-kubernetes-operator-crds
     targetRevision: "0.1.0"
   syncPolicy:
@@ -117,7 +117,7 @@ metadata:
   name: aerospike-ce-kubernetes-operator
 spec:
   source:
-    repoURL: ghcr.io/kimsoungryoul/charts
+    repoURL: ghcr.io/aerospike-ce-ecosystem/charts
     chart: aerospike-ce-kubernetes-operator
     targetRevision: "0.1.0"
     helm:
@@ -145,7 +145,7 @@ metadata:
   namespace: flux-system
 spec:
   type: oci
-  url: oci://ghcr.io/kimsoungryoul/charts
+  url: oci://ghcr.io/aerospike-ce-ecosystem/charts
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -192,7 +192,7 @@ spec:
 For developers and contributors building from source.
 
 ```bash
-git clone https://github.com/KimSoungRyoul/aerospike-ce-kubernetes-operator.git
+git clone https://github.com/aerospike-ce-ecosystem/aerospike-ce-kubernetes-operator.git
 cd aerospike-ce-kubernetes-operator
 
 # Build and push the operator image to your registry
@@ -218,7 +218,7 @@ All monitoring features are **disabled by default** and require [Prometheus Oper
 Creates a `ServiceMonitor` resource so Prometheus automatically scrapes operator metrics.
 
 ```bash
-helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/aerospike-ce-ecosystem/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set serviceMonitor.enabled=true \
   --set serviceMonitor.additionalLabels.release=prometheus
@@ -243,7 +243,7 @@ kubectl get prometheus -A -o jsonpath='{.items[*].spec.serviceMonitorSelector}'
 Creates a `PrometheusRule` resource with built-in alerting rules for the operator.
 
 ```bash
-helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/aerospike-ce-ecosystem/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set serviceMonitor.enabled=true \
   --set prometheusRule.enabled=true
@@ -286,7 +286,7 @@ prometheusRule:
 Creates a `ConfigMap` with a pre-built Grafana dashboard. Requires the [Grafana sidecar](https://github.com/grafana/helm-charts/tree/main/charts/grafana#sidecar-for-dashboards) to be configured for auto-discovery.
 
 ```bash
-helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/aerospike-ce-ecosystem/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set grafanaDashboard.enabled=true
 ```
@@ -330,7 +330,7 @@ helm install grafana grafana/grafana \
 **3. Install (or upgrade) the operator with the dashboard enabled:**
 
 ```bash
-helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/aerospike-ce-ecosystem/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set grafanaDashboard.enabled=true
 ```
@@ -365,7 +365,7 @@ kubectl -n aerospike-operator get configmap -l grafana_dashboard=1
 Enable all monitoring features at once:
 
 ```bash
-helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/aerospike-ce-ecosystem/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set serviceMonitor.enabled=true \
   --set serviceMonitor.additionalLabels.release=prometheus \
@@ -376,7 +376,7 @@ helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts
 
 ## Cluster Manager UI (Optional)
 
-[Aerospike Cluster Manager](https://github.com/KimSoungRyoul/aerospike-cluster-manager) is a web-based GUI for managing Aerospike CE clusters — record browsing, query building, index management, K8s cluster lifecycle, and more.
+[Aerospike Cluster Manager](https://github.com/aerospike-ce-ecosystem/aerospike-cluster-manager) is a web-based GUI for managing Aerospike CE clusters — record browsing, query building, index management, K8s cluster lifecycle, and more.
 
 ### Relationship Between Operator and Cluster Manager
 
@@ -394,7 +394,7 @@ The operator functions independently of the Cluster Manager — you can manage c
 ### Enabling the Cluster Manager
 
 ```bash
-helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/aerospike-ce-ecosystem/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set ui.enabled=true
 ```
@@ -469,7 +469,7 @@ helm install prometheus prometheus-community/kube-prometheus-stack \
 # =============================================================================
 # 3. Install Aerospike Operator (all monitoring enabled)
 # =============================================================================
-helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/aerospike-ce-ecosystem/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set serviceMonitor.enabled=true \
   --set serviceMonitor.additionalLabels.release=prometheus \

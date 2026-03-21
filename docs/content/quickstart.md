@@ -73,7 +73,7 @@ kubectl -n cert-manager wait --for=condition=Available deployment/cert-manager -
 
 ```bash
 # With bundled cert-manager (recommended if you skipped Step 2)
-helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/aerospike-ce-ecosystem/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set certManagerSubchart.enabled=true
 ```
@@ -202,7 +202,7 @@ kubectl -n aerospike run asinfo-client --rm -it --restart=Never \
 Add `--set ui.enabled=true` to the Helm install command to deploy the web-based management UI alongside the operator:
 
 ```bash
-helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/aerospike-ce-ecosystem/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set certManagerSubchart.enabled=true \
   --set ui.enabled=true

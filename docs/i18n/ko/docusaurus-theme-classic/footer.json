@@ -21,7 +21,7 @@
   },
   "link.item.label.GitHub": {
     "message": "GitHub",
-    "description": "The label of footer link with label=GitHub linking to https://github.com/KimSoungRyoul/aerospike-ce-kubernetes-operator"
+    "description": "The label of footer link with label=GitHub linking to https://github.com/aerospike-ce-ecosystem/aerospike-ce-kubernetes-operator"
   },
   "link.item.label.Aerospike": {
     "message": "Aerospike",

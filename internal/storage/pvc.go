@@ -47,34 +47,6 @@ func GetPVCsForStatefulSet(ctx context.Context, c client.Client, namespace, stsN
 	return matched, nil
 }
 
-// DeleteOrphanedPVCs removes PVCs that belong to pod ordinals >= desiredReplicas.
-// This is useful after a scale-down to clean up storage for removed pods.
-// Deprecated: Use DeleteOrphanedCascadeDeletePVCs to respect cascadeDelete policy.
-func DeleteOrphanedPVCs(ctx context.Context, c client.Client, namespace, stsName string, desiredReplicas int32) error {
-	pvcs, err := GetPVCsForStatefulSet(ctx, c, namespace, stsName)
-	if err != nil {
-		return err
-	}
-
-	for i := range pvcs {
-		pvc := &pvcs[i]
-		ordinal, ok := extractOrdinal(pvc.Name, stsName)
-		if !ok {
-			continue
-		}
-
-		if ordinal >= desiredReplicas {
-			if err := c.Delete(ctx, pvc); err != nil {
-				if !kerrors.IsNotFound(err) {
-					return fmt.Errorf("deleting orphaned PVC %s: %w", pvc.Name, err)
-				}
-			}
-		}
-	}
-
-	return nil
-}
-
 // DeleteOrphanedCascadeDeletePVCs removes PVCs for pod ordinals >= desiredReplicas,
 // but only for volumes that have cascadeDelete enabled. Non-cascade PVCs are preserved.
 // This is the correct function to use during scale-down.

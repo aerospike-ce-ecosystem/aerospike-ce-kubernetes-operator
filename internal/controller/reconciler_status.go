@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 
+	aero "github.com/aerospike/aerospike-client-go/v8"
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -101,27 +103,8 @@ func (r *AerospikeClusterReconciler) updateStatusAndPhase(
 		// Clear pending restart pods on successful completion.
 		latest.Status.PendingRestartPods = nil
 
-		// TODO: collectAerospikeInfo, updateAerospikeClusterSize, and updateMigrationStatus
-		// each create and close their own Aerospike client connection. Refactor to create
-		// the client once here and pass it to all three functions to avoid triple connection overhead.
-
-		// Enrich pod status with per-node Aerospike info (NodeID, ClusterName, endpoints).
-		if aeroInfoMap := r.collectAerospikeInfo(ctx, latest); aeroInfoMap != nil {
-			for podName, info := range aeroInfoMap {
-				if ps, ok := latest.Status.Pods[podName]; ok {
-					ps.NodeID = info.NodeID
-					ps.ClusterName = info.ClusterName
-					ps.AccessEndpoints = info.AccessEndpoints
-					latest.Status.Pods[podName] = ps
-				}
-			}
-		}
-
-		// Update AerospikeClusterSize (best-effort).
-		r.updateAerospikeClusterSize(ctx, latest)
-
-		// Update migration status on completion.
-		r.updateMigrationStatus(ctx, latest)
+		// Enrich status with Aerospike cluster info using a single client connection.
+		r.enrichStatusWithAerospikeInfo(ctx, latest)
 	}
 
 	// Update Prometheus metrics
@@ -138,51 +121,47 @@ func (r *AerospikeClusterReconciler) updateStatusAndPhase(
 	return r.Status().Update(ctx, latest)
 }
 
-// updateAerospikeClusterSize queries asinfo for the Aerospike cluster-size and updates status.
-// Failure is non-fatal: the previous value is preserved.
-func (r *AerospikeClusterReconciler) updateAerospikeClusterSize(
+// enrichStatusWithAerospikeInfo creates a single Aerospike client connection and uses it
+// to collect per-node info, cluster size, and migration stats. All queries are best-effort:
+// failures are logged at V(1) and never block the status update.
+func (r *AerospikeClusterReconciler) enrichStatusWithAerospikeInfo(
 	ctx context.Context,
 	cluster *ackov1alpha1.AerospikeCluster,
 ) {
 	log := logf.FromContext(ctx)
+
 	aeroClient, err := r.getAerospikeClient(ctx, cluster)
 	if err != nil {
-		log.V(1).Info("Could not connect to Aerospike for cluster-size query (non-fatal)", "err", err)
+		log.V(1).Info("Could not connect to Aerospike for status enrichment (non-fatal)", "err", err)
 		return
 	}
 	defer closeAerospikeClient(aeroClient)
 
-	size, err := ClusterSize(aeroClient)
-	if err != nil {
+	// 1. Enrich pod status with per-node Aerospike info (NodeID, ClusterName, endpoints).
+	if aeroInfoMap := collectAerospikeInfo(log, aeroClient, cluster); aeroInfoMap != nil {
+		for podName, info := range aeroInfoMap {
+			if ps, ok := cluster.Status.Pods[podName]; ok {
+				ps.NodeID = info.NodeID
+				ps.ClusterName = info.ClusterName
+				ps.AccessEndpoints = info.AccessEndpoints
+				cluster.Status.Pods[podName] = ps
+			}
+		}
+	}
+
+	// 2. Update AerospikeClusterSize (best-effort).
+	if size, err := clusterSize(aeroClient); err != nil {
 		log.V(1).Info("cluster-size query failed (non-fatal)", "err", err)
-		return
+	} else {
+		cluster.Status.AerospikeClusterSize = int32(size)
 	}
-	cluster.Status.AerospikeClusterSize = int32(size)
-}
 
-// updateMigrationStatus queries the Aerospike cluster for per-node migration statistics
-// and populates both the cluster-level MigrationStatus and per-pod MigratingPartitions fields.
-// Failure is non-fatal: the previous values are preserved.
-func (r *AerospikeClusterReconciler) updateMigrationStatus(
-	ctx context.Context,
-	cluster *ackov1alpha1.AerospikeCluster,
-) {
-	log := logf.FromContext(ctx)
-
-	aeroClient, err := r.getAerospikeClient(ctx, cluster)
-	if err != nil {
-		log.V(1).Info("Could not connect to Aerospike for migration status (non-fatal)", "err", err)
-		return
-	}
-	defer closeAerospikeClient(aeroClient)
-
-	perNode, err := migrateStatsPerNode(log, aeroClient)
-	if err != nil {
+	// 3. Update migration status (best-effort).
+	if perNode, err := migrateStatsPerNode(log, aeroClient); err != nil {
 		log.V(1).Info("Migration stats query failed (non-fatal)", "err", err)
-		return
+	} else {
+		applyMigrationStats(cluster, perNode)
 	}
-
-	applyMigrationStats(cluster, perNode)
 }
 
 // applyMigrationStats applies per-node migration statistics to the cluster status.
@@ -210,7 +189,7 @@ func applyMigrationStats(cluster *ackov1alpha1.AerospikeCluster, perNode map[str
 		// Update per-pod migration info.
 		if podName, ok := podIPToPodName[nodeIP]; ok {
 			if ps, exists := cluster.Status.Pods[podName]; exists {
-				remainingVal := remaining // capture for pointer
+				remainingVal := remaining // copy: &remaining would alias the loop variable
 				ps.MigratingPartitions = &remainingVal
 				cluster.Status.Pods[podName] = ps
 			}
@@ -499,7 +478,7 @@ func setFineGrainedConditions(cluster *ackov1alpha1.AerospikeCluster, o StatusUp
 	}
 
 	// MigrationComplete — set to False while rolling restart is in progress,
-	// True otherwise as a default. When phase == Completed, updateMigrationStatus
+	// True otherwise as a default. When phase == Completed, enrichStatusWithAerospikeInfo
 	// → applyMigrationStats will overwrite this with the actual cluster migration state.
 	if o.RestartInProgress {
 		setCondition(cluster, ackov1alpha1.ConditionMigrationComplete, false,
@@ -583,23 +562,15 @@ type aeroPodInfo struct {
 	AccessEndpoints []string
 }
 
-// collectAerospikeInfo connects to the Aerospike cluster and collects per-node
-// information (NodeID, ClusterName, AccessEndpoints) keyed by pod name.
+// collectAerospikeInfo collects per-node information (NodeID, ClusterName,
+// AccessEndpoints) keyed by pod name using the provided Aerospike client.
 // Errors are logged at V(1) and the function returns nil rather than failing
 // so that status updates are never blocked by an unreachable cluster.
-func (r *AerospikeClusterReconciler) collectAerospikeInfo(
-	ctx context.Context,
+func collectAerospikeInfo(
+	log logr.Logger,
+	aeroClient *aero.Client,
 	cluster *ackov1alpha1.AerospikeCluster,
 ) map[string]aeroPodInfo {
-	log := logf.FromContext(ctx)
-
-	aeroClient, err := r.getAerospikeClient(ctx, cluster)
-	if err != nil {
-		log.V(1).Info("Skipping Aerospike info collection: could not connect", "error", err)
-		return nil
-	}
-	defer closeAerospikeClient(aeroClient)
-
 	// Build a pod-IP → pod-name lookup from the current status pods.
 	podIPToPodName := make(map[string]string, len(cluster.Status.Pods))
 	for podName, ps := range cluster.Status.Pods {

@@ -59,9 +59,9 @@ func (r *AerospikeClusterReconciler) syncAllPodsReadinessGates(
 	}
 	defer closeAerospikeClient(aeroClient)
 
-	// IsMigrating is a cluster-wide check — call it once before the loop
+	// isMigrating is a cluster-wide check — call it once before the loop
 	// rather than repeating it for every pod.
-	migrating, migratingErr := IsMigrating(aeroClient)
+	migrating, migratingErr := isMigrating(aeroClient)
 
 	for i := range podList.Items {
 		pod := &podList.Items[i]
@@ -107,7 +107,7 @@ func (r *AerospikeClusterReconciler) syncPodReadinessGate(
 	if node != nil {
 		// 2. Check that the cluster has no pending migrations.
 		if migratingErr != nil {
-			log.V(1).Info("IsMigrating check failed; treating as migrating", "pod", pod.Name, "err", migratingErr)
+			log.V(1).Info("isMigrating check failed; treating as migrating", "pod", pod.Name, "err", migratingErr)
 		} else {
 			satisfied = !migrating
 		}

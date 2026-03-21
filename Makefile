@@ -1,5 +1,5 @@
 # Image URL to use all building/pushing image targets
-IMG ?= ghcr.io/kimsoungryoul/aerospike-ce-kubernetes-operator:latest
+IMG ?= ghcr.io/aerospike-ce-ecosystem/aerospike-ce-kubernetes-operator:latest
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -182,7 +182,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "unk
 LDFLAGS = -X github.com/ksr/aerospike-ce-kubernetes-operator/internal/version.Version=$(VERSION)
 
 # Cluster Manager image settings
-CLUSTER_MANAGER_IMG ?= ghcr.io/kimsoungryoul/aerospike-cluster-manager
+CLUSTER_MANAGER_IMG ?= ghcr.io/aerospike-ce-ecosystem/aerospike-cluster-manager
 CLUSTER_MANAGER_KIND_CLUSTER ?= kind
 CLUSTER_MANAGER_NAMESPACE ?= aerospike-operator
 NO_CACHE ?=
@@ -257,7 +257,7 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	"$(KUSTOMIZE)" build config/default > dist/install.yaml
 
 HELM_PACKAGE_DIR ?= dist/charts
-CHART_REGISTRY ?= oci://ghcr.io/kimsoungryoul/charts
+CHART_REGISTRY ?= oci://ghcr.io/aerospike-ce-ecosystem/charts
 
 .PHONY: helm-sync-crds
 helm-sync-crds: manifests ## Sync generated CRDs into aerospike-ce-kubernetes-operator-crds chart templates/ and refresh bundled tgz.

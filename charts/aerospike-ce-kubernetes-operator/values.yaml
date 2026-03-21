@@ -22,7 +22,7 @@ replicaCount: 1
 # -- Operator container image settings
 image:
   # -- Container image repository
-  repository: ghcr.io/kimsoungryoul/aerospike-ce-kubernetes-operator
+  repository: ghcr.io/aerospike-ce-ecosystem/aerospike-ce-kubernetes-operator
   # -- Container image tag; defaults to Chart.appVersion when empty
   tag: ""
   # -- Image pull policy: Always, IfNotPresent, or Never
@@ -271,7 +271,7 @@ ui:
   # -- Container image settings (single image containing both frontend and backend)
   image:
     # -- Container image repository
-    repository: ghcr.io/kimsoungryoul/aerospike-cluster-manager
+    repository: ghcr.io/aerospike-ce-ecosystem/aerospike-cluster-manager
     # -- Container image tag. UI is versioned independently from the operator.
     tag: "latest"
     # -- Image pull policy

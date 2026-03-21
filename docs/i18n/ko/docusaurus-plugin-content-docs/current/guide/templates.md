@@ -386,7 +386,7 @@ kubectl patch aerospikeclustertemplate hard-rack --type merge \
 
 ```bash
 helm install aerospike-ce-kubernetes-operator \
-  oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
+  oci://ghcr.io/aerospike-ce-ecosystem/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set certManagerSubchart.enabled=true \
   --set defaultTemplates.enabled=true

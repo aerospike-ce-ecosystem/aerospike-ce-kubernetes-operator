@@ -73,7 +73,7 @@ kubectl -n cert-manager wait --for=condition=Available deployment/cert-manager -
 
 ```bash
 # cert-manager 번들 설치 포함 (Step 2를 건너뛴 경우 권장)
-helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/aerospike-ce-ecosystem/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set certManagerSubchart.enabled=true
 ```
@@ -202,7 +202,7 @@ kubectl -n aerospike run asinfo-client --rm -it --restart=Never \
 Helm 설치 명령에 `--set ui.enabled=true`를 추가하면 오퍼레이터와 함께 웹 기반 관리 UI를 배포할 수 있습니다:
 
 ```bash
-helm install aerospike-ce-kubernetes-operator oci://ghcr.io/kimsoungryoul/charts/aerospike-ce-kubernetes-operator \
+helm install aerospike-ce-kubernetes-operator oci://ghcr.io/aerospike-ce-ecosystem/charts/aerospike-ce-kubernetes-operator \
   -n aerospike-operator --create-namespace \
   --set certManagerSubchart.enabled=true \
   --set ui.enabled=true

@@ -19,7 +19,7 @@ This page documents all configurable values for the `aerospike-ce-kubernetes-ope
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `replicaCount` | int | `1` | Number of operator replicas. Typically 1 is sufficient as leader election handles HA. |
-| `image.repository` | string | `ghcr.io/kimsoungryoul/aerospike-ce-kubernetes-operator` | Operator container image repository. |
+| `image.repository` | string | `ghcr.io/aerospike-ce-ecosystem/aerospike-ce-kubernetes-operator` | Operator container image repository. |
 | `image.tag` | string | `""` | Container image tag. Defaults to `Chart.appVersion` when empty. |
 | `image.pullPolicy` | string | `IfNotPresent` | Image pull policy: `Always`, `IfNotPresent`, or `Never`. |
 | `imagePullSecrets` | list | `[]` | Image pull secrets for private registries. |
@@ -144,7 +144,7 @@ The Aerospike Cluster Manager is a full-stack web dashboard deployed alongside t
 |-----|------|---------|-------------|
 | `ui.enabled` | bool | `false` | Enable the Aerospike Cluster Manager web UI. |
 | `ui.replicaCount` | int | `1` | Number of UI replicas. |
-| `ui.image.repository` | string | `ghcr.io/kimsoungryoul/aerospike-cluster-manager` | UI container image repository. |
+| `ui.image.repository` | string | `ghcr.io/aerospike-ce-ecosystem/aerospike-cluster-manager` | UI container image repository. |
 | `ui.image.tag` | string | `"latest"` | UI container image tag. UI is versioned independently from the operator. |
 | `ui.image.pullPolicy` | string | `IfNotPresent` | Image pull policy. |
 | `ui.imagePullSecrets` | list | `[]` | Image pull secrets for private registries. |

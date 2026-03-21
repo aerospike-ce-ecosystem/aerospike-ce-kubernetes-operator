@@ -21,23 +21,6 @@ import (
 	"fmt"
 )
 
-// TransientError wraps errors that are temporary and worth retrying.
-// The circuit breaker should count these normally.
-type TransientError struct {
-	Err error
-}
-
-func (e *TransientError) Error() string { return e.Err.Error() }
-func (e *TransientError) Unwrap() error { return e.Err }
-
-// NewTransient wraps an error as transient.
-func NewTransient(err error) error {
-	if err == nil {
-		return nil
-	}
-	return &TransientError{Err: err}
-}
-
 // ValidationError represents a permanent configuration or spec validation error.
 // These errors will never self-heal, so the circuit breaker should NOT count them
 // toward the failure threshold.
@@ -47,14 +30,6 @@ type ValidationError struct {
 
 func (e *ValidationError) Error() string { return e.Err.Error() }
 func (e *ValidationError) Unwrap() error { return e.Err }
-
-// NewValidation wraps an error as a validation error.
-func NewValidation(err error) error {
-	if err == nil {
-		return nil
-	}
-	return &ValidationError{Err: err}
-}
 
 // NewValidationf creates a new ValidationError with a formatted message.
 func NewValidationf(format string, args ...any) error {

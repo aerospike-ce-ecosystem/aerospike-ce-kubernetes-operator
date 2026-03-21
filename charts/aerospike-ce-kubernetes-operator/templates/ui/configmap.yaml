@@ -16,4 +16,5 @@ data:
   DB_POOL_OVERFLOW: {{ .Values.ui.env.dbPoolOverflow | quote }}
   DB_POOL_TIMEOUT: {{ .Values.ui.env.dbPoolTimeout | quote }}
   K8S_API_TIMEOUT: {{ .Values.ui.env.k8sApiTimeout | quote }}
+  ENABLE_POSTGRES: {{ .Values.ui.postgresql.enabled | quote }}
 {{- end }}

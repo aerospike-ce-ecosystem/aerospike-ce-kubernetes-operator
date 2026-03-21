@@ -9,8 +9,8 @@ import (
 	"github.com/go-logr/logr"
 )
 
-// AsinfoCommand executes an asinfo command on a specific node.
-func AsinfoCommand(client *aero.Client, cmd string) (string, error) {
+// asinfoCommand executes an asinfo command on a specific node.
+func asinfoCommand(client *aero.Client, cmd string) (string, error) {
 	nodes := client.GetNodes()
 	if len(nodes) == 0 {
 		return "", fmt.Errorf("no nodes available")
@@ -51,9 +51,9 @@ func asinfoCommandOnNode(node *aero.Node, cmd string) (string, error) {
 	return "", fmt.Errorf("no result for command %q on node %s", cmd, node.GetName())
 }
 
-// IsMigrating checks if the cluster has any pending migrations.
-func IsMigrating(client *aero.Client) (bool, error) {
-	result, err := AsinfoCommand(client, "cluster-stable:")
+// isMigrating checks if the cluster has any pending migrations.
+func isMigrating(client *aero.Client) (bool, error) {
+	result, err := asinfoCommand(client, "cluster-stable:")
 	if err != nil {
 		return true, err
 	}
@@ -63,10 +63,10 @@ func IsMigrating(client *aero.Client) (bool, error) {
 	return strings.TrimSpace(result) == "", nil
 }
 
-// IsMigratingOnAnyNode checks whether any node in the cluster has outstanding
+// isMigratingOnAnyNode checks whether any node in the cluster has outstanding
 // partition migrations. Uses migrate_partitions_remaining which is supported
 // in Aerospike CE 7.x and 8.x (migrate_progress_send/recv are removed in 8.x).
-func IsMigratingOnAnyNode(client *aero.Client) (bool, error) {
+func isMigratingOnAnyNode(client *aero.Client) (bool, error) {
 	nodes := client.GetNodes()
 	if len(nodes) == 0 {
 		return false, fmt.Errorf("no nodes available in Aerospike cluster")
@@ -144,10 +144,10 @@ func migrateStatsPerNode(log logr.Logger, client *aero.Client) (map[string]int64
 	return result, nil
 }
 
-// ClusterSize returns the number of nodes in the Aerospike cluster as reported by asinfo.
+// clusterSize returns the number of nodes in the Aerospike cluster as reported by asinfo.
 // Returns 0 and an error if the cluster is unreachable or the response cannot be parsed.
-func ClusterSize(client *aero.Client) (int, error) {
-	result, err := AsinfoCommand(client, "cluster-size")
+func clusterSize(client *aero.Client) (int, error) {
+	result, err := asinfoCommand(client, "cluster-size")
 	if err != nil {
 		return 0, err
 	}

@@ -162,14 +162,17 @@ When `ui.rbac.create=true`, the generated ClusterRole includes the following per
 | API Group | Resources | Verbs |
 |-----------|-----------|-------|
 | `acko.io` | `aerospikeclusters`, `aerospikeclustertemplates` | get, list, watch, create, update, patch, delete |
-| `""` (core) | `pods`, `services`, `persistentvolumeclaims` | get, list, watch |
+| `acko.io` | `aerospikeclusters/status` | get |
+| `acko.io` | `aerospikeclustertemplates/status` | get |
+| `""` (core) | `pods`, `services`, `persistentvolumeclaims` | delete, get, list, watch |
 | `""` (core) | `pods/log` | get |
 | `""` (core) | `configmaps` | get, list, watch |
-| `""` (core) | `secrets` | get, list |
+| `""` (core) | `secrets` | list |
 | `""` (core) | `persistentvolumes` | get, list |
 | `""` (core) | `nodes` | get, list |
 | `""` (core) | `events` | get, list, watch |
-| `""` (core) | `namespaces` | get, list |
+| `""` (core) | `namespaces` | create, list |
+| `storage.k8s.io` | `storageclasses` | list |
 | `autoscaling` | `horizontalpodautoscalers` | get, list, watch, create, update, patch, delete |
 
 ### Service

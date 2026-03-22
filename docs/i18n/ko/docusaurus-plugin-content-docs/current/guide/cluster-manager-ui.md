@@ -205,10 +205,9 @@ K8s 클러스터 관리 기능은 UI 서비스 어카운트가 AerospikeCluster 
 
 - **랙 추가/삭제**: 고유한 ID로 여러 랙 설정
 - **존 어피니티**: 라이브 노드 데이터에서 K8s 가용 영역 선택
-- **Revision**: 각 랙에 버전 식별자를 부여하여 제어된 롤링 재시작 트리거
+- **Revision**: 각 랙에 revision 문자열을 설정하여 랙 단위 롤링 리스타트를 트리거합니다. revision 값을 변경하면 해당 랙의 Pod만 순차적으로 재시작됩니다.
 - **Pod 분배**: 각 랙의 노드당 최대 Pod 수 설정
 - **분배 미리보기**: 랙 간 예상 Pod 분배 확인
-- **Rack Revision**: 각 랙에 revision 문자열을 설정하여 랙 단위 롤링 리스타트를 트리거합니다. revision 값을 변경하면 해당 랙의 Pod만 순차적으로 재시작됩니다.
 
 각 랙은 별도의 StatefulSet을 생성하여 존 인식 고가용성을 지원합니다.
 
@@ -219,6 +218,25 @@ K8s 클러스터 관리 기능은 UI 서비스 어카운트가 AerospikeCluster 
 - **초기화 방식**: 첫 사용 시 볼륨 준비 방법 (`none`, `deleteFiles`, `dd`, `blkdiscard`, `headerCleanup`)
 - **와이프 방식**: Pod 재시작 시 더티 볼륨 정리 방법 (`none`, `deleteFiles`, `dd`, `blkdiscard`, `headerCleanup`, `blkdiscardWithHeaderCleanup`)
 - **캐스케이드 삭제**: 클러스터 CR 삭제 시 PVC 자동 삭제 여부 (기본값: 활성화)
+
+### 컨테이너 보안 컨텍스트
+
+Edit 다이얼로그의 **Security Context** 탭에서 Pod 수준 보안 컨텍스트 외에 **Container Security Context** 섹션을 통해 컨테이너 수준 보안을 설정할 수 있습니다. 다음 필드를 구성합니다:
+
+| Field | Description |
+|-------|-------------|
+| **runAsUser** | 컨테이너 프로세스를 실행할 UID |
+| **runAsGroup** | 컨테이너 프로세스의 기본 GID |
+| **runAsNonRoot** | `true`로 설정하면 root(UID 0)로 실행되는 것을 방지합니다 |
+| **privileged** | 특권 모드 활성화 여부 |
+| **readOnlyRootFilesystem** | 루트 파일 시스템을 읽기 전용으로 마운트 |
+| **allowPrivilegeEscalation** | 자식 프로세스의 권한 상승 허용 여부 |
+
+이 설정은 `spec.podSpec.aerospikeContainerSpec.securityContext`에 매핑됩니다.
+
+:::note
+Aerospike CE 공식 이미지는 root로 실행됩니다. `runAsNonRoot: true`를 설정하면 Pod가 시작되지 않을 수 있으므로 주의하세요.
+:::
 
 ### 네트워크 접근
 

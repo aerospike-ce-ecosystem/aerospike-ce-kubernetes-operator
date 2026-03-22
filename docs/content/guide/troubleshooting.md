@@ -198,6 +198,20 @@ The circuit breaker resets automatically after a successful reconciliation. To t
 kubectl get events --field-selector reason=CircuitBreakerReset -n aerospike
 ```
 
+**Manual reset via annotation:**
+
+If you need to force an immediate reconcile (e.g., after fixing an external dependency), annotate the CR:
+
+```bash
+kubectl -n aerospike annotate asc <name> acko.io/force-reconcile=true --overwrite
+```
+
+The operator will clear the annotation after performing the reconciliation. This works even when the circuit breaker is active.
+
+**Reset via Aerospike Cluster Manager UI:**
+
+When the integrated UI is enabled (`ui.enabled: true` in Helm values), the Reconciliation Health dashboard shows a **Reset Circuit Breaker** button that triggers the annotation-based reset with a single click.
+
 ## Debugging Commands
 
 ### Cluster Status
@@ -529,3 +543,39 @@ The operator emits Kubernetes Events for significant lifecycle transitions. Use 
 | `NodeQuiesceStarted` | Normal | Node quiesce started |
 | `NodeQuiesced` | Normal | Node quiesce completed |
 | `NodeQuiesceFailed` | Warning | Node quiesce failed |
+
+## Operator Resource Sizing
+
+The operator itself is lightweight, but incorrect sizing can cause slow reconciliation or OOM kills.
+
+### Recommended Operator Resources
+
+| Clusters Managed | CPU Request | CPU Limit | Memory Request | Memory Limit |
+|-----------------|-------------|-----------|----------------|--------------|
+| 1-5 | 100m | 500m | 128Mi | 256Mi |
+| 5-20 | 250m | 1000m | 256Mi | 512Mi |
+| 20+ | 500m | 2000m | 512Mi | 1Gi |
+
+### Aerospike Pod Resource Guidelines
+
+Memory limits must accommodate the sum of all namespace `data-size` values plus ~30% overhead for primary index, buffers, and internal structures:
+
+```
+Minimum Memory = Σ(namespace data-size) × 1.3
+```
+
+For example, a cluster with two 2GB memory namespaces needs at least `2 × 2GB × 1.3 = 5.2GB` memory limit.
+
+:::tip
+The Aerospike Cluster Manager UI automatically calculates and adjusts memory limits based on your namespace configuration during cluster creation.
+:::
+
+## Kubernetes Compatibility
+
+| Operator Version | Kubernetes Versions | Controller-Runtime | CRD API Version |
+|-----------------|--------------------|--------------------|-----------------|
+| v0.1.x | v1.26 - v1.35 | v0.23.x | `acko.io/v1alpha1` |
+
+:::note
+The operator uses standard Kubernetes APIs and should work with any CNCF-certified distribution (EKS, GKE, AKS, OpenShift, k3s, etc.).
+:::

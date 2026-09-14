@@ -117,12 +117,21 @@ func (r *AerospikeClusterReconciler) applyDynamicConfigOnPod(
 // Phase 1 (Validate): Validate on all pods. If ANY pod fails, abort entirely.
 // Phase 2 (Apply): Apply on all pods. If any pod fails, rollback ALL pods.
 // Returns (allSucceeded, perPodResults, rollbackResult).
+//
+// desiredHash is the StatefulSet template's config hash for the pods' rack. It
+// is stamped on every successfully updated pod so the next reconcile stops
+// selecting it. It must NOT be recomputed from newConfig here: the template
+// hash is the per-rack EFFECTIVE hash (cluster config DeepMerged with the
+// rack's aerospikeConfig override), while newConfig is the cluster-level
+// config. Recomputing would stamp a hash that never matches the template, so
+// any rack with an override would be re-selected on every reconcile forever.
 func (r *AerospikeClusterReconciler) tryDynamicConfigUpdateBatch(
 	ctx context.Context,
 	cluster *ackov1alpha1.AerospikeCluster,
 	pods []*corev1.Pod,
 	oldConfig, newConfig map[string]any,
 	aeroClient *aero.Client,
+	desiredHash string,
 ) (bool, []podDynamicUpdate, *RollbackResult) {
 	log := logf.FromContext(ctx).WithValues("cluster", cluster.Name)
 
@@ -134,7 +143,14 @@ func (r *AerospikeClusterReconciler) tryDynamicConfigUpdateBatch(
 	// Diff the configs
 	diff := configdiff.Diff(oldConfig, newConfig)
 	if !diff.HasChanges() {
-		return true, nil, nil
+		// Nothing to apply, but the caller only sends pods whose config hash
+		// already differs from the StatefulSet template, so they are provably
+		// NOT on the desired config. Reporting success here would claim every
+		// pod was updated while nothing happened, and the cluster would loop in
+		// RollingRestart forever. Fall through to the per-pod restart path.
+		log.Info("No dynamic config changes for this batch, falling through to per-pod restart",
+			"podCount", len(pods))
+		return false, nil, nil
 	}
 
 	if diff.HasStaticChanges() {
@@ -180,7 +196,6 @@ func (r *AerospikeClusterReconciler) tryDynamicConfigUpdateBatch(
 	// === Phase 2: Apply on all pods ===
 	log.Info("2PC Phase 2: Applying dynamic config on all pods")
 	var successfulUpdates []podDynamicUpdate
-	desiredHash := configHash(&ackov1alpha1.AerospikeConfigSpec{Value: newConfig})
 
 	for _, t := range targets {
 		// Check remaining reconcile context before each pod

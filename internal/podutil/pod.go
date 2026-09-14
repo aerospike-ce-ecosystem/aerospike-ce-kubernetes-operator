@@ -31,6 +31,23 @@ const (
 	AerospikeReadinessGateConditionType corev1.PodConditionType = "acko.io/aerospike-ready"
 )
 
+// DefaultServiceAccountName is the ServiceAccount Kubernetes assigns to a pod
+// that does not request one explicitly.
+const DefaultServiceAccountName = "default"
+
+// ServiceAccountName returns the ServiceAccount the cluster's Aerospike pods
+// actually run as: spec.podSpec.serviceAccountName when set, otherwise
+// "default". applyPodSpecSettings renders the pod template from the same field,
+// so anything that has to name the pod's identity — notably the per-pod Service
+// reader RoleBinding created for LoadBalancer/NodePort podService types — must
+// go through this helper instead of assuming "default".
+func ServiceAccountName(cluster *v1alpha1.AerospikeCluster) string {
+	if cluster.Spec.PodSpec != nil && cluster.Spec.PodSpec.ServiceAccountName != "" {
+		return cluster.Spec.PodSpec.ServiceAccountName
+	}
+	return DefaultServiceAccountName
+}
+
 // BuildPodTemplateSpec builds the complete PodTemplateSpec for a StatefulSet
 // managing Aerospike pods in the given rack.
 func BuildPodTemplateSpec(

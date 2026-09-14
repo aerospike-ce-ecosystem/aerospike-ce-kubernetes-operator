@@ -12,6 +12,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	ackov1alpha1 "github.com/aerospike-ce-ecosystem/aerospike-ce-kubernetes-operator/api/v1alpha1"
+	"github.com/aerospike-ce-ecosystem/aerospike-ce-kubernetes-operator/internal/podutil"
 )
 
 const (
@@ -36,7 +37,11 @@ func (r *AerospikeClusterReconciler) reconcilePodServiceRBAC(
 	}
 
 	log := logf.FromContext(ctx)
-	saName := "default"
+
+	// The init container authenticates to the API server with the pod's own
+	// service account token, so the binding must name the service account the
+	// pods actually run as — not a hard-coded "default".
+	saName := podutil.ServiceAccountName(cluster)
 
 	desiredRules := []rbacv1.PolicyRule{
 		{

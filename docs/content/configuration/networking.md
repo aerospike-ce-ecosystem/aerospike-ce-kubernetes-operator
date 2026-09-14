@@ -237,7 +237,7 @@ When configured, the operator creates a Service named `<pod-name>-pod` for each 
 | `LoadBalancer` | Creates a cloud LoadBalancer with a unique external IP per pod. All Aerospike ports are exposed. |
 
 When `serviceType` is `LoadBalancer` or `NodePort`, the operator automatically:
-1. Creates a Role/RoleBinding granting the pod's service account permission to read its own Service
+1. Creates a Role/RoleBinding granting the pod's service account (`spec.podSpec.serviceAccountName`, or `default` when unset) permission to read its own Service
 2. Enables `automountServiceAccountToken` on the pod spec
 3. Injects `EXTERNAL_SERVICE_TYPE` and `POD_NAMESPACE` environment variables into the init container
 4. The init container queries the Kubernetes API at startup to discover its LoadBalancer external IP or NodePort, and injects it as `alternate-access-address` into `aerospike.conf`

@@ -7,8 +7,10 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -413,6 +415,35 @@ func TestReconcileRollingRestart_BatchedFiresCompletedOnFinalBatch(t *testing.T)
 
 	rack := &ackov1alpha1.Rack{ID: rackID}
 
+	// The fake client has no StatefulSet controller, so stand in for it between
+	// batches: recreate the pod the operator just deleted the way a real
+	// StatefulSet would, with the template's config hash, Running and Ready.
+	// isBatchBlocked holds the next batch while a rack is short a pod or its
+	// replacement is not Ready, so without this the queue never drains.
+	recreateDeletedPods := func() {
+		t.Helper()
+		for ordinal := 0; ordinal < int(replicas); ordinal++ {
+			name := utils.StatefulSetName(clusterName, rackID) + "-" + itoa(ordinal)
+			err := r.Get(context.Background(),
+				types.NamespacedName{Name: name, Namespace: namespace}, &corev1.Pod{})
+			if err == nil {
+				continue
+			}
+			if !apierrors.IsNotFound(err) {
+				t.Fatalf("Get(%s) error = %v", name, err)
+			}
+			replacement := makePod(ordinal)
+			replacement.Annotations[utils.ConfigHashAnnotation] = desiredHash
+			replacement.Status = corev1.PodStatus{
+				Phase:      corev1.PodRunning,
+				Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}},
+			}
+			if err := r.Create(context.Background(), replacement); err != nil {
+				t.Fatalf("Create(%s) error = %v", name, err)
+			}
+		}
+	}
+
 	// 3 pods, batchSize=1 → 3 reconciles. The completed event must fire only on the
 	// final reconcile (when the pending queue drains), never on the intermediate
 	// batches. The pre-fix `restarted >= len(podsToRestart)` check compared the
@@ -426,6 +457,7 @@ func TestReconcileRollingRestart_BatchedFiresCompletedOnFinalBatch(t *testing.T)
 		if containsEvent(events, EventRollingRestartCompleted) {
 			t.Fatalf("completed event fired too early on batch %d; events=%v", i, events)
 		}
+		recreateDeletedPods()
 	}
 
 	// Final batch: restarts the last pod, queue drains → completed event fires.

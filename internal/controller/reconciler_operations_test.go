@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	ackov1alpha1 "github.com/aerospike-ce-ecosystem/aerospike-ce-kubernetes-operator/api/v1alpha1"
@@ -623,5 +624,227 @@ func TestReconcileOperations_NotBlocked_AdvancesOneBatch(t *testing.T) {
 		updated.Status.OperationStatus.CompletedPods[0] != "demo-0" {
 		t.Errorf("CompletedPods = %v, want [demo-0] (one batch advanced)",
 			updated.Status.OperationStatus.CompletedPods)
+	}
+}
+
+// readyClusterPod builds a Running+Ready pod belonging to the "demo" cluster:
+// the state a pod this operation already restarted reaches once it is back.
+func readyClusterPod(name string) *corev1.Pod {
+	pod := clusterPod(name, corev1.PodRunning)
+	pod.Status.Conditions = []corev1.PodCondition{
+		{Type: corev1.PodReady, Status: corev1.ConditionTrue},
+	}
+	return pod
+}
+
+// operationsReconciler builds a fake-client reconciler whose migration probe
+// answers "no migration in progress" without touching the network, so the
+// on-demand batch guard is exercised on its own rather than on the migration
+// check that would otherwise dominate the default (gates-off) branch.
+func operationsReconciler(t *testing.T, objs ...client.Object) *AerospikeClusterReconciler {
+	t.Helper()
+	scheme := operationsScheme(t)
+	return &AerospikeClusterReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithStatusSubresource(&ackov1alpha1.AerospikeCluster{}).
+			WithObjects(objs...).
+			Build(),
+		Scheme:   scheme,
+		Recorder: record.NewFakeRecorder(16),
+		migrationCheck: func(context.Context, *ackov1alpha1.AerospikeCluster) (bool, error) {
+			return false, nil
+		},
+	}
+}
+
+// operationInFlightCluster builds a gates-disabled cluster with an in-progress
+// PodRestart whose CompletedPods already names one pod — the state after a
+// previous reconcile cold-restarted it.
+func operationInFlightCluster(completed ...string) *ackov1alpha1.AerospikeCluster {
+	gateEnabled := false
+	return &ackov1alpha1.AerospikeCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "demo", Namespace: "default"},
+		Spec: ackov1alpha1.AerospikeClusterSpec{
+			Size:    2,
+			PodSpec: &ackov1alpha1.AerospikePodSpec{ReadinessGateEnabled: &gateEnabled},
+			Operations: []ackov1alpha1.OperationSpec{
+				{
+					ID:   "op-restart",
+					Kind: ackov1alpha1.OperationPodRestart,
+					// Empty PodList → the operation targets every cluster pod.
+				},
+			},
+		},
+		Status: ackov1alpha1.AerospikeClusterStatus{
+			OperationStatus: &ackov1alpha1.OperationStatus{
+				ID:            "op-restart",
+				Kind:          ackov1alpha1.OperationPodRestart,
+				Phase:         ackov1alpha1.AerospikePhaseInProgress,
+				CompletedPods: completed,
+			},
+		},
+	}
+}
+
+// TestReconcileOperations_BlockedByPendingReplacement_GatesOff is the
+// data-availability regression for the on-demand path with readiness gates at
+// their default (disabled). Reconcile 1 cold-restarts demo-1 and records it in
+// CompletedPods; the pod-delete watch event then fires reconcile 2 while demo-1
+// is still Pending. Nothing is terminating, an on-demand restart leaves the
+// StatefulSet template hashes unchanged so isBatchBlocked's replacement rule
+// cannot see demo-1 at all, and the lone survivor answers
+// migrate_partitions_remaining=0 within seconds. Without the completed-pod wait
+// demo-0 is deleted while demo-1 is still down: both nodes out at once, the same
+// outage the rolling path was fixed for.
+func TestReconcileOperations_BlockedByPendingReplacement_GatesOff(t *testing.T) {
+	cluster := operationInFlightCluster("demo-1")
+	// demo-0: outstanding, the pod the operation would restart next.
+	// Pending so coldRestartPod would skip its best-effort quiesce network call
+	// if the guard failed to hold — the test must fail on a deleted pod, not on
+	// a dial timeout.
+	outstanding := clusterPod("demo-0", corev1.PodPending)
+	// demo-1: already restarted, back as a Pending pod that is not Ready yet.
+	replacement := clusterPod("demo-1", corev1.PodPending)
+
+	r := operationsReconciler(t, cluster, outstanding, replacement)
+
+	inProgress, err := r.reconcileOperations(context.Background(), cluster)
+	if err != nil {
+		t.Fatalf("reconcileOperations() error = %v", err)
+	}
+	if !inProgress {
+		t.Fatal("expected inProgress=true: a batch blocked on a Pending replacement must requeue")
+	}
+
+	if err := r.Get(context.Background(),
+		types.NamespacedName{Name: "demo-0", Namespace: "default"}, &corev1.Pod{}); err != nil {
+		t.Fatalf("demo-0 must NOT be restarted while demo-1 is still Pending, Get err = %v", err)
+	}
+
+	updated := &ackov1alpha1.AerospikeCluster{}
+	if err := r.Get(context.Background(),
+		types.NamespacedName{Name: "demo", Namespace: "default"}, updated); err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if updated.Status.OperationStatus != nil &&
+		len(updated.Status.OperationStatus.CompletedPods) != 1 {
+		t.Errorf("CompletedPods = %v, want it held at [demo-1] while the batch is blocked",
+			updated.Status.OperationStatus.CompletedPods)
+	}
+}
+
+// TestReconcileOperations_BlockedByMissingReplacement_GatesOff covers the other
+// half of the same window: reconcile 2 runs in the gap between the delete
+// completing and the StatefulSet recreating the pod, so demo-1 is absent from
+// the target list entirely. A pod that is simply gone is the most dangerous
+// version of "not back yet" — there is nothing to inspect and nothing in the
+// hashes or the migration probe that notices.
+func TestReconcileOperations_BlockedByMissingReplacement_GatesOff(t *testing.T) {
+	cluster := operationInFlightCluster("demo-1")
+	outstanding := clusterPod("demo-0", corev1.PodPending)
+	// demo-1 deliberately not created: deleted and not recreated yet.
+
+	r := operationsReconciler(t, cluster, outstanding)
+
+	inProgress, err := r.reconcileOperations(context.Background(), cluster)
+	if err != nil {
+		t.Fatalf("reconcileOperations() error = %v", err)
+	}
+	if !inProgress {
+		t.Fatal("expected inProgress=true: a batch blocked on a not-yet-recreated pod must requeue")
+	}
+
+	if err := r.Get(context.Background(),
+		types.NamespacedName{Name: "demo-0", Namespace: "default"}, &corev1.Pod{}); err != nil {
+		t.Fatalf("demo-0 must NOT be restarted while demo-1 does not exist, Get err = %v", err)
+	}
+}
+
+// TestReconcileOperations_ReadyReplacement_AdvancesGatesOff proves the wait is a
+// wait and not a stall: once the pod the operation already restarted is back
+// Running and Ready, the next outstanding pod is restarted on the very next
+// reconcile.
+func TestReconcileOperations_ReadyReplacement_AdvancesGatesOff(t *testing.T) {
+	cluster := operationInFlightCluster("demo-1")
+	outstanding := clusterPod("demo-0", corev1.PodPending)
+	replacement := readyClusterPod("demo-1")
+
+	r := operationsReconciler(t, cluster, outstanding, replacement)
+
+	if _, err := r.reconcileOperations(context.Background(), cluster); err != nil {
+		t.Fatalf("reconcileOperations() error = %v", err)
+	}
+
+	if err := r.Get(context.Background(),
+		types.NamespacedName{Name: "demo-0", Namespace: "default"}, &corev1.Pod{}); err == nil {
+		t.Fatal("expected demo-0 to be cold-restarted once demo-1 is back Ready")
+	}
+}
+
+// TestOperationRestartInFlightReason covers the helper directly, including the
+// rule it must NOT apply: a pod that this operation has not restarted yet may be
+// unhealthy — often the very reason the restart was requested — and must never
+// hold the batch, or the operation meant to fix the cluster could never run.
+func TestOperationRestartInFlightReason(t *testing.T) {
+	terminating := readyClusterPod("demo-2")
+	now := metav1.Now()
+	terminating.DeletionTimestamp = &now
+	terminating.Finalizers = []string{"acko.io/test"}
+
+	tests := []struct {
+		name      string
+		pods      []*corev1.Pod
+		completed map[string]bool
+		wantBlock bool
+	}{
+		{
+			name:      "no completed pods yet",
+			pods:      []*corev1.Pod{clusterPod("demo-0", corev1.PodPending)},
+			completed: map[string]bool{},
+		},
+		{
+			name:      "completed pod back and Ready",
+			pods:      []*corev1.Pod{readyClusterPod("demo-0"), clusterPod("demo-1", corev1.PodPending)},
+			completed: map[string]bool{"demo-0": true},
+		},
+		{
+			name:      "completed pod Pending",
+			pods:      []*corev1.Pod{clusterPod("demo-0", corev1.PodPending)},
+			completed: map[string]bool{"demo-0": true},
+			wantBlock: true,
+		},
+		{
+			name:      "completed pod Running but not Ready",
+			pods:      []*corev1.Pod{clusterPod("demo-0", corev1.PodRunning)},
+			completed: map[string]bool{"demo-0": true},
+			wantBlock: true,
+		},
+		{
+			name:      "completed pod terminating",
+			pods:      []*corev1.Pod{terminating},
+			completed: map[string]bool{"demo-2": true},
+			wantBlock: true,
+		},
+		{
+			name:      "completed pod absent from the target list",
+			pods:      []*corev1.Pod{readyClusterPod("demo-0")},
+			completed: map[string]bool{"demo-1": true},
+			wantBlock: true,
+		},
+		{
+			name:      "outstanding pod unhealthy must not block",
+			pods:      []*corev1.Pod{readyClusterPod("demo-0"), clusterPod("demo-1", corev1.PodFailed)},
+			completed: map[string]bool{"demo-0": true},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reason := operationRestartInFlightReason(tt.pods, tt.completed)
+			if (reason != "") != tt.wantBlock {
+				t.Errorf("operationRestartInFlightReason() = %q, wantBlock = %v", reason, tt.wantBlock)
+			}
+		})
 	}
 }

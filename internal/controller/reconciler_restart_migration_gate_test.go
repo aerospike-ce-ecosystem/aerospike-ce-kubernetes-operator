@@ -91,7 +91,7 @@ func TestIsBatchBlocked_MigrationCheckError_FailsClosed(t *testing.T) {
 		t.Fatal("isMigrationInProgress() returned no error; this test needs the check to fail")
 	}
 
-	if blocked := r.isBatchBlocked(context.Background(), cluster, migrationGateRack, nil); !blocked {
+	if blocked := r.isBatchBlocked(context.Background(), cluster, migrationGateRack, nil, rackRestartTarget{}); !blocked {
 		t.Fatal("isBatchBlocked() = false on a migration-check error, want true (blocked); " +
 			"deleting the next batch while partitions may still be moving is how records are lost")
 	}
@@ -157,7 +157,7 @@ func TestIsBatchBlocked_MigrationCheckError_EscapeHatchIsBounded(t *testing.T) {
 				}
 			}
 
-			blocked := r.isBatchBlocked(context.Background(), cluster, migrationGateRack, nil)
+			blocked := r.isBatchBlocked(context.Background(), cluster, migrationGateRack, nil, rackRestartTarget{})
 			if blocked != tt.wantBlocked {
 				t.Fatalf("isBatchBlocked() = %v, want %v", blocked, tt.wantBlocked)
 			}

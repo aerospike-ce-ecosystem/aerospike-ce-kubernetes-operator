@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	ackov1alpha1 "github.com/aerospike-ce-ecosystem/aerospike-ce-kubernetes-operator/api/v1alpha1"
@@ -368,5 +369,264 @@ func TestRestartPodBatch_DynamicShortCircuitFalseSuccess(t *testing.T) {
 	if err := reconciler.Get(context.Background(),
 		types.NamespacedName{Name: "demo-0", Namespace: "default"}, got); err != nil {
 		t.Fatalf("pod demo-0 should still exist after the (false) dynamic success, Get err = %v", err)
+	}
+}
+
+// --- the next batch must wait for the previous batch's replacement ---
+//
+// With spec.podSpec.readinessGateEnabled unset (the documented default) the
+// only gate between rolling-restart batches was the cluster-wide migration
+// probe. A replacement pod that is still Pending or cold-starting is not in
+// client.GetNodes() at all, so the surviving nodes answer
+// migrate_partitions_remaining=0 within seconds and the next stale pod is
+// deleted while the first replacement is still down — two nodes down at once,
+// which is a total outage for a size-2 cluster and partition unavailability at
+// replication-factor 2. docs/content/operations/manage-cluster.md has always
+// promised the operator "waits for replacements to become ready before
+// continuing"; only the readiness-gate branch actually did.
+
+const (
+	restartGateConfigHash  = "cfg-NEW"
+	restartGatePodSpecHash = "podspec-NEW"
+)
+
+// restartGatePod builds a rack-0 pod for the restart-gate tests. Every pod
+// carries the desired config hash and drifts (or not) only on the pod-spec
+// hash, so configChanged stays false and the dynamic-config 2PC path — which
+// would build a real Aerospike client and sit on a connect timeout — is never
+// entered. Staleness is therefore decided entirely by podSpecHash.
+func restartGatePod(
+	clusterName, name, podSpecHash string,
+	phase corev1.PodPhase,
+	ready bool,
+) *corev1.Pod {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: "default",
+			Labels:    utils.LabelsForRack(clusterName, 0),
+			Annotations: map[string]string{
+				utils.ConfigHashAnnotation:  restartGateConfigHash,
+				utils.PodSpecHashAnnotation: podSpecHash,
+			},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{Name: podutil.AerospikeContainerName, Image: "aerospike:ce-8.1.1.1"},
+			},
+		},
+		Status: corev1.PodStatus{Phase: phase},
+	}
+	readyStatus := corev1.ConditionFalse
+	if ready {
+		readyStatus = corev1.ConditionTrue
+	}
+	pod.Status.Conditions = []corev1.PodCondition{{Type: corev1.PodReady, Status: readyStatus}}
+	return pod
+}
+
+// restartGateSTS builds the rack-0 StatefulSet whose template carries the
+// desired hashes.
+func restartGateSTS(clusterName string, replicas int32) *appsv1.StatefulSet {
+	return &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      utils.StatefulSetName(clusterName, 0),
+			Namespace: "default",
+		},
+		Spec: appsv1.StatefulSetSpec{
+			Replicas: &replicas,
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						utils.ConfigHashAnnotation:  restartGateConfigHash,
+						utils.PodSpecHashAnnotation: restartGatePodSpecHash,
+					},
+				},
+			},
+		},
+	}
+}
+
+// restartGateCluster builds a cluster with readiness gates left at their
+// default (disabled) — the branch that had no readiness wait at all.
+func restartGateCluster() *ackov1alpha1.AerospikeCluster {
+	cfg := &ackov1alpha1.AerospikeConfigSpec{Value: map[string]any{"service": map[string]any{}}}
+	return &ackov1alpha1.AerospikeCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "demo", Namespace: "default", UID: "restart-gate-uid"},
+		Spec: ackov1alpha1.AerospikeClusterSpec{
+			Size:            2,
+			Image:           "aerospike:ce-8.1.1.1",
+			AerospikeConfig: cfg,
+		},
+		Status: ackov1alpha1.AerospikeClusterStatus{AerospikeConfig: cfg},
+	}
+}
+
+// restartGateReconciler wires a fake client plus a migration seam that reports
+// "not migrating" without touching the network — exactly the answer the lone
+// survivor of a two-node cluster gives while its peer is still starting, and
+// the answer that used to wave the next batch through.
+func restartGateReconciler(t *testing.T, objs ...client.Object) *AerospikeClusterReconciler {
+	t.Helper()
+	scheme := rollingRestartScheme(t)
+	return &AerospikeClusterReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithStatusSubresource(&ackov1alpha1.AerospikeCluster{}).
+			WithObjects(objs...).
+			Build(),
+		Scheme:   scheme,
+		Recorder: record.NewFakeRecorder(32),
+		migrationCheck: func(context.Context, *ackov1alpha1.AerospikeCluster) (bool, error) {
+			return false, nil
+		},
+	}
+}
+
+// TestReconcileRollingRestart_BlocksWhileReplacementNotReady is the regression
+// test. demo-1 already carries the desired hashes (it is the replacement from
+// the previous batch) but is not Ready; demo-0 is still stale. The stale pod
+// must NOT be deleted until the replacement is Ready.
+func TestReconcileRollingRestart_BlocksWhileReplacementNotReady(t *testing.T) {
+	tests := []struct {
+		name  string
+		phase corev1.PodPhase
+	}{
+		{name: "replacement is Running but not Ready", phase: corev1.PodRunning},
+		// Pending is the image-pull window of an upgrade. The readiness-gate
+		// branch skips non-Running pods, so this case has to block here too.
+		{name: "replacement is still Pending", phase: corev1.PodPending},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cluster := restartGateCluster()
+			replacement := restartGatePod(cluster.Name, "demo-1", restartGatePodSpecHash, tc.phase, false)
+			stale := restartGatePod(cluster.Name, "demo-0", "podspec-OLD", corev1.PodRunning, true)
+
+			r := restartGateReconciler(t, cluster, restartGateSTS(cluster.Name, 2), replacement, stale)
+
+			blocked, err := r.reconcileRollingRestart(context.Background(), cluster, &ackov1alpha1.Rack{ID: 0})
+			if err != nil {
+				t.Fatalf("reconcileRollingRestart() error = %v", err)
+			}
+			if !blocked {
+				t.Error("reconcileRollingRestart() = false, want true (batch held pending a requeue)")
+			}
+
+			got := &corev1.Pod{}
+			if err := r.Get(context.Background(),
+				types.NamespacedName{Name: "demo-0", Namespace: "default"}, got); err != nil {
+				t.Fatalf("stale pod demo-0 was deleted while replacement demo-1 was %s and not Ready — "+
+					"two nodes down at once; Get err = %v", tc.phase, err)
+			}
+		})
+	}
+}
+
+// TestReconcileRollingRestart_BlocksWhileReplacementMissing covers the window
+// between the delete completing and the StatefulSet recreating the pod. The
+// pod object is gone entirely, so there is nothing to find not-Ready — the
+// reconcile that the pod-delete event itself triggers lands right here.
+func TestReconcileRollingRestart_BlocksWhileReplacementMissing(t *testing.T) {
+	cluster := restartGateCluster()
+	stale := restartGatePod(cluster.Name, "demo-0", "podspec-OLD", corev1.PodRunning, true)
+
+	// sts wants 2 replicas; only demo-0 exists (demo-1 was just deleted).
+	r := restartGateReconciler(t, cluster, restartGateSTS(cluster.Name, 2), stale)
+
+	blocked, err := r.reconcileRollingRestart(context.Background(), cluster, &ackov1alpha1.Rack{ID: 0})
+	if err != nil {
+		t.Fatalf("reconcileRollingRestart() error = %v", err)
+	}
+	if !blocked {
+		t.Error("reconcileRollingRestart() = false, want true (batch held pending a requeue)")
+	}
+
+	got := &corev1.Pod{}
+	if err := r.Get(context.Background(),
+		types.NamespacedName{Name: "demo-0", Namespace: "default"}, got); err != nil {
+		t.Fatalf("stale pod demo-0 was deleted while the previous replacement had not been "+
+			"recreated yet; Get err = %v", err)
+	}
+}
+
+// TestReconcileRollingRestart_StaleCrashLoopingPodStillRestarts is the
+// anti-deadlock half. A cluster whose pods are crash-looping on the OLD config
+// is exactly the case the migration escape hatch exists for: those pods are not
+// Ready, but they are stale, so the restart that would fix them must still run.
+// A "block on any not-Ready pod" gate would wedge this cluster forever.
+func TestReconcileRollingRestart_StaleCrashLoopingPodStillRestarts(t *testing.T) {
+	cluster := restartGateCluster()
+	cluster.Spec.Size = 1
+	crashing := restartGatePod(cluster.Name, "demo-0", "podspec-OLD", corev1.PodRunning, false)
+
+	r := restartGateReconciler(t, cluster, restartGateSTS(cluster.Name, 1), crashing)
+
+	triggered, err := r.reconcileRollingRestart(context.Background(), cluster, &ackov1alpha1.Rack{ID: 0})
+	if err != nil {
+		t.Fatalf("reconcileRollingRestart() error = %v", err)
+	}
+	if !triggered {
+		t.Fatal("reconcileRollingRestart() = false, want true (the stale crash-looping pod must be restarted)")
+	}
+
+	got := &corev1.Pod{}
+	err = r.Get(context.Background(), types.NamespacedName{Name: "demo-0", Namespace: "default"}, got)
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("stale crash-looping pod demo-0 was not restarted — the fixing restart is deadlocked; Get err = %v", err)
+	}
+}
+
+// TestIsBatchBlocked_ReadinessGateEnabled_PendingReplacementBlocks covers the
+// narrower hole in the gate branch: anyPodGateUnsatisfied only inspects Running
+// pods, so a replacement still pulling its new image (Pending, no gate
+// condition yet) sailed straight through it.
+func TestIsBatchBlocked_ReadinessGateEnabled_PendingReplacementBlocks(t *testing.T) {
+	gateEnabled := true
+	cluster := restartGateCluster()
+	cluster.Spec.PodSpec = &ackov1alpha1.AerospikePodSpec{ReadinessGateEnabled: &gateEnabled}
+
+	replacement := restartGatePod(cluster.Name, "demo-1", restartGatePodSpecHash, corev1.PodPending, false)
+	ready := restartGatePod(cluster.Name, "demo-0", "podspec-OLD", corev1.PodRunning, true)
+
+	r := restartGateReconciler(t, cluster)
+	target := rackRestartTarget{
+		configHash:  restartGateConfigHash,
+		podSpecHash: restartGatePodSpecHash,
+		replicas:    2,
+	}
+
+	if !r.isBatchBlocked(context.Background(), cluster, 0, []corev1.Pod{*replacement, *ready}, target) {
+		t.Error("isBatchBlocked() = false while the replacement pod was still Pending, want true")
+	}
+}
+
+// TestIsBatchBlocked_TerminatingPodBlocks pins the terminating rule. A pod in
+// its preStop window is a restart that has not finished; taking the next node
+// down on top of it is the same double outage.
+func TestIsBatchBlocked_TerminatingPodBlocks(t *testing.T) {
+	cluster := restartGateCluster()
+	r := restartGateReconciler(t, cluster)
+
+	terminating := restartGatePod(cluster.Name, "demo-1", restartGatePodSpecHash, corev1.PodRunning, true)
+	now := metav1.Now()
+	terminating.DeletionTimestamp = &now
+	stale := restartGatePod(cluster.Name, "demo-0", "podspec-OLD", corev1.PodRunning, true)
+
+	target := rackRestartTarget{
+		configHash:  restartGateConfigHash,
+		podSpecHash: restartGatePodSpecHash,
+		replicas:    2,
+	}
+	if !r.isBatchBlocked(context.Background(), cluster, 0, []corev1.Pod{*terminating, *stale}, target) {
+		t.Error("isBatchBlocked() = false while a pod was terminating, want true")
+	}
+
+	// The same rule has to survive the zero target, which is what the on-demand
+	// operations path passes.
+	if !r.isBatchBlocked(context.Background(), cluster, onDemandOperationRackID,
+		[]corev1.Pod{*terminating}, rackRestartTarget{}) {
+		t.Error("isBatchBlocked() = false for a terminating pod under the zero target, want true")
 	}
 }

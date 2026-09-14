@@ -255,7 +255,12 @@ func (r *AerospikeClusterReconciler) reconcileRollingRestart(
 	cluster.Status.PendingRestartPods = pendingNames
 
 	// Hold the next batch when migration or readiness gates are blocking.
-	if r.isBatchBlocked(ctx, cluster, rack.ID, rackPods) {
+	if r.isBatchBlocked(ctx, cluster, rack.ID, rackPods, rackRestartTarget{
+		configHash:  desiredHash,
+		podSpecHash: desiredPodSpecHash,
+		storageHash: desiredStorageHash,
+		replicas:    replicas,
+	}) {
 		return true, nil
 	}
 
@@ -372,18 +377,7 @@ func (r *AerospikeClusterReconciler) selectPodsToRestart(
 			}
 		}
 
-		currentHash := ""
-		currentPodSpecHash := ""
-		currentStorageHash := ""
-		if pod.Annotations != nil {
-			currentHash = pod.Annotations[utils.ConfigHashAnnotation]
-			currentPodSpecHash = pod.Annotations[utils.PodSpecHashAnnotation]
-			currentStorageHash = pod.Annotations[utils.StorageHashAnnotation]
-		}
-
-		configMismatch := currentHash != desiredHash
-		podSpecMismatch := desiredPodSpecHash != "" && currentPodSpecHash != desiredPodSpecHash
-		// currentStorageHash == "" means the pod predates utils.StorageHashAnnotation
+		// hashes.storageUnknown means the pod predates utils.StorageHashAnnotation
 		// — it was created by an operator that did not stamp one. Its storage state
 		// is unknowable, so it is NOT treated as stale: the alternative restarts
 		// every pod of every cluster on operator upgrade, each with a full data
@@ -393,14 +387,12 @@ func (r *AerospikeClusterReconciler) selectPodsToRestart(
 		// Not-stale is not the same as leave-alone, though. Such a pod is adopted
 		// below, so the blind spot lasts one reconcile rather than until something
 		// unrelated happens to restart the pod.
-		storageUnknown := desiredStorageHash != "" && currentStorageHash == ""
-		storageMismatch := desiredStorageHash != "" && currentStorageHash != "" &&
-			currentStorageHash != desiredStorageHash
+		hashes := comparePodHashes(pod, desiredHash, desiredPodSpecHash, desiredStorageHash)
 
 		switch {
-		case configMismatch || podSpecMismatch || storageMismatch:
+		case hashes.stale:
 			podsToRestart = append(podsToRestart, pod)
-		case storageUnknown:
+		case hashes.storageUnknown:
 			// The pod matches on everything the operator that created it knew
 			// about, and it is not being restarted for any other reason, so stamp
 			// the storage hash on it WITHOUT a restart. From here on a storage
@@ -419,12 +411,54 @@ func (r *AerospikeClusterReconciler) selectPodsToRestart(
 					"pod", pod.Name, "error", err)
 			}
 		}
-		if configMismatch {
+		if hashes.configMismatch {
 			configChanged = true
 		}
 	}
 
 	return podsToRestart, configChanged
+}
+
+// podHashComparison is the result of comparing one pod's stamped annotations
+// against the StatefulSet template's.
+type podHashComparison struct {
+	// configMismatch is the config-hash difference on its own. It gates the
+	// dynamic-config 2PC path; the other two hashes cannot be applied
+	// dynamically.
+	configMismatch bool
+	// stale means the pod needs a restart: any of the three hashes differs.
+	stale bool
+	// storageUnknown means the pod carries no storage hash at all because the
+	// operator that created it predates the annotation.
+	storageUnknown bool
+}
+
+// comparePodHashes compares a pod's stamped hashes against the StatefulSet
+// template's.
+//
+// selectPodsToRestart uses `stale` to pick restart targets and
+// restartInFlightReason uses its negation to recognise a pod that has ALREADY
+// been restarted. Those two readings have to come from one definition: a
+// drifted copy would either restart a pod twice or let the next batch start
+// while the replacement from the previous one is still down.
+func comparePodHashes(pod *corev1.Pod, desiredHash, desiredPodSpecHash, desiredStorageHash string) podHashComparison {
+	var currentHash, currentPodSpecHash, currentStorageHash string
+	if pod.Annotations != nil {
+		currentHash = pod.Annotations[utils.ConfigHashAnnotation]
+		currentPodSpecHash = pod.Annotations[utils.PodSpecHashAnnotation]
+		currentStorageHash = pod.Annotations[utils.StorageHashAnnotation]
+	}
+
+	configMismatch := currentHash != desiredHash
+	podSpecMismatch := desiredPodSpecHash != "" && currentPodSpecHash != desiredPodSpecHash
+	storageMismatch := desiredStorageHash != "" && currentStorageHash != "" &&
+		currentStorageHash != desiredStorageHash
+
+	return podHashComparison{
+		configMismatch: configMismatch,
+		stale:          configMismatch || podSpecMismatch || storageMismatch,
+		storageUnknown: desiredStorageHash != "" && currentStorageHash == "",
+	}
 }
 
 // podDynamicUpdate tracks a pod that received a successful dynamic config update,
@@ -934,10 +968,82 @@ func filterUnrestarted(allPending []string, failedPods []string, restarted int32
 	return remaining
 }
 
+// rackRestartTarget describes what a rack is being restarted *towards*: the
+// hashes its StatefulSet template asks for and how many pods that template
+// wants. It is what lets isBatchBlocked tell a pod that has ALREADY been
+// restarted — it carries the target hashes and is still coming up — from one
+// that is merely stale and has not been touched yet.
+//
+// The zero value means "unknown", and only the terminating-pod rule applies.
+// The on-demand operations path passes it: that path targets an explicit pod
+// list that can span racks, so no single template describes it.
+type rackRestartTarget struct {
+	configHash  string
+	podSpecHash string
+	storageHash string
+	replicas    int32
+}
+
+// restartInFlightReason reports why the previous batch is not finished yet, or
+// "" when it is. It is the readiness wait that the rolling restart owes callers
+// regardless of whether readiness gates are enabled.
+//
+// Three signals, all meaning "a pod this rack already restarted is not back":
+//
+//   - a pod is terminating — the delete has been issued and the StatefulSet has
+//     not recreated the pod yet;
+//   - a pod already carries every hash the template asks for (so it IS the
+//     replacement) but is not Ready — including Pending, which is where a
+//     replacement sits while it pulls the new image;
+//   - fewer pods exist than the template wants — the deleted pod is gone and
+//     its replacement has not been created. This is the window the pod-delete
+//     watch event itself reconciles in.
+//
+// What is deliberately NOT a signal: a pod that is not Ready and still stale.
+// A cluster crash-looping on a bad config is exactly the case the migration
+// escape hatch (see migrationCheckState) exists for — the restart is the
+// remedy, so those pods must stay eligible or the cluster is wedged forever.
+// That is also why this cannot be "ReadyReplicas < Replicas".
+func restartInFlightReason(rackPods []corev1.Pod, target rackRestartTarget) string {
+	for i := range rackPods {
+		pod := &rackPods[i]
+		if pod.DeletionTimestamp != nil {
+			return fmt.Sprintf("pod %s is still terminating", pod.Name)
+		}
+		if target.configHash == "" {
+			continue
+		}
+		if comparePodHashes(pod, target.configHash, target.podSpecHash, target.storageHash).stale {
+			continue
+		}
+		if !isPodReady(pod) {
+			return fmt.Sprintf("pod %s has been restarted but is not Ready yet (phase %s)",
+				pod.Name, pod.Status.Phase)
+		}
+	}
+
+	if target.replicas > 0 && int32(len(rackPods)) < target.replicas {
+		return fmt.Sprintf("only %d of %d rack pods exist; a replacement has not been recreated yet",
+			len(rackPods), target.replicas)
+	}
+	return ""
+}
+
 // isBatchBlocked returns true when the next restart batch should wait:
+//   - a pod the previous batch restarted has not come back Ready yet
+//     (restartInFlightReason), OR
 //   - readiness gates are enabled and a previously restarted pod has not yet satisfied its gate, OR
 //   - readiness gates are disabled and a migration check reports migration active
 //     OR fails to report at all.
+//
+// The readiness wait runs first and for both branches. With readiness gates at
+// their default (disabled) the migration probe used to be the only gate, and it
+// cannot see the pod that matters: a replacement that is Pending or still
+// cold-starting is not in client.GetNodes() at all, so the survivors answer
+// migrate_partitions_remaining=0 within seconds and the next node goes down on
+// top of the one that is already down. The gate branch had a narrower version
+// of the same hole — anyPodGateUnsatisfied only inspects Running pods, so an
+// image pull did not block it either.
 //
 // A migration check that errors blocks, matching the scale-down path in
 // reconciler_statefulset.go: the same unreachable-cluster signal must not produce
@@ -949,8 +1055,17 @@ func (r *AerospikeClusterReconciler) isBatchBlocked(
 	cluster *ackov1alpha1.AerospikeCluster,
 	rackID int,
 	rackPods []corev1.Pod,
+	target rackRestartTarget,
 ) bool {
 	log := logf.FromContext(ctx)
+
+	if reason := restartInFlightReason(rackPods, target); reason != "" {
+		log.Info("Previous restart still in flight, delaying next restart batch",
+			"reason", reason, "rack", rackID)
+		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventRollingRestartDeferred,
+			"Rolling restart paused for rack %d: %s", rackID, reason)
+		return true
+	}
 
 	if isReadinessGateEnabled(cluster) {
 		if blocked, blockedPod := anyPodGateUnsatisfied(cluster, rackPods); blocked {

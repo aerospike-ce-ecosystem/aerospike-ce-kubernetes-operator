@@ -296,7 +296,11 @@ func (r *AerospikeClusterReconciler) operationBatchBlocked(
 	if !outstanding {
 		return false
 	}
-	return r.isBatchBlocked(ctx, cluster, onDemandOperationRackID, derefPods(pods))
+	// The zero rackRestartTarget: this path targets an explicit pod list that can
+	// span racks, so there is no single StatefulSet template to compare hashes or
+	// a replica count against. isBatchBlocked falls back to its terminating-pod
+	// rule, plus the gate/migration checks below it.
+	return r.isBatchBlocked(ctx, cluster, onDemandOperationRackID, derefPods(pods), rackRestartTarget{})
 }
 
 // derefPods converts a slice of pod pointers into a slice of pod values, as

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	aero "github.com/aerospike/aerospike-client-go/v8"
@@ -238,10 +239,8 @@ func TestReconcileRollingRestart_TriggersOnPodSpecHashChange(t *testing.T) {
 // TestReconcileRollingRestart_PodSpecChangeNotShortCircuited is the Gap B test.
 // With spec.enableDynamicConfigUpdate=true and a pure pod-spec change (config
 // genuinely unchanged), the restart MUST NOT short-circuit through the dynamic
-// 2PC path. tryDynamicConfigUpdateBatch would see no config diff and return
-// allOk=true, causing restartPodBatch to claim every pod restarted while
-// nothing happened. The fix passes nil configs when no config-hash changed, so
-// the pod is genuinely cold-restarted (deleted) here.
+// 2PC path. The fix passes nil configs when no config-hash changed, so the pod
+// is genuinely cold-restarted (deleted) here.
 func TestReconcileRollingRestart_PodSpecChangeNotShortCircuited(t *testing.T) {
 	scheme := rollingRestartScheme(t)
 
@@ -309,18 +308,73 @@ func TestReconcileRollingRestart_PodSpecChangeNotShortCircuited(t *testing.T) {
 	}
 }
 
-// TestRestartPodBatch_DynamicShortCircuitFalseSuccess documents the underlying
-// trap behind Gap B: when restartPodBatch is given non-nil identical configs
-// and a live Aerospike client, tryDynamicConfigUpdateBatch sees no config diff
-// and returns allOk=true, so restartPodBatch reports every pod restarted
-// WITHOUT deleting any pod. This is exactly the false success the Gap B fix
-// avoids by passing nil configs for pure pod-spec changes. If a future change
-// makes restartPodBatch stop trusting an empty diff, update this test.
-func TestRestartPodBatch_DynamicShortCircuitFalseSuccess(t *testing.T) {
+// newRackPodFor builds pod "<cluster>-<rack>-0" labelled for the given rack with
+// the supplied config-hash and pod-spec-hash annotations.
+func newRackPodFor(clusterName string, rackID int, configHash, podSpecHash string) *corev1.Pod {
+	pod := newRackPod(clusterName, configHash, podSpecHash)
+	pod.Name = fmt.Sprintf("%s-%d-0", clusterName, rackID)
+	pod.Labels = utils.LabelsForRack(clusterName, rackID)
+	return pod
+}
+
+// TestTryDynamicConfigUpdateBatch_EmptyDiffFallsThrough locks in that an empty
+// config diff is NOT reported as a successful batch update. The pods handed to
+// tryDynamicConfigUpdateBatch were selected precisely because their config hash
+// does not match the StatefulSet template, so "nothing to apply" must route them
+// to the per-pod restart path instead of claiming they are already done.
+func TestTryDynamicConfigUpdateBatch_EmptyDiffFallsThrough(t *testing.T) {
 	scheme := rollingRestartScheme(t)
 
 	enable := true
-	cfg := map[string]any{"service": map[string]any{}}
+	cfg := map[string]any{"service": map[string]any{"proto-fd-max": 15000}}
+	cluster := &ackov1alpha1.AerospikeCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "demo", Namespace: "default"},
+		Spec: ackov1alpha1.AerospikeClusterSpec{
+			EnableDynamicConfigUpdate: &enable,
+		},
+	}
+	pod := newRackPod(cluster.Name, "cfg-OLD", "podspec-SAME")
+
+	reconciler := &AerospikeClusterReconciler{
+		Client:   fake.NewClientBuilder().WithScheme(scheme).WithObjects(cluster, pod).Build(),
+		Scheme:   scheme,
+		Recorder: record.NewFakeRecorder(16),
+	}
+
+	// Identical old/new configs => empty diff. A zero-value client is enough:
+	// the function must return before touching the network.
+	allOk, updates, rbResult := reconciler.tryDynamicConfigUpdateBatch(
+		context.Background(), cluster, []*corev1.Pod{pod}, cfg, cfg, &aero.Client{}, "cfg-NEW")
+
+	if allOk {
+		t.Error("tryDynamicConfigUpdateBatch reported success for an empty diff; " +
+			"the batch must fall through to the per-pod restart path")
+	}
+	if updates != nil {
+		t.Errorf("expected nil updates for an empty diff, got %v", updates)
+	}
+	if rbResult != nil {
+		t.Errorf("expected nil rollback result for an empty diff, got %+v", rbResult)
+	}
+}
+
+// TestRestartPodBatch_StaleConfigHashIsRestarted is the inverted successor of
+// TestRestartPodBatch_DynamicShortCircuitFalseSuccess, which asserted the old
+// (buggy) behaviour and whose comment asked for exactly this update.
+//
+// Scenario: a pod was skipped during an earlier rollout (pending/failed within
+// maxIgnorablePods, or non-ready past maxPodUnstableDuration) and recovers only
+// after populateStatus already stamped Status.AerospikeConfig = Spec.Aerospike
+// Config. Its config hash is stale, so it is selected for restart, but the
+// cluster-level diff handed to the 2PC path is empty. The empty diff must NOT
+// be reported as "every pod updated" — the pod has to be genuinely restarted,
+// otherwise the cluster loops in RollingRestart forever without ever applying
+// the config.
+func TestRestartPodBatch_StaleConfigHashIsRestarted(t *testing.T) {
+	scheme := rollingRestartScheme(t)
+
+	enable := true
+	cfg := map[string]any{"service": map[string]any{"proto-fd-max": 20000}}
 	cluster := &ackov1alpha1.AerospikeCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "demo", Namespace: "default"},
 		Spec: ackov1alpha1.AerospikeClusterSpec{
@@ -335,7 +389,7 @@ func TestRestartPodBatch_DynamicShortCircuitFalseSuccess(t *testing.T) {
 			Namespace: cluster.Namespace,
 		},
 	}
-	pod := newRackPod(cluster.Name, "cfg-hash", "podspec-OLD")
+	pod := newRackPod(cluster.Name, "cfg-OLD", "podspec-SAME")
 
 	reconciler := &AerospikeClusterReconciler{
 		Client: fake.NewClientBuilder().
@@ -347,26 +401,137 @@ func TestRestartPodBatch_DynamicShortCircuitFalseSuccess(t *testing.T) {
 		Recorder: record.NewFakeRecorder(16),
 	}
 
-	// A zero-value client is enough: tryDynamicConfigUpdateBatch returns at the
-	// empty-diff check before ever touching the network.
-	preset := &aero.Client{}
-	aeroClient := preset
+	// Preset a non-nil client so restartPodBatch takes the dynamic path without
+	// dialling anything. A zero-value client is enough: tryDynamicConfigUpdate
+	// Batch must return at the empty-diff check before touching the network.
+	aeroClient := &aero.Client{}
 
-	// Identical configs (oldConfig == newConfig content) => empty diff =>
-	// dynamic path returns allOk=true => restartPodBatch reports success.
+	// oldConfig == newConfig (Status already mirrors Spec) => empty diff.
 	restarted, failed, batch := reconciler.restartPodBatch(
-		context.Background(), cluster, []*corev1.Pod{pod}, sts, "cfg-hash",
+		context.Background(), cluster, []*corev1.Pod{pod}, sts, "cfg-NEW",
 		1, cfg, cfg, &aeroClient)
 
 	if restarted != 1 || len(failed) != 0 || len(batch) != 1 {
-		t.Fatalf("expected dynamic short-circuit to report (1, [], 1 batch); got (%d, %v, %d)",
+		t.Fatalf("expected the empty-diff fallthrough to cold-restart the pod (1, [], 1 batch); got (%d, %v, %d)",
 			restarted, failed, len(batch))
 	}
 
-	// Prove it was a FALSE success: the pod is still present, never deleted.
 	got := &corev1.Pod{}
-	if err := reconciler.Get(context.Background(),
-		types.NamespacedName{Name: "demo-0", Namespace: "default"}, got); err != nil {
-		t.Fatalf("pod demo-0 should still exist after the (false) dynamic success, Get err = %v", err)
+	err := reconciler.Get(context.Background(),
+		types.NamespacedName{Name: "demo-0", Namespace: "default"}, got)
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("stale-hash pod demo-0 must be deleted (cold restart) instead of being falsely "+
+			"reported as dynamically updated; Get err = %v", err)
+	}
+}
+
+// TestRollingRestart_RackOverrideConverges covers a rack-scoped config edit with
+// enableDynamicConfigUpdate=true. The StatefulSet template carries the per-rack
+// EFFECTIVE hash (cluster config DeepMerged with the rack override), but the
+// dynamic-config path only ever diffs the cluster-level config, which is
+// unchanged here. Before the fix the empty diff was reported as "all pods
+// restarted", no pod was touched and the cluster requeued in RollingRestart
+// forever. After the fix the pod is cold-restarted and, once the StatefulSet
+// recreates it with the template hash, the next reconcile finds nothing to do.
+func TestRollingRestart_RackOverrideConverges(t *testing.T) {
+	scheme := rollingRestartScheme(t)
+
+	const rackID = 1
+	enable := true
+	readinessGate := true
+	clusterCfg := &ackov1alpha1.AerospikeConfigSpec{Value: map[string]any{
+		"service": map[string]any{"proto-fd-max": 15000},
+	}}
+	// Only the rack override changed; the cluster-level config is identical in
+	// Spec and Status, so the cluster-level diff is empty.
+	rack := ackov1alpha1.Rack{
+		ID: rackID,
+		AerospikeConfig: &ackov1alpha1.AerospikeConfigSpec{Value: map[string]any{
+			"service": map[string]any{"proto-fd-max": 30000},
+		}},
+	}
+	cluster := &ackov1alpha1.AerospikeCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "demo", Namespace: "default"},
+		Spec: ackov1alpha1.AerospikeClusterSpec{
+			Image:                     "aerospike:ce-8.1.1.1",
+			AerospikeConfig:           clusterCfg,
+			EnableDynamicConfigUpdate: &enable,
+			RackConfig:                &ackov1alpha1.RackConfig{Racks: []ackov1alpha1.Rack{rack}},
+			// ReadinessGateEnabled keeps isBatchBlocked off the network path;
+			// see the Gap A test for the rationale.
+			PodSpec: &ackov1alpha1.AerospikePodSpec{ReadinessGateEnabled: &readinessGate},
+		},
+		Status: ackov1alpha1.AerospikeClusterStatus{AerospikeConfig: clusterCfg},
+	}
+
+	reconciler := &AerospikeClusterReconciler{
+		Scheme:   scheme,
+		Recorder: record.NewFakeRecorder(32),
+	}
+	// The StatefulSet template hash is the rack's EFFECTIVE hash, which no
+	// cluster-level diff can ever reproduce.
+	effectiveHash := configHash(reconciler.getEffectiveConfig(cluster, &rack))
+
+	replicas := int32(1)
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      utils.StatefulSetName(cluster.Name, rackID),
+			Namespace: cluster.Namespace,
+		},
+		Spec: appsv1.StatefulSetSpec{
+			Replicas: &replicas,
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						utils.ConfigHashAnnotation:  effectiveHash,
+						utils.PodSpecHashAnnotation: "podspec-SAME",
+					},
+				},
+			},
+		},
+	}
+	pod := newRackPodFor(cluster.Name, rackID, "cfg-OLD-EFFECTIVE", "podspec-SAME")
+
+	reconciler.Client = fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithStatusSubresource(&ackov1alpha1.AerospikeCluster{}).
+		WithObjects(cluster, sts, pod).
+		Build()
+
+	// Drive the batch directly with a preset client so the dynamic path is taken
+	// without dialling anything (reconcileRollingRestart would otherwise spend a
+	// full connect timeout failing to reach the headless service).
+	aeroClient := &aero.Client{}
+	restarted, failed, batch := reconciler.restartPodBatch(
+		context.Background(), cluster, []*corev1.Pod{pod}, sts, effectiveHash,
+		1, clusterCfg.Value, clusterCfg.Value, &aeroClient)
+
+	if restarted != 1 || len(failed) != 0 || len(batch) != 1 {
+		t.Fatalf("expected the rack-override pod to be restarted (1, [], 1 batch); got (%d, %v, %d)",
+			restarted, failed, len(batch))
+	}
+
+	got := &corev1.Pod{}
+	err := reconciler.Get(context.Background(),
+		types.NamespacedName{Name: pod.Name, Namespace: "default"}, got)
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("rack-override pod %s was NOT restarted — the empty cluster-level diff was reported "+
+			"as a successful dynamic update, which loops in RollingRestart forever; Get err = %v",
+			pod.Name, err)
+	}
+
+	// The StatefulSet recreates the pod from the template, so it now carries the
+	// effective hash. The next reconcile must converge: nothing left to restart.
+	recreated := newRackPodFor(cluster.Name, rackID, effectiveHash, "podspec-SAME")
+	if err := reconciler.Create(context.Background(), recreated); err != nil {
+		t.Fatalf("recreating pod: %v", err)
+	}
+
+	triggered, err := reconciler.reconcileRollingRestart(context.Background(), cluster, &rack)
+	if err != nil {
+		t.Fatalf("reconcileRollingRestart() error = %v", err)
+	}
+	if triggered {
+		t.Fatal("expected the second pass to converge (no restart), got triggered=true")
 	}
 }

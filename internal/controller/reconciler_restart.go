@@ -263,8 +263,8 @@ func (r *AerospikeClusterReconciler) reconcileRollingRestart(
 	// Only offer the configs to the dynamic-config 2PC path when an actual
 	// config-hash change triggered the batch. For a pure pod-spec-hash change
 	// the config is unchanged, so configdiff would report no changes and the
-	// 2PC path would short-circuit to a false "all restarted" success without
-	// touching any pod. Passing nil configs makes restartPodBatch's
+	// 2PC path would fall straight back out again after paying for an Aerospike
+	// client connection. Passing nil configs makes restartPodBatch's
 	// oldConfig != nil && newConfig != nil guard skip the dynamic path and go
 	// straight to per-pod cold restart.
 	//
@@ -327,8 +327,8 @@ func (r *AerospikeClusterReconciler) reconcileRollingRestart(
 // configChanged gates the dynamic-config 2PC path in the caller: when the batch
 // is triggered purely by a pod-spec-hash change (config genuinely unchanged),
 // configdiff would report no changes and tryDynamicConfigUpdateBatch would
-// return allOk=true, falsely claiming every pod restarted while nothing
-// happened. The caller passes nil configs in that case so the dynamic path is
+// return immediately without applying anything. The caller passes nil configs
+// in that case so the dynamic path (and its Aerospike client connection) is
 // skipped and pods go straight to per-pod cold restart.
 //
 // Pending/failed pods within the ignorable limit and pods stuck non-ready
@@ -480,7 +480,8 @@ func (r *AerospikeClusterReconciler) restartPodBatch(
 			}
 		}
 		if *aeroClient != nil {
-			allOk, _, rbResult := r.tryDynamicConfigUpdateBatch(ctx, cluster, batchPods, oldConfig, newConfig, *aeroClient)
+			allOk, _, rbResult := r.tryDynamicConfigUpdateBatch(
+				ctx, cluster, batchPods, oldConfig, newConfig, *aeroClient, desiredHash)
 			if allOk {
 				log.Info("2PC batch dynamic config update succeeded for all pods", "podCount", len(batchPods))
 				return int32(len(batchPods)), nil, batchPods

@@ -34,7 +34,7 @@ spec:
 
 The operator uses the `OnDelete` update strategy. It deletes pods one at a time or in configured batches, then waits for replacements to become ready before continuing.
 
-A batch is held until every pod the previous batch restarted is back: no pod is terminating, the rack has as many pods as the StatefulSet asks for, and each pod that already carries the new configuration is `Ready`. Pods that are still on the old configuration do not hold the batch, even when they are not ready -- otherwise a cluster crash-looping on a bad configuration could never receive the restart that fixes it. While a batch is held the operator emits a `RollingRestartDeferred` warning event naming the pod it is waiting for.
+A batch is held until every pod the previous batch restarted is back: no pod is terminating, the rack has as many pods as the StatefulSet asks for, and each pod that already carries the new configuration is `Ready`. Pods that are still on the old configuration do not hold the batch, even when they are not ready -- otherwise a cluster crash-looping on a bad configuration could never receive the restart that fixes it. While a batch is held the operator emits a `RollingRestartDeferred` event naming the pod it is waiting for. It is a Normal event, not a Warning: every healthy rollout waits here between batches.
 
 ### Batch Size
 

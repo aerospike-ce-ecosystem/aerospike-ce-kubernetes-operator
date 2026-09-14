@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -118,9 +119,12 @@ func (r *AerospikeClusterReconciler) reconcileOperations(
 	// the batch is blocked we requeue (inProgress=true) WITHOUT advancing to the
 	// next pod or persisting further "completed" pods. We only gate when work
 	// actually remains, so a finished operation can still reach its terminal
-	// phase below. The migration check is cluster-wide and the readiness-gate
-	// check inspects these pods; see operationBatchBlocked for why this path uses
-	// a sentinel rack id rather than 0.
+	// phase below. The guard waits on CompletedPods (the pods this operation has
+	// already restarted) before consulting the shared isBatchBlocked, because an
+	// on-demand restart leaves the StatefulSet template hashes untouched and the
+	// shared replacement rule keys on exactly those hashes; see
+	// operationBatchBlocked, and for why this path uses a sentinel rack id
+	// rather than 0.
 	if r.operationBatchBlocked(ctx, cluster, pods, completedSet, failedSet) {
 		return true, nil
 	}
@@ -296,11 +300,84 @@ func (r *AerospikeClusterReconciler) operationBatchBlocked(
 	if !outstanding {
 		return false
 	}
+
+	// Wait for the pods this operation already restarted to come back before
+	// touching another one. isBatchBlocked cannot do it for us here: its
+	// replacement rule keys on the StatefulSet template hashes, and an on-demand
+	// restart leaves those hashes unchanged, so a pod that was cold-restarted a
+	// second ago is indistinguishable from one that was never touched. The zero
+	// rackRestartTarget passed below therefore only buys the terminating-pod rule,
+	// which the delete has usually already moved past by the next reconcile —
+	// the pod-delete watch event fires precisely when the pod is gone or Pending.
+	//
+	// completedSet is the exact set this operation restarted, which is the
+	// information the hashes cannot supply. Failed pods are deliberately not
+	// included: they are terminal, nothing is coming back for them, and waiting
+	// on one would hold the operation forever instead of letting it reach the
+	// Error phase.
+	if reason := operationRestartInFlightReason(pods, completedSet); reason != "" {
+		// Normal, not Warning, for the same reason the rolling path uses Normal
+		// here: the wait is the expected path through a healthy batched restart
+		// and repeats on every requeue until the pod is back.
+		logf.FromContext(ctx).V(1).Info("Previous on-demand restart still in flight, holding the next batch",
+			"reason", reason)
+		r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventOperation,
+			"Operation batch paused: %s", reason)
+		return true
+	}
+
 	// The zero rackRestartTarget: this path targets an explicit pod list that can
 	// span racks, so there is no single StatefulSet template to compare hashes or
 	// a replica count against. isBatchBlocked falls back to its terminating-pod
 	// rule, plus the gate/migration checks below it.
 	return r.isBatchBlocked(ctx, cluster, onDemandOperationRackID, derefPods(pods), rackRestartTarget{})
+}
+
+// operationRestartInFlightReason reports why a pod this operation already
+// restarted is not back yet, or "" when every one of them is present and Ready.
+//
+// Three signals, mirroring restartInFlightReason on the rolling path:
+//
+//   - a completed pod is missing from the target list entirely — a cold restart
+//     deleted it and the StatefulSet has not recreated it yet;
+//   - it exists but is terminating — the delete is still draining;
+//   - it exists but is not Ready, Pending included — it is coming up (image
+//     pull, cold start) and is not serving yet.
+//
+// Only completed pods are inspected. A pod that was never restarted by this
+// operation may legitimately be not-Ready — that is often why the operator asked
+// for the restart — and blocking on it would wedge the operation it is meant to
+// fix, the same anti-deadlock reasoning restartInFlightReason documents.
+func operationRestartInFlightReason(pods []*corev1.Pod, completedSet map[string]bool) string {
+	present := make(map[string]*corev1.Pod, len(pods))
+	for _, p := range pods {
+		if p != nil {
+			present[p.Name] = p
+		}
+	}
+
+	// Sorted so the reason (and the event text) is stable across reconciles
+	// instead of varying with Go's map iteration order.
+	names := make([]string, 0, len(completedSet))
+	for name := range completedSet {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		pod, ok := present[name]
+		if !ok {
+			return fmt.Sprintf("pod %s was restarted but has not been recreated yet", name)
+		}
+		if pod.DeletionTimestamp != nil {
+			return fmt.Sprintf("pod %s is still terminating", name)
+		}
+		if !isPodReady(pod) {
+			return fmt.Sprintf("pod %s has been restarted but is not Ready yet (phase %s)",
+				name, pod.Status.Phase)
+		}
+	}
+	return ""
 }
 
 // derefPods converts a slice of pod pointers into a slice of pod values, as

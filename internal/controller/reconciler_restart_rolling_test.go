@@ -630,3 +630,39 @@ func TestIsBatchBlocked_TerminatingPodBlocks(t *testing.T) {
 		t.Error("isBatchBlocked() = false for a terminating pod under the zero target, want true")
 	}
 }
+
+// TestRestartInFlightReason_PodCountRuleSkippedUnderOrderedReady pins the
+// anti-deadlock carve-out on the pod-count rule. Under
+// podManagementPolicy: OrderedReady the StatefulSet will not create a higher
+// ordinal while a lower-ordinal pod is not Ready, so a stale pod crash-looping
+// at ordinal 0 keeps the rack permanently short of a pod. Applying the count
+// rule there would hold the batch that would restart that very pod, and only a
+// human deleting it by hand could clear the state. The terminating and
+// replacement-not-Ready rules still apply under OrderedReady.
+func TestRestartInFlightReason_PodCountRuleSkippedUnderOrderedReady(t *testing.T) {
+	stale := restartGatePod("demo", "demo-0", "podspec-OLD", corev1.PodRunning, false)
+	base := rackRestartTarget{
+		configHash:  restartGateConfigHash,
+		podSpecHash: restartGatePodSpecHash,
+		replicas:    2,
+	}
+
+	// Parallel (and the empty default): one pod where the template wants two is
+	// the delete/recreate window, so the batch waits.
+	if reason := restartInFlightReason([]corev1.Pod{*stale}, base); reason == "" {
+		t.Error("restartInFlightReason() = \"\" for a short rack under Parallel, want the pod-count reason")
+	}
+
+	orderedReady := base
+	orderedReady.podManagementPolicy = appsv1.OrderedReadyPodManagement
+	if reason := restartInFlightReason([]corev1.Pod{*stale}, orderedReady); reason != "" {
+		t.Errorf("restartInFlightReason() = %q under OrderedReady, want \"\": the count rule would "+
+			"deadlock the restart that fixes the stale pod", reason)
+	}
+
+	// The other rules survive the carve-out.
+	replacement := restartGatePod("demo", "demo-1", restartGatePodSpecHash, corev1.PodPending, false)
+	if reason := restartInFlightReason([]corev1.Pod{*replacement}, orderedReady); reason == "" {
+		t.Error("restartInFlightReason() = \"\" for a Pending replacement under OrderedReady, want a reason")
+	}
+}

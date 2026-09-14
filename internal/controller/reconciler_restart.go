@@ -260,6 +260,8 @@ func (r *AerospikeClusterReconciler) reconcileRollingRestart(
 		podSpecHash: desiredPodSpecHash,
 		storageHash: desiredStorageHash,
 		replicas:    replicas,
+
+		podManagementPolicy: sts.Spec.PodManagementPolicy,
 	}) {
 		return true, nil
 	}
@@ -982,6 +984,11 @@ type rackRestartTarget struct {
 	podSpecHash string
 	storageHash string
 	replicas    int32
+
+	// podManagementPolicy is the rack StatefulSet's spec.podManagementPolicy.
+	// It disables the pod-count rule under OrderedReady — see
+	// restartInFlightReason for why that rule cannot be trusted there.
+	podManagementPolicy appsv1.PodManagementPolicyType
 }
 
 // restartInFlightReason reports why the previous batch is not finished yet, or
@@ -997,7 +1004,12 @@ type rackRestartTarget struct {
 //     replacement sits while it pulls the new image;
 //   - fewer pods exist than the template wants — the deleted pod is gone and
 //     its replacement has not been created. This is the window the pod-delete
-//     watch event itself reconciles in.
+//     watch event itself reconciles in. Skipped under the OrderedReady pod
+//     management policy, where the StatefulSet refuses to create a higher
+//     ordinal while a lower-ordinal pod is not Ready: a stale pod crash-looping
+//     at ordinal 0 makes "fewer pods than replicas" permanent, and the rule
+//     would then hold the very batch that would restart it. The other two
+//     signals still apply there.
 //
 // What is deliberately NOT a signal: a pod that is not Ready and still stale.
 // A cluster crash-looping on a bad config is exactly the case the migration
@@ -1022,7 +1034,8 @@ func restartInFlightReason(rackPods []corev1.Pod, target rackRestartTarget) stri
 		}
 	}
 
-	if target.replicas > 0 && int32(len(rackPods)) < target.replicas {
+	if target.replicas > 0 && target.podManagementPolicy != appsv1.OrderedReadyPodManagement &&
+		int32(len(rackPods)) < target.replicas {
 		return fmt.Sprintf("only %d of %d rack pods exist; a replacement has not been recreated yet",
 			len(rackPods), target.replicas)
 	}
@@ -1060,9 +1073,13 @@ func (r *AerospikeClusterReconciler) isBatchBlocked(
 	log := logf.FromContext(ctx)
 
 	if reason := restartInFlightReason(rackPods, target); reason != "" {
-		log.Info("Previous restart still in flight, delaying next restart batch",
+		// Normal, not Warning. Every healthy rollout spends 30-60s per batch in
+		// this branch and requeues into it every restartRequeueInterval, so a
+		// Warning here would fire dozens of times per uneventful upgrade and
+		// train operators to ignore the reason that actually matters.
+		log.V(1).Info("Previous restart still in flight, delaying next restart batch",
 			"reason", reason, "rack", rackID)
-		r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventRollingRestartDeferred,
+		r.Recorder.Eventf(cluster, corev1.EventTypeNormal, EventRollingRestartDeferred,
 			"Rolling restart paused for rack %d: %s", rackID, reason)
 		return true
 	}

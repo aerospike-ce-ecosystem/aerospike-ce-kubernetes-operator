@@ -34,6 +34,8 @@ spec:
 
 오퍼레이터는 `OnDelete` 업데이트 전략을 사용합니다 — 파드를 하나씩(또는 배치 단위로) 삭제하고 새 파드가 준비될 때까지 기다린 후 다음으로 진행합니다.
 
+직전 배치가 재시작한 파드가 모두 복귀할 때까지 다음 배치는 보류됩니다. 종료 중인 파드가 없어야 하고, 랙의 파드 수가 StatefulSet이 요구하는 수와 같아야 하며, 새 설정을 이미 반영한 파드는 모두 `Ready`여야 합니다. 아직 이전 설정에 머물러 있는 파드는 Ready가 아니더라도 배치를 막지 않습니다 — 그렇지 않으면 잘못된 설정으로 crash-loop에 빠진 클러스터가 이를 고칠 재시작을 영영 받지 못하기 때문입니다. 배치가 보류되는 동안 오퍼레이터는 대기 중인 파드를 명시한 `RollingRestartDeferred` 이벤트를 발생시킵니다. 정상적인 롤아웃도 배치 사이에 항상 이 대기를 거치므로 Warning이 아닌 Normal 이벤트입니다.
+
 ### 배치 크기
 
 동시에 재시작하는 파드 수를 제어합니다:
@@ -220,7 +222,7 @@ kubectl -n aerospike get asc aerospike-3node \
 
 Readiness gates 없이:
 ```
-Pod-2 삭제 → Pod-2 Running → Pod-1 삭제 → ...   (K8s Ready = 충분)
+Pod-2 삭제 → Pod-2 Running 및 Ready → Pod-1 삭제 → ...   (K8s Ready = 충분)
 ```
 
 `readinessGateEnabled: true`일 때:

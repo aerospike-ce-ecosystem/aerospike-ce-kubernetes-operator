@@ -148,7 +148,7 @@ func (r *AerospikeClusterReconciler) checkMigrationInProgress(
 // +kubebuilder:rbac:groups=acko.io,resources=aerospikeclusters/finalizers,verbs=update
 // +kubebuilder:rbac:groups=acko.io,resources=aerospikeclustertemplates,verbs=get;list;watch
 // +kubebuilder:rbac:groups=acko.io,resources=aerospikeclustertemplates/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete;patch
 // +kubebuilder:rbac:groups="",resources=pods/status,verbs=patch
 // +kubebuilder:rbac:groups="",resources=pods/exec,verbs=create
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete

@@ -237,7 +237,7 @@ spec:
 | `LoadBalancer` | 파드별 고유 외부 IP를 가진 클라우드 LoadBalancer를 생성. 모든 Aerospike 포트가 노출됩니다. |
 
 `serviceType`이 `LoadBalancer` 또는 `NodePort`이면 오퍼레이터가 자동으로:
-1. 파드의 서비스 계정이 자신의 Service를 조회할 수 있도록 Role/RoleBinding 생성
+1. 파드의 서비스 계정(`spec.podSpec.serviceAccountName`, 미지정 시 `default`)이 자신의 Service를 조회할 수 있도록 Role/RoleBinding 생성
 2. 파드 스펙에 `automountServiceAccountToken` 활성화
 3. Init 컨테이너에 `EXTERNAL_SERVICE_TYPE`, `POD_NAMESPACE` 환경변수 주입
 4. Init 컨테이너가 기동 시 Kubernetes API를 조회하여 LoadBalancer 외부 IP 또는 NodePort를 발견하고, `aerospike.conf`의 `alternate-access-address`에 자동 주입

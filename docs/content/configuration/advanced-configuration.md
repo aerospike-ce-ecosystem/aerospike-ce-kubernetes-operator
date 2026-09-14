@@ -366,6 +366,8 @@ spec:
     serviceAccountName: aerospike-sa
 ```
 
+When `spec.podService.serviceType` is `LoadBalancer` or `NodePort`, the operator binds the per-pod Service reader Role to this ServiceAccount (falling back to `default` when it is unset), so the init container can look up its own external address.
+
 ### Image Pull Secrets
 
 Reference Kubernetes Secrets containing container registry credentials. Required when pulling from private registries.

@@ -964,3 +964,56 @@ func TestBuildPodTemplateSpec_InitContainerUsesClusterImage(t *testing.T) {
 		t.Errorf("init container name = %q, want %q", initC.Name, InitContainerName)
 	}
 }
+
+// TestServiceAccountName_MatchesRenderedPodSpec pins the helper to what
+// BuildPodTemplateSpec actually renders, so the RoleBinding subject derived from
+// it cannot drift away from the pod's real identity.
+func TestServiceAccountName_MatchesRenderedPodSpec(t *testing.T) {
+	tests := []struct {
+		name    string
+		podSpec *v1alpha1.AerospikePodSpec
+		want    string
+	}{
+		{
+			name:    "nil pod spec",
+			podSpec: nil,
+			want:    DefaultServiceAccountName,
+		},
+		{
+			name:    "empty service account name",
+			podSpec: &v1alpha1.AerospikePodSpec{},
+			want:    DefaultServiceAccountName,
+		},
+		{
+			name:    "custom service account name",
+			podSpec: &v1alpha1.AerospikePodSpec{ServiceAccountName: "aerospike-sa"},
+			want:    "aerospike-sa",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cluster := &v1alpha1.AerospikeCluster{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-cluster"},
+				Spec: v1alpha1.AerospikeClusterSpec{
+					Size:    1,
+					Image:   "aerospike:ce-8.1.1.1",
+					PodSpec: tc.podSpec,
+				},
+			}
+
+			if got := ServiceAccountName(cluster); got != tc.want {
+				t.Fatalf("ServiceAccountName() = %q, want %q", got, tc.want)
+			}
+
+			rendered := BuildPodTemplateSpec(cluster, nil, 0, "test-config", "abc123").Spec.ServiceAccountName
+			if rendered == "" {
+				// An empty field means the API server assigns "default".
+				rendered = DefaultServiceAccountName
+			}
+			if rendered != tc.want {
+				t.Fatalf("rendered pod ServiceAccountName = %q, want %q", rendered, tc.want)
+			}
+		})
+	}
+}

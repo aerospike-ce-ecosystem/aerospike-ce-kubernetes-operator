@@ -876,20 +876,28 @@ HPA를 사용할 때는 `spec.size`를 수동으로 변경하지 마세요 — �
 
 기본적으로 오퍼레이터는 유지보수 중 클러스터를 보호하기 위해 PodDisruptionBudget을 생성합니다.
 
-### rack별 PDB
+### 클러스터 전체 PDB 1개
 
 | 토폴로지 | 생성되는 PDB |
 |---|---|
-| 단일 rack (`rackConfig` 없음 또는 rack 1개) | 클러스터 전체 PDB 1개, `<cluster>-pdb` |
-| Multi-rack | rack별 PDB, `<cluster>-<rackID>-pdb` |
+| `rack.maxUnavailable`를 설정하지 않은 모든 클러스터 | 클러스터 전체 PDB 1개, `<cluster>-pdb` |
+| Multi-rack + rack 중 하나라도 `maxUnavailable` 설정 | rack별 PDB, `<cluster>-<rackID>-pdb` |
 
-클러스터 전체 PDB 하나는 모든 rack에 걸쳐 disruption 수를 셉니다. rack 3개 × pod 2개에 `maxUnavailable: 1`이면 Kubernetes는 한 번에 1개 eviction만 허용하지만, *어떤* pod인지는 제약하지 않으므로 drain이 같은 rack의 pod 2개를 연달아 제거해 해당 rack을 비울 수 있습니다. rack별 PDB는 이 제약을 rack 단위로 만듭니다.
+rack 토폴로지와 무관하게 기본값은 클러스터 전체 budget 1개입니다.
 
-spec에서 제거된 rack의 PDB는 삭제되며, 단일 rack ↔ multi-rack 전환 시 두 형태 사이를 오갑니다.
+Kubernetes는 selector가 서로 겹치지 않는 PodDisruptionBudget을 **각각 독립적으로** 평가합니다. 따라서 rack별 PDB는 클러스터를 제약하지 못하고, 실제 동시 eviction 한도는 rack들의 budget **합계**가 됩니다. rack 3개가 각각 1개씩 허용하면 동시에 3개가 허용되며, `replication-factor: 2`에서는 node-pool 업그레이드·autoscaler 통합·병렬 drain 중 파티션의 사본 2개가 모두 내려갈 수 있는 수치입니다.
+
+rack이 데이터 배치 단위라면 rack별 budget이 맞겠지만, Community Edition에서는 아닙니다: 네임스페이스의 `rack-id`는 Enterprise 전용이라 webhook이 거부하고 오퍼레이터도 생성하지 않습니다. 여기서 rack은 스케줄링 토폴로지(zone, region, 노드 레이블)일 뿐이므로 파티션의 두 사본은 rack과 무관하게 아무 두 노드에나 놓일 수 있습니다. PDB는 selector를 가로지르는 제약을 표현할 수 없고, 한 pod이 두 PDB에 매칭되면 Eviction API가 거부하므로, 실제 한도를 표현할 수 있는 형태는 클러스터 전체 PDB 하나뿐입니다.
+
+spec에서 제거된 rack의 PDB는 삭제되며, 클러스터 전체 ↔ rack별 형태 전환 시 반대쪽은 정리됩니다.
+
+:::note 1.11.x에서 업그레이드
+1.11.0과 1.11.1은 기본으로 rack별 PDB를 만들었습니다. 업그레이드하면 다음 reconcile에서 `<cluster>-<rackID>-pdb`가 삭제되고 `<cluster>-pdb`가 다시 생성됩니다 — CR 수정은 필요 없습니다. rack별 budget을 의도적으로 유지하려면 rack에 `maxUnavailable`를 설정하세요(아래 참고).
+:::
 
 ### 기본값: replication-factor − 1
 
-`maxUnavailable`를 설정하지 않으면 각 PDB는 `replication-factor - 1`개의 eviction을 허용합니다. 파티션이 unavailable 되지 않으면서 Aerospike가 동시에 잃을 수 있는 노드 수입니다.
+`maxUnavailable`를 설정하지 않으면 PDB는 `replication-factor - 1`개의 eviction을 허용합니다. 파티션이 unavailable 되지 않으면서 Aerospike가 동시에 잃을 수 있는 노드 수입니다.
 
 | replication-factor | 허용되는 eviction |
 |---|---|
@@ -898,10 +906,10 @@ spec에서 제거된 rack의 PDB는 삭제되며, 단일 rack ↔ multi-rack 전
 | 3 | 2 |
 | 4 | 3 |
 
-값은 `spec.aerospikeConfig.namespaces[].replication-factor`에서 읽으며, 네임스페이스가 여럿이면 **가장 작은** 값을 씁니다(복제가 가장 적은 네임스페이스가 제약 조건이므로). `aerospikeConfig`를 override 하는 rack은 그 rack의 effective config 기준으로 계산됩니다.
+값은 `spec.aerospikeConfig.namespaces[].replication-factor`에서 읽으며, 네임스페이스가 여럿이면 **가장 작은** 값을 씁니다(복제가 가장 적은 네임스페이스가 제약 조건이므로). `aerospikeConfig`를 override 하는 rack은 그 rack의 effective config 기준으로 계산되며, 클러스터 전체 budget은 모든 rack의 결과 중 가장 작은 값을 씁니다.
 
 :::note 과반(majority) 규칙을 쓰지 않는 이유
-Raft 스타일의 `minAvailable = rackSize/2 + 1`은 Aerospike CE에 맞지 않습니다 — CE에는 quorum이 없습니다(strong consistency는 Enterprise 전용). 실제로 deadlock도 발생합니다: `spec.size`가 rack들에 나뉘므로 큰 클러스터도 rack은 작고, CE의 8노드 상한에서 3-rack 클러스터는 최대 3/3/2입니다. pod 2개짜리 rack은 eviction이 0이 되어 `kubectl drain`, cluster-autoscaler 노드 교체, managed node-pool 업그레이드가 막힙니다 — 이 기능이 존재하는 이유인 zone당 rack 하나 토폴로지에서 말입니다.
+Raft 스타일의 `minAvailable = rackSize/2 + 1`은 Aerospike CE에 맞지 않습니다 — CE에는 quorum이 없습니다(strong consistency는 Enterprise 전용). 실제로 deadlock도 발생합니다: `spec.size`가 rack들에 나뉘므로 큰 클러스터도 rack은 작고, CE의 8노드 상한에서 3-rack 클러스터는 최대 3/3/2입니다. pod 2개짜리 rack은 eviction이 0이 되어 `kubectl drain`, cluster-autoscaler 노드 교체, managed node-pool 업그레이드가 막힙니다 — 정석적인 zone당 rack 하나 토폴로지에서 말입니다.
 :::
 
 :::warning replication-factor 1은 보호할 사본이 없습니다
@@ -912,9 +920,26 @@ Raft 스타일의 `minAvailable = rackSize/2 + 1`은 Aerospike CE에 맞지 않�
 PodDisruptionBudget은 Kubernetes **Eviction** API만 제어합니다 — `kubectl drain`, cluster-autoscaler, descheduler. 오퍼레이터는 이 API를 쓰지 않습니다: rolling restart는 pod을 직접 삭제하고, scale-down과 rack 제거는 `replicas`를 patch 합니다. 따라서 이 budget은 오퍼레이터 자신의 파괴적 경로를 제한하지 **않으며**, 그쪽은 별도의 migration gate, batching, quiesce를 갖고 있습니다. PDB를 오퍼레이터에 대한 안전장치로 읽지 마세요.
 :::
 
-우선순위: `rack.maxUnavailable` > `spec.maxUnavailable` > `replication-factor - 1` 기본값.
+`spec.maxUnavailable`는 클러스터 전체 budget을 설정하며 `replication-factor - 1` 기본값을 대체합니다.
 
-보호 대상 pod을 **전부** eviction 할 수 있게 하는 값(3-pod rack에 `maxUnavailable: 3`, 또는 100% 이상의 퍼센트)은 admission에서 거부됩니다. 그것은 budget이 아닙니다. disruption 보호를 끄려면 `spec.disablePDB: true`를 명시적으로 사용하세요.
+보호 대상 pod을 **전부** eviction 할 수 있게 하는 값(3-pod 클러스터/rack에 `maxUnavailable: 3`, 또는 100% 이상의 퍼센트)은 admission에서 거부됩니다. 그것은 budget이 아닙니다. disruption 보호를 끄려면 `spec.disablePDB: true`를 명시적으로 사용하세요.
+
+### rack별 budget 사용(opt-in)
+
+```yaml
+spec:
+  rackConfig:
+    racks:
+      - id: 1
+        maxUnavailable: 1   # 클러스터 "전체"가 rack별 PDB로 전환됩니다
+      - id: 2               # 미설정: replication-factor - 1 적용
+```
+
+rack 중 하나라도 `maxUnavailable`를 설정하면 클러스터 전체가 rack별 PDB로 전환됩니다. 설정하지 않은 rack은 `spec.maxUnavailable`, 그다음 그 rack의 effective config 기준 `replication-factor - 1`을 따릅니다.
+
+:::warning 클러스터 전체 한도는 합계가 됩니다
+rack별 budget을 쓰면 Kubernetes가 클러스터 전체에서 동시에 허용하는 eviction 수는 rack들 budget의 **합계**입니다. 이 상태에서는 오퍼레이터가 매 reconcile마다 `PDBPerRackBudget` Warning 이벤트로 이 사실을 알립니다. 외부 시스템이 rack 단위 제약을 요구하고 합계를 직접 계산해 둔 경우에만 선택하세요.
+:::
 
 ### PDB 비활성화
 
@@ -1143,6 +1168,7 @@ kubectl get events --field-selector involvedObject.kind=AerospikeCluster -n aero
 | `ACLSyncError` | Warning | ACL 동기화 중 오류 발생 |
 | `PDBCreated` | Normal | PodDisruptionBudget 생성 |
 | `PDBUpdated` | Normal | PodDisruptionBudget 업데이트 |
+| `PDBPerRackBudget` | Warning | rack이 `maxUnavailable`를 설정해 budget이 rack별이며, 클러스터 전체 eviction 한도는 그 합계 |
 | `ServiceCreated` | Normal | Headless 서비스 생성 |
 | `ServiceUpdated` | Normal | Headless 서비스 업데이트 |
 | `ClusterDeletionStarted` | Normal | 클러스터 삭제 시작 (finalizer 활성) |

@@ -18,16 +18,12 @@ import (
 	"github.com/aerospike-ce-ecosystem/aerospike-ce-kubernetes-operator/internal/utils"
 )
 
-// --- per-rack PodDisruptionBudgets ---
+// --- opt-in per-rack PodDisruptionBudgets ---
 //
-// The PDB was cluster-wide, selecting on SelectorLabelsForCluster, which carries
-// no rack label. With 3 racks of 2 pods and maxUnavailable: 1, Kubernetes permits
-// one eviction cluster-wide at a time — but nothing constrains WHICH pods, so a
-// drain can take both pods of the same rack in sequence and leave that rack with
-// nothing (#94).
-//
-// Multi-rack clusters now get one PDB per rack, selecting on the rack label.
-// Single-rack clusters keep the cluster-wide PDB unchanged.
+// Per-rack PDBs are the shape a cluster gets when at least one rack sets
+// rack.maxUnavailable. Everything else — including a multi-rack cluster that sets
+// nothing — gets one cluster-wide PDB; that default is covered in
+// reconciler_pdb_cluster_wide_test.go.
 
 const (
 	pdbTestCluster = "demo"
@@ -64,6 +60,16 @@ func pdbTestCR(size int32, rackIDs ...int) *ackov1alpha1.AerospikeCluster {
 	return cluster
 }
 
+// pdbTestOptIn makes every rack of cluster opt in to per-rack PDBs by setting
+// maxUnavailable explicitly.
+func pdbTestOptIn(cluster *ackov1alpha1.AerospikeCluster) *ackov1alpha1.AerospikeCluster {
+	for i := range cluster.Spec.RackConfig.Racks {
+		mu := intstr.FromInt32(1)
+		cluster.Spec.RackConfig.Racks[i].MaxUnavailable = &mu
+	}
+	return cluster
+}
+
 func pdbTestReconciler(t *testing.T, cluster *ackov1alpha1.AerospikeCluster) *AerospikeClusterReconciler {
 	t.Helper()
 	scheme := pdbTestScheme(t)
@@ -86,42 +92,6 @@ func getPDB(t *testing.T, r *AerospikeClusterReconciler, name string) (*policyv1
 	default:
 		t.Fatalf("Get PDB %s: %v", name, err)
 		return nil, false
-	}
-}
-
-// TestReconcilePDB_MultiRackCreatesOnePDBPerRack is the regression test: pre-fix
-// only the cluster-wide PDB existed, so both per-rack lookups came back missing.
-func TestReconcilePDB_MultiRackCreatesOnePDBPerRack(t *testing.T) {
-	cluster := pdbTestCR(6, 1, 2, 3)
-	r := pdbTestReconciler(t, cluster)
-
-	if err := r.reconcilePDB(context.Background(), cluster); err != nil {
-		t.Fatalf("reconcilePDB() error = %v", err)
-	}
-
-	for _, rackID := range []int{1, 2, 3} {
-		name := utils.RackPDBName(pdbTestCluster, rackID)
-		pdb, ok := getPDB(t, r, name)
-		if !ok {
-			t.Fatalf("PDB %s was not created; a cluster-wide PDB cannot stop a drain "+
-				"from taking every pod of one rack", name)
-		}
-		// The rack label is what makes the budget per-rack.
-		want := utils.LabelsForRack(pdbTestCluster, rackID)
-		got := pdb.Spec.Selector.MatchLabels
-		for k, v := range want {
-			if got[k] != v {
-				t.Errorf("PDB %s selector[%q] = %q, want %q (selector: %v)", name, k, got[k], v, got)
-			}
-		}
-		if got[utils.RackLabel] == "" {
-			t.Errorf("PDB %s selector has no rack label; it would constrain the whole cluster", name)
-		}
-	}
-
-	// The cluster-wide PDB must be gone, or two budgets constrain the same pods.
-	if _, ok := getPDB(t, r, utils.PDBName(pdbTestCluster)); ok {
-		t.Error("cluster-wide PDB still present alongside per-rack PDBs")
 	}
 }
 
@@ -286,7 +256,7 @@ func TestDefaultMaxUnavailable_NoLayoutBlocksDisruption(t *testing.T) {
 // spec does not leave a budget behind constraining evictions for pods that no
 // longer exist.
 func TestReconcilePDB_RemovedRackPDBIsCleanedUp(t *testing.T) {
-	cluster := pdbTestCR(6, 1, 2, 3)
+	cluster := pdbTestOptIn(pdbTestCR(6, 1, 2, 3))
 	r := pdbTestReconciler(t, cluster)
 	if err := r.reconcilePDB(context.Background(), cluster); err != nil {
 		t.Fatalf("reconcilePDB() error = %v", err)
@@ -315,7 +285,7 @@ func TestReconcilePDB_RemovedRackPDBIsCleanedUp(t *testing.T) {
 // TestReconcilePDB_SwitchingToSingleRackRemovesRackPDBs covers the reverse
 // topology change, so a shrink to one rack does not leave stale per-rack budgets.
 func TestReconcilePDB_SwitchingToSingleRackRemovesRackPDBs(t *testing.T) {
-	cluster := pdbTestCR(6, 1, 2)
+	cluster := pdbTestOptIn(pdbTestCR(6, 1, 2))
 	r := pdbTestReconciler(t, cluster)
 	if err := r.reconcilePDB(context.Background(), cluster); err != nil {
 		t.Fatalf("reconcilePDB() error = %v", err)
@@ -339,7 +309,7 @@ func TestReconcilePDB_SwitchingToSingleRackRemovesRackPDBs(t *testing.T) {
 // TestReconcilePDB_DisablePDBRemovesEveryBudget pins that spec.disablePDB still
 // clears everything now that there can be more than one PDB.
 func TestReconcilePDB_DisablePDBRemovesEveryBudget(t *testing.T) {
-	cluster := pdbTestCR(6, 1, 2)
+	cluster := pdbTestOptIn(pdbTestCR(6, 1, 2))
 	r := pdbTestReconciler(t, cluster)
 	if err := r.reconcilePDB(context.Background(), cluster); err != nil {
 		t.Fatalf("reconcilePDB() error = %v", err)
@@ -389,8 +359,8 @@ func TestReconcilePDB_DoesNotHijackAnotherClustersPDB(t *testing.T) {
 		},
 	}
 
-	// "demo" is multi-rack, so it wants a per-rack PDB named demo-1-pdb.
-	cluster := pdbTestCR(6, 1, 2)
+	// "demo" is multi-rack and opted in, so it wants a per-rack PDB named demo-1-pdb.
+	cluster := pdbTestOptIn(pdbTestCR(6, 1, 2))
 	scheme := pdbTestScheme(t)
 	recorder := record.NewFakeRecorder(16)
 	r := &AerospikeClusterReconciler{

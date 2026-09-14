@@ -145,9 +145,47 @@ func (r *AerospikeClusterReconciler) effectivePDBPolicy(
 	if rack != nil && rack.MaxUnavailable != nil {
 		configured = rack.MaxUnavailable
 	}
+	return resolvePDBPolicy(configured, r.defaultMaxUnavailable(cluster, rack), rackSize)
+}
 
+// clusterPDBPolicy resolves the budget for the single cluster-wide PDB.
+//
+// The default is the SMALLEST per-rack default across every rack, because each
+// rack may override replication-factor and the one cluster-wide budget has to
+// hold for the least-replicated namespace anywhere in the cluster.
+//
+// A single-rack cluster may still carry rack.maxUnavailable on its only rack;
+// that governs the only PDB there is, as it always has.
+func (r *AerospikeClusterReconciler) clusterPDBPolicy(
+	cluster *ackov1alpha1.AerospikeCluster,
+	racks []ackov1alpha1.Rack,
+) pdbPolicy {
+	configured := cluster.Spec.MaxUnavailable
+	if len(racks) == 1 && racks[0].MaxUnavailable != nil {
+		configured = racks[0].MaxUnavailable
+	}
+
+	defaultMU := int32(0)
+	for i := range racks {
+		if mu := r.defaultMaxUnavailable(cluster, &racks[i]); defaultMU == 0 || mu < defaultMU {
+			defaultMU = mu
+		}
+	}
+	if defaultMU < 1 {
+		defaultMU = 1
+	}
+
+	// The clamp is measured against the whole cluster here, since this PDB
+	// selects every pod in it.
+	return resolvePDBPolicy(configured, defaultMU, cluster.Spec.Size)
+}
+
+// resolvePDBPolicy turns a configured value (or the derived default) into the
+// budget written to a PodDisruptionBudget, clamped against the pod count the
+// budget protects.
+func resolvePDBPolicy(configured *intstr.IntOrString, defaultMU, size int32) pdbPolicy {
 	if configured == nil {
-		mu := intstr.FromInt32(r.defaultMaxUnavailable(cluster, rack))
+		mu := intstr.FromInt32(defaultMU)
 		return pdbPolicy{MaxUnavailable: &mu}
 	}
 
@@ -160,8 +198,8 @@ func (r *AerospikeClusterReconciler) effectivePDBPolicy(
 	}
 
 	capped := configured.IntVal
-	if rackSize > 1 && capped > rackSize-1 {
-		capped = rackSize - 1
+	if size > 1 && capped > size-1 {
+		capped = size - 1
 	}
 	if capped < 0 {
 		capped = 0
@@ -170,46 +208,75 @@ func (r *AerospikeClusterReconciler) effectivePDBPolicy(
 	return pdbPolicy{MaxUnavailable: &value}
 }
 
+// anyRackSetsMaxUnavailable reports whether at least one rack opts in to
+// per-rack PodDisruptionBudgets by setting rack.maxUnavailable explicitly.
+func anyRackSetsMaxUnavailable(racks []ackov1alpha1.Rack) bool {
+	for i := range racks {
+		if racks[i].MaxUnavailable != nil {
+			return true
+		}
+	}
+	return false
+}
+
 // reconcilePDB reconciles the cluster's PodDisruptionBudget(s).
 //
-// A multi-rack cluster gets ONE PDB PER RACK. A single cluster-wide PDB counts
-// disruptions across every rack, so with 3 racks of 2 pods and maxUnavailable=1
-// Kubernetes permits one eviction cluster-wide — but nothing stops a drain from
-// taking both pods of the SAME rack in sequence as each eviction is allowed in
-// turn, leaving that rack with nothing. Per-rack budgets make the constraint
-// per-rack, which is what rack-awareness is for (#94).
+// The cluster gets ONE cluster-wide PDB by default, whatever its rack topology.
+// Per-rack PDBs are opt-in: they appear only when at least one rack sets
+// rack.maxUnavailable.
 //
-// A single-rack cluster keeps the cluster-wide PDB it has today, same name and
-// same selector, so nothing changes for the common case.
+// Per-rack budgets were the default for a while (#370) on the argument that a
+// drain could otherwise empty a single rack. That argument presumes a rack is a
+// data-placement unit, and on CE it is not: `rack-id` in a namespace is rejected
+// as Enterprise-only and internal/configgen never emits one, so both copies of a
+// partition can land on any two nodes regardless of rack. Meanwhile Kubernetes
+// evaluates PDBs with disjoint selectors independently, so N per-rack budgets of
+// replication-factor-1 let N x (replication-factor-1) pods be evicted at once —
+// a 6-node, 3-rack, RF=2 cluster allowed three simultaneous evictions, enough to
+// take both copies of a partition offline. A cross-selector bound is not
+// expressible in a PDB, and a pod matched by two PDBs makes the Eviction API
+// refuse, so one cluster-wide PDB is the only shape that states the real limit.
 func (r *AerospikeClusterReconciler) reconcilePDB(
 	ctx context.Context,
 	cluster *ackov1alpha1.AerospikeCluster,
 ) error {
+	log := logf.FromContext(ctx)
 	racks := r.getRacks(cluster)
-	perRack := len(racks) > 1
+	perRack := len(racks) > 1 && anyRackSetsMaxUnavailable(racks)
 
 	if cluster.Spec.DisablePDB != nil && *cluster.Spec.DisablePDB {
 		return r.deleteAllPDBs(ctx, cluster)
 	}
 
 	if !perRack {
-		// Single rack: cluster-wide PDB, unchanged in name and selector. Any
-		// per-rack PDBs left over from a multi-rack topology are removed.
+		// One cluster-wide PDB, unchanged in name and selector. Per-rack PDBs
+		// left over from an opt-in that was withdrawn — or from an operator
+		// version that made them the default — are removed, which is also what
+		// makes the upgrade from v1.11.x self-healing.
 		if err := r.deleteRackPDBs(ctx, cluster, nil); err != nil {
 			return err
 		}
-		rackSize := r.getRackSize(cluster, racks, 0)
 		return r.reconcileOnePDB(ctx, cluster,
 			utils.PDBName(cluster.Name),
 			utils.SelectorLabelsForCluster(cluster.Name),
-			r.effectivePDBPolicy(cluster, &racks[0], rackSize))
+			r.clusterPDBPolicy(cluster, racks))
 	}
 
-	// Multi-rack: one PDB per rack. The cluster-wide PDB is removed so the two
-	// do not both constrain the same pods with different budgets.
+	// Opt-in: one PDB per rack. The cluster-wide PDB is removed so no pod is
+	// matched by two PDBs, which the Eviction API rejects outright.
 	if err := r.deleteClusterPDB(ctx, cluster); err != nil {
 		return err
 	}
+
+	// Say the consequence out loud: with independent per-rack budgets the
+	// cluster's concurrent-eviction bound is their SUM, not any single number.
+	log.Info("Per-rack PodDisruptionBudgets are in effect; the cluster-wide concurrent-eviction "+
+		"bound is the SUM of the racks' maxUnavailable", "racks", len(racks))
+	r.Recorder.Eventf(cluster, corev1.EventTypeWarning, EventPDBPerRackBudget,
+		"A rack sets maxUnavailable, so this cluster has one PodDisruptionBudget per rack (%d racks). "+
+			"Kubernetes evaluates them independently, so the cluster-wide concurrent-eviction bound "+
+			"is the SUM of the racks' budgets. Unset rack.maxUnavailable for a single cluster-wide budget.",
+		len(racks))
 
 	keep := make(map[string]bool, len(racks))
 	for i := range racks {

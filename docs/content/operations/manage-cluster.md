@@ -915,20 +915,28 @@ When using HPA, avoid manually changing `spec.size` — let the autoscaler manag
 
 The operator creates PodDisruptionBudgets so voluntary disruption — a node drain, a cluster upgrade — cannot take out more of the cluster than it can survive.
 
-### One PDB per rack
+### One cluster-wide PDB
 
 | Topology | PDBs created |
 |---|---|
-| Single rack (no `rackConfig`, or one rack) | one cluster-wide PDB, `<cluster>-pdb` |
-| Multi-rack | one PDB per rack, `<cluster>-<rackID>-pdb` |
+| Any cluster, no `rack.maxUnavailable` set | one cluster-wide PDB, `<cluster>-pdb` |
+| Multi-rack, at least one rack sets `maxUnavailable` | one PDB per rack, `<cluster>-<rackID>-pdb` |
 
-A single cluster-wide PDB counts disruptions across every rack. With 3 racks of 2 pods and `maxUnavailable: 1`, Kubernetes allows one eviction at a time — but nothing constrains *which* pods, so a drain can take both pods of the same rack in sequence and leave that rack with nothing. Per-rack budgets make the constraint per-rack.
+The default is one budget for the whole cluster, whatever the rack topology.
 
-PDBs for racks removed from `spec.rackConfig.racks` are deleted, and switching between single-rack and multi-rack swaps between the two shapes.
+Kubernetes evaluates PodDisruptionBudgets with disjoint selectors **independently**. One budget per rack therefore does not bound the cluster — the cluster's real concurrent-eviction limit becomes the *sum* across racks. Three racks each allowing one eviction allow three at once, which on `replication-factor: 2` is enough to take both copies of a partition offline during a node-pool upgrade, an autoscaler consolidation, or parallel drains.
+
+Per-rack budgets would still be the right shape if a rack were a data-placement unit, but on Community Edition it is not: `rack-id` inside a namespace is Enterprise-only and rejected by the webhook, and the operator never emits one. A rack here is a scheduling topology (zone, region, node label), so both copies of a partition can sit on any two nodes regardless of rack. A PDB cannot express a bound across selectors, and a pod matched by two PDBs makes the Eviction API refuse, so the single cluster-wide budget is the only shape that states a real limit.
+
+PDBs for racks removed from `spec.rackConfig.racks` are deleted, and switching between the cluster-wide and the per-rack shape cleans up the other one.
+
+:::note Upgrading from 1.11.x
+1.11.0 and 1.11.1 created one PDB per rack by default. On upgrade the operator deletes those `<cluster>-<rackID>-pdb` objects and recreates `<cluster>-pdb` on the next reconcile — no CR change needed. If you deliberately want per-rack budgets back, set `maxUnavailable` on a rack (see below).
+:::
 
 ### Default: replication-factor − 1
 
-With no `maxUnavailable` set, each PDB allows `replication-factor - 1` evictions — the number of nodes Aerospike can lose at once without a partition becoming unavailable.
+With no `maxUnavailable` set, the PDB allows `replication-factor - 1` evictions — the number of nodes Aerospike can lose at once without a partition becoming unavailable.
 
 | replication-factor | Evictions allowed |
 |---|---|
@@ -937,10 +945,10 @@ With no `maxUnavailable` set, each PDB allows `replication-factor - 1` evictions
 | 3 | 2 |
 | 4 | 3 |
 
-The factor is read from `spec.aerospikeConfig.namespaces[].replication-factor`, taking the **smallest** across namespaces, since the least-replicated namespace is the binding constraint. A rack that overrides `aerospikeConfig` is measured against its own effective config.
+The factor is read from `spec.aerospikeConfig.namespaces[].replication-factor`, taking the **smallest** across namespaces, since the least-replicated namespace is the binding constraint. A rack that overrides `aerospikeConfig` is measured against its own effective config, and the cluster-wide budget takes the smallest result across every rack.
 
 :::note Why not a majority rule
-A Raft-style `minAvailable = rackSize/2 + 1` does not map onto Aerospike CE, which has no quorum — strong consistency is Enterprise-only. It also deadlocks in practice: `spec.size` is divided across racks, so a large cluster still has small racks, and with CE's 8-node cap a 3-rack cluster tops out at 3/3/2. The rack of 2 would be allowed zero evictions, blocking `kubectl drain`, cluster-autoscaler node recycling and managed node-pool upgrades on the canonical one-rack-per-zone topology this feature exists to serve.
+A Raft-style `minAvailable = rackSize/2 + 1` does not map onto Aerospike CE, which has no quorum — strong consistency is Enterprise-only. It also deadlocks in practice: `spec.size` is divided across racks, so a large cluster still has small racks, and with CE's 8-node cap a 3-rack cluster tops out at 3/3/2. The rack of 2 would be allowed zero evictions, blocking `kubectl drain`, cluster-autoscaler node recycling and managed node-pool upgrades on the canonical one-rack-per-zone topology.
 :::
 
 :::warning replication-factor 1 has nothing to protect
@@ -956,15 +964,28 @@ A PodDisruptionBudget only governs the Kubernetes **Eviction** API — `kubectl 
 ```yaml
 spec:
   maxUnavailable: 1         # Can be integer or percentage string like "25%"
+```
+
+`spec.maxUnavailable` sets the cluster-wide budget, replacing the `replication-factor - 1` default.
+
+A value that would allow **every** pod it protects to be evicted at once is rejected at admission — `maxUnavailable: 3` on a 3-pod cluster or rack, or any percentage at or above 100%. That is not a budget. To opt out of disruption protection, use `spec.disablePDB: true` explicitly.
+
+### Opting in to per-rack budgets
+
+```yaml
+spec:
   rackConfig:
     racks:
       - id: 1
-        maxUnavailable: 2   # Overrides spec.maxUnavailable for this rack only
+        maxUnavailable: 1   # switches the WHOLE cluster to one PDB per rack
+      - id: 2               # no maxUnavailable: gets replication-factor - 1
 ```
 
-Precedence: `rack.maxUnavailable` > `spec.maxUnavailable` > the `replication-factor - 1` default.
+Setting `maxUnavailable` on any rack switches the whole cluster to one PDB per rack. Racks that leave it unset fall back to `spec.maxUnavailable`, then to `replication-factor - 1` measured against that rack's effective config.
 
-A value that would allow **every** pod it protects to be evicted at once is rejected at admission — `maxUnavailable: 3` on a 3-pod rack, or any percentage at or above 100%. That is not a budget. To opt out of disruption protection, use `spec.disablePDB: true` explicitly.
+:::warning The cluster-wide bound becomes the sum
+With per-rack budgets, the number of pods Kubernetes will let you evict at once across the cluster is the **sum** of the racks' budgets. The operator emits a `PDBPerRackBudget` warning event saying so on every reconcile while this is in effect. Choose it only when an external system needs a per-rack constraint and you have accounted for the aggregate yourself.
+:::
 
 ### Disable PDB
 
@@ -1218,6 +1239,7 @@ kubectl get events --field-selector involvedObject.kind=AerospikeCluster -n aero
 | `ACLSyncError` | Warning | ACL synchronization encountered an error |
 | `PDBCreated` | Normal | PodDisruptionBudget created |
 | `PDBUpdated` | Normal | PodDisruptionBudget updated |
+| `PDBPerRackBudget` | Warning | A rack sets `maxUnavailable`, so budgets are per-rack and the cluster-wide eviction bound is their sum |
 | `ServiceCreated` | Normal | Headless service created |
 | `ServiceUpdated` | Normal | Headless service updated |
 | `ClusterDeletionStarted` | Normal | Cluster teardown began (finalizer active) |

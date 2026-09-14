@@ -45,6 +45,12 @@ const (
 	// names can collide across clusters in one namespace — RackPDBName("demo", 1)
 	// and PDBName("demo-1") are both "demo-1-pdb".
 	EventPDBNameConflict = "PDBNameConflict"
+	// EventPDBPerRackBudget is emitted when a rack opts in to per-rack
+	// PodDisruptionBudgets by setting rack.maxUnavailable. Kubernetes evaluates
+	// PDBs with disjoint selectors independently, so the cluster's real
+	// concurrent-eviction bound becomes the SUM across racks rather than a single
+	// cluster-wide number.
+	EventPDBPerRackBudget = "PDBPerRackBudget"
 
 	// Service management
 	EventServiceCreated = "ServiceCreated"

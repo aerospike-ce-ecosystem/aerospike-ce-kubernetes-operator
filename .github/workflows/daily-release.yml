@@ -91,16 +91,23 @@ jobs:
         run: |
           set -euo pipefail
           NEXT="${{ steps.version.outputs.next_version }}"
+
+          # Stage exactly what the script rewrites. Hard-coding `charts/` here
+          # dropped the chart pin the script also rewrites in the translated
+          # install guide, so every auto-bump left `make helm-check-version`
+          # (Lint CI) red on main until a human re-synced the docs by hand.
+          mapfile -t BUMPED < <(bash hack/helm-set-version.sh --print-files)
+
           bash hack/helm-set-version.sh "${NEXT}"
 
-          if git diff --quiet -- charts/; then
+          if git diff --quiet -- "${BUMPED[@]}"; then
             echo "Chart already at ${NEXT}; nothing to commit."
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add charts/
+          git add -- "${BUMPED[@]}"
           git commit -m "chore(chart): bump chart version to ${NEXT#v}"
           git push origin HEAD:main
 

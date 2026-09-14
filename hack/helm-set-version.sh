@@ -10,15 +10,31 @@
 #
 # Usage:
 #   hack/helm-set-version.sh 1.10.3
-#   hack/helm-set-version.sh v1.10.3   # leading v is stripped
+#   hack/helm-set-version.sh v1.10.3     # leading v is stripped
+#   hack/helm-set-version.sh --print-files
+#
+# --print-files prints, one per line, every repo-root-relative path this script
+# rewrites, and changes nothing. .github/workflows/daily-release.yml stages that
+# list after a bump: it used to hard-code `git add charts/`, which dropped the
+# chart pin this script also rewrites in the translated install guide and left
+# `make helm-check-version` red on main after every auto-bump.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CHART_DIR="${REPO_ROOT}/charts/aerospike-ce-kubernetes-operator"
 CRDS_CHART_DIR="${REPO_ROOT}/charts/aerospike-ce-kubernetes-operator-crds"
 
+# VERSIONED_DOCS / VERSIONED_PATHS — shared with hack/helm-check-version.sh.
+# shellcheck source=hack/helm-versioned-files.sh
+source "${REPO_ROOT}/hack/helm-versioned-files.sh"
+
+if [[ $# -eq 1 && "$1" == "--print-files" ]]; then
+  printf '%s\n' "${VERSIONED_PATHS[@]}"
+  exit 0
+fi
+
 if [[ $# -ne 1 ]]; then
-  echo "usage: $0 <version>" >&2
+  echo "usage: $0 <version>|--print-files" >&2
   exit 2
 fi
 
@@ -57,9 +73,8 @@ sed_inplace "/name: aerospike-ce-kubernetes-operator-crds/{n;s/version: \".*\"/v
 #    the docs installs a stale chart just as surely as a stale in-repo Chart.yaml
 #    does, so the pins move with the chart. The patterns are anchored to the flag
 #    or key that carries a chart version, never to a bare version string.
-for doc in \
-  "${CHART_DIR}/README.md" \
-  "${REPO_ROOT}/docs/i18n/ko/docusaurus-plugin-content-docs/current/getting-started/install.md"; do
+for rel in "${VERSIONED_DOCS[@]}"; do
+  doc="${REPO_ROOT}/${rel}"
   [[ -f "${doc}" ]] || continue
   sed_inplace -E "s/--version [0-9]+\.[0-9]+\.[0-9]+/--version ${VERSION}/g" "${doc}"
   sed_inplace -E "s/targetRevision: \"[0-9]+\.[0-9]+\.[0-9]+\"/targetRevision: \"${VERSION}\"/g" "${doc}"

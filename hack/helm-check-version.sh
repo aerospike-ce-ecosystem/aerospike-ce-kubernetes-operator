@@ -2,7 +2,7 @@
 # helm-check-version.sh: Fail when the in-repo Helm chart no longer describes the
 # operator this repo actually ships.
 #
-# Three assertions, in order of how loudly they fail for a user:
+# Four assertions, in order of how loudly they fail for a user:
 #
 #   1. The rendered operator image tag equals the chart appVersion. This is the
 #      user-visible symptom of #347: `helm install ./charts/...` deployed a 1.3.1
@@ -11,11 +11,14 @@
 #      chart's version and appVersion, the CRD sub-chart's version and appVersion,
 #      the dependency pin, Chart.lock, and the vendored sub-chart .tgz filename.
 #      This is what actually rots: bumping one and forgetting the rest.
-#   3. The chart version is not OLDER than the latest published release. Ahead is
+#   3. The release workflow stages every file hack/helm-set-version.sh rewrites,
+#      so an auto-bump cannot commit the chart while dropping the docs pin and
+#      leaving assertion 2 red on main.
+#   4. The chart version is not OLDER than the latest published release. Ahead is
 #      fine (the release commit bumps the chart before the tag exists); behind
 #      means the documented local install ships a stale operator.
 #
-# Assertion 3 needs the latest release tag. CI passes it in via
+# Assertion 4 needs the latest release tag. CI passes it in via
 # LATEST_RELEASE_TAG; locally the script falls back to `gh` and then to git tags,
 # and warns rather than failing if it cannot resolve one offline.
 set -euo pipefail
@@ -23,10 +26,22 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CHART_DIR="${REPO_ROOT}/charts/aerospike-ce-kubernetes-operator"
 CRDS_CHART_DIR="${REPO_ROOT}/charts/aerospike-ce-kubernetes-operator-crds"
+RELEASE_WORKFLOW="${REPO_ROOT}/.github/workflows/daily-release.yml"
+
+# VERSIONED_DOCS / VERSIONED_PATHS — shared with hack/helm-set-version.sh so the
+# checker can never end up looking at a different set of files than the rewriter.
+# shellcheck source=hack/helm-versioned-files.sh
+source "${REPO_ROOT}/hack/helm-versioned-files.sh"
 
 fail() {
   echo "ERROR: $*" >&2
   echo "       Run 'make helm-set-version VERSION=<x.y.z>' to re-sync the chart." >&2
+  exit 1
+}
+
+# die reports a problem that re-running helm-set-version.sh cannot fix.
+die() {
+  echo "ERROR: $*" >&2
   exit 1
 }
 
@@ -94,9 +109,8 @@ echo "OK: chart version ${CHART_VERSION} is consistent across Chart.yaml, Chart.
 # --- 3. Documented chart-version pins match ---------------------------------
 # `helm install oci://... --version 1.3.1` in the docs installs a stale chart
 # whatever Chart.yaml says, so the pins are checked too.
-for doc in \
-  "${CHART_DIR}/README.md" \
-  "${REPO_ROOT}/docs/i18n/ko/docusaurus-plugin-content-docs/current/getting-started/install.md"; do
+for rel in "${VERSIONED_DOCS[@]}"; do
+  doc="${REPO_ROOT}/${rel}"
   [[ -f "${doc}" ]] || continue
   stale="$(grep -nE -- "(--version|targetRevision:|version:)[[:space:]]*\"?[0-9]+\.[0-9]+\.[0-9]+\"?" "${doc}" |
     grep -v "${CHART_VERSION}" || true)"
@@ -107,7 +121,24 @@ for doc in \
 done
 echo "OK: documented chart-version pins are all ${CHART_VERSION}"
 
-# --- 4. Not older than the latest release -----------------------------------
+# --- 4. The release workflow stages every file the bump rewrites ------------
+# The daily release bump step used to `git add charts/` while helm-set-version.sh
+# also rewrites the translated install guide, so the docs pin was dropped on
+# every auto-bump and assertion 3 above went red on main until someone noticed.
+# Assert the workflow takes its staging list from the script instead of naming
+# paths itself, so the two cannot drift apart again.
+if [[ -f "${RELEASE_WORKFLOW}" ]]; then
+  workflow_rel="${RELEASE_WORKFLOW#"${REPO_ROOT}/"}"
+  if ! grep -q -- "helm-set-version.sh --print-files" "${RELEASE_WORKFLOW}"; then
+    die "${workflow_rel} must stage the paths reported by 'hack/helm-set-version.sh --print-files'; hard-coding a subset silently drops the pins in $(printf '%s ' "${VERSIONED_DOCS[@]}")"
+  fi
+  if grep -nE '^[[:space:]]*git (add|diff)[^|]*[[:space:]](charts|docs)/' "${RELEASE_WORKFLOW}" >&2; then
+    die "${workflow_rel} hard-codes chart/docs paths (lines above); stage \"\${VERSIONED_PATHS[@]}\" from 'hack/helm-set-version.sh --print-files' instead"
+  fi
+  echo "OK: ${workflow_rel} stages every path helm-set-version.sh rewrites"
+fi
+
+# --- 5. Not older than the latest release -----------------------------------
 LATEST="${LATEST_RELEASE_TAG:-}"
 if [[ -z "${LATEST}" ]] && command -v gh >/dev/null 2>&1; then
   LATEST="$(gh release view --json tagName -q .tagName 2>/dev/null || true)"

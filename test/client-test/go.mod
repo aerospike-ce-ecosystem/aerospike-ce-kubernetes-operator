@@ -2,7 +2,7 @@ module github.com/aerospike-ce-ecosystem/aerospike-ce-kubernetes-operator/test/c
 
 go 1.25
 
-require github.com/aerospike/aerospike-client-go/v8 v8.8.0
+require github.com/aerospike/aerospike-client-go/v8 v8.9.0
 
 require (
 	github.com/kr/pretty v0.3.1 // indirect
